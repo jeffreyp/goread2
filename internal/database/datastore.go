@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"cloud.google.com/go/datastore"
