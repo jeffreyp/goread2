@@ -1,0 +1,23 @@
+runtime: go121
+
+env_variables:
+  GIN_MODE: release
+
+handlers:
+- url: /static
+  static_dir: web/static
+  secure: always
+
+- url: /.*
+  script: auto
+  secure: always
+
+automatic_scaling:
+  min_instances: 0
+  max_instances: 10
+  target_cpu_utilization: 0.6
+
+resources:
+  cpu: 1
+  memory_gb: 0.5
+  disk_size_gb: 10

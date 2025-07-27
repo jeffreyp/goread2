@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">GoRead2</h1>
+                <div class="header-actions">
+                    <button id="refresh-btn" class="btn btn-primary">Refresh</button>
+                    <button id="add-feed-btn" class="btn btn-secondary">Add Feed</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-container">
+            <!-- Left Pane: Feed List -->
+            <div class="feed-pane">
+                <div class="pane-header">
+                    <h2>Feeds</h2>
+                </div>
+                <div class="feed-list" id="feed-list">
+                    <div class="feed-item special" data-feed-id="all">
+                        <span class="feed-title">All Articles</span>
+                        <span class="unread-count" id="all-unread-count">0</span>
+                    </div>
+                    <!-- Feeds will be dynamically populated here -->
+                </div>
+            </div>
+
+            <!-- Center Pane: Article List -->
+            <div class="article-pane">
+                <div class="pane-header">
+                    <h2 id="article-pane-title">Select a feed</h2>
+                </div>
+                <div class="article-list" id="article-list">
+                    <!-- Articles will be dynamically populated here -->
+                </div>
+            </div>
+
+            <!-- Right Pane: Article Content -->
+            <div class="content-pane">
+                <div class="pane-header">
+                    <h2 id="content-pane-title">Select an article</h2>
+                </div>
+                <div class="article-content" id="article-content">
+                    <div class="placeholder">
+                        <p>Welcome to GoRead2!</p>
+                        <p>Select a feed from the left panel to view articles, then click on an article to read it here.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Feed Modal -->
+    <div id="add-feed-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add RSS Feed</h2>
+            <form id="add-feed-form">
+                <div class="form-group">
+                    <label for="feed-url">RSS Feed URL:</label>
+                    <input type="url" id="feed-url" name="url" required placeholder="https://example.com/rss">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Add Feed</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-add-feed">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
