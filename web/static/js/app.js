@@ -4,14 +4,35 @@ class GoReadApp {
         this.currentArticle = null;
         this.feeds = [];
         this.articles = [];
+        this.user = null;
         
         this.init();
     }
 
-    init() {
-        this.bindEvents();
-        this.loadFeeds();
-        this.setupKeyboardShortcuts();
+    async init() {
+        await this.checkAuth();
+        if (this.user) {
+            this.bindEvents();
+            this.loadFeeds();
+            this.setupKeyboardShortcuts();
+            this.showApp();
+        } else {
+            this.showLogin();
+        }
+    }
+
+    async checkAuth() {
+        try {
+            const response = await fetch('/auth/me');
+            if (response.ok) {
+                const data = await response.json();
+                this.user = data.user;
+                return true;
+            }
+        } catch (error) {
+            console.log('Not authenticated:', error);
+        }
+        return false;
     }
 
     bindEvents() {
@@ -444,6 +465,78 @@ class GoReadApp {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Authentication methods
+    showLogin() {
+        document.getElementById('app').style.display = 'none';
+        this.showLoginScreen();
+    }
+
+    showApp() {
+        document.getElementById('login-screen')?.remove();
+        document.getElementById('app').style.display = 'block';
+        this.updateUserInfo();
+    }
+
+    showLoginScreen() {
+        const loginScreen = document.createElement('div');
+        loginScreen.id = 'login-screen';
+        loginScreen.innerHTML = `
+            <div class="login-container">
+                <h1>GoRead2</h1>
+                <p>Sign in with Google to access your RSS feeds</p>
+                <button id="google-login-btn" class="btn btn-primary">Sign in with Google</button>
+            </div>
+        `;
+        document.body.appendChild(loginScreen);
+
+        document.getElementById('google-login-btn').addEventListener('click', () => {
+            this.login();
+        });
+    }
+
+    async login() {
+        try {
+            const response = await fetch('/auth/login');
+            if (response.ok) {
+                const data = await response.json();
+                window.location.href = data.auth_url;
+            } else {
+                this.showError('Failed to start login process');
+            }
+        } catch (error) {
+            this.showError('Login failed: ' + error.message);
+        }
+    }
+
+    async logout() {
+        try {
+            await fetch('/auth/logout', { method: 'POST' });
+            this.user = null;
+            this.showLogin();
+        } catch (error) {
+            this.showError('Logout failed: ' + error.message);
+        }
+    }
+
+    updateUserInfo() {
+        if (this.user) {
+            // Update header with user info
+            const headerActions = document.querySelector('.header-actions');
+            const userInfo = document.createElement('div');
+            userInfo.className = 'user-info';
+            userInfo.innerHTML = `
+                <span class="user-name">${this.escapeHtml(this.user.name)}</span>
+                <img class="user-avatar" src="${this.user.avatar}" alt="User Avatar" width="32" height="32">
+                <button id="logout-btn" class="btn btn-secondary">Logout</button>
+            `;
+            headerActions.appendChild(userInfo);
+
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                this.logout();
+            });
+        }
     }
 }
 

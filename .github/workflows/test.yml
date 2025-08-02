@@ -1,0 +1,131 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        go-version: [1.21, 1.22, 1.23]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Set up test environment
+      run: |
+        echo "GOOGLE_CLIENT_ID=test_client_id" >> $GITHUB_ENV
+        echo "GOOGLE_CLIENT_SECRET=test_client_secret" >> $GITHUB_ENV
+        echo "GOOGLE_REDIRECT_URL=http://localhost:8080/auth/callback" >> $GITHUB_ENV
+
+    - name: Run unit tests
+      run: go test -race -coverprofile=coverage.out ./test/unit/...
+
+    - name: Run integration tests
+      run: go test -race ./test/integration/...
+
+    - name: Generate coverage report
+      run: go tool cover -html=coverage.out -o coverage.html
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report-go${{ matrix.go-version }}
+        path: coverage.html
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.23
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --timeout=5m
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.23
+
+    - name: Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-no-fail -fmt sarif -out results.sarif ./...'
+
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: results.sarif
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.23
+
+    - name: Build application
+      run: go build -v ./...
+
+    - name: Build for multiple platforms
+      run: |
+        GOOS=linux GOARCH=amd64 go build -o goread2-linux-amd64 .
+        GOOS=darwin GOARCH=amd64 go build -o goread2-darwin-amd64 .
+        GOOS=windows GOARCH=amd64 go build -o goread2-windows-amd64.exe .
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: binaries
+        path: |
+          goread2-linux-amd64
+          goread2-darwin-amd64
+          goread2-windows-amd64.exe

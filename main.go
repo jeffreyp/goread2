@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"goread2/internal/auth"
 	"goread2/internal/database"
 	"goread2/internal/handlers"
 	"goread2/internal/services"
@@ -17,8 +18,22 @@ func main() {
 		log.Fatal("Failed to initialize database:", err)
 	}
 
+	// Initialize services
 	feedService := services.NewFeedService(db)
+	authService := auth.NewAuthService(db)
+	sessionManager := auth.NewSessionManager(db)
+
+	// Validate OAuth configuration
+	if err := authService.ValidateConfig(); err != nil {
+		log.Fatal("OAuth configuration error:", err)
+	}
+
+	// Initialize handlers
 	feedHandler := handlers.NewFeedHandler(feedService)
+	authHandler := handlers.NewAuthHandler(authService, sessionManager)
+
+	// Initialize middleware
+	authMiddleware := auth.NewMiddleware(sessionManager)
 
 	// Set up Gin with appropriate settings for App Engine
 	if os.Getenv("GAE_ENV") == "standard" {
@@ -27,19 +42,31 @@ func main() {
 
 	r := gin.Default()
 	r.LoadHTMLGlob("web/templates/*")
-	
+
 	// Static files are handled by app.yaml in App Engine
 	if os.Getenv("GAE_ENV") != "standard" {
 		r.Static("/static", "./web/static")
 	}
 
+	// Public routes
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", gin.H{
 			"title": "GoRead2 - RSS Reader",
 		})
 	})
 
+	// Auth routes (public)
+	auth := r.Group("/auth")
+	{
+		auth.GET("/login", authHandler.Login)
+		auth.GET("/callback", authHandler.Callback)
+		auth.POST("/logout", authHandler.Logout)
+		auth.GET("/me", authMiddleware.OptionalAuth(), authHandler.Me)
+	}
+
+	// Protected API routes
 	api := r.Group("/api")
+	api.Use(authMiddleware.RequireAuth())
 	{
 		api.GET("/feeds", feedHandler.GetFeeds)
 		api.POST("/feeds", feedHandler.AddFeed)

@@ -9,20 +9,49 @@ import (
 )
 
 type Database interface {
+	// User methods
+	CreateUser(user *User) error
+	GetUserByGoogleID(googleID string) (*User, error)
+	GetUserByID(userID int) (*User, error)
+
+	// Feed methods
 	AddFeed(feed *Feed) error
 	GetFeeds() ([]Feed, error)
+	GetUserFeeds(userID int) ([]Feed, error)
 	DeleteFeed(id int) error
+	SubscribeUserToFeed(userID, feedID int) error
+	UnsubscribeUserFromFeed(userID, feedID int) error
+
+	// Article methods
 	AddArticle(article *Article) error
 	GetArticles(feedID int) ([]Article, error)
+	GetUserArticles(userID int) ([]Article, error)
+	GetUserFeedArticles(userID, feedID int) ([]Article, error)
+
+	// User article status methods
+	GetUserArticleStatus(userID, articleID int) (*UserArticle, error)
+	SetUserArticleStatus(userID, articleID int, isRead, isStarred bool) error
+	MarkUserArticleRead(userID, articleID int, isRead bool) error
+	ToggleUserArticleStar(userID, articleID int) error
+
+	// Legacy methods (for migration)
 	GetAllArticles() ([]Article, error)
-	MarkRead(articleID int, isRead bool) error
-	ToggleStar(articleID int) error
+
 	UpdateFeedLastFetch(feedID int, lastFetch time.Time) error
 	Close() error
 }
 
 type DB struct {
 	*sql.DB
+}
+
+type User struct {
+	ID        int       `json:"id"`
+	GoogleID  string    `json:"google_id"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	Avatar    string    `json:"avatar"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Feed struct {
@@ -49,11 +78,23 @@ type Article struct {
 	IsStarred   bool      `json:"is_starred"`
 }
 
+type UserFeed struct {
+	UserID int `json:"user_id"`
+	FeedID int `json:"feed_id"`
+}
+
+type UserArticle struct {
+	UserID    int  `json:"user_id"`
+	ArticleID int  `json:"article_id"`
+	IsRead    bool `json:"is_read"`
+	IsStarred bool `json:"is_starred"`
+}
+
 func InitDB() (Database, error) {
 	if projectID := os.Getenv("GOOGLE_CLOUD_PROJECT"); projectID != "" {
 		return NewDatastoreDB(projectID)
 	}
-	
+
 	db, err := sql.Open("sqlite3", "./goread2.db")
 	if err != nil {
 		return nil, err
@@ -72,6 +113,16 @@ func InitDB() (Database, error) {
 }
 
 func (db *DB) createTables() error {
+	usersTable := `
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		google_id TEXT UNIQUE NOT NULL,
+		email TEXT UNIQUE NOT NULL,
+		name TEXT NOT NULL,
+		avatar TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+
 	feedsTable := `
 	CREATE TABLE IF NOT EXISTS feeds (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,30 +145,35 @@ func (db *DB) createTables() error {
 		author TEXT,
 		published_at DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		is_read BOOLEAN DEFAULT FALSE,
-		is_starred BOOLEAN DEFAULT FALSE,
 		FOREIGN KEY (feed_id) REFERENCES feeds (id) ON DELETE CASCADE
 	);`
 
-	usersTable := `
-	CREATE TABLE IF NOT EXISTS users (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		username TEXT UNIQUE NOT NULL,
-		email TEXT UNIQUE NOT NULL,
-		password_hash TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	userFeedsTable := `
+	CREATE TABLE IF NOT EXISTS user_feeds (
+		user_id INTEGER NOT NULL,
+		feed_id INTEGER NOT NULL,
+		PRIMARY KEY (user_id, feed_id),
+		FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+		FOREIGN KEY (feed_id) REFERENCES feeds (id) ON DELETE CASCADE
 	);`
 
-	if _, err := db.Exec(feedsTable); err != nil {
-		return err
-	}
+	userArticlesTable := `
+	CREATE TABLE IF NOT EXISTS user_articles (
+		user_id INTEGER NOT NULL,
+		article_id INTEGER NOT NULL,
+		is_read BOOLEAN DEFAULT FALSE,
+		is_starred BOOLEAN DEFAULT FALSE,
+		PRIMARY KEY (user_id, article_id),
+		FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+		FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
+	);`
 
-	if _, err := db.Exec(articlesTable); err != nil {
-		return err
-	}
+	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable}
 
-	if _, err := db.Exec(usersTable); err != nil {
-		return err
+	for _, table := range tables {
+		if _, err := db.Exec(table); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -130,13 +186,13 @@ func (db *DB) Close() error {
 func (db *DB) AddFeed(feed *Feed) error {
 	query := `INSERT INTO feeds (title, url, description, created_at, updated_at, last_fetch) 
 			  VALUES (?, ?, ?, ?, ?, ?)`
-	
-	result, err := db.Exec(query, feed.Title, feed.URL, feed.Description, 
+
+	result, err := db.Exec(query, feed.Title, feed.URL, feed.Description,
 		feed.CreatedAt, feed.UpdatedAt, feed.LastFetch)
 	if err != nil {
 		return err
 	}
-	
+
 	id, err := result.LastInsertId()
 	if err != nil {
 		return err
@@ -177,17 +233,33 @@ func (db *DB) AddArticle(article *Article) error {
 	query := `INSERT OR IGNORE INTO articles 
 			  (feed_id, title, url, content, description, author, published_at, created_at) 
 			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	
-	_, err := db.Exec(query, article.FeedID, article.Title, article.URL, article.Content,
+
+	result, err := db.Exec(query, article.FeedID, article.Title, article.URL, article.Content,
 		article.Description, article.Author, article.PublishedAt, article.CreatedAt)
+	if err != nil {
+		return err
+	}
+
+	// Set the ID if this was a new insert
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	if id > 0 {
+		article.ID = int(id)
+	} else {
+		// Article already existed, fetch its ID
+		query = `SELECT id FROM articles WHERE url = ?`
+		err = db.QueryRow(query, article.URL).Scan(&article.ID)
+	}
 	return err
 }
 
 func (db *DB) GetArticles(feedID int) ([]Article, error) {
 	query := `SELECT id, feed_id, title, url, content, description, author, 
-			  published_at, created_at, is_read, is_starred 
+			  published_at, created_at 
 			  FROM articles WHERE feed_id = ? ORDER BY published_at DESC`
-	
+
 	rows, err := db.Query(query, feedID)
 	if err != nil {
 		return nil, err
@@ -199,10 +271,13 @@ func (db *DB) GetArticles(feedID int) ([]Article, error) {
 		var article Article
 		err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.URL,
 			&article.Content, &article.Description, &article.Author,
-			&article.PublishedAt, &article.CreatedAt, &article.IsRead, &article.IsStarred)
+			&article.PublishedAt, &article.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
+		// Default read/starred status to false for this basic method
+		article.IsRead = false
+		article.IsStarred = false
 		articles = append(articles, article)
 	}
 
@@ -211,12 +286,147 @@ func (db *DB) GetArticles(feedID int) ([]Article, error) {
 
 func (db *DB) GetAllArticles() ([]Article, error) {
 	query := `SELECT a.id, a.feed_id, a.title, a.url, a.content, a.description, a.author, 
-			  a.published_at, a.created_at, a.is_read, a.is_starred 
+			  a.published_at, a.created_at 
 			  FROM articles a 
 			  JOIN feeds f ON a.feed_id = f.id 
 			  ORDER BY a.published_at DESC`
-	
+
 	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var articles []Article
+	for rows.Next() {
+		var article Article
+		err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.URL,
+			&article.Content, &article.Description, &article.Author,
+			&article.PublishedAt, &article.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		// Default read/starred status to false for this basic method
+		article.IsRead = false
+		article.IsStarred = false
+		articles = append(articles, article)
+	}
+
+	return articles, nil
+}
+
+// Legacy single-user methods - deprecated in favor of multi-user methods
+// func (db *DB) MarkRead(articleID int, isRead bool) error {
+// 	// This method is deprecated - use MarkUserArticleRead instead
+// 	return fmt.Errorf("deprecated: use MarkUserArticleRead instead")
+// }
+
+// func (db *DB) ToggleStar(articleID int) error {
+// 	// This method is deprecated - use ToggleUserArticleStar instead
+// 	return fmt.Errorf("deprecated: use ToggleUserArticleStar instead")
+// }
+
+func (db *DB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) error {
+	query := `UPDATE feeds SET last_fetch = ? WHERE id = ?`
+	_, err := db.Exec(query, lastFetch, feedID)
+	return err
+}
+
+// User methods
+func (db *DB) CreateUser(user *User) error {
+	query := `INSERT INTO users (google_id, email, name, avatar, created_at) 
+			  VALUES (?, ?, ?, ?, ?)`
+
+	result, err := db.Exec(query, user.GoogleID, user.Email, user.Name, user.Avatar, user.CreatedAt)
+	if err != nil {
+		return err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	user.ID = int(id)
+	return nil
+}
+
+func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
+	query := `SELECT id, google_id, email, name, avatar, created_at FROM users WHERE google_id = ?`
+
+	var user User
+	err := db.QueryRow(query, googleID).Scan(&user.ID, &user.GoogleID, &user.Email,
+		&user.Name, &user.Avatar, &user.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (db *DB) GetUserByID(userID int) (*User, error) {
+	query := `SELECT id, google_id, email, name, avatar, created_at FROM users WHERE id = ?`
+
+	var user User
+	err := db.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
+		&user.Name, &user.Avatar, &user.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// User feed methods
+func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
+	query := `SELECT f.id, f.title, f.url, f.description, f.created_at, f.updated_at, f.last_fetch 
+			  FROM feeds f 
+			  JOIN user_feeds uf ON f.id = uf.feed_id 
+			  WHERE uf.user_id = ? 
+			  ORDER BY f.title`
+
+	rows, err := db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var feeds []Feed
+	for rows.Next() {
+		var feed Feed
+		err := rows.Scan(&feed.ID, &feed.Title, &feed.URL, &feed.Description,
+			&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch)
+		if err != nil {
+			return nil, err
+		}
+		feeds = append(feeds, feed)
+	}
+
+	return feeds, nil
+}
+
+func (db *DB) SubscribeUserToFeed(userID, feedID int) error {
+	query := `INSERT OR IGNORE INTO user_feeds (user_id, feed_id) VALUES (?, ?)`
+	_, err := db.Exec(query, userID, feedID)
+	return err
+}
+
+func (db *DB) UnsubscribeUserFromFeed(userID, feedID int) error {
+	query := `DELETE FROM user_feeds WHERE user_id = ? AND feed_id = ?`
+	_, err := db.Exec(query, userID, feedID)
+	return err
+}
+
+// User article methods
+func (db *DB) GetUserArticles(userID int) ([]Article, error) {
+	query := `SELECT a.id, a.feed_id, a.title, a.url, a.content, a.description, a.author, 
+			  a.published_at, a.created_at, 
+			  COALESCE(ua.is_read, 0) as is_read, 
+			  COALESCE(ua.is_starred, 0) as is_starred
+			  FROM articles a 
+			  JOIN user_feeds uf ON a.feed_id = uf.feed_id 
+			  LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
+			  WHERE uf.user_id = ? 
+			  ORDER BY a.published_at DESC`
+
+	rows, err := db.Query(query, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -237,20 +447,94 @@ func (db *DB) GetAllArticles() ([]Article, error) {
 	return articles, nil
 }
 
-func (db *DB) MarkRead(articleID int, isRead bool) error {
-	query := `UPDATE articles SET is_read = ? WHERE id = ?`
-	_, err := db.Exec(query, isRead, articleID)
+func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
+	query := `SELECT a.id, a.feed_id, a.title, a.url, a.content, a.description, a.author, 
+			  a.published_at, a.created_at, 
+			  COALESCE(ua.is_read, 0) as is_read, 
+			  COALESCE(ua.is_starred, 0) as is_starred
+			  FROM articles a 
+			  LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
+			  WHERE a.feed_id = ? 
+			  ORDER BY a.published_at DESC`
+
+	rows, err := db.Query(query, userID, feedID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var articles []Article
+	for rows.Next() {
+		var article Article
+		err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.URL,
+			&article.Content, &article.Description, &article.Author,
+			&article.PublishedAt, &article.CreatedAt, &article.IsRead, &article.IsStarred)
+		if err != nil {
+			return nil, err
+		}
+		articles = append(articles, article)
+	}
+
+	return articles, nil
+}
+
+// User article status methods
+func (db *DB) GetUserArticleStatus(userID, articleID int) (*UserArticle, error) {
+	query := `SELECT user_id, article_id, is_read, is_starred FROM user_articles 
+			  WHERE user_id = ? AND article_id = ?`
+
+	var userArticle UserArticle
+	err := db.QueryRow(query, userID, articleID).Scan(&userArticle.UserID, &userArticle.ArticleID,
+		&userArticle.IsRead, &userArticle.IsStarred)
+	if err != nil {
+		return nil, err
+	}
+	return &userArticle, nil
+}
+
+func (db *DB) SetUserArticleStatus(userID, articleID int, isRead, isStarred bool) error {
+	query := `INSERT OR REPLACE INTO user_articles (user_id, article_id, is_read, is_starred) 
+			  VALUES (?, ?, ?, ?)`
+	_, err := db.Exec(query, userID, articleID, isRead, isStarred)
 	return err
 }
 
-func (db *DB) ToggleStar(articleID int) error {
-	query := `UPDATE articles SET is_starred = NOT is_starred WHERE id = ?`
-	_, err := db.Exec(query, articleID)
+func (db *DB) MarkUserArticleRead(userID, articleID int, isRead bool) error {
+	// First check if record exists
+	var dummy int
+	checkQuery := `SELECT 1 FROM user_articles WHERE user_id = ? AND article_id = ?`
+	err := db.QueryRow(checkQuery, userID, articleID).Scan(&dummy)
+
+	if err == sql.ErrNoRows {
+		// Create new record
+		query := `INSERT INTO user_articles (user_id, article_id, is_read, is_starred) 
+				  VALUES (?, ?, ?, 0)`
+		_, err = db.Exec(query, userID, articleID, isRead)
+	} else if err == nil {
+		// Update existing record
+		query := `UPDATE user_articles SET is_read = ? WHERE user_id = ? AND article_id = ?`
+		_, err = db.Exec(query, isRead, userID, articleID)
+	}
+
 	return err
 }
 
-func (db *DB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) error {
-	query := `UPDATE feeds SET last_fetch = ? WHERE id = ?`
-	_, err := db.Exec(query, lastFetch, feedID)
+func (db *DB) ToggleUserArticleStar(userID, articleID int) error {
+	// First check if record exists
+	var currentStarred bool
+	checkQuery := `SELECT is_starred FROM user_articles WHERE user_id = ? AND article_id = ?`
+	err := db.QueryRow(checkQuery, userID, articleID).Scan(&currentStarred)
+
+	if err == sql.ErrNoRows {
+		// Create new record with starred = true
+		query := `INSERT INTO user_articles (user_id, article_id, is_read, is_starred) 
+				  VALUES (?, ?, 0, 1)`
+		_, err = db.Exec(query, userID, articleID)
+	} else if err == nil {
+		// Update existing record
+		query := `UPDATE user_articles SET is_starred = ? WHERE user_id = ? AND article_id = ?`
+		_, err = db.Exec(query, !currentStarred, userID, articleID)
+	}
+
 	return err
 }

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"goread2/internal/auth"
 	"goread2/internal/services"
 )
 
@@ -17,7 +18,13 @@ func NewFeedHandler(feedService *services.FeedService) *FeedHandler {
 }
 
 func (fh *FeedHandler) GetFeeds(c *gin.Context) {
-	feeds, err := fh.feedService.GetFeeds()
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	feeds, err := fh.feedService.GetUserFeeds(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -26,6 +33,12 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 }
 
 func (fh *FeedHandler) AddFeed(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
 	var req struct {
 		URL string `json:"url" binding:"required"`
 	}
@@ -35,7 +48,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 		return
 	}
 
-	feed, err := fh.feedService.AddFeed(req.URL)
+	feed, err := fh.feedService.AddFeedForUser(user.ID, req.URL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -61,9 +74,15 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 }
 
 func (fh *FeedHandler) GetArticles(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
 	idStr := c.Param("id")
 	if idStr == "all" {
-		articles, err := fh.feedService.GetAllArticles()
+		articles, err := fh.feedService.GetUserArticles(user.ID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -78,7 +97,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 		return
 	}
 
-	articles, err := fh.feedService.GetArticles(id)
+	articles, err := fh.feedService.GetUserFeedArticles(user.ID, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -88,6 +107,12 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 }
 
 func (fh *FeedHandler) MarkRead(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -104,7 +129,7 @@ func (fh *FeedHandler) MarkRead(c *gin.Context) {
 		return
 	}
 
-	if err := fh.feedService.MarkRead(id, req.IsRead); err != nil {
+	if err := fh.feedService.MarkUserArticleRead(user.ID, id, req.IsRead); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -113,6 +138,12 @@ func (fh *FeedHandler) MarkRead(c *gin.Context) {
 }
 
 func (fh *FeedHandler) ToggleStar(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -120,7 +151,7 @@ func (fh *FeedHandler) ToggleStar(c *gin.Context) {
 		return
 	}
 
-	if err := fh.feedService.ToggleStar(id); err != nil {
+	if err := fh.feedService.ToggleUserArticleStar(user.ID, id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

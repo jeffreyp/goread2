@@ -56,7 +56,7 @@ func (db *DatastoreDB) Close() error {
 
 func (db *DatastoreDB) AddFeed(feed *Feed) error {
 	ctx := context.Background()
-	
+
 	entity := &FeedEntity{
 		Title:       feed.Title,
 		URL:         feed.URL,
@@ -78,7 +78,7 @@ func (db *DatastoreDB) AddFeed(feed *Feed) error {
 
 func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 	ctx := context.Background()
-	
+
 	query := datastore.NewQuery("Feed").Order("title")
 	var entities []FeedEntity
 	keys, err := db.client.GetAll(ctx, query, &entities)
@@ -105,7 +105,7 @@ func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 
 func (db *DatastoreDB) DeleteFeed(id int) error {
 	ctx := context.Background()
-	
+
 	feedKey := datastore.IDKey("Feed", int64(id), nil)
 	if err := db.client.Delete(ctx, feedKey); err != nil {
 		return fmt.Errorf("failed to delete feed: %w", err)
@@ -128,7 +128,7 @@ func (db *DatastoreDB) DeleteFeed(id int) error {
 
 func (db *DatastoreDB) AddArticle(article *Article) error {
 	ctx := context.Background()
-	
+
 	query := datastore.NewQuery("Article").Filter("url =", article.URL).Limit(1)
 	var existing []ArticleEntity
 	if _, err := db.client.GetAll(ctx, query, &existing); err == nil && len(existing) > 0 {
@@ -160,7 +160,7 @@ func (db *DatastoreDB) AddArticle(article *Article) error {
 
 func (db *DatastoreDB) GetArticles(feedID int) ([]Article, error) {
 	ctx := context.Background()
-	
+
 	query := datastore.NewQuery("Article").Filter("feed_id =", int64(feedID)).Order("-published_at")
 	var entities []ArticleEntity
 	keys, err := db.client.GetAll(ctx, query, &entities)
@@ -191,7 +191,7 @@ func (db *DatastoreDB) GetArticles(feedID int) ([]Article, error) {
 
 func (db *DatastoreDB) GetAllArticles() ([]Article, error) {
 	ctx := context.Background()
-	
+
 	query := datastore.NewQuery("Article").Order("-published_at")
 	var entities []ArticleEntity
 	keys, err := db.client.GetAll(ctx, query, &entities)
@@ -220,43 +220,11 @@ func (db *DatastoreDB) GetAllArticles() ([]Article, error) {
 	return articles, nil
 }
 
-func (db *DatastoreDB) MarkRead(articleID int, isRead bool) error {
-	ctx := context.Background()
-	
-	key := datastore.IDKey("Article", int64(articleID), nil)
-	var entity ArticleEntity
-	if err := db.client.Get(ctx, key, &entity); err != nil {
-		return fmt.Errorf("failed to get article: %w", err)
-	}
-
-	entity.IsRead = isRead
-	if _, err := db.client.Put(ctx, key, &entity); err != nil {
-		return fmt.Errorf("failed to update article: %w", err)
-	}
-
-	return nil
-}
-
-func (db *DatastoreDB) ToggleStar(articleID int) error {
-	ctx := context.Background()
-	
-	key := datastore.IDKey("Article", int64(articleID), nil)
-	var entity ArticleEntity
-	if err := db.client.Get(ctx, key, &entity); err != nil {
-		return fmt.Errorf("failed to get article: %w", err)
-	}
-
-	entity.IsStarred = !entity.IsStarred
-	if _, err := db.client.Put(ctx, key, &entity); err != nil {
-		return fmt.Errorf("failed to update article: %w", err)
-	}
-
-	return nil
-}
+// Legacy methods removed - use multi-user methods instead
 
 func (db *DatastoreDB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) error {
 	ctx := context.Background()
-	
+
 	key := datastore.IDKey("Feed", int64(feedID), nil)
 	var entity FeedEntity
 	if err := db.client.Get(ctx, key, &entity); err != nil {
@@ -269,4 +237,54 @@ func (db *DatastoreDB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) erro
 	}
 
 	return nil
+}
+
+// User methods for Datastore (stub implementations)
+func (db *DatastoreDB) CreateUser(user *User) error {
+	// Implement if using Datastore in production
+	return fmt.Errorf("user management not implemented for Datastore")
+}
+
+func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
+	return nil, fmt.Errorf("user management not implemented for Datastore")
+}
+
+func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
+	return nil, fmt.Errorf("user management not implemented for Datastore")
+}
+
+func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
+	return nil, fmt.Errorf("user feeds not implemented for Datastore")
+}
+
+func (db *DatastoreDB) SubscribeUserToFeed(userID, feedID int) error {
+	return fmt.Errorf("user feed subscription not implemented for Datastore")
+}
+
+func (db *DatastoreDB) UnsubscribeUserFromFeed(userID, feedID int) error {
+	return fmt.Errorf("user feed unsubscription not implemented for Datastore")
+}
+
+func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
+	return nil, fmt.Errorf("user articles not implemented for Datastore")
+}
+
+func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
+	return nil, fmt.Errorf("user feed articles not implemented for Datastore")
+}
+
+func (db *DatastoreDB) GetUserArticleStatus(userID, articleID int) (*UserArticle, error) {
+	return nil, fmt.Errorf("user article status not implemented for Datastore")
+}
+
+func (db *DatastoreDB) SetUserArticleStatus(userID, articleID int, isRead, isStarred bool) error {
+	return fmt.Errorf("user article status not implemented for Datastore")
+}
+
+func (db *DatastoreDB) MarkUserArticleRead(userID, articleID int, isRead bool) error {
+	return fmt.Errorf("user article read status not implemented for Datastore")
+}
+
+func (db *DatastoreDB) ToggleUserArticleStar(userID, articleID int) error {
+	return fmt.Errorf("user article star status not implemented for Datastore")
 }

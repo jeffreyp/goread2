@@ -20,10 +20,10 @@ type RSS struct {
 }
 
 type Atom struct {
-	XMLName xml.Name    `xml:"feed"`
-	Title   string      `xml:"title"`
-	Subtitle string     `xml:"subtitle"`
-	Entries []AtomEntry `xml:"entry"`
+	XMLName  xml.Name    `xml:"feed"`
+	Title    string      `xml:"title"`
+	Subtitle string      `xml:"subtitle"`
+	Entries  []AtomEntry `xml:"entry"`
 }
 
 type Channel struct {
@@ -42,13 +42,13 @@ type Item struct {
 }
 
 type AtomEntry struct {
-	Title     string    `xml:"title"`
-	Link      AtomLink  `xml:"link"`
-	Summary   string    `xml:"summary"`
+	Title     string      `xml:"title"`
+	Link      AtomLink    `xml:"link"`
+	Summary   string      `xml:"summary"`
 	Content   AtomContent `xml:"content"`
-	Author    AtomAuthor `xml:"author"`
-	Published string    `xml:"published"`
-	Updated   string    `xml:"updated"`
+	Author    AtomAuthor  `xml:"author"`
+	Published string      `xml:"published"`
+	Updated   string      `xml:"updated"`
 }
 
 type AtomLink struct {
@@ -114,6 +114,60 @@ func (fs *FeedService) GetFeeds() ([]database.Feed, error) {
 	return fs.db.GetFeeds()
 }
 
+func (fs *FeedService) GetUserFeeds(userID int) ([]database.Feed, error) {
+	return fs.db.GetUserFeeds(userID)
+}
+
+func (fs *FeedService) AddFeedForUser(userID int, url string) (*database.Feed, error) {
+	// First check if feed already exists
+	feeds, err := fs.db.GetFeeds()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing feeds: %w", err)
+	}
+
+	var existingFeed *database.Feed
+	for _, feed := range feeds {
+		if feed.URL == url {
+			existingFeed = &feed
+			break
+		}
+	}
+
+	if existingFeed == nil {
+		// Feed doesn't exist, create it
+		feedData, err := fs.fetchFeed(url)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch feed: %w", err)
+		}
+
+		feed := &database.Feed{
+			Title:       feedData.Title,
+			URL:         url,
+			Description: feedData.Description,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			LastFetch:   time.Now(),
+		}
+
+		if err := fs.db.AddFeed(feed); err != nil {
+			return nil, fmt.Errorf("failed to insert feed: %w", err)
+		}
+
+		if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
+			return nil, fmt.Errorf("failed to save articles: %w", err)
+		}
+
+		existingFeed = feed
+	}
+
+	// Subscribe user to the feed
+	if err := fs.db.SubscribeUserToFeed(userID, existingFeed.ID); err != nil {
+		return nil, fmt.Errorf("failed to subscribe user to feed: %w", err)
+	}
+
+	return existingFeed, nil
+}
+
 func (fs *FeedService) DeleteFeed(id int) error {
 	return fs.db.DeleteFeed(id)
 }
@@ -126,12 +180,29 @@ func (fs *FeedService) GetAllArticles() ([]database.Article, error) {
 	return fs.db.GetAllArticles()
 }
 
-func (fs *FeedService) MarkRead(articleID int, isRead bool) error {
-	return fs.db.MarkRead(articleID, isRead)
+func (fs *FeedService) GetUserArticles(userID int) ([]database.Article, error) {
+	return fs.db.GetUserArticles(userID)
 }
 
-func (fs *FeedService) ToggleStar(articleID int) error {
-	return fs.db.ToggleStar(articleID)
+func (fs *FeedService) GetUserFeedArticles(userID, feedID int) ([]database.Article, error) {
+	return fs.db.GetUserFeedArticles(userID, feedID)
+}
+
+// Legacy methods removed - use multi-user methods instead
+// func (fs *FeedService) MarkRead(articleID int, isRead bool) error {
+// 	return fmt.Errorf("deprecated: use MarkUserArticleRead instead")
+// }
+
+// func (fs *FeedService) ToggleStar(articleID int) error {
+// 	return fmt.Errorf("deprecated: use ToggleUserArticleStar instead")
+// }
+
+func (fs *FeedService) MarkUserArticleRead(userID, articleID int, isRead bool) error {
+	return fs.db.MarkUserArticleRead(userID, articleID, isRead)
+}
+
+func (fs *FeedService) ToggleUserArticleStar(userID, articleID int) error {
+	return fs.db.ToggleUserArticleStar(userID, articleID)
 }
 
 func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
@@ -237,7 +308,7 @@ func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) erro
 			PublishedAt: articleData.PublishedAt,
 			CreatedAt:   time.Now(),
 		}
-		
+
 		if err := fs.db.AddArticle(article); err != nil {
 			return err
 		}
