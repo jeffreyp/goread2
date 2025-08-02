@@ -40,7 +40,7 @@ The interface features:
 
 1. **Clone or download the project:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/jeffreyp/goread2.git
    cd goread2
    ```
 
