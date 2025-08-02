@@ -84,7 +84,7 @@ func (sm *SessionManager) SetSessionCookie(w http.ResponseWriter, session *Sessi
 		Value:    session.ID,
 		Expires:  session.ExpiresAt,
 		HttpOnly: true,
-		Secure:   true, // Set to false for local development
+		Secure:   false, // Set to false for local development
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}
@@ -97,7 +97,7 @@ func (sm *SessionManager) ClearSessionCookie(w http.ResponseWriter) {
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   true, // Set to false for local development
+		Secure:   false, // Set to false for local development
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}
