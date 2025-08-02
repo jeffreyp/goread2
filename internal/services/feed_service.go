@@ -19,6 +19,13 @@ type RSS struct {
 	Channel Channel  `xml:"channel"`
 }
 
+type Atom struct {
+	XMLName xml.Name    `xml:"feed"`
+	Title   string      `xml:"title"`
+	Subtitle string     `xml:"subtitle"`
+	Entries []AtomEntry `xml:"entry"`
+}
+
 type Channel struct {
 	Title       string `xml:"title"`
 	Description string `xml:"description"`
@@ -34,20 +41,59 @@ type Item struct {
 	Content     string `xml:"encoded"`
 }
 
+type AtomEntry struct {
+	Title     string    `xml:"title"`
+	Link      AtomLink  `xml:"link"`
+	Summary   string    `xml:"summary"`
+	Content   AtomContent `xml:"content"`
+	Author    AtomAuthor `xml:"author"`
+	Published string    `xml:"published"`
+	Updated   string    `xml:"updated"`
+}
+
+type AtomLink struct {
+	Href string `xml:"href,attr"`
+}
+
+type AtomContent struct {
+	Type    string `xml:"type,attr"`
+	Content string `xml:",chardata"`
+}
+
+type AtomAuthor struct {
+	Name string `xml:"name"`
+}
+
+// Unified feed data structure
+type FeedData struct {
+	Title       string
+	Description string
+	Articles    []ArticleData
+}
+
+type ArticleData struct {
+	Title       string
+	Link        string
+	Description string
+	Content     string
+	Author      string
+	PublishedAt time.Time
+}
+
 func NewFeedService(db database.Database) *FeedService {
 	return &FeedService{db: db}
 }
 
 func (fs *FeedService) AddFeed(url string) (*database.Feed, error) {
-	rss, err := fs.fetchFeed(url)
+	feedData, err := fs.fetchFeed(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch feed: %w", err)
 	}
 
 	feed := &database.Feed{
-		Title:       rss.Channel.Title,
+		Title:       feedData.Title,
 		URL:         url,
-		Description: rss.Channel.Description,
+		Description: feedData.Description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 		LastFetch:   time.Now(),
@@ -57,7 +103,7 @@ func (fs *FeedService) AddFeed(url string) (*database.Feed, error) {
 		return nil, fmt.Errorf("failed to insert feed: %w", err)
 	}
 
-	if err := fs.saveArticles(feed.ID, rss.Channel.Items); err != nil {
+	if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
 		return nil, fmt.Errorf("failed to save articles: %w", err)
 	}
 
@@ -88,7 +134,7 @@ func (fs *FeedService) ToggleStar(articleID int) error {
 	return fs.db.ToggleStar(articleID)
 }
 
-func (fs *FeedService) fetchFeed(url string) (*RSS, error) {
+func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -100,29 +146,95 @@ func (fs *FeedService) fetchFeed(url string) (*RSS, error) {
 		return nil, err
 	}
 
+	// Try parsing as RSS first
 	var rss RSS
-	if err := xml.Unmarshal(body, &rss); err != nil {
-		return nil, err
+	if err := xml.Unmarshal(body, &rss); err == nil && rss.XMLName.Local == "rss" {
+		return fs.convertRSSToFeedData(&rss), nil
 	}
 
-	return &rss, nil
+	// Try parsing as Atom
+	var atom Atom
+	if err := xml.Unmarshal(body, &atom); err == nil && atom.XMLName.Local == "feed" {
+		return fs.convertAtomToFeedData(&atom), nil
+	}
+
+	return nil, fmt.Errorf("unsupported feed format or invalid XML")
 }
 
-func (fs *FeedService) saveArticles(feedID int, items []Item) error {
-	for _, item := range items {
+func (fs *FeedService) convertRSSToFeedData(rss *RSS) *FeedData {
+	articles := make([]ArticleData, len(rss.Channel.Items))
+	for i, item := range rss.Channel.Items {
 		publishedAt, _ := time.Parse(time.RFC1123Z, item.PubDate)
 		if publishedAt.IsZero() {
 			publishedAt = time.Now()
 		}
 
-		article := &database.Article{
-			FeedID:      feedID,
+		articles[i] = ArticleData{
 			Title:       item.Title,
-			URL:         item.Link,
-			Content:     item.Content,
+			Link:        item.Link,
 			Description: item.Description,
+			Content:     item.Content,
 			Author:      item.Author,
 			PublishedAt: publishedAt,
+		}
+	}
+
+	return &FeedData{
+		Title:       rss.Channel.Title,
+		Description: rss.Channel.Description,
+		Articles:    articles,
+	}
+}
+
+func (fs *FeedService) convertAtomToFeedData(atom *Atom) *FeedData {
+	articles := make([]ArticleData, len(atom.Entries))
+	for i, entry := range atom.Entries {
+		publishedAt, _ := time.Parse(time.RFC3339, entry.Published)
+		if publishedAt.IsZero() {
+			if updatedAt, err := time.Parse(time.RFC3339, entry.Updated); err == nil {
+				publishedAt = updatedAt
+			} else {
+				publishedAt = time.Now()
+			}
+		}
+
+		content := entry.Content.Content
+		if content == "" {
+			content = entry.Summary
+		}
+
+		articles[i] = ArticleData{
+			Title:       entry.Title,
+			Link:        entry.Link.Href,
+			Description: entry.Summary,
+			Content:     content,
+			Author:      entry.Author.Name,
+			PublishedAt: publishedAt,
+		}
+	}
+
+	description := atom.Subtitle
+	if description == "" {
+		description = atom.Title + " feed"
+	}
+
+	return &FeedData{
+		Title:       atom.Title,
+		Description: description,
+		Articles:    articles,
+	}
+}
+
+func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) error {
+	for _, articleData := range feedData.Articles {
+		article := &database.Article{
+			FeedID:      feedID,
+			Title:       articleData.Title,
+			URL:         articleData.Link,
+			Content:     articleData.Content,
+			Description: articleData.Description,
+			Author:      articleData.Author,
+			PublishedAt: articleData.PublishedAt,
 			CreatedAt:   time.Now(),
 		}
 		
@@ -140,12 +252,12 @@ func (fs *FeedService) RefreshFeeds() error {
 	}
 
 	for _, feed := range feeds {
-		rss, err := fs.fetchFeed(feed.URL)
+		feedData, err := fs.fetchFeed(feed.URL)
 		if err != nil {
 			continue
 		}
 
-		if err := fs.saveArticles(feed.ID, rss.Channel.Items); err != nil {
+		if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
 			continue
 		}
 

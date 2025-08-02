@@ -48,6 +48,9 @@ class GoReadApp {
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey || e.metaKey) return;
             
+            // Don't handle shortcuts when typing in input fields
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            
             switch(e.key) {
                 case 'j':
                     e.preventDefault();
@@ -354,22 +357,36 @@ class GoReadApp {
 
     async addFeed() {
         const url = document.getElementById('feed-url').value;
+        console.log('Adding feed with URL:', url);
         
         try {
+            console.log('Sending request to /api/feeds');
             const response = await fetch('/api/feeds', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url })
             });
             
+            console.log('Response status:', response.status);
+            console.log('Response ok:', response.ok);
+            
             if (response.ok) {
+                console.log('Feed added successfully');
                 this.hideAddFeedModal();
                 await this.loadFeeds();
             } else {
-                const error = await response.json();
-                this.showError('Failed to add feed: ' + error.error);
+                let errorMessage = `HTTP ${response.status}`;
+                try {
+                    const error = await response.json();
+                    console.log('Server error:', error);
+                    errorMessage = error.error || errorMessage;
+                } catch (e) {
+                    console.log('Could not parse error response');
+                }
+                this.showError('Failed to add feed: ' + errorMessage);
             }
         } catch (error) {
+            console.log('Network error:', error);
             this.showError('Failed to add feed: ' + error.message);
         }
     }
