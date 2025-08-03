@@ -1,5 +1,7 @@
 # GoRead2 - Multi-User RSS Reader
 
+[![Tests](https://github.com/jeffreyp/goread2/actions/workflows/test.yml/badge.svg)](https://github.com/jeffreyp/goread2/actions/workflows/test.yml)
+
 A modern, multi-user RSS reader inspired by Google Reader, built with Go and featuring Google OAuth authentication, a clean three-pane interface, and comprehensive user data isolation.
 
 ## Features
