@@ -408,4 +408,4 @@ goread2/
 
 ## License
 
-This project is open source. Feel free to modify and distribute.
+This project is licensed under the [MIT License](LICENSE). You are free to use, modify, and distribute this software for any purpose, including commercial use, as long as you include the original license and copyright notice.
