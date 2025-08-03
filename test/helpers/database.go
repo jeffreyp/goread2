@@ -154,3 +154,37 @@ func CleanupTestEnv(t *testing.T) {
 	_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
 	_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
 }
+
+// CreateTestDatastoreDB creates a Datastore database for testing
+// This requires the Datastore emulator to be running
+func CreateTestDatastoreDB(t *testing.T) database.Database {
+	projectID := "test-project-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	
+	// Set environment variable to use emulator
+	originalHost := os.Getenv("DATASTORE_EMULATOR_HOST")
+	if originalHost == "" {
+		// Default emulator host
+		_ = os.Setenv("DATASTORE_EMULATOR_HOST", "localhost:8081")
+	}
+	
+	// Clean up environment after test
+	t.Cleanup(func() {
+		if originalHost == "" {
+			_ = os.Unsetenv("DATASTORE_EMULATOR_HOST")
+		} else {
+			_ = os.Setenv("DATASTORE_EMULATOR_HOST", originalHost)
+		}
+	})
+
+	db, err := database.NewDatastoreDB(projectID)
+	if err != nil {
+		t.Skipf("Datastore emulator not available: %v", err)
+	}
+
+	// Clean up database after test
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	return db
+}

@@ -13,6 +13,15 @@ type DatastoreDB struct {
 	projectID string
 }
 
+type UserEntity struct {
+	ID        int64     `datastore:"-"`
+	GoogleID  string    `datastore:"google_id"`
+	Email     string    `datastore:"email"`
+	Name      string    `datastore:"name"`
+	Avatar    string    `datastore:"avatar"`
+	CreatedAt time.Time `datastore:"created_at"`
+}
+
 type FeedEntity struct {
 	ID          int64     `datastore:"-"`
 	Title       string    `datastore:"title"`
@@ -239,18 +248,74 @@ func (db *DatastoreDB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) erro
 	return nil
 }
 
-// User methods for Datastore (stub implementations)
+// User methods for Datastore
 func (db *DatastoreDB) CreateUser(user *User) error {
-	// Implement if using Datastore in production
-	return fmt.Errorf("user management not implemented for Datastore")
+	ctx := context.Background()
+
+	entity := &UserEntity{
+		GoogleID:  user.GoogleID,
+		Email:     user.Email,
+		Name:      user.Name,
+		Avatar:    user.Avatar,
+		CreatedAt: user.CreatedAt,
+	}
+
+	key := datastore.IncompleteKey("User", nil)
+	key, err := db.client.Put(ctx, key, entity)
+	if err != nil {
+		return fmt.Errorf("failed to save user: %w", err)
+	}
+
+	user.ID = int(key.ID)
+	return nil
 }
 
 func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
-	return nil, fmt.Errorf("user management not implemented for Datastore")
+	ctx := context.Background()
+
+	query := datastore.NewQuery("User").FilterField("google_id", "=", googleID).Limit(1)
+	var entities []UserEntity
+	keys, err := db.client.GetAll(ctx, query, &entities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user: %w", err)
+	}
+
+	if len(entities) == 0 {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	entity := entities[0]
+	entity.ID = keys[0].ID
+
+	return &User{
+		ID:        int(entity.ID),
+		GoogleID:  entity.GoogleID,
+		Email:     entity.Email,
+		Name:      entity.Name,
+		Avatar:    entity.Avatar,
+		CreatedAt: entity.CreatedAt,
+	}, nil
 }
 
 func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
-	return nil, fmt.Errorf("user management not implemented for Datastore")
+	ctx := context.Background()
+
+	key := datastore.IDKey("User", int64(userID), nil)
+	var entity UserEntity
+	if err := db.client.Get(ctx, key, &entity); err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	entity.ID = int64(userID)
+
+	return &User{
+		ID:        int(entity.ID),
+		GoogleID:  entity.GoogleID,
+		Email:     entity.Email,
+		Name:      entity.Name,
+		Avatar:    entity.Avatar,
+		CreatedAt: entity.CreatedAt,
+	}, nil
 }
 
 func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {

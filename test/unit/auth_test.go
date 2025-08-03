@@ -164,6 +164,107 @@ func TestMiddleware(t *testing.T) {
 	})
 }
 
+// TestAuthServiceUserCreation tests user creation and retrieval with both database types
+func TestAuthServiceUserCreation(t *testing.T) {
+	helpers.SetupTestEnv(t)
+	defer helpers.CleanupTestEnv(t)
+
+	testCases := []struct {
+		name   string
+		dbFunc func(*testing.T) database.Database
+	}{
+		{
+			name:   "SQLite",
+			dbFunc: helpers.CreateTestDB,
+		},
+		{
+			name: "Datastore",
+			dbFunc: func(t *testing.T) database.Database {
+				if testing.Short() {
+					t.Skip("Skipping Datastore tests in short mode")
+				}
+				return helpers.CreateTestDatastoreDB(t)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := tc.dbFunc(t)
+
+			t.Run("HandleCallback_NewUser", func(t *testing.T) {
+				// This test simulates what happens in the auth callback
+				// when a new user signs in for the first time
+				
+				// First verify user doesn't exist
+				_, err := db.GetUserByGoogleID("new_user_123")
+				if err == nil {
+					t.Error("Expected new user to not exist initially")
+				}
+
+				// Create user (simulating what HandleCallback does)
+				user := &database.User{
+					GoogleID:  "new_user_123",
+					Email:     "newuser@example.com",
+					Name:      "New User",
+					Avatar:    "https://lh3.googleusercontent.com/avatar",
+					CreatedAt: time.Now(),
+				}
+
+				err = db.CreateUser(user)
+				if err != nil {
+					t.Fatalf("Failed to create user: %v", err)
+				}
+
+				// Verify user was created with an ID
+				if user.ID == 0 {
+					t.Error("Expected user ID to be set after creation")
+				}
+
+				// Verify user can be retrieved
+				retrievedUser, err := db.GetUserByGoogleID("new_user_123")
+				if err != nil {
+					t.Fatalf("Failed to retrieve created user: %v", err)
+				}
+
+				if retrievedUser.Email != user.Email {
+					t.Errorf("Expected email %s, got %s", user.Email, retrievedUser.Email)
+				}
+			})
+
+			t.Run("HandleCallback_ExistingUser", func(t *testing.T) {
+				// Create user first
+				existingUser := &database.User{
+					GoogleID:  "existing_user_456",
+					Email:     "existing@example.com",
+					Name:      "Existing User",
+					Avatar:    "https://lh3.googleusercontent.com/existing",
+					CreatedAt: time.Now(),
+				}
+
+				err := db.CreateUser(existingUser)
+				if err != nil {
+					t.Fatalf("Failed to create existing user: %v", err)
+				}
+
+				// Simulate HandleCallback finding existing user
+				retrievedUser, err := db.GetUserByGoogleID("existing_user_456")
+				if err != nil {
+					t.Fatalf("Failed to retrieve existing user: %v", err)
+				}
+
+				// Verify it's the same user
+				if retrievedUser.ID != existingUser.ID {
+					t.Errorf("Expected user ID %d, got %d", existingUser.ID, retrievedUser.ID)
+				}
+				if retrievedUser.Email != existingUser.Email {
+					t.Errorf("Expected email %s, got %s", existingUser.Email, retrievedUser.Email)
+				}
+			})
+		})
+	}
+}
+
 // Helper function to check if string contains substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) &&
