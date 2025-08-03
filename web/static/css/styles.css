@@ -9,6 +9,9 @@ body {
     background-color: #f5f5f5;
     color: #333;
     height: 100vh;
+}
+
+body.app-body {
     overflow: hidden;
 }
 
@@ -497,4 +500,74 @@ body {
 
 #logout-btn:hover {
     background-color: #e8eaed;
+}
+
+/* Login Footer */
+.login-footer {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e1e5e9;
+}
+
+.privacy-link {
+    color: #1a73e8;
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+
+.privacy-link:hover {
+    color: #1557b0;
+    text-decoration: underline;
+}
+
+/* Privacy Page */
+.privacy-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    background-color: #fff;
+    min-height: 100vh;
+}
+
+.privacy-content {
+    margin-bottom: 40px;
+}
+
+.privacy-container h1 {
+    color: #1a73e8;
+    margin-bottom: 30px;
+    font-size: 32px;
+    font-weight: 300;
+    text-align: center;
+}
+
+.privacy-container h2 {
+    color: #3c4043;
+    margin: 30px 0 15px 0;
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.privacy-container p {
+    color: #5f6368;
+    margin-bottom: 15px;
+    line-height: 1.6;
+    font-size: 16px;
+}
+
+.privacy-container ul {
+    color: #5f6368;
+    margin: 15px 0 15px 30px;
+    line-height: 1.6;
+}
+
+.privacy-container li {
+    margin-bottom: 8px;
+}
+
+.privacy-actions {
+    text-align: center;
+    padding-top: 20px;
+    border-top: 1px solid #e1e5e9;
 }

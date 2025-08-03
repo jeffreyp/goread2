@@ -2,6 +2,9 @@ runtime: go121
 
 env_variables:
   GIN_MODE: release
+  GOOGLE_CLIENT_ID: "1022472352583-e0hkm6ejmdi6mc04079fkvharhrcda8k.apps.googleusercontent.com"
+  GOOGLE_CLIENT_SECRET: "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"
+  GOOGLE_REDIRECT_URL: "https://goreadapp.com/auth/callback"
 
 handlers:
 - url: /static

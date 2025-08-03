@@ -55,6 +55,12 @@ func main() {
 		})
 	})
 
+	r.GET("/privacy", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "privacy.html", gin.H{
+			"title": "Privacy Policy - GoRead2",
+		})
+	})
+
 	// Auth routes (public)
 	auth := r.Group("/auth")
 	{

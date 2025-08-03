@@ -487,6 +487,9 @@ class GoReadApp {
                 <h1>GoRead2</h1>
                 <p>Sign in with Google to access your RSS feeds</p>
                 <button id="google-login-btn" class="btn btn-primary">Sign in with Google</button>
+                <div class="login-footer">
+                    <a href="/privacy" target="_blank" class="privacy-link">Privacy Policy</a>
+                </div>
             </div>
         `;
         document.body.appendChild(loginScreen);
