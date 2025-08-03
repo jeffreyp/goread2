@@ -61,7 +61,7 @@ func (a *AuthService) HandleCallback(code string) (*database.User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var googleUser GoogleUserInfo
 	if err := json.NewDecoder(resp.Body).Decode(&googleUser); err != nil {

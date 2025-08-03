@@ -111,7 +111,7 @@ func (db *DatastoreDB) DeleteFeed(id int) error {
 		return fmt.Errorf("failed to delete feed: %w", err)
 	}
 
-	query := datastore.NewQuery("Article").Filter("feed_id =", int64(id)).KeysOnly()
+	query := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(id)).KeysOnly()
 	keys, err := db.client.GetAll(ctx, query, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get articles to delete: %w", err)
@@ -129,7 +129,7 @@ func (db *DatastoreDB) DeleteFeed(id int) error {
 func (db *DatastoreDB) AddArticle(article *Article) error {
 	ctx := context.Background()
 
-	query := datastore.NewQuery("Article").Filter("url =", article.URL).Limit(1)
+	query := datastore.NewQuery("Article").FilterField("url", "=", article.URL).Limit(1)
 	var existing []ArticleEntity
 	if _, err := db.client.GetAll(ctx, query, &existing); err == nil && len(existing) > 0 {
 		return nil
@@ -161,7 +161,7 @@ func (db *DatastoreDB) AddArticle(article *Article) error {
 func (db *DatastoreDB) GetArticles(feedID int) ([]Article, error) {
 	ctx := context.Background()
 
-	query := datastore.NewQuery("Article").Filter("feed_id =", int64(feedID)).Order("-published_at")
+	query := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID)).Order("-published_at")
 	var entities []ArticleEntity
 	keys, err := db.client.GetAll(ctx, query, &entities)
 	if err != nil {

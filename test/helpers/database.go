@@ -143,14 +143,14 @@ func CreateTestArticle(t *testing.T, db database.Database, feedID int, title, ur
 
 // SetupTestEnv sets up environment variables for testing
 func SetupTestEnv(t *testing.T) {
-	os.Setenv("GOOGLE_CLIENT_ID", "test_client_id")
-	os.Setenv("GOOGLE_CLIENT_SECRET", "test_client_secret")
-	os.Setenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/callback")
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "test_client_id")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "test_client_secret")
+	_ = os.Setenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/callback")
 }
 
 // CleanupTestEnv cleans up test environment variables
 func CleanupTestEnv(t *testing.T) {
-	os.Unsetenv("GOOGLE_CLIENT_ID")
-	os.Unsetenv("GOOGLE_CLIENT_SECRET")
-	os.Unsetenv("GOOGLE_REDIRECT_URL")
+	_ = os.Unsetenv("GOOGLE_CLIENT_ID")
+	_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
+	_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
 }

@@ -207,7 +207,7 @@ func (db *DB) GetFeeds() ([]Feed, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var feeds []Feed
 	for rows.Next() {
@@ -264,7 +264,7 @@ func (db *DB) GetArticles(feedID int) ([]Article, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var articles []Article
 	for rows.Next() {
@@ -295,7 +295,7 @@ func (db *DB) GetAllArticles() ([]Article, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var articles []Article
 	for rows.Next() {
@@ -386,7 +386,7 @@ func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var feeds []Feed
 	for rows.Next() {
@@ -430,7 +430,7 @@ func (db *DB) GetUserArticles(userID int) ([]Article, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var articles []Article
 	for rows.Next() {
@@ -461,7 +461,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var articles []Article
 	for rows.Next() {
@@ -505,12 +505,13 @@ func (db *DB) MarkUserArticleRead(userID, articleID int, isRead bool) error {
 	checkQuery := `SELECT 1 FROM user_articles WHERE user_id = ? AND article_id = ?`
 	err := db.QueryRow(checkQuery, userID, articleID).Scan(&dummy)
 
-	if err == sql.ErrNoRows {
+	switch err {
+	case sql.ErrNoRows:
 		// Create new record
 		query := `INSERT INTO user_articles (user_id, article_id, is_read, is_starred) 
 				  VALUES (?, ?, ?, 0)`
 		_, err = db.Exec(query, userID, articleID, isRead)
-	} else if err == nil {
+	case nil:
 		// Update existing record
 		query := `UPDATE user_articles SET is_read = ? WHERE user_id = ? AND article_id = ?`
 		_, err = db.Exec(query, isRead, userID, articleID)
@@ -525,12 +526,13 @@ func (db *DB) ToggleUserArticleStar(userID, articleID int) error {
 	checkQuery := `SELECT is_starred FROM user_articles WHERE user_id = ? AND article_id = ?`
 	err := db.QueryRow(checkQuery, userID, articleID).Scan(&currentStarred)
 
-	if err == sql.ErrNoRows {
+	switch err {
+	case sql.ErrNoRows:
 		// Create new record with starred = true
 		query := `INSERT INTO user_articles (user_id, article_id, is_read, is_starred) 
 				  VALUES (?, ?, 0, 1)`
 		_, err = db.Exec(query, userID, articleID)
-	} else if err == nil {
+	case nil:
 		// Update existing record
 		query := `UPDATE user_articles SET is_starred = ? WHERE user_id = ? AND article_id = ?`
 		_, err = db.Exec(query, !currentStarred, userID, articleID)

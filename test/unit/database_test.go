@@ -282,8 +282,8 @@ func TestDataIsolation(t *testing.T) {
 	article := helpers.CreateTestArticle(t, db, feed.ID, "Shared Article", "https://shared.com/article1")
 
 	// Subscribe both users to the feed
-	db.SubscribeUserToFeed(user1.ID, feed.ID)
-	db.SubscribeUserToFeed(user2.ID, feed.ID)
+	_ = db.SubscribeUserToFeed(user1.ID, feed.ID)
+	_ = db.SubscribeUserToFeed(user2.ID, feed.ID)
 
 	// User 1 marks article as read
 	err := db.MarkUserArticleRead(user1.ID, article.ID, true)

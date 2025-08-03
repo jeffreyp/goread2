@@ -210,7 +210,7 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -332,7 +332,7 @@ func (fs *FeedService) RefreshFeeds() error {
 			continue
 		}
 
-		fs.db.UpdateFeedLastFetch(feed.ID, time.Now())
+		_ = fs.db.UpdateFeedLastFetch(feed.ID, time.Now())
 	}
 
 	return nil
