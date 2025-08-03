@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"time"
 
@@ -448,6 +449,19 @@ func (db *DB) GetUserArticles(userID int) ([]Article, error) {
 }
 
 func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
+	// First verify user is subscribed to this feed
+	var subscriptionExists bool
+	checkQuery := `SELECT EXISTS(SELECT 1 FROM user_feeds WHERE user_id = ? AND feed_id = ?)`
+	err := db.DB.QueryRow(checkQuery, userID, feedID).Scan(&subscriptionExists)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check user subscription: %w", err)
+	}
+
+	if !subscriptionExists {
+		// User is not subscribed to this feed
+		return []Article{}, nil
+	}
+
 	query := `SELECT a.id, a.feed_id, a.title, a.url, a.content, a.description, a.author, 
 			  a.published_at, a.created_at, 
 			  COALESCE(ua.is_read, 0) as is_read, 

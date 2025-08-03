@@ -456,6 +456,23 @@ func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
 func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 	ctx := context.Background()
 
+	// First verify user is subscribed to this feed
+	subscriptionQuery := datastore.NewQuery("UserFeed").
+		FilterField("user_id", "=", int64(userID)).
+		FilterField("feed_id", "=", int64(feedID)).
+		Limit(1)
+	
+	var subscriptions []UserFeedEntity
+	_, err := db.client.GetAll(ctx, subscriptionQuery, &subscriptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check user subscription: %w", err)
+	}
+
+	if len(subscriptions) == 0 {
+		// User is not subscribed to this feed
+		return []Article{}, nil
+	}
+
 	// Get articles for the feed
 	query := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID)).Order("-published_at")
 	var articleEntities []ArticleEntity
