@@ -207,3 +207,290 @@ func TestDatastoreUserOperationsIntegration(t *testing.T) {
 		}
 	})
 }
+
+// TestDatastoreUserFeedOperations tests user feed subscription operations
+func TestDatastoreUserFeedOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping Datastore tests in short mode")
+	}
+
+	db := helpers.CreateTestDatastoreDB(t)
+
+	// Create test user and feeds
+	user := &database.User{
+		GoogleID:  "feed_test_user",
+		Email:     "feeduser@example.com",
+		Name:      "Feed Test User",
+		CreatedAt: time.Now(),
+	}
+	err := db.CreateUser(user)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	feed1 := &database.Feed{
+		Title:       "Test Feed 1",
+		URL:         "https://test1.com/rss",
+		Description: "First test feed",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		LastFetch:   time.Now(),
+	}
+	err = db.AddFeed(feed1)
+	if err != nil {
+		t.Fatalf("Failed to create feed1: %v", err)
+	}
+
+	feed2 := &database.Feed{
+		Title:       "Test Feed 2",
+		URL:         "https://test2.com/rss",
+		Description: "Second test feed",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		LastFetch:   time.Now(),
+	}
+	err = db.AddFeed(feed2)
+	if err != nil {
+		t.Fatalf("Failed to create feed2: %v", err)
+	}
+
+	t.Run("SubscribeUserToFeed", func(t *testing.T) {
+		err := db.SubscribeUserToFeed(user.ID, feed1.ID)
+		if err != nil {
+			t.Fatalf("Failed to subscribe user to feed: %v", err)
+		}
+
+		// Subscribe to second feed
+		err = db.SubscribeUserToFeed(user.ID, feed2.ID)
+		if err != nil {
+			t.Fatalf("Failed to subscribe user to second feed: %v", err)
+		}
+	})
+
+	t.Run("GetUserFeeds", func(t *testing.T) {
+		feeds, err := db.GetUserFeeds(user.ID)
+		if err != nil {
+			t.Fatalf("Failed to get user feeds: %v", err)
+		}
+
+		if len(feeds) != 2 {
+			t.Errorf("Expected 2 feeds, got %d", len(feeds))
+		}
+	})
+
+	t.Run("UnsubscribeUserFromFeed", func(t *testing.T) {
+		err := db.UnsubscribeUserFromFeed(user.ID, feed1.ID)
+		if err != nil {
+			t.Fatalf("Failed to unsubscribe user from feed: %v", err)
+		}
+
+		feeds, err := db.GetUserFeeds(user.ID)
+		if err != nil {
+			t.Fatalf("Failed to get user feeds after unsubscribe: %v", err)
+		}
+
+		if len(feeds) != 1 {
+			t.Errorf("Expected 1 feed after unsubscribe, got %d", len(feeds))
+		}
+	})
+
+	t.Run("SubscribeDuplicateFeed", func(t *testing.T) {
+		// Try to subscribe to the same feed twice
+		err := db.SubscribeUserToFeed(user.ID, feed2.ID)
+		if err != nil {
+			t.Fatalf("Failed to subscribe to duplicate feed: %v", err)
+		}
+
+		feeds, err := db.GetUserFeeds(user.ID)
+		if err != nil {
+			t.Fatalf("Failed to get user feeds: %v", err)
+		}
+
+		// Should still be 1 feed (no duplicates)
+		if len(feeds) != 1 {
+			t.Errorf("Expected 1 feed (no duplicates), got %d", len(feeds))
+		}
+	})
+}
+
+// TestDatastoreUserArticleOperations tests user article operations
+func TestDatastoreUserArticleOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping Datastore tests in short mode")
+	}
+
+	db := helpers.CreateTestDatastoreDB(t)
+
+	// Create test user and feed
+	user := &database.User{
+		GoogleID:  "article_test_user",
+		Email:     "articleuser@example.com",
+		Name:      "Article Test User",
+		CreatedAt: time.Now(),
+	}
+	err := db.CreateUser(user)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	feed := &database.Feed{
+		Title:       "Article Test Feed",
+		URL:         "https://articletest.com/rss",
+		Description: "Test feed for articles",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		LastFetch:   time.Now(),
+	}
+	err = db.AddFeed(feed)
+	if err != nil {
+		t.Fatalf("Failed to create feed: %v", err)
+	}
+
+	// Subscribe user to feed
+	err = db.SubscribeUserToFeed(user.ID, feed.ID)
+	if err != nil {
+		t.Fatalf("Failed to subscribe user to feed: %v", err)
+	}
+
+	// Create test articles
+	article1 := &database.Article{
+		FeedID:      feed.ID,
+		Title:       "Test Article 1",
+		URL:         "https://articletest.com/article1",
+		Content:     "Content of article 1",
+		Description: "Description of article 1",
+		Author:      "Test Author",
+		PublishedAt: time.Now(),
+		CreatedAt:   time.Now(),
+	}
+	err = db.AddArticle(article1)
+	if err != nil {
+		t.Fatalf("Failed to create article1: %v", err)
+	}
+
+	article2 := &database.Article{
+		FeedID:      feed.ID,
+		Title:       "Test Article 2",
+		URL:         "https://articletest.com/article2",
+		Content:     "Content of article 2",
+		Description: "Description of article 2",
+		Author:      "Test Author",
+		PublishedAt: time.Now(),
+		CreatedAt:   time.Now(),
+	}
+	err = db.AddArticle(article2)
+	if err != nil {
+		t.Fatalf("Failed to create article2: %v", err)
+	}
+
+	t.Run("GetUserFeedArticles", func(t *testing.T) {
+		articles, err := db.GetUserFeedArticles(user.ID, feed.ID)
+		if err != nil {
+			t.Fatalf("Failed to get user feed articles: %v", err)
+		}
+
+		if len(articles) != 2 {
+			t.Errorf("Expected 2 articles, got %d", len(articles))
+		}
+
+		// Articles should start as unread and unstarred
+		for _, article := range articles {
+			if article.IsRead {
+				t.Errorf("Expected article %d to be unread initially", article.ID)
+			}
+			if article.IsStarred {
+				t.Errorf("Expected article %d to be unstarred initially", article.ID)
+			}
+		}
+	})
+
+	t.Run("MarkUserArticleRead", func(t *testing.T) {
+		err := db.MarkUserArticleRead(user.ID, article1.ID, true)
+		if err != nil {
+			t.Fatalf("Failed to mark article as read: %v", err)
+		}
+
+		articles, err := db.GetUserFeedArticles(user.ID, feed.ID)
+		if err != nil {
+			t.Fatalf("Failed to get articles after marking read: %v", err)
+		}
+
+		var readArticle *database.Article
+		for _, article := range articles {
+			if article.ID == article1.ID {
+				readArticle = &article
+				break
+			}
+		}
+
+		if readArticle == nil {
+			t.Fatalf("Article %d not found", article1.ID)
+		}
+
+		if !readArticle.IsRead {
+			t.Errorf("Expected article %d to be marked as read", article1.ID)
+		}
+	})
+
+	t.Run("ToggleUserArticleStar", func(t *testing.T) {
+		// First toggle - should star the article
+		err := db.ToggleUserArticleStar(user.ID, article2.ID)
+		if err != nil {
+			t.Fatalf("Failed to star article: %v", err)
+		}
+
+		articles, err := db.GetUserFeedArticles(user.ID, feed.ID)
+		if err != nil {
+			t.Fatalf("Failed to get articles after starring: %v", err)
+		}
+
+		var starredArticle *database.Article
+		for _, article := range articles {
+			if article.ID == article2.ID {
+				starredArticle = &article
+				break
+			}
+		}
+
+		if starredArticle == nil {
+			t.Fatalf("Article %d not found", article2.ID)
+		}
+
+		if !starredArticle.IsStarred {
+			t.Errorf("Expected article %d to be starred", article2.ID)
+		}
+
+		// Second toggle - should unstar the article
+		err = db.ToggleUserArticleStar(user.ID, article2.ID)
+		if err != nil {
+			t.Fatalf("Failed to unstar article: %v", err)
+		}
+
+		articles, err = db.GetUserFeedArticles(user.ID, feed.ID)
+		if err != nil {
+			t.Fatalf("Failed to get articles after unstarring: %v", err)
+		}
+
+		for _, article := range articles {
+			if article.ID == article2.ID {
+				starredArticle = &article
+				break
+			}
+		}
+
+		if starredArticle.IsStarred {
+			t.Errorf("Expected article %d to be unstarred", article2.ID)
+		}
+	})
+
+	t.Run("GetUserArticles", func(t *testing.T) {
+		articles, err := db.GetUserArticles(user.ID)
+		if err != nil {
+			t.Fatalf("Failed to get user articles: %v", err)
+		}
+
+		if len(articles) != 2 {
+			t.Errorf("Expected 2 articles, got %d", len(articles))
+		}
+	})
+}
