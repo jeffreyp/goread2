@@ -1,0 +1,18 @@
+indexes:
+
+# Index for getting articles by feed_id ordered by published_at descending
+# Used in: GetArticles(feedID) and GetUserFeedArticles(userID, feedID)
+# Query: Article.FilterField("feed_id", "=", feedID).Order("-published_at")
+- kind: Article
+  properties:
+  - name: feed_id
+  - name: published_at
+    direction: desc
+
+# Index for UserFeed queries with multiple filters
+# Used in: SubscribeUserToFeed() and GetUserFeedArticles() subscription check
+# Query: UserFeed.FilterField("user_id", "=", userID).FilterField("feed_id", "=", feedID)
+- kind: UserFeed
+  properties:
+  - name: user_id
+  - name: feed_id

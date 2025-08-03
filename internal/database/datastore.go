@@ -150,9 +150,17 @@ func (db *DatastoreDB) DeleteFeed(id int) error {
 func (db *DatastoreDB) AddArticle(article *Article) error {
 	ctx := context.Background()
 
+	// Check if article already exists
 	query := datastore.NewQuery("Article").FilterField("url", "=", article.URL).Limit(1)
 	var existing []ArticleEntity
-	if _, err := db.client.GetAll(ctx, query, &existing); err == nil && len(existing) > 0 {
+	keys, err := db.client.GetAll(ctx, query, &existing)
+	if err != nil {
+		return fmt.Errorf("failed to check for existing article: %w", err)
+	}
+	
+	if len(existing) > 0 {
+		// Article already exists, set the ID and return
+		article.ID = int(keys[0].ID)
 		return nil
 	}
 
@@ -170,7 +178,7 @@ func (db *DatastoreDB) AddArticle(article *Article) error {
 	}
 
 	key := datastore.IncompleteKey("Article", nil)
-	key, err := db.client.Put(ctx, key, entity)
+	key, err = db.client.Put(ctx, key, entity)
 	if err != nil {
 		return fmt.Errorf("failed to save article: %w", err)
 	}

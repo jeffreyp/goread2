@@ -104,14 +104,17 @@ class GoReadApp {
 
     async loadFeeds() {
         try {
+            console.log('Loading feeds...');
             const response = await fetch('/api/feeds');
             this.feeds = await response.json();
+            console.log('Loaded feeds:', this.feeds.length, 'feeds');
             this.renderFeeds();
             
             if (this.feeds.length > 0) {
                 this.selectFeed('all');
             }
         } catch (error) {
+            console.error('Failed to load feeds:', error);
             this.showError('Failed to load feeds: ' + error.message);
         }
     }
@@ -413,19 +416,27 @@ class GoReadApp {
     }
 
     async deleteFeed(feedId) {
-        if (!confirm('Are you sure you want to delete this feed?')) return;
+        if (!confirm('Are you sure you want to remove this feed from your subscriptions?')) return;
         
         try {
-            await fetch(`/api/feeds/${feedId}`, {
+            console.log('Deleting feed:', feedId);
+            const response = await fetch(`/api/feeds/${feedId}`, {
                 method: 'DELETE'
             });
             
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+            
+            console.log('Feed deleted successfully, reloading feeds...');
             await this.loadFeeds();
             
             if (this.currentFeed == feedId) {
                 this.selectFeed('all');
             }
         } catch (error) {
+            console.error('Delete feed error:', error);
             this.showError('Failed to delete feed: ' + error.message);
         }
     }

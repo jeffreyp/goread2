@@ -172,6 +172,10 @@ func (fs *FeedService) DeleteFeed(id int) error {
 	return fs.db.DeleteFeed(id)
 }
 
+func (fs *FeedService) UnsubscribeUserFromFeed(userID, feedID int) error {
+	return fs.db.UnsubscribeUserFromFeed(userID, feedID)
+}
+
 func (fs *FeedService) GetArticles(feedID int) ([]database.Article, error) {
 	return fs.db.GetArticles(feedID)
 }

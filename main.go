@@ -78,6 +78,7 @@ func main() {
 		api.POST("/feeds", feedHandler.AddFeed)
 		api.DELETE("/feeds/:id", feedHandler.DeleteFeed)
 		api.GET("/feeds/:id/articles", feedHandler.GetArticles)
+		api.GET("/feeds/:id/debug", feedHandler.DebugFeed)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
 		api.POST("/feeds/refresh", feedHandler.RefreshFeeds)

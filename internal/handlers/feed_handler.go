@@ -58,6 +58,12 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 }
 
 func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -65,12 +71,12 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 		return
 	}
 
-	if err := fh.feedService.DeleteFeed(id); err != nil {
+	if err := fh.feedService.UnsubscribeUserFromFeed(user.ID, id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Feed deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Feed removed from your subscriptions successfully"})
 }
 
 func (fh *FeedHandler) GetArticles(c *gin.Context) {
@@ -166,4 +172,61 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Feeds refreshed successfully"})
+}
+
+func (fh *FeedHandler) DebugFeed(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid feed ID"})
+		return
+	}
+
+	// Get user feeds to verify subscription
+	userFeeds, err := fh.feedService.GetUserFeeds(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user feeds", "details": err.Error()})
+		return
+	}
+
+	// Check all articles for this feed (bypass user filtering for debug)
+	allArticles, err := fh.feedService.GetArticles(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get all articles", "details": err.Error()})
+		return
+	}
+
+	// Get user-specific articles
+	userArticles, err := fh.feedService.GetUserFeedArticles(user.ID, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user articles", "details": err.Error()})
+		return
+	}
+
+	// Check if user is subscribed to this feed
+	isSubscribed := false
+	for _, feed := range userFeeds {
+		if feed.ID == id {
+			isSubscribed = true
+			break
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":              user.ID,
+		"feed_id":              id,
+		"is_subscribed":        isSubscribed,
+		"user_feeds_count":     len(userFeeds),
+		"all_articles_count":   len(allArticles),
+		"user_articles_count":  len(userArticles),
+		"user_feeds":           userFeeds,
+		"all_articles":         allArticles,
+		"user_articles":        userArticles,
+	})
 }
