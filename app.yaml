@@ -1,4 +1,5 @@
 runtime: go121
+app_engine_apis: true
 
 env_variables:
   GIN_MODE: release
