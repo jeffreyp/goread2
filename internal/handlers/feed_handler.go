@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -29,6 +30,14 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	
+	// Debug logging
+	if len(feeds) == 0 {
+		log.Printf("GetFeeds: No feeds found for user %d", user.ID)
+	} else {
+		log.Printf("GetFeeds: Found %d feeds for user %d", len(feeds), user.ID)
+	}
+	
 	c.JSON(http.StatusOK, feeds)
 }
 
@@ -48,12 +57,16 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 		return
 	}
 
+	log.Printf("AddFeed: User %d adding feed %s", user.ID, req.URL)
+	
 	feed, err := fh.feedService.AddFeedForUser(user.ID, req.URL)
 	if err != nil {
+		log.Printf("AddFeed: Error adding feed for user %d: %v", user.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("AddFeed: Successfully added feed %d (%s) for user %d", feed.ID, feed.Title, user.ID)
 	c.JSON(http.StatusCreated, feed)
 }
 

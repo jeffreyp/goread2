@@ -120,12 +120,18 @@ class GoReadApp {
     }
 
     renderFeeds() {
+        console.log('Rendering feeds:', this.feeds);
         const feedList = document.getElementById('feed-list');
         const allItem = feedList.querySelector('[data-feed-id="all"]');
         
-        feedList.querySelectorAll('.feed-item:not(.special)').forEach(item => item.remove());
+        // Remove existing feed items (not the "All" item)
+        const existingFeeds = feedList.querySelectorAll('.feed-item:not(.special)');
+        console.log('Removing', existingFeeds.length, 'existing feed items');
+        existingFeeds.forEach(item => item.remove());
         
+        console.log('Rendering', this.feeds.length, 'feeds');
         this.feeds.forEach(feed => {
+            console.log('Creating feed item for:', feed.title, 'ID:', feed.id);
             const feedItem = document.createElement('div');
             feedItem.className = 'feed-item';
             feedItem.dataset.feedId = feed.id;
@@ -151,6 +157,7 @@ class GoReadApp {
             });
             
             feedList.appendChild(feedItem);
+            console.log('Added feed item to DOM');
         });
 
         allItem.addEventListener('click', () => {
