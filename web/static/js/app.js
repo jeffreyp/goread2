@@ -106,12 +106,29 @@ class GoReadApp {
         try {
             console.log('Loading feeds...');
             const response = await fetch('/api/feeds');
-            this.feeds = await response.json();
-            console.log('Loaded feeds:', this.feeds.length, 'feeds');
-            this.renderFeeds();
+            console.log('Response status:', response.status, 'Response ok:', response.ok);
             
-            if (this.feeds.length > 0) {
-                this.selectFeed('all');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const feedsData = await response.json();
+            console.log('Raw response data:', feedsData);
+            console.log('Type of response data:', typeof feedsData);
+            console.log('Is array?', Array.isArray(feedsData));
+            
+            this.feeds = feedsData;
+            
+            if (Array.isArray(this.feeds)) {
+                console.log('Loaded feeds:', this.feeds.length, 'feeds');
+                this.renderFeeds();
+                
+                if (this.feeds.length > 0) {
+                    this.selectFeed('all');
+                }
+            } else {
+                console.error('Error: feeds data is not an array:', this.feeds);
+                this.showError('Invalid feed data received from server');
             }
         } catch (error) {
             console.error('Failed to load feeds:', error);
@@ -121,6 +138,12 @@ class GoReadApp {
 
     renderFeeds() {
         console.log('Rendering feeds:', this.feeds);
+        
+        if (!Array.isArray(this.feeds)) {
+            console.error('ERROR: this.feeds is not an array in renderFeeds:', typeof this.feeds, this.feeds);
+            return;
+        }
+        
         const feedList = document.getElementById('feed-list');
         const allItem = feedList.querySelector('[data-feed-id="all"]');
         
