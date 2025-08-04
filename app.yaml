@@ -3,6 +3,8 @@ app_engine_apis: true
 
 env_variables:
   GIN_MODE: release
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+  GOOGLE_CLIENT_SECRET: {$GOOGLE_CLIENT_SECRET}
 
 handlers:
 - url: /static
