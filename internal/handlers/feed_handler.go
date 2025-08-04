@@ -21,12 +21,15 @@ func NewFeedHandler(feedService *services.FeedService) *FeedHandler {
 func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
+		log.Printf("GetFeeds: No user in context")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 		return
 	}
 
+	log.Printf("GetFeeds: Getting feeds for user %d", user.ID)
 	feeds, err := fh.feedService.GetUserFeeds(user.ID)
 	if err != nil {
+		log.Printf("GetFeeds: ERROR getting feeds for user %d: %v", user.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -36,6 +39,9 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 		log.Printf("GetFeeds: No feeds found for user %d", user.ID)
 	} else {
 		log.Printf("GetFeeds: Found %d feeds for user %d", len(feeds), user.ID)
+		for i, feed := range feeds {
+			log.Printf("GetFeeds: Feed %d: ID=%d, Title=%s", i+1, feed.ID, feed.Title)
+		}
 	}
 	
 	c.JSON(http.StatusOK, feeds)
