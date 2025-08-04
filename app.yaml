@@ -5,6 +5,7 @@ env_variables:
   GIN_MODE: release
   GOOGLE_CLIENT_ID: _secret:google-client-id
   GOOGLE_CLIENT_SECRET: _secret:google-client-secret
+  GOOGLE_REDIRECT_URL: "https://goreadapp.com/auth/callback"
 
 handlers:
 - url: /static
