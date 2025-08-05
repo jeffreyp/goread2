@@ -13,6 +13,16 @@ import (
 )
 
 func main() {
+	// Debug OAuth environment variables
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	
+	log.Printf("Environment debug:")
+	log.Printf("  GOOGLE_CLIENT_ID set: %v (length: %d)", googleClientID != "", len(googleClientID))
+	log.Printf("  GOOGLE_CLIENT_SECRET set: %v (length: %d)", googleClientSecret != "", len(googleClientSecret))
+	log.Printf("  GAE_ENV: %s", os.Getenv("GAE_ENV"))
+	log.Printf("  PORT: %s", os.Getenv("PORT"))
+	
 	db, err := database.InitDB()
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
