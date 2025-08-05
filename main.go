@@ -20,8 +20,18 @@ func main() {
 	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
 	
 	log.Printf("Environment debug:")
-	log.Printf("  GOOGLE_CLIENT_ID: %s", googleClientID)
-	log.Printf("  GOOGLE_CLIENT_SECRET: %s", googleClientSecret)
+	if googleClientID == "" {
+		log.Printf("  GOOGLE_CLIENT_ID: (EMPTY/NOT SET)")
+	} else {
+		log.Printf("  GOOGLE_CLIENT_ID: %s", googleClientID)
+	}
+	
+	if googleClientSecret == "" {
+		log.Printf("  GOOGLE_CLIENT_SECRET: (EMPTY/NOT SET)")
+	} else {
+		log.Printf("  GOOGLE_CLIENT_SECRET: %s", googleClientSecret)
+	}
+	
 	log.Printf("  GAE_ENV: %s", os.Getenv("GAE_ENV"))
 	log.Printf("  PORT: %s", os.Getenv("PORT"))
 	
