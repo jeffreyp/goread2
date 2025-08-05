@@ -34,6 +34,7 @@ func main() {
 	
 	log.Printf("  GAE_ENV: %s", os.Getenv("GAE_ENV"))
 	log.Printf("  PORT: %s", os.Getenv("PORT"))
+	log.Printf("  GOOGLE_CLOUD_PROJECT: %s", os.Getenv("GOOGLE_CLOUD_PROJECT"))
 	
 	log.Printf("Initializing database...")
 	db, err := database.InitDB()
