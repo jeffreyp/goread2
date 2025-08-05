@@ -15,26 +15,26 @@ import (
 func main() {
 	log.Printf("=== GOREAD2 STARTING UP ===")
 	
+	log.Printf("Starting environment variable check...")
+	
 	// Debug OAuth environment variables
+	log.Printf("About to check GOOGLE_CLIENT_ID...")
 	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	log.Printf("GOOGLE_CLIENT_ID length: %d", len(googleClientID))
+	
+	log.Printf("About to check GOOGLE_CLIENT_SECRET...")
 	googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	log.Printf("GOOGLE_CLIENT_SECRET length: %d", len(googleClientSecret))
 	
-	log.Printf("Environment debug:")
-	if googleClientID == "" {
-		log.Printf("  GOOGLE_CLIENT_ID: (EMPTY/NOT SET)")
-	} else {
-		log.Printf("  GOOGLE_CLIENT_ID: %s", googleClientID)
-	}
+	log.Printf("Environment debug - basic info:")
+	log.Printf("GAE_ENV: %s", os.Getenv("GAE_ENV"))
+	log.Printf("PORT: %s", os.Getenv("PORT"))
+	log.Printf("GOOGLE_CLOUD_PROJECT: %s", os.Getenv("GOOGLE_CLOUD_PROJECT"))
 	
-	if googleClientSecret == "" {
-		log.Printf("  GOOGLE_CLIENT_SECRET: (EMPTY/NOT SET)")
-	} else {
-		log.Printf("  GOOGLE_CLIENT_SECRET: %s", googleClientSecret)
-	}
-	
-	log.Printf("  GAE_ENV: %s", os.Getenv("GAE_ENV"))
-	log.Printf("  PORT: %s", os.Getenv("PORT"))
-	log.Printf("  GOOGLE_CLOUD_PROJECT: %s", os.Getenv("GOOGLE_CLOUD_PROJECT"))
+	log.Printf("Now checking OAuth values...")
+	log.Printf("CLIENT_ID starts with: %.10s", googleClientID+"(empty)")
+	log.Printf("CLIENT_SECRET starts with: %.10s", googleClientSecret+"(empty)")
+	log.Printf("Environment check complete.")
 	
 	log.Printf("Initializing database...")
 	db, err := database.InitDB()
