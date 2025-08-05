@@ -3,8 +3,8 @@ app_engine_apis: true
 
 env_variables:
   GIN_MODE: release
-  GOOGLE_CLIENT_ID: _secret:google-client-id
-  GOOGLE_CLIENT_SECRET: _secret:google-client-secret
+  GOOGLE_CLIENT_ID: _secret:projects/goread-467200/secrets/google-client-id/versions/latest
+  GOOGLE_CLIENT_SECRET: _secret:project/goread-467200/secrets/google-client-secret/versions/latest
   GOOGLE_REDIRECT_URL: "https://goreadapp.com/auth/callback"
 
 handlers:
