@@ -368,6 +368,26 @@ func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
 	feedEntities := make([]FeedEntity, len(feedKeys))
 	err = db.client.GetMulti(ctx, feedKeys, feedEntities)
 	if err != nil {
+		// Check for partial success - some feeds might exist, others might not
+		if multiErr, ok := err.(datastore.MultiError); ok {
+			validFeeds := []Feed{}
+			for i, singleErr := range multiErr {
+				if singleErr == nil {
+					entity := feedEntities[i]
+					entity.ID = feedIDs[i]
+					validFeeds = append(validFeeds, Feed{
+						ID:          int(entity.ID),
+						Title:       entity.Title,
+						URL:         entity.URL,
+						Description: entity.Description,
+						CreatedAt:   entity.CreatedAt,
+						UpdatedAt:   entity.UpdatedAt,
+						LastFetch:   entity.LastFetch,
+					})
+				}
+			}
+			return validFeeds, nil
+		}
 		return nil, fmt.Errorf("failed to get feeds: %w", err)
 	}
 
