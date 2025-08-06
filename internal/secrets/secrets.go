@@ -3,7 +3,6 @@ package secrets
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
