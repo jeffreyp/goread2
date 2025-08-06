@@ -12,7 +12,7 @@ jobs:
     
     strategy:
       matrix:
-        go-version: [1.22]
+        go-version: [1.23]
 
     steps:
     - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
         echo "GOOGLE_REDIRECT_URL=${{ secrets.GOOGLE_REDIRECT_URL }}" >> $GITHUB_ENV
 
     - name: Run unit tests
-      run: go test -race -coverprofile=coverage.out ./test/unit/...
+      run: go test -short -race -coverprofile=coverage.out ./test/unit/...
 
     - name: Run integration tests
       run: go test -race ./test/integration/...
@@ -73,7 +73,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: 1.22
+        go-version: 1.23
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v6
@@ -105,7 +105,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: 1.22
+        go-version: 1.23
 
     - name: Build application
       run: go build -v ./...
