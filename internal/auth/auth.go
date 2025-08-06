@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"goread2/internal/database"
+	"goread2/internal/secrets"
 )
 
 type AuthService struct {
@@ -25,9 +27,19 @@ type GoogleUserInfo struct {
 }
 
 func NewAuthService(db database.Database) *AuthService {
+	ctx := context.Background()
+	
+	// Get OAuth credentials from secrets or environment
+	clientID, clientSecret, err := secrets.GetOAuthCredentials(ctx)
+	if err != nil {
+		// Fall back to environment variables for backwards compatibility
+		clientID = os.Getenv("GOOGLE_CLIENT_ID")
+		clientSecret = os.Getenv("GOOGLE_CLIENT_SECRET")
+	}
+	
 	config := &oauth2.Config{
-		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 		RedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
 		Scopes: []string{
 			"https://www.googleapis.com/auth/userinfo.email",

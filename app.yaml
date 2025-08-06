@@ -3,9 +3,13 @@ app_engine_apis: true
 
 env_variables:
   GIN_MODE: release
-  GOOGLE_CLIENT_ID: _secret:projects/goread-467200/secrets/google-client-id/versions/latest
-  GOOGLE_CLIENT_SECRET: _secret:projects/goread-467200/secrets/google-client-secret/versions/latest
   GOOGLE_REDIRECT_URL: "https://goreadapp.com/auth/callback"
+  GOOGLE_CLOUD_PROJECT: "goread-467200"
+  SECRET_CLIENT_ID_NAME: "google-client-id"
+  SECRET_CLIENT_SECRET_NAME: "google-client-secret"
+
+beta_settings:
+  cloud_sql_instances: []
 
 handlers:
 - url: /static

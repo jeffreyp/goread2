@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -56,7 +57,8 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	// Handle the OAuth callback
 	user, err := ah.authService.HandleCallback(code)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to authenticate"})
+		log.Printf("OAuth callback error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to authenticate", "details": err.Error()})
 		return
 	}
 
