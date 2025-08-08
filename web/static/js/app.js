@@ -174,84 +174,90 @@ class GoReadApp {
         console.log('allItem found:', allItem ? 'yes' : 'no');
         
         console.log('Rendering', this.feeds.length, 'feeds');
-        this.feeds.forEach(feed => {
-            console.log('Creating feed item for:', feed.title, 'ID:', feed.id);
-            const feedItem = document.createElement('div');
-            feedItem.className = 'feed-item';
-            feedItem.dataset.feedId = feed.id;
-            
-            // Create elements programmatically to avoid HTML parsing issues
-            const titleSpan = document.createElement('span');
-            titleSpan.className = 'feed-title';
-            titleSpan.textContent = feed.title; // Use textContent instead of innerHTML
-            
-            const rightDiv = document.createElement('div');
-            rightDiv.style.display = 'flex';
-            rightDiv.style.alignItems = 'center';
-            
-            const unreadSpan = document.createElement('span');
-            unreadSpan.className = 'unread-count';
-            unreadSpan.dataset.count = '0';
-            unreadSpan.textContent = '0';
-            
-            const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'feed-actions';
-            
-            const deleteButton = document.createElement('button');
-            deleteButton.className = 'delete-feed';
-            deleteButton.dataset.feedId = feed.id;
-            deleteButton.title = 'Delete feed';
-            deleteButton.textContent = '×';
-            
-            // Assemble the structure
-            actionsDiv.appendChild(deleteButton);
-            rightDiv.appendChild(unreadSpan);
-            rightDiv.appendChild(actionsDiv);
-            feedItem.appendChild(titleSpan);
-            feedItem.appendChild(rightDiv);
-            
-            console.log('Feed item structure created successfully');
+        
+        // Use a for loop instead of forEach to better control debugging
+        for (let i = 0; i < this.feeds.length; i++) {
+            const feed = this.feeds[i];
+            console.log(`Processing feed ${i + 1}/${this.feeds.length}: ${feed.title} (ID: ${feed.id})`);
             
             try {
-                console.log('Setting up feedItem click listener...');
+                const feedItem = document.createElement('div');
+                feedItem.className = 'feed-item';
+                feedItem.dataset.feedId = feed.id;
+                
+                // Create elements programmatically to avoid HTML parsing issues
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'feed-title';
+                titleSpan.textContent = feed.title; // Use textContent instead of innerHTML
+                
+                const rightDiv = document.createElement('div');
+                rightDiv.style.display = 'flex';
+                rightDiv.style.alignItems = 'center';
+                
+                const unreadSpan = document.createElement('span');
+                unreadSpan.className = 'unread-count';
+                unreadSpan.dataset.count = '0';
+                unreadSpan.textContent = '0';
+                
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'feed-actions';
+                
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'delete-feed';
+                deleteButton.dataset.feedId = feed.id;
+                deleteButton.title = 'Delete feed';
+                deleteButton.textContent = '×';
+                
+                console.log('Basic DOM elements created');
+                
+                // Assemble the structure
+                actionsDiv.appendChild(deleteButton);
+                rightDiv.appendChild(unreadSpan);
+                rightDiv.appendChild(actionsDiv);
+                feedItem.appendChild(titleSpan);
+                feedItem.appendChild(rightDiv);
+                
+                console.log('DOM structure assembled');
+                
+                // Add event listeners
                 feedItem.addEventListener('click', (e) => {
                     if (!e.target.classList.contains('delete-feed')) {
                         this.selectFeed(feed.id);
                     }
                 });
-                console.log('feedItem click listener added successfully');
+                console.log('feedItem click listener added');
                 
-                console.log('Looking for delete button...');
-                const deleteButton = feedItem.querySelector('.delete-feed');
-                if (deleteButton) {
-                    console.log('Delete button found, adding click listener...');
-                    deleteButton.addEventListener('click', (e) => {
+                const deleteButtonFromQuery = feedItem.querySelector('.delete-feed');
+                if (deleteButtonFromQuery) {
+                    deleteButtonFromQuery.addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.deleteFeed(feed.id);
                     });
-                    console.log('Delete button click listener added successfully');
+                    console.log('Delete button click listener added');
                 } else {
                     console.warn('Delete button not found for feed', feed.id);
                 }
                 
-                console.log('About to append feed item to DOM...');
+                console.log('About to append to DOM...');
                 feedList.appendChild(feedItem);
-                console.log('Added feed item to DOM');
-                console.log('About to exit forEach loop iteration...');
+                console.log('Successfully added feed item to DOM');
+                
+                console.log(`Completed processing feed ${i + 1}`);
+                
             } catch (error) {
-                console.error('Error setting up feed item event listeners:', error);
+                console.error(`Error processing feed ${i + 1}:`, error);
                 console.error('Error stack:', error.stack);
-                throw error; // Re-throw to see if this stops execution
+                // Don't throw - continue with other feeds
             }
-        });
-
-            console.log('renderFeeds: forEach loop completed');
-            console.log('renderFeeds: Setting up allItem click listener');
-            
-            // Skip allItem event listener setup for now - it's handled elsewhere
-            console.log('renderFeeds: Skipping allItem listener setup for debugging');
-            
-            console.log('renderFeeds: Function completed');
+        }
+        
+        console.log('All feeds processed successfully');
+        console.log('renderFeeds: Setting up allItem click listener');
+        
+        // Skip allItem event listener setup for now - it's handled elsewhere
+        console.log('renderFeeds: Skipping allItem listener setup for debugging');
+        
+        console.log('renderFeeds: Function completed');
         } catch (error) {
             console.error('Error in renderFeeds:', error);
             console.error('Stack trace:', error.stack);
