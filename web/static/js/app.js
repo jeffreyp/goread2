@@ -342,9 +342,19 @@ class GoReadApp {
             console.log('Looking for star button in article', article.id, '- found:', starButton ? 'yes' : 'no');
             if (starButton) {
                 console.log('Setting up star button click listener for article:', article.id);
+                
+                // Test if the button element is properly created
+                console.log('Star button details:', {
+                    tagName: starButton.tagName,
+                    className: starButton.className,
+                    dataArticleId: starButton.dataset.articleId,
+                    text: starButton.textContent
+                });
+                
                 starButton.addEventListener('click', (e) => {
-                    console.log('Star button clicked for article:', article.id);
+                    console.log('*** STAR BUTTON CLICKED for article:', article.id, '***');
                     e.stopPropagation();
+                    e.preventDefault(); // Prevent any default button behavior
                     this.toggleStar(article.id);
                 });
                 console.log('Star button click listener attached for article:', article.id);
