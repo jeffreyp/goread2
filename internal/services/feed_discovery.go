@@ -138,7 +138,7 @@ func (fd *FeedDiscovery) isFeedURL(urlStr string) bool {
 // validateFeedURL checks if a URL actually contains valid RSS/Atom content
 func (fd *FeedDiscovery) validateFeedURL(urlStr string) bool {
 	// Create a context with timeout for validation
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
@@ -271,29 +271,36 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 		fmt.Printf("tryCommonFeedPaths: Trying %s\n", feedURL)
 		
 		// Quick check if URL returns 200 with short timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
 		if err != nil {
 			cancel()
+			fmt.Printf("tryCommonFeedPaths: Failed to create request for %s: %v\n", feedURL, err)
 			continue
 		}
 		
 		resp, err := fd.client.Do(req)
 		cancel()
 		
-		if err == nil && resp != nil && resp.StatusCode == 200 {
-			resp.Body.Close()
-			
-			// Do full validation to ensure it's actually a feed
-			fmt.Printf("tryCommonFeedPaths: %s returned 200, validating content...\n", feedURL)
-			if fd.validateFeedURL(feedURL) {
-				fmt.Printf("tryCommonFeedPaths: Found valid feed: %s\n", feedURL)
-				validFeeds = append(validFeeds, feedURL)
-			} else {
-				fmt.Printf("tryCommonFeedPaths: %s is not a valid feed\n", feedURL)
-			}
-		} else if err != nil {
+		if err != nil {
 			fmt.Printf("tryCommonFeedPaths: %s failed: %v\n", feedURL, err)
+			continue
+		}
+		
+		if resp != nil {
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				// Do full validation to ensure it's actually a feed
+				fmt.Printf("tryCommonFeedPaths: %s returned 200, validating content...\n", feedURL)
+				if fd.validateFeedURL(feedURL) {
+					fmt.Printf("tryCommonFeedPaths: Found valid feed: %s\n", feedURL)
+					validFeeds = append(validFeeds, feedURL)
+				} else {
+					fmt.Printf("tryCommonFeedPaths: %s is not a valid feed\n", feedURL)
+				}
+			} else {
+				fmt.Printf("tryCommonFeedPaths: %s returned status %d\n", feedURL, resp.StatusCode)
+			}
 		}
 	}
 

@@ -167,7 +167,7 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 		}
 
 		if len(feedURLs) == 0 {
-			return nil, fmt.Errorf("no feeds found for %s", inputURL)
+			return nil, fmt.Errorf("no RSS/Atom feeds found for %s. Please check if the site has feeds or try a direct feed URL", inputURL)
 		}
 
 		feedURL = feedURLs[0]

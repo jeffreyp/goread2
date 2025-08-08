@@ -309,6 +309,11 @@ class GoReadApp {
         
         articleList.innerHTML = '';
         
+        // Add a global click listener to debug what's being clicked
+        articleList.addEventListener('click', (e) => {
+            console.log('Click detected on:', e.target.tagName, e.target.className, 'Article ID:', e.target.dataset?.articleId);
+        });
+        
         this.articles.forEach((article, index) => {
             const articleItem = document.createElement('div');
             articleItem.className = `article-item ${article.is_read ? 'read' : ''}`;
