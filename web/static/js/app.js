@@ -183,41 +183,60 @@ class GoReadApp {
             try {
                 const feedItem = document.createElement('div');
                 feedItem.className = 'feed-item';
-                feedItem.dataset.feedId = feed.id;
+                feedItem.dataset.feedId = String(feed.id); // Ensure it's a string
+                console.log('feedItem created and feedId set');
                 
                 // Create elements programmatically to avoid HTML parsing issues
                 const titleSpan = document.createElement('span');
                 titleSpan.className = 'feed-title';
-                titleSpan.textContent = feed.title; // Use textContent instead of innerHTML
+                
+                // Safely handle the title
+                const safeTitle = String(feed.title || 'Untitled Feed');
+                titleSpan.textContent = safeTitle;
+                console.log('titleSpan created with safe title:', safeTitle);
                 
                 const rightDiv = document.createElement('div');
                 rightDiv.style.display = 'flex';
                 rightDiv.style.alignItems = 'center';
+                console.log('rightDiv created');
                 
                 const unreadSpan = document.createElement('span');
                 unreadSpan.className = 'unread-count';
                 unreadSpan.dataset.count = '0';
                 unreadSpan.textContent = '0';
+                console.log('unreadSpan created');
                 
                 const actionsDiv = document.createElement('div');
                 actionsDiv.className = 'feed-actions';
+                console.log('actionsDiv created');
                 
                 const deleteButton = document.createElement('button');
                 deleteButton.className = 'delete-feed';
-                deleteButton.dataset.feedId = feed.id;
+                deleteButton.dataset.feedId = String(feed.id);
                 deleteButton.title = 'Delete feed';
                 deleteButton.textContent = '×';
+                console.log('deleteButton created');
                 
                 console.log('Basic DOM elements created');
                 
-                // Assemble the structure
+                // Assemble the structure step by step
+                console.log('About to assemble DOM structure...');
                 actionsDiv.appendChild(deleteButton);
-                rightDiv.appendChild(unreadSpan);
-                rightDiv.appendChild(actionsDiv);
-                feedItem.appendChild(titleSpan);
-                feedItem.appendChild(rightDiv);
+                console.log('deleteButton appended to actionsDiv');
                 
-                console.log('DOM structure assembled');
+                rightDiv.appendChild(unreadSpan);
+                console.log('unreadSpan appended to rightDiv');
+                
+                rightDiv.appendChild(actionsDiv);
+                console.log('actionsDiv appended to rightDiv');
+                
+                feedItem.appendChild(titleSpan);
+                console.log('titleSpan appended to feedItem');
+                
+                feedItem.appendChild(rightDiv);
+                console.log('rightDiv appended to feedItem');
+                
+                console.log('DOM structure assembled successfully');
                 
                 // Add event listeners
                 feedItem.addEventListener('click', (e) => {
