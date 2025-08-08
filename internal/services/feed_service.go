@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -144,6 +145,29 @@ func (fs *FeedService) GetUserFeeds(userID int) ([]database.Feed, error) {
 }
 
 func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Feed, error) {
+	// Add overall timeout to prevent infinite hangs
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	// Use a channel to handle timeout
+	done := make(chan struct{})
+	var result *database.Feed
+	var resultErr error
+	
+	go func() {
+		defer close(done)
+		result, resultErr = fs.addFeedForUserInternal(userID, inputURL)
+	}()
+	
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("feed discovery timed out after 30 seconds for %s", inputURL)
+	case <-done:
+		return result, resultErr
+	}
+}
+
+func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*database.Feed, error) {
 	var feedURL string
 	
 	// Normalize the input URL first

@@ -70,17 +70,18 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 	feedURLs, err := fd.discoverFeedsFromHTML(normalizedURL)
 	if err != nil {
 		
-		// If everything fails, return some educated guesses without validation
-		baseSchemeHost := normalizedURL
+		// If everything fails, return some educated guesses for both HTTP and HTTPS
+		var guessedFeeds []string
 		if parsedURL, err := url.Parse(normalizedURL); err == nil {
-			baseSchemeHost = parsedURL.Scheme + "://" + parsedURL.Host
-		}
-		
-		guessedFeeds := []string{
-			baseSchemeHost + "/feed",
-			baseSchemeHost + "/feed.xml", 
-			baseSchemeHost + "/rss.xml",
-			baseSchemeHost + "/atom.xml",
+			schemes := []string{"https", "http"}
+			paths := []string{"/feed", "/feed.xml", "/rss.xml", "/atom.xml"}
+			
+			for _, scheme := range schemes {
+				baseSchemeHost := scheme + "://" + parsedURL.Host
+				for _, path := range paths {
+					guessedFeeds = append(guessedFeeds, baseSchemeHost+path)
+				}
+			}
 		}
 		
 		return guessedFeeds, nil
@@ -135,32 +136,52 @@ func (fd *FeedDiscovery) validateFeedURL(urlStr string) bool {
 
 // discoverFeedsFromHTML parses HTML to find feed links
 func (fd *FeedDiscovery) discoverFeedsFromHTML(urlStr string) ([]string, error) {
-	
-	// Create a context with timeout for this request
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	
-	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
-		return nil, err
-	}
-	
-	resp, err := fd.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("HTTP %d when fetching %s", resp.StatusCode, urlStr)
+		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
+	// Try both HTTPS and HTTP
+	schemes := []string{"https", "http"}
+	host := parsedURL.Host
+	
+	for _, scheme := range schemes {
+		testURL := scheme + "://" + host
+		
+		// Create a context with timeout for this request
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		
+		req, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
+		if err != nil {
+			cancel()
+			continue
+		}
+		
+		resp, err := fd.client.Do(req)
+		if err != nil {
+			cancel()
+			continue
+		}
+		
+		if resp.StatusCode != 200 {
+			resp.Body.Close()
+			cancel()
+			continue
+		}
 
-	return fd.extractFeedLinksFromHTML(string(body), urlStr)
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		cancel()
+		
+		if err != nil {
+			continue
+		}
+
+		// Successfully got HTML, now extract feed links
+		return fd.extractFeedLinksFromHTML(string(body), testURL)
+	}
+	
+	return nil, fmt.Errorf("unable to fetch HTML from %s using HTTP or HTTPS", host)
 }
 
 // extractFeedLinksFromHTML uses regex to find feed links in HTML
@@ -209,7 +230,9 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 		return nil
 	}
 
-	baseSchemeHost := parsedURL.Scheme + "://" + parsedURL.Host
+	// Try both HTTP and HTTPS schemes
+	schemes := []string{"https", "http"}
+	host := parsedURL.Host
 
 	commonPaths := []string{
 		"/feed",
@@ -223,32 +246,43 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 	}
 
 	var validFeeds []string
-	for _, path := range commonPaths {
-		feedURL := baseSchemeHost + path
+	
+	// Try each scheme (HTTPS first, then HTTP)
+	for _, scheme := range schemes {
+		baseSchemeHost := scheme + "://" + host
 		
-		// Quick check if URL returns 200 with short timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
-		if err != nil {
+		for _, path := range commonPaths {
+			feedURL := baseSchemeHost + path
+			
+			// Quick check if URL returns 200 with short timeout
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
+			if err != nil {
+				cancel()
+				continue
+			}
+			
+			resp, err := fd.client.Do(req)
 			cancel()
-			continue
-		}
-		
-		resp, err := fd.client.Do(req)
-		cancel()
-		
-		if err != nil {
-			continue
-		}
-		
-		if resp != nil {
-			resp.Body.Close()
-			if resp.StatusCode == 200 {
-				// Do full validation to ensure it's actually a feed
-				if fd.validateFeedURL(feedURL) {
-					validFeeds = append(validFeeds, feedURL)
+			
+			if err != nil {
+				continue
+			}
+			
+			if resp != nil {
+				resp.Body.Close()
+				if resp.StatusCode == 200 {
+					// Do full validation to ensure it's actually a feed
+					if fd.validateFeedURL(feedURL) {
+						validFeeds = append(validFeeds, feedURL)
+					}
 				}
 			}
+		}
+		
+		// If we found feeds with the first scheme (HTTPS), don't try HTTP
+		if len(validFeeds) > 0 {
+			break
 		}
 	}
 

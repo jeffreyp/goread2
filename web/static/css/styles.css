@@ -415,25 +415,31 @@ body.app-body {
     100% { transform: rotate(360deg); }
 }
 
-.btn.loading {
-    position: relative;
-    color: transparent;
-    pointer-events: none;
+.button-spinner-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: rgba(255, 0, 0, 0.8) !important;
+    pointer-events: none !important;
+    border-radius: 4px !important;
+    z-index: 999 !important;
 }
 
-.btn.loading:after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 16px;
-    height: 16px;
-    margin-top: -8px;
-    margin-left: -8px;
-    border: 2px solid transparent;
-    border-top: 2px solid #fff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+.button-spinner-overlay .spinner {
+    width: 20px !important;
+    height: 20px !important;
+    border: 3px solid #ccc !important;
+    border-top: 3px solid #fff !important;
+    border-radius: 50% !important;
+    animation: spin 1s linear infinite !important;
+    display: block !important;
 }
 
 .form-group input:disabled {

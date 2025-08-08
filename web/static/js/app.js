@@ -464,9 +464,15 @@ class GoReadApp {
         const inputField = document.getElementById('feed-url');
         
         // Reset all form controls if they were in loading state
-        submitButton.classList.remove('loading');
+        const spinnerOverlay = submitButton.querySelector('.button-spinner-overlay');
+        if (spinnerOverlay) {
+            if (spinnerOverlay.stopAnimation) {
+                spinnerOverlay.stopAnimation();
+            }
+            spinnerOverlay.remove();
+        }
+        submitButton.style.position = '';
         submitButton.disabled = false;
-        submitButton.textContent = 'Add Feed';
         cancelButton.disabled = false;
         inputField.disabled = false;
         
@@ -482,10 +488,61 @@ class GoReadApp {
         const originalText = submitButton.textContent;
         
         // Show loading state - disable all form controls
-        submitButton.classList.add('loading');
         submitButton.disabled = true;
+        submitButton.style.position = 'relative';
         cancelButton.disabled = true;
         inputField.disabled = true;
+        
+        // Create spinner overlay that doesn't change button size
+        const spinner = document.createElement('div');
+        spinner.className = 'button-spinner-overlay';
+        
+        // Add inline styles to ensure visibility
+        spinner.style.cssText = `
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background-color: rgba(26, 115, 232, 0.9) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 9999 !important;
+            border-radius: 4px !important;
+        `;
+        
+        const spinnerInner = document.createElement('div');
+        spinnerInner.style.cssText = `
+            width: 20px !important;
+            height: 20px !important;
+            border: 4px solid rgba(255, 255, 255, 0.3) !important;
+            border-top: 4px solid #ffffff !important;
+            border-radius: 50% !important;
+            box-sizing: border-box !important;
+        `;
+        
+        spinner.appendChild(spinnerInner);
+        submitButton.appendChild(spinner);
+        
+        // Add JavaScript-based rotation animation
+        let rotation = 0;
+        let isAnimating = true;
+        const animateSpinner = () => {
+            if (!isAnimating) return;
+            rotation += 6; // 6 degrees per frame
+            spinnerInner.style.transform = `rotate(${rotation}deg)`;
+            requestAnimationFrame(animateSpinner);
+        };
+        
+        // Store reference to stop animation later
+        spinner.stopAnimation = () => {
+            isAnimating = false;
+        };
+        
+        animateSpinner();
         
         try {
             const response = await fetch('/api/feeds', {
@@ -512,9 +569,15 @@ class GoReadApp {
             this.showError('Failed to add feed: ' + error.message);
         } finally {
             // Always restore all form controls
-            submitButton.classList.remove('loading');
+            const spinnerOverlay = submitButton.querySelector('.button-spinner-overlay');
+            if (spinnerOverlay) {
+                if (spinnerOverlay.stopAnimation) {
+                    spinnerOverlay.stopAnimation();
+                }
+                spinnerOverlay.remove();
+            }
+            submitButton.style.position = '';
             submitButton.disabled = false;
-            submitButton.textContent = originalText;
             cancelButton.disabled = false;
             inputField.disabled = false;
         }
