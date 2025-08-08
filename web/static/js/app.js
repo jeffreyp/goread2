@@ -434,9 +434,14 @@ class GoReadApp {
     }
 
     toggleCurrentArticleStar() {
-        if (this.currentArticle === null) return;
+        console.log('toggleCurrentArticleStar called, currentArticle:', this.currentArticle);
+        if (this.currentArticle === null) {
+            console.log('No current article selected');
+            return;
+        }
         
         const article = this.articles[this.currentArticle];
+        console.log('Current article for star toggle:', article ? article.title : 'not found');
         this.toggleStar(article.id);
     }
 
@@ -476,7 +481,7 @@ class GoReadApp {
                 article.is_starred = !article.is_starred;
                 console.log('Article star state changed from', wasStarred, 'to', article.is_starred);
                 
-                const starBtn = document.querySelector(`[data-article-id="${articleId}"]`);
+                const starBtn = document.querySelector(`.star-btn[data-article-id="${articleId}"]`);
                 console.log('Found star button:', starBtn ? 'yes' : 'no');
                 
                 if (starBtn) {
