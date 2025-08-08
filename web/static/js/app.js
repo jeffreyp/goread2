@@ -339,14 +339,18 @@ class GoReadApp {
             });
             
             const starButton = articleItem.querySelector('.star-btn');
+            console.log('Looking for star button in article', article.id, '- found:', starButton ? 'yes' : 'no');
             if (starButton) {
+                console.log('Setting up star button click listener for article:', article.id);
                 starButton.addEventListener('click', (e) => {
                     console.log('Star button clicked for article:', article.id);
                     e.stopPropagation();
                     this.toggleStar(article.id);
                 });
+                console.log('Star button click listener attached for article:', article.id);
             } else {
                 console.warn('Star button not found in article item for article:', article.id);
+                console.log('Article item HTML:', articleItem.innerHTML);
             }
             
             articleList.appendChild(articleItem);
