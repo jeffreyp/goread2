@@ -52,19 +52,14 @@ func (fd *FeedDiscovery) NormalizeURL(rawURL string) (string, error) {
 
 // DiscoverFeedURL attempts to find feed URLs from a given URL
 func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
-	fmt.Printf("DiscoverFeedURL: Starting discovery for: %s\n", inputURL)
-	
 	normalizedURL, err := fd.NormalizeURL(inputURL)
 	if err != nil {
 		return nil, fmt.Errorf("URL normalization failed: %w", err)
 	}
-	fmt.Printf("DiscoverFeedURL: Normalized URL: %s\n", normalizedURL)
 
 	// Try common feed paths first (faster and more reliable than checking the main URL)
-	fmt.Printf("DiscoverFeedURL: Trying common feed paths first...\n")
 	commonFeeds := fd.tryCommonFeedPaths(normalizedURL)
 	if len(commonFeeds) > 0 {
-		fmt.Printf("DiscoverFeedURL: Found %d feeds via common paths\n", len(commonFeeds))
 		return commonFeeds, nil
 	}
 
@@ -72,13 +67,10 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 	// Most websites won't serve feeds on their main page anyway
 
 	// If no common paths worked, try to discover feeds from the page
-	fmt.Printf("DiscoverFeedURL: Attempting HTML feed discovery...\n")
 	feedURLs, err := fd.discoverFeedsFromHTML(normalizedURL)
 	if err != nil {
-		fmt.Printf("DiscoverFeedURL: HTML discovery failed: %v\n", err)
 		
 		// If everything fails, return some educated guesses without validation
-		fmt.Printf("DiscoverFeedURL: Returning educated guesses for feeds...\n")
 		baseSchemeHost := normalizedURL
 		if parsedURL, err := url.Parse(normalizedURL); err == nil {
 			baseSchemeHost = parsedURL.Scheme + "://" + parsedURL.Host
@@ -91,13 +83,11 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 			baseSchemeHost + "/atom.xml",
 		}
 		
-		fmt.Printf("DiscoverFeedURL: Returning %d guessed feed URLs (unvalidated)\n", len(guessedFeeds))
 		return guessedFeeds, nil
 	}
 
 	// Return discovered feeds from HTML parsing
 	if len(feedURLs) > 0 {
-		fmt.Printf("DiscoverFeedURL: Found %d feeds via HTML discovery\n", len(feedURLs))
 		return feedURLs, nil
 	}
 
@@ -106,7 +96,6 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 
 // isFeedURL checks if a URL is likely a direct feed URL
 func (fd *FeedDiscovery) isFeedURL(urlStr string) bool {
-	fmt.Printf("isFeedURL: Checking %s\n", urlStr)
 	
 	// Create a shorter timeout context for this specific check
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -114,13 +103,11 @@ func (fd *FeedDiscovery) isFeedURL(urlStr string) bool {
 	
 	req, err := http.NewRequestWithContext(ctx, "HEAD", urlStr, nil)
 	if err != nil {
-		fmt.Printf("isFeedURL: Failed to create request: %v\n", err)
 		return false
 	}
 	
 	resp, err := fd.client.Do(req)
 	if err != nil {
-		fmt.Printf("isFeedURL: HEAD request failed: %v\n", err)
 		return false
 	}
 	defer resp.Body.Close()
@@ -175,7 +162,6 @@ func (fd *FeedDiscovery) validateFeedURL(urlStr string) bool {
 
 // discoverFeedsFromHTML parses HTML to find feed links
 func (fd *FeedDiscovery) discoverFeedsFromHTML(urlStr string) ([]string, error) {
-	fmt.Printf("discoverFeedsFromHTML: Fetching HTML from %s\n", urlStr)
 	
 	// Create a context with timeout for this request
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -183,13 +169,11 @@ func (fd *FeedDiscovery) discoverFeedsFromHTML(urlStr string) ([]string, error) 
 	
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 	if err != nil {
-		fmt.Printf("discoverFeedsFromHTML: Failed to create request: %v\n", err)
 		return nil, err
 	}
 	
 	resp, err := fd.client.Do(req)
 	if err != nil {
-		fmt.Printf("discoverFeedsFromHTML: GET request failed: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -268,14 +252,12 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 	var validFeeds []string
 	for _, path := range commonPaths {
 		feedURL := baseSchemeHost + path
-		fmt.Printf("tryCommonFeedPaths: Trying %s\n", feedURL)
 		
 		// Quick check if URL returns 200 with short timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
 		if err != nil {
 			cancel()
-			fmt.Printf("tryCommonFeedPaths: Failed to create request for %s: %v\n", feedURL, err)
 			continue
 		}
 		
@@ -283,7 +265,6 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 		cancel()
 		
 		if err != nil {
-			fmt.Printf("tryCommonFeedPaths: %s failed: %v\n", feedURL, err)
 			continue
 		}
 		
@@ -291,15 +272,9 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 			resp.Body.Close()
 			if resp.StatusCode == 200 {
 				// Do full validation to ensure it's actually a feed
-				fmt.Printf("tryCommonFeedPaths: %s returned 200, validating content...\n", feedURL)
 				if fd.validateFeedURL(feedURL) {
-					fmt.Printf("tryCommonFeedPaths: Found valid feed: %s\n", feedURL)
 					validFeeds = append(validFeeds, feedURL)
-				} else {
-					fmt.Printf("tryCommonFeedPaths: %s is not a valid feed\n", feedURL)
 				}
-			} else {
-				fmt.Printf("tryCommonFeedPaths: %s returned status %d\n", feedURL, resp.StatusCode)
 			}
 		}
 	}

@@ -155,10 +155,8 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 	// Check for known sites first
 	if strings.Contains(normalizedURL, "slashdot.org") {
 		feedURL = "https://rss.slashdot.org/Slashdot/slashdotMain"
-		fmt.Printf("Using known feed URL for Slashdot: %s\n", feedURL)
 	} else if strings.Contains(normalizedURL, "nytimes.com") {
 		feedURL = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
-		fmt.Printf("Using known feed URL for NY Times: %s\n", feedURL)
 	} else {
 		// Use feed discovery for other sites
 		feedURLs, err := discovery.DiscoverFeedURL(inputURL)
@@ -171,8 +169,6 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 		}
 
 		feedURL = feedURLs[0]
-		fmt.Printf("AddFeedForUser: Discovered feed URL: %s from input: %s\n", feedURL, inputURL)
-		fmt.Printf("AddFeedForUser: All discovered URLs: %v\n", feedURLs)
 	}
 
 	// First check if feed already exists
@@ -223,12 +219,8 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 
 	// Immediately mark all articles in this feed as unread for the subscriber
 	// This must happen before the function returns so the frontend sees correct state
-	fmt.Printf("AddFeedForUser: About to mark articles as unread for user %d, feed %d\n", userID, existingFeed.ID)
 	if err := fs.markExistingArticlesAsUnreadForUser(userID, existingFeed.ID); err != nil {
-		fmt.Printf("Warning: Failed to mark existing articles as unread for user %d: %v\n", userID, err)
 		// Don't fail the entire operation if this fails
-	} else {
-		fmt.Printf("AddFeedForUser: Successfully marked articles as unread for user %d, feed %d\n", userID, existingFeed.ID)
 	}
 
 	return existingFeed, nil
@@ -287,64 +279,42 @@ func (fs *FeedService) markExistingArticlesAsUnreadForUser(userID, feedID int) e
 	}
 
 	if len(articles) == 0 {
-		fmt.Printf("markExistingArticlesAsUnreadForUser: No articles found in feed %d for user %d\n", feedID, userID)
 		return nil
 	}
-
-	fmt.Printf("markExistingArticlesAsUnreadForUser: Marking %d articles as unread for user %d in feed %d\n", 
-		len(articles), userID, feedID)
 
 	// Use batch insert for better performance
 	return fs.db.BatchSetUserArticleStatus(userID, articles, false, false) // unread, unstarred
 }
 
 func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
-	fmt.Printf("fetchFeed: Attempting to fetch: %s\n", url)
 	resp, err := http.Get(url)
 	if err != nil {
-		fmt.Printf("fetchFeed: HTTP GET error: %v\n", err)
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	fmt.Printf("fetchFeed: HTTP status: %d\n", resp.StatusCode)
-	fmt.Printf("fetchFeed: Content-Type: %s\n", resp.Header.Get("Content-Type"))
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("fetchFeed: Read body error: %v\n", err)
 		return nil, err
-	}
-
-	fmt.Printf("fetchFeed: Body length: %d bytes\n", len(body))
-	if len(body) > 200 {
-		fmt.Printf("fetchFeed: First 200 chars: %s\n", string(body[:200]))
-	} else {
-		fmt.Printf("fetchFeed: Full body: %s\n", string(body))
 	}
 
 	// Handle character encoding conversion
 	body, err = fs.convertToUTF8(body)
 	if err != nil {
-		fmt.Printf("fetchFeed: Encoding conversion error: %v\n", err)
 		return nil, err
 	}
 
 	// Try parsing as RSS 2.0 first
 	var rss RSS
 	if err := xml.Unmarshal(body, &rss); err == nil && rss.XMLName.Local == "rss" {
-		fmt.Printf("fetchFeed: Parsed as RSS 2.0\n")
 		return fs.convertRSSToFeedData(&rss), nil
 	}
 
 	// Try parsing as RDF/RSS 1.0
 	var rdf RDF
 	rdfErr := xml.Unmarshal(body, &rdf)
-	fmt.Printf("fetchFeed: RDF unmarshal error: %v\n", rdfErr)
 	if rdfErr == nil {
-		fmt.Printf("fetchFeed: RDF XMLName: %+v\n", rdf.XMLName)
 		if rdf.XMLName.Local == "RDF" {
-			fmt.Printf("fetchFeed: Parsed as RDF/RSS 1.0\n")
 			return fs.convertRDFToFeedData(&rdf), nil
 		}
 	}
@@ -352,11 +322,9 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	// Try parsing as Atom
 	var atom Atom
 	if err := xml.Unmarshal(body, &atom); err == nil && atom.XMLName.Local == "feed" {
-		fmt.Printf("fetchFeed: Parsed as Atom\n")
 		return fs.convertAtomToFeedData(&atom), nil
 	}
 
-	fmt.Printf("fetchFeed: Failed to parse as any known format\n")
 	return nil, fmt.Errorf("unsupported feed format or invalid XML")
 }
 

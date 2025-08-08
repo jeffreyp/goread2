@@ -30,7 +30,7 @@ class GoReadApp {
                 return true;
             }
         } catch (error) {
-            console.log('Not authenticated:', error);
+            // Not authenticated
         }
         return false;
     }
@@ -68,7 +68,6 @@ class GoReadApp {
         const allItem = document.querySelector('[data-feed-id="all"]');
         if (allItem) {
             allItem.addEventListener('click', () => {
-                console.log('All item clicked, selecting all feed...');
                 this.selectFeed('all');
             });
         }
@@ -113,159 +112,95 @@ class GoReadApp {
 
     async loadFeeds() {
         try {
-            console.log('Loading feeds...');
             const response = await fetch('/api/feeds');
-            console.log('Response status:', response.status, 'Response ok:', response.ok);
-            
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
             
             const feedsData = await response.json();
-            console.log('Raw response data:', feedsData);
-            console.log('Type of response data:', typeof feedsData);
-            console.log('Is array?', Array.isArray(feedsData));
-            
             this.feeds = feedsData;
             
             if (Array.isArray(this.feeds)) {
-                console.log('Loaded feeds:', this.feeds.length, 'feeds');
-                console.log('loadFeeds: About to call renderFeeds...');
-                
-                try {
-                    this.renderFeeds();
-                    console.log('loadFeeds: renderFeeds completed successfully');
-                } catch (error) {
-                    console.error('loadFeeds: Error in renderFeeds:', error);
-                }
-                
-                console.log('loadFeeds: About to call updateUnreadCounts...');
-                try {
-                    await this.updateUnreadCounts();
-                    console.log('loadFeeds: updateUnreadCounts completed successfully');
-                } catch (error) {
-                    console.error('loadFeeds: Error in updateUnreadCounts:', error);
-                }
+                this.renderFeeds();
+                await this.updateUnreadCounts();
                 
                 if (this.feeds.length > 0) {
-                    console.log('loadFeeds: Selecting "all" feed...');
-                    try {
-                        this.selectFeed('all');
-                        console.log('loadFeeds: selectFeed completed successfully');
-                    } catch (error) {
-                        console.error('loadFeeds: Error in selectFeed:', error);
-                    }
-                } else {
-                    console.log('loadFeeds: No feeds to select');
+                    this.selectFeed('all');
                 }
             } else {
-                console.error('Error: feeds data is not an array:', this.feeds);
                 this.showError('Invalid feed data received from server');
             }
         } catch (error) {
             console.error('Failed to load feeds:', error);
-            console.error('Stack trace:', error.stack);
             this.showError('Failed to load feeds: ' + error.message);
         }
     }
 
     renderFeeds() {
-        try {
-            console.log('Rendering feeds:', this.feeds);
-            
-            if (!Array.isArray(this.feeds)) {
-                console.error('ERROR: this.feeds is not an array in renderFeeds:', typeof this.feeds, this.feeds);
-                return;
-            }
+        if (!Array.isArray(this.feeds)) {
+            return;
+        }
         
         const feedList = document.getElementById('feed-list');
         
         // Remove existing feed items (not the "All" item)
         const existingFeeds = feedList.querySelectorAll('.feed-item:not(.special)');
-        console.log('Removing', existingFeeds.length, 'existing feed items');
         existingFeeds.forEach(item => item.remove());
         
-        // Query for allItem AFTER removing existing feeds to ensure we get the correct element
-        const allItem = feedList.querySelector('[data-feed-id="all"]');
-        console.log('allItem found:', allItem ? 'yes' : 'no');
-        
-        console.log('Rendering', this.feeds.length, 'feeds');
-        
-        this.feeds.forEach((feed, index) => {
-            console.log(`Creating feed item ${index + 1}/${this.feeds.length}: ${feed.title}`);
+        this.feeds.forEach((feed) => {
+            // Create main container
+            const feedItem = document.createElement('div');
+            feedItem.className = 'feed-item';
+            feedItem.dataset.feedId = feed.id;
             
-            try {
-                // Create main container
-                const feedItem = document.createElement('div');
-                feedItem.className = 'feed-item';
-                feedItem.dataset.feedId = feed.id;
-                
-                // Create title
-                const titleSpan = document.createElement('span');
-                titleSpan.className = 'feed-title';
-                titleSpan.textContent = feed.title;
-                
-                // Create right side container
-                const rightDiv = document.createElement('div');
-                rightDiv.style.display = 'flex';
-                rightDiv.style.alignItems = 'center';
-                
-                // Create unread count
-                const unreadSpan = document.createElement('span');
-                unreadSpan.className = 'unread-count';
-                unreadSpan.dataset.count = '0';
-                unreadSpan.textContent = '0';
-                
-                // Create actions container
-                const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'feed-actions';
-                
-                // Create delete button
-                const deleteButton = document.createElement('button');
-                deleteButton.className = 'delete-feed';
-                deleteButton.dataset.feedId = feed.id;
-                deleteButton.title = 'Delete feed';
-                deleteButton.textContent = '×';
-                
-                // Assemble structure
-                actionsDiv.appendChild(deleteButton);
-                rightDiv.appendChild(unreadSpan);
-                rightDiv.appendChild(actionsDiv);
-                feedItem.appendChild(titleSpan);
-                feedItem.appendChild(rightDiv);
-                
-                // Add event listeners
-                feedItem.addEventListener('click', (e) => {
-                    if (!e.target.classList.contains('delete-feed')) {
-                        this.selectFeed(feed.id);
-                    }
-                });
-                
-                deleteButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.deleteFeed(feed.id);
-                });
-                
-                // Add to DOM
-                feedList.appendChild(feedItem);
-                console.log(`Successfully added feed item ${index + 1}`);
-                
-            } catch (error) {
-                console.error(`Error creating feed item ${index + 1}:`, error);
-            }
+            // Create title
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'feed-title';
+            titleSpan.textContent = feed.title;
+            
+            // Create right side container
+            const rightDiv = document.createElement('div');
+            rightDiv.style.display = 'flex';
+            rightDiv.style.alignItems = 'center';
+            
+            // Create unread count
+            const unreadSpan = document.createElement('span');
+            unreadSpan.className = 'unread-count';
+            unreadSpan.dataset.count = '0';
+            unreadSpan.textContent = '0';
+            
+            // Create actions container
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'feed-actions';
+            
+            // Create delete button
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'delete-feed';
+            deleteButton.dataset.feedId = feed.id;
+            deleteButton.title = 'Delete feed';
+            deleteButton.textContent = '×';
+            
+            // Assemble structure
+            actionsDiv.appendChild(deleteButton);
+            rightDiv.appendChild(unreadSpan);
+            rightDiv.appendChild(actionsDiv);
+            feedItem.appendChild(titleSpan);
+            feedItem.appendChild(rightDiv);
+            
+            // Add event listeners
+            feedItem.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('delete-feed')) {
+                    this.selectFeed(feed.id);
+                }
+            });
+            
+            deleteButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.deleteFeed(feed.id);
+            });
+            
+            feedList.appendChild(feedItem);
         });
-        
-        console.log('All feeds processed successfully');
-        console.log('renderFeeds: Setting up allItem click listener');
-        
-        // Skip allItem event listener setup for now - it's handled elsewhere
-        console.log('renderFeeds: Skipping allItem listener setup for debugging');
-        
-        console.log('renderFeeds: Function completed');
-        } catch (error) {
-            console.error('Error in renderFeeds:', error);
-            console.error('Stack trace:', error.stack);
-        }
     }
 
     async selectFeed(feedId) {
@@ -317,11 +252,8 @@ class GoReadApp {
         
         // Add event delegation for star buttons and article selection
         updatedArticleList.addEventListener('click', (e) => {
-            console.log('Click detected on:', e.target.tagName, e.target.className, 'Article ID:', e.target.dataset?.articleId);
-            
             // Handle star button clicks via event delegation
             if (e.target.classList.contains('star-btn')) {
-                console.log('*** STAR BUTTON CLICKED via delegation for article:', e.target.dataset.articleId, '***');
                 e.stopPropagation();
                 e.preventDefault();
                 this.toggleStar(parseInt(e.target.dataset.articleId));
@@ -332,7 +264,6 @@ class GoReadApp {
             const articleItem = e.target.closest('.article-item');
             if (articleItem && !e.target.classList.contains('star-btn')) {
                 const index = parseInt(articleItem.dataset.index);
-                console.log('Article item clicked via delegation, index:', index);
                 this.selectArticle(index);
             }
         });
@@ -361,9 +292,6 @@ class GoReadApp {
                 </div>
                 ${article.description ? `<div class="article-description">${this.escapeHtml(article.description)}</div>` : ''}
             `;
-            
-            // Event listeners are now handled by delegation on the article list container
-            console.log('Created article item for:', article.title, 'with star button');
             
             updatedArticleList.appendChild(articleItem);
         });
@@ -450,14 +378,9 @@ class GoReadApp {
     }
 
     toggleCurrentArticleStar() {
-        console.log('toggleCurrentArticleStar called, currentArticle:', this.currentArticle);
-        if (this.currentArticle === null) {
-            console.log('No current article selected');
-            return;
-        }
+        if (this.currentArticle === null) return;
         
         const article = this.articles[this.currentArticle];
-        console.log('Current article for star toggle:', article ? article.title : 'not found');
         this.toggleStar(article.id);
     }
 
@@ -474,37 +397,22 @@ class GoReadApp {
     }
 
     async toggleStar(articleId) {
-        console.log('toggleStar called for article ID:', articleId);
         try {
-            console.log('Sending star toggle request to server...');
             const response = await fetch(`/api/articles/${articleId}/star`, {
                 method: 'POST'
             });
             
-            console.log('Star toggle response status:', response.status);
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Star toggle failed:', response.status, errorText);
-                this.showError('Failed to toggle star: ' + response.status);
+                this.showError('Failed to toggle star');
                 return;
             }
             
             const article = this.articles.find(a => a.id == articleId);
-            console.log('Found article for star toggle:', article ? 'yes' : 'no');
-            
             if (article) {
-                const wasStarred = article.is_starred;
                 article.is_starred = !article.is_starred;
-                console.log('Article star state changed from', wasStarred, 'to', article.is_starred);
-                
                 const starBtn = document.querySelector(`.star-btn[data-article-id="${articleId}"]`);
-                console.log('Found star button:', starBtn ? 'yes' : 'no');
-                
                 if (starBtn) {
                     starBtn.classList.toggle('starred', article.is_starred);
-                    console.log('Star button class updated, starred class:', starBtn.classList.contains('starred'));
-                } else {
-                    console.warn('Could not find star button for article', articleId);
                 }
             }
         } catch (error) {
@@ -514,26 +422,17 @@ class GoReadApp {
     }
 
     async updateUnreadCounts() {
-        console.log('updateUnreadCounts: Starting...');
         try {
-            console.log('updateUnreadCounts: Fetching from /api/feeds/unread-counts');
             const response = await fetch('/api/feeds/unread-counts');
-            console.log('updateUnreadCounts: Response status:', response.status, 'ok:', response.ok);
-            
             if (!response.ok) {
-                console.error('Failed to fetch unread counts:', response.status);
-                const errorText = await response.text();
-                console.error('Error response:', errorText);
                 return;
             }
             
             const unreadCounts = await response.json();
-            console.log('updateUnreadCounts: Received unread counts:', unreadCounts);
             
             // Update individual feed counts
             let totalUnread = 0;
             this.feeds.forEach(feed => {
-                // Try both numeric and string keys since JSON might convert numbers to strings
                 const unreadCount = unreadCounts[feed.id] || unreadCounts[feed.id.toString()] || 0;
                 totalUnread += unreadCount;
                 
@@ -541,8 +440,6 @@ class GoReadApp {
                 if (countElement) {
                     countElement.textContent = unreadCount;
                     countElement.dataset.count = unreadCount;
-                } else {
-                    console.warn(`No count element found for feed ${feed.id}`);
                 }
             });
             
@@ -584,8 +481,6 @@ class GoReadApp {
         const inputField = document.getElementById('feed-url');
         const originalText = submitButton.textContent;
         
-        console.log('Adding feed with URL:', url);
-        
         // Show loading state - disable all form controls
         submitButton.classList.add('loading');
         submitButton.disabled = true;
@@ -593,37 +488,27 @@ class GoReadApp {
         inputField.disabled = true;
         
         try {
-            console.log('Sending request to /api/feeds');
             const response = await fetch('/api/feeds', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url })
             });
             
-            console.log('Response status:', response.status);
-            console.log('Response ok:', response.ok);
-            
             if (response.ok) {
-                console.log('Feed added successfully');
                 this.hideAddFeedModal();
                 await this.loadFeeds();
-                
-                // Force unread counts update after adding feed
-                console.log('addFeed: Forcing unread counts update...');
                 await this.updateUnreadCounts();
             } else {
                 let errorMessage = `HTTP ${response.status}`;
                 try {
                     const error = await response.json();
-                    console.log('Server error:', error);
                     errorMessage = error.error || errorMessage;
                 } catch (e) {
-                    console.log('Could not parse error response');
+                    // Use default error message
                 }
                 this.showError('Failed to add feed: ' + errorMessage);
             }
         } catch (error) {
-            console.log('Network error:', error);
             this.showError('Failed to add feed: ' + error.message);
         } finally {
             // Always restore all form controls
@@ -639,7 +524,6 @@ class GoReadApp {
         if (!confirm('Are you sure you want to remove this feed from your subscriptions?')) return;
         
         try {
-            console.log('Deleting feed:', feedId);
             const response = await fetch(`/api/feeds/${feedId}`, {
                 method: 'DELETE'
             });
@@ -649,16 +533,12 @@ class GoReadApp {
                 throw new Error(errorData.error || `HTTP ${response.status}`);
             }
             
-            console.log('Feed deleted successfully, reloading feeds...');
-            console.log('Feeds before reload:', this.feeds.length);
-            
             // Always clear current selection after delete
             this.currentFeed = null;
             this.currentArticle = null;
             this.articles = [];
             
             await this.loadFeeds();
-            console.log('Feeds after reload:', this.feeds.length);
             
             // Always go to "All Articles" after delete
             this.selectFeed('all');

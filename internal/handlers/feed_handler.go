@@ -23,32 +23,20 @@ func NewFeedHandler(feedService *services.FeedService) *FeedHandler {
 func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		log.Printf("GetFeeds: No user in context")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 		return
 	}
 
-	log.Printf("GetFeeds: Getting feeds for user %d", user.ID)
 	feeds, err := fh.feedService.GetUserFeeds(user.ID)
 	if err != nil {
-		log.Printf("GetFeeds: ERROR getting feeds for user %d: %v", user.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
-	}
-	
-	// Debug logging
-	log.Printf("GetFeeds: Found %d feeds for user %d", len(feeds), user.ID)
-	for i, feed := range feeds {
-		log.Printf("GetFeeds: Feed %d: ID=%d, Title=%s", i+1, feed.ID, feed.Title)
 	}
 	
 	// Ensure we return an empty array instead of null
 	if feeds == nil {
 		feeds = []database.Feed{}
-		log.Printf("GetFeeds: feeds was nil, converted to empty slice")
 	}
-	
-	log.Printf("GetFeeds: Returning %d feeds as JSON", len(feeds))
 	c.JSON(http.StatusOK, feeds)
 }
 
@@ -68,16 +56,11 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 		return
 	}
 
-	log.Printf("AddFeed: User %d adding feed %s", user.ID, req.URL)
-	
 	feed, err := fh.feedService.AddFeedForUser(user.ID, req.URL)
 	if err != nil {
-		log.Printf("AddFeed: Error adding feed for user %d: %v", user.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	log.Printf("AddFeed: Successfully added feed %d (%s) for user %d", feed.ID, feed.Title, user.ID)
 	c.JSON(http.StatusCreated, feed)
 }
 
@@ -95,14 +78,10 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 		return
 	}
 
-	log.Printf("DeleteFeed: Unsubscribing user %d from feed %d", user.ID, id)
 	if err := fh.feedService.UnsubscribeUserFromFeed(user.ID, id); err != nil {
-		log.Printf("DeleteFeed: Error unsubscribing user %d from feed %d: %v", user.ID, id, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	log.Printf("DeleteFeed: Successfully unsubscribed user %d from feed %d", user.ID, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Feed removed from your subscriptions successfully"})
 }
 
@@ -266,14 +245,11 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetUnreadCounts: Called for user %d\n", user.ID)
 	unreadCounts, err := fh.feedService.GetUserUnreadCounts(user.ID)
 	if err != nil {
-		fmt.Printf("GetUnreadCounts: Error for user %d: %v\n", user.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	fmt.Printf("GetUnreadCounts: Returning counts for user %d: %+v\n", user.ID, unreadCounts)
 	c.JSON(http.StatusOK, unreadCounts)
 }

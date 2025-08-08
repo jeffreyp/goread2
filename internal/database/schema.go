@@ -474,7 +474,6 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 			  WHERE a.feed_id = ? 
 			  ORDER BY a.published_at DESC`
 
-	fmt.Printf("GetUserFeedArticles: User %d, Feed %d\n", userID, feedID)
 	rows, err := db.DB.Query(query, userID, feedID)
 	if err != nil {
 		return nil, err
@@ -490,13 +489,9 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("GetUserFeedArticles: Article %d: is_read=%v, is_starred=%v\n", 
-			article.ID, article.IsRead, article.IsStarred)
 		articles = append(articles, article)
 	}
 
-	fmt.Printf("GetUserFeedArticles: Returning %d articles for user %d, feed %d\n", 
-		len(articles), userID, feedID)
 	return articles, nil
 }
 
@@ -565,12 +560,8 @@ func (db *DB) ToggleUserArticleStar(userID, articleID int) error {
 
 func (db *DB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, isStarred bool) error {
 	if len(articles) == 0 {
-		fmt.Printf("BatchSetUserArticleStatus: No articles to process for user %d\n", userID)
 		return nil
 	}
-
-	fmt.Printf("BatchSetUserArticleStatus: Processing %d articles for user %d (is_read=%v)\n", 
-		len(articles), userID, isRead)
 
 	// Use INSERT OR REPLACE for batch operation
 	query := `INSERT OR REPLACE INTO user_articles (user_id, article_id, is_read, is_starred) VALUES `
@@ -590,13 +581,7 @@ func (db *DB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, 
 	
 	query += strings.Join(values, ", ")
 	
-	fmt.Printf("BatchSetUserArticleStatus: Executing batch insert for %d articles\n", len(articles))
 	_, err := db.DB.Exec(query, args...)
-	if err != nil {
-		fmt.Printf("BatchSetUserArticleStatus: Error: %v\n", err)
-	} else {
-		fmt.Printf("BatchSetUserArticleStatus: Successfully inserted %d user_articles entries\n", len(articles))
-	}
 	return err
 }
 
