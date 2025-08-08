@@ -94,33 +94,6 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 	return nil, fmt.Errorf("no feeds found for %s", normalizedURL)
 }
 
-// isFeedURL checks if a URL is likely a direct feed URL
-func (fd *FeedDiscovery) isFeedURL(urlStr string) bool {
-	
-	// Create a shorter timeout context for this specific check
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	
-	req, err := http.NewRequestWithContext(ctx, "HEAD", urlStr, nil)
-	if err != nil {
-		return false
-	}
-	
-	resp, err := fd.client.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return false
-	}
-
-	contentType := resp.Header.Get("Content-Type")
-	return strings.Contains(contentType, "xml") || 
-		   strings.Contains(contentType, "rss") || 
-		   strings.Contains(contentType, "atom")
-}
 
 // validateFeedURL checks if a URL actually contains valid RSS/Atom content
 func (fd *FeedDiscovery) validateFeedURL(urlStr string) bool {

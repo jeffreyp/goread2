@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -220,7 +221,8 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 	// Immediately mark all articles in this feed as unread for the subscriber
 	// This must happen before the function returns so the frontend sees correct state
 	if err := fs.markExistingArticlesAsUnreadForUser(userID, existingFeed.ID); err != nil {
-		// Don't fail the entire operation if this fails
+		// Don't fail the entire operation if this fails, just log the error
+		log.Printf("Failed to mark existing articles as unread for user %d, feed %d: %v", userID, existingFeed.ID, err)
 	}
 
 	return existingFeed, nil
