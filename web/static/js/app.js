@@ -309,9 +309,32 @@ class GoReadApp {
         
         articleList.innerHTML = '';
         
-        // Add a global click listener to debug what's being clicked
-        articleList.addEventListener('click', (e) => {
+        // Remove existing event listeners by cloning the element
+        const newArticleList = articleList.cloneNode(false);
+        articleList.parentNode.replaceChild(newArticleList, articleList);
+        // Update reference
+        const updatedArticleList = document.getElementById('article-list');
+        
+        // Add event delegation for star buttons and article selection
+        updatedArticleList.addEventListener('click', (e) => {
             console.log('Click detected on:', e.target.tagName, e.target.className, 'Article ID:', e.target.dataset?.articleId);
+            
+            // Handle star button clicks via event delegation
+            if (e.target.classList.contains('star-btn')) {
+                console.log('*** STAR BUTTON CLICKED via delegation for article:', e.target.dataset.articleId, '***');
+                e.stopPropagation();
+                e.preventDefault();
+                this.toggleStar(parseInt(e.target.dataset.articleId));
+                return;
+            }
+            
+            // Handle article item clicks
+            const articleItem = e.target.closest('.article-item');
+            if (articleItem && !e.target.classList.contains('star-btn')) {
+                const index = parseInt(articleItem.dataset.index);
+                console.log('Article item clicked via delegation, index:', index);
+                this.selectArticle(index);
+            }
         });
         
         this.articles.forEach((article, index) => {
@@ -339,36 +362,10 @@ class GoReadApp {
                 ${article.description ? `<div class="article-description">${this.escapeHtml(article.description)}</div>` : ''}
             `;
             
-            articleItem.addEventListener('click', () => {
-                this.selectArticle(index);
-            });
+            // Event listeners are now handled by delegation on the article list container
+            console.log('Created article item for:', article.title, 'with star button');
             
-            const starButton = articleItem.querySelector('.star-btn');
-            console.log('Looking for star button in article', article.id, '- found:', starButton ? 'yes' : 'no');
-            if (starButton) {
-                console.log('Setting up star button click listener for article:', article.id);
-                
-                // Test if the button element is properly created
-                console.log('Star button details:', {
-                    tagName: starButton.tagName,
-                    className: starButton.className,
-                    dataArticleId: starButton.dataset.articleId,
-                    text: starButton.textContent
-                });
-                
-                starButton.addEventListener('click', (e) => {
-                    console.log('*** STAR BUTTON CLICKED for article:', article.id, '***');
-                    e.stopPropagation();
-                    e.preventDefault(); // Prevent any default button behavior
-                    this.toggleStar(article.id);
-                });
-                console.log('Star button click listener attached for article:', article.id);
-            } else {
-                console.warn('Star button not found in article item for article:', article.id);
-                console.log('Article item HTML:', articleItem.innerHTML);
-            }
-            
-            articleList.appendChild(articleItem);
+            updatedArticleList.appendChild(articleItem);
         });
     }
 
