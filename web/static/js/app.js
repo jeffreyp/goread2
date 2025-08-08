@@ -510,13 +510,37 @@ class GoReadApp {
     }
 
     hideAddFeedModal() {
-        document.getElementById('add-feed-modal').style.display = 'none';
-        document.getElementById('add-feed-form').reset();
+        const modal = document.getElementById('add-feed-modal');
+        const form = document.getElementById('add-feed-form');
+        const submitButton = form.querySelector('button[type="submit"]');
+        const cancelButton = document.getElementById('cancel-add-feed');
+        const inputField = document.getElementById('feed-url');
+        
+        // Reset all form controls if they were in loading state
+        submitButton.classList.remove('loading');
+        submitButton.disabled = false;
+        submitButton.textContent = 'Add Feed';
+        cancelButton.disabled = false;
+        inputField.disabled = false;
+        
+        modal.style.display = 'none';
+        form.reset();
     }
 
     async addFeed() {
         const url = document.getElementById('feed-url').value;
+        const submitButton = document.querySelector('#add-feed-form button[type="submit"]');
+        const cancelButton = document.getElementById('cancel-add-feed');
+        const inputField = document.getElementById('feed-url');
+        const originalText = submitButton.textContent;
+        
         console.log('Adding feed with URL:', url);
+        
+        // Show loading state - disable all form controls
+        submitButton.classList.add('loading');
+        submitButton.disabled = true;
+        cancelButton.disabled = true;
+        inputField.disabled = true;
         
         try {
             console.log('Sending request to /api/feeds');
@@ -551,6 +575,13 @@ class GoReadApp {
         } catch (error) {
             console.log('Network error:', error);
             this.showError('Failed to add feed: ' + error.message);
+        } finally {
+            // Always restore all form controls
+            submitButton.classList.remove('loading');
+            submitButton.disabled = false;
+            submitButton.textContent = originalText;
+            cancelButton.disabled = false;
+            inputField.disabled = false;
         }
     }
 
