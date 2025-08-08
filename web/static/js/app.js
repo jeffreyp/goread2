@@ -338,10 +338,16 @@ class GoReadApp {
                 this.selectArticle(index);
             });
             
-            articleItem.querySelector('.star-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleStar(article.id);
-            });
+            const starButton = articleItem.querySelector('.star-btn');
+            if (starButton) {
+                starButton.addEventListener('click', (e) => {
+                    console.log('Star button clicked for article:', article.id);
+                    e.stopPropagation();
+                    this.toggleStar(article.id);
+                });
+            } else {
+                console.warn('Star button not found in article item for article:', article.id);
+            }
             
             articleList.appendChild(articleItem);
         });
@@ -447,19 +453,42 @@ class GoReadApp {
     }
 
     async toggleStar(articleId) {
+        console.log('toggleStar called for article ID:', articleId);
         try {
-            await fetch(`/api/articles/${articleId}/star`, {
+            console.log('Sending star toggle request to server...');
+            const response = await fetch(`/api/articles/${articleId}/star`, {
                 method: 'POST'
             });
             
+            console.log('Star toggle response status:', response.status);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Star toggle failed:', response.status, errorText);
+                this.showError('Failed to toggle star: ' + response.status);
+                return;
+            }
+            
             const article = this.articles.find(a => a.id == articleId);
+            console.log('Found article for star toggle:', article ? 'yes' : 'no');
+            
             if (article) {
+                const wasStarred = article.is_starred;
                 article.is_starred = !article.is_starred;
+                console.log('Article star state changed from', wasStarred, 'to', article.is_starred);
+                
                 const starBtn = document.querySelector(`[data-article-id="${articleId}"]`);
-                starBtn.classList.toggle('starred', article.is_starred);
+                console.log('Found star button:', starBtn ? 'yes' : 'no');
+                
+                if (starBtn) {
+                    starBtn.classList.toggle('starred', article.is_starred);
+                    console.log('Star button class updated, starred class:', starBtn.classList.contains('starred'));
+                } else {
+                    console.warn('Could not find star button for article', articleId);
+                }
             }
         } catch (error) {
             console.error('Failed to toggle star:', error);
+            this.showError('Failed to toggle star: ' + error.message);
         }
     }
 
