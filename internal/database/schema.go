@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -32,8 +33,10 @@ type Database interface {
 	// User article status methods
 	GetUserArticleStatus(userID, articleID int) (*UserArticle, error)
 	SetUserArticleStatus(userID, articleID int, isRead, isStarred bool) error
+	BatchSetUserArticleStatus(userID int, articles []Article, isRead, isStarred bool) error
 	MarkUserArticleRead(userID, articleID int, isRead bool) error
 	ToggleUserArticleStar(userID, articleID int) error
+	GetUserUnreadCounts(userID int) (map[int]int, error)
 
 	// Legacy methods (for migration)
 	GetAllArticles() ([]Article, error)
@@ -471,6 +474,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 			  WHERE a.feed_id = ? 
 			  ORDER BY a.published_at DESC`
 
+	fmt.Printf("GetUserFeedArticles: User %d, Feed %d\n", userID, feedID)
 	rows, err := db.DB.Query(query, userID, feedID)
 	if err != nil {
 		return nil, err
@@ -486,9 +490,13 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 		if err != nil {
 			return nil, err
 		}
+		fmt.Printf("GetUserFeedArticles: Article %d: is_read=%v, is_starred=%v\n", 
+			article.ID, article.IsRead, article.IsStarred)
 		articles = append(articles, article)
 	}
 
+	fmt.Printf("GetUserFeedArticles: Returning %d articles for user %d, feed %d\n", 
+		len(articles), userID, feedID)
 	return articles, nil
 }
 
@@ -553,4 +561,72 @@ func (db *DB) ToggleUserArticleStar(userID, articleID int) error {
 	}
 
 	return err
+}
+
+func (db *DB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, isStarred bool) error {
+	if len(articles) == 0 {
+		fmt.Printf("BatchSetUserArticleStatus: No articles to process for user %d\n", userID)
+		return nil
+	}
+
+	fmt.Printf("BatchSetUserArticleStatus: Processing %d articles for user %d (is_read=%v)\n", 
+		len(articles), userID, isRead)
+
+	// Use INSERT OR REPLACE for batch operation
+	query := `INSERT OR REPLACE INTO user_articles (user_id, article_id, is_read, is_starred) VALUES `
+	
+	// Build values string
+	values := make([]string, len(articles))
+	args := make([]interface{}, len(articles)*4)
+	
+	for i, article := range articles {
+		values[i] = "(?, ?, ?, ?)"
+		baseIdx := i * 4
+		args[baseIdx] = userID
+		args[baseIdx+1] = article.ID
+		args[baseIdx+2] = isRead
+		args[baseIdx+3] = isStarred
+	}
+	
+	query += strings.Join(values, ", ")
+	
+	fmt.Printf("BatchSetUserArticleStatus: Executing batch insert for %d articles\n", len(articles))
+	_, err := db.DB.Exec(query, args...)
+	if err != nil {
+		fmt.Printf("BatchSetUserArticleStatus: Error: %v\n", err)
+	} else {
+		fmt.Printf("BatchSetUserArticleStatus: Successfully inserted %d user_articles entries\n", len(articles))
+	}
+	return err
+}
+
+func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
+	query := `
+		SELECT 
+			a.feed_id,
+			COUNT(*) as unread_count
+		FROM articles a
+		INNER JOIN user_feeds uf ON a.feed_id = uf.feed_id
+		LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
+		WHERE uf.user_id = ? 
+		AND (ua.is_read IS NULL OR ua.is_read = 0)
+		GROUP BY a.feed_id
+	`
+	
+	rows, err := db.DB.Query(query, userID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	unreadCounts := make(map[int]int)
+	for rows.Next() {
+		var feedID, count int
+		if err := rows.Scan(&feedID, &count); err != nil {
+			return nil, err
+		}
+		unreadCounts[feedID] = count
+	}
+	
+	return unreadCounts, rows.Err()
 }

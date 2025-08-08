@@ -605,3 +605,79 @@ func (db *DatastoreDB) ToggleUserArticleStar(userID, articleID int) error {
 	// Toggle starred status
 	return db.SetUserArticleStatus(userID, articleID, isRead, !isStarred)
 }
+
+func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, isStarred bool) error {
+	if len(articles) == 0 {
+		return nil
+	}
+	
+	ctx := context.Background()
+	
+	// Batch process articles in chunks to avoid datastore limits
+	chunkSize := 100
+	for i := 0; i < len(articles); i += chunkSize {
+		end := i + chunkSize
+		if end > len(articles) {
+			end = len(articles)
+		}
+		
+		chunk := articles[i:end]
+		entities := make([]*UserArticle, len(chunk))
+		keys := make([]*datastore.Key, len(chunk))
+		
+		for j, article := range chunk {
+			entities[j] = &UserArticle{
+				UserID:    userID,
+				ArticleID: article.ID,
+				IsRead:    isRead,
+				IsStarred: isStarred,
+			}
+			
+			// Create composite key
+			keyStr := fmt.Sprintf("%d_%d", userID, article.ID)
+			keys[j] = datastore.NameKey("UserArticle", keyStr, nil)
+		}
+		
+		_, err := db.client.PutMulti(ctx, keys, entities)
+		if err != nil {
+			return err
+		}
+	}
+	
+	return nil
+}
+
+func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
+	ctx := context.Background()
+	
+	// Get all user feeds
+	userFeeds, err := db.GetUserFeeds(userID)
+	if err != nil {
+		return nil, err
+	}
+	
+	unreadCounts := make(map[int]int)
+	
+	// For each feed, count unread articles
+	for _, feed := range userFeeds {
+		var articles []*Article
+		q := datastore.NewQuery("Article").Filter("FeedID =", feed.ID)
+		_, err := db.client.GetAll(ctx, q, &articles)
+		if err != nil {
+			return nil, err
+		}
+		
+		unreadCount := 0
+		for _, article := range articles {
+			// Check if user has read this article
+			userStatus, err := db.GetUserArticleStatus(userID, article.ID)
+			if err != nil || userStatus == nil || !userStatus.IsRead {
+				unreadCount++
+			}
+		}
+		
+		unreadCounts[feed.ID] = unreadCount
+	}
+	
+	return unreadCounts, nil
+}

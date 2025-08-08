@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"goread2/internal/auth"
+	"goread2/internal/database"
 	"goread2/internal/services"
 )
 
@@ -35,15 +37,18 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 	}
 	
 	// Debug logging
-	if len(feeds) == 0 {
-		log.Printf("GetFeeds: No feeds found for user %d", user.ID)
-	} else {
-		log.Printf("GetFeeds: Found %d feeds for user %d", len(feeds), user.ID)
-		for i, feed := range feeds {
-			log.Printf("GetFeeds: Feed %d: ID=%d, Title=%s", i+1, feed.ID, feed.Title)
-		}
+	log.Printf("GetFeeds: Found %d feeds for user %d", len(feeds), user.ID)
+	for i, feed := range feeds {
+		log.Printf("GetFeeds: Feed %d: ID=%d, Title=%s", i+1, feed.ID, feed.Title)
 	}
 	
+	// Ensure we return an empty array instead of null
+	if feeds == nil {
+		feeds = []database.Feed{}
+		log.Printf("GetFeeds: feeds was nil, converted to empty slice")
+	}
+	
+	log.Printf("GetFeeds: Returning %d feeds as JSON", len(feeds))
 	c.JSON(http.StatusOK, feeds)
 }
 
@@ -90,11 +95,14 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 		return
 	}
 
+	log.Printf("DeleteFeed: Unsubscribing user %d from feed %d", user.ID, id)
 	if err := fh.feedService.UnsubscribeUserFromFeed(user.ID, id); err != nil {
+		log.Printf("DeleteFeed: Error unsubscribing user %d from feed %d: %v", user.ID, id, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("DeleteFeed: Successfully unsubscribed user %d from feed %d", user.ID, id)
 	c.JSON(http.StatusOK, gin.H{"message": "Feed removed from your subscriptions successfully"})
 }
 
@@ -127,6 +135,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	
 
 	c.JSON(http.StatusOK, articles)
 }
@@ -248,4 +257,23 @@ func (fh *FeedHandler) DebugFeed(c *gin.Context) {
 		"all_articles":         allArticles,
 		"user_articles":        userArticles,
 	})
+}
+
+func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	fmt.Printf("GetUnreadCounts: Called for user %d\n", user.ID)
+	unreadCounts, err := fh.feedService.GetUserUnreadCounts(user.ID)
+	if err != nil {
+		fmt.Printf("GetUnreadCounts: Error for user %d: %v\n", user.ID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	fmt.Printf("GetUnreadCounts: Returning counts for user %d: %+v\n", user.ID, unreadCounts)
+	c.JSON(http.StatusOK, unreadCounts)
 }
