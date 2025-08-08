@@ -63,6 +63,15 @@ class GoReadApp {
                 this.hideAddFeedModal();
             }
         });
+
+        // Set up "All Articles" click listener
+        const allItem = document.querySelector('[data-feed-id="all"]');
+        if (allItem) {
+            allItem.addEventListener('click', () => {
+                console.log('All item clicked, selecting all feed...');
+                this.selectFeed('all');
+            });
+        }
     }
 
     setupKeyboardShortcuts() {
@@ -154,12 +163,15 @@ class GoReadApp {
             }
         
         const feedList = document.getElementById('feed-list');
-        const allItem = feedList.querySelector('[data-feed-id="all"]');
         
         // Remove existing feed items (not the "All" item)
         const existingFeeds = feedList.querySelectorAll('.feed-item:not(.special)');
         console.log('Removing', existingFeeds.length, 'existing feed items');
         existingFeeds.forEach(item => item.remove());
+        
+        // Query for allItem AFTER removing existing feeds to ensure we get the correct element
+        const allItem = feedList.querySelector('[data-feed-id="all"]');
+        console.log('allItem found:', allItem ? 'yes' : 'no');
         
         console.log('Rendering', this.feeds.length, 'feeds');
         this.feeds.forEach(feed => {
@@ -201,18 +213,23 @@ class GoReadApp {
             console.log('Feed item structure created successfully');
             
             try {
+                console.log('Setting up feedItem click listener...');
                 feedItem.addEventListener('click', (e) => {
                     if (!e.target.classList.contains('delete-feed')) {
                         this.selectFeed(feed.id);
                     }
                 });
+                console.log('feedItem click listener added successfully');
                 
+                console.log('Looking for delete button...');
                 const deleteButton = feedItem.querySelector('.delete-feed');
                 if (deleteButton) {
+                    console.log('Delete button found, adding click listener...');
                     deleteButton.addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.deleteFeed(feed.id);
                     });
+                    console.log('Delete button click listener added successfully');
                 } else {
                     console.warn('Delete button not found for feed', feed.id);
                 }
@@ -223,25 +240,16 @@ class GoReadApp {
                 console.log('About to exit forEach loop iteration...');
             } catch (error) {
                 console.error('Error setting up feed item event listeners:', error);
+                console.error('Error stack:', error.stack);
+                throw error; // Re-throw to see if this stops execution
             }
         });
 
             console.log('renderFeeds: forEach loop completed');
             console.log('renderFeeds: Setting up allItem click listener');
             
-            try {
-                if (allItem) {
-                    allItem.addEventListener('click', () => {
-                        console.log('All item clicked, selecting all feed...');
-                        this.selectFeed('all');
-                    });
-                    console.log('renderFeeds: allItem click listener added successfully');
-                } else {
-                    console.error('renderFeeds: allItem is null!');
-                }
-            } catch (error) {
-                console.error('renderFeeds: Error setting up allItem listener:', error);
-            }
+            // Skip allItem event listener setup for now - it's handled elsewhere
+            console.log('renderFeeds: Skipping allItem listener setup for debugging');
             
             console.log('renderFeeds: Function completed');
         } catch (error) {
