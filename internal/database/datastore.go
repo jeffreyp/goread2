@@ -656,6 +656,8 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		return nil, err
 	}
 	
+	log.Printf("GetUserUnreadCounts: Found %d feeds for user %d", len(userFeeds), userID)
+	
 	unreadCounts := make(map[int]int)
 	
 	// For each feed, count unread articles
@@ -667,6 +669,8 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 			return nil, err
 		}
 		
+		log.Printf("GetUserUnreadCounts: Feed %d has %d articles", feed.ID, len(articles))
+		
 		unreadCount := 0
 		for _, article := range articles {
 			// Check if user has read this article
@@ -676,8 +680,10 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 			}
 		}
 		
+		log.Printf("GetUserUnreadCounts: Feed %d has %d unread articles", feed.ID, unreadCount)
 		unreadCounts[feed.ID] = unreadCount
 	}
 	
+	log.Printf("GetUserUnreadCounts: Final counts: %+v", unreadCounts)
 	return unreadCounts, nil
 }
