@@ -295,6 +295,11 @@ class GoReadApp {
             
             updatedArticleList.appendChild(articleItem);
         });
+        
+        // Auto-select the first article if articles exist
+        if (this.articles.length > 0) {
+            this.selectArticle(0);
+        }
     }
 
     async selectArticle(index) {
