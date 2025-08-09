@@ -635,3 +635,53 @@ body.app-body {
     padding-top: 20px;
     border-top: 1px solid #e1e5e9;
 }
+
+/* Help Modal Styles */
+.help-content {
+    margin-top: 20px;
+}
+
+.shortcut-section {
+    margin-bottom: 30px;
+}
+
+.shortcut-section h3 {
+    color: #3c4043;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #e1e5e9;
+    padding-bottom: 8px;
+}
+
+.shortcut-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.shortcut-item:last-child {
+    border-bottom: none;
+}
+
+.shortcut-item kbd {
+    background-color: #f8f9fa;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    color: #3c4043;
+    font-weight: 600;
+    min-width: 30px;
+    text-align: center;
+}
+
+.shortcut-item span {
+    color: #5f6368;
+    font-size: 14px;
+    flex: 1;
+    margin-left: 15px;
+}

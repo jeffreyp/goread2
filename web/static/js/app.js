@@ -44,8 +44,20 @@ class GoReadApp {
             this.refreshFeeds();
         });
 
-        document.querySelector('.close').addEventListener('click', () => {
-            this.hideAddFeedModal();
+        document.getElementById('help-btn').addEventListener('click', () => {
+            this.showHelpModal();
+        });
+
+        // Handle close buttons for both modals
+        document.querySelectorAll('.close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', (e) => {
+                const modal = e.target.closest('.modal');
+                if (modal.id === 'add-feed-modal') {
+                    this.hideAddFeedModal();
+                } else if (modal.id === 'help-modal') {
+                    this.hideHelpModal();
+                }
+            });
         });
 
         document.getElementById('cancel-add-feed').addEventListener('click', () => {
@@ -58,9 +70,12 @@ class GoReadApp {
         });
 
         window.addEventListener('click', (e) => {
-            const modal = document.getElementById('add-feed-modal');
-            if (e.target === modal) {
-                this.hideAddFeedModal();
+            if (e.target.classList.contains('modal')) {
+                if (e.target.id === 'add-feed-modal') {
+                    this.hideAddFeedModal();
+                } else if (e.target.id === 'help-modal') {
+                    this.hideHelpModal();
+                }
             }
         });
 
@@ -483,6 +498,14 @@ class GoReadApp {
         
         modal.style.display = 'none';
         form.reset();
+    }
+
+    showHelpModal() {
+        document.getElementById('help-modal').style.display = 'block';
+    }
+
+    hideHelpModal() {
+        document.getElementById('help-modal').style.display = 'none';
     }
 
     async addFeed() {
