@@ -460,10 +460,15 @@ class GoReadApp {
         try {
             const response = await fetch('/api/feeds/unread-counts');
             if (!response.ok) {
+                console.error(`Failed to fetch unread counts: HTTP ${response.status}`);
+                if (response.status === 401) {
+                    console.error('Authentication failed for unread counts');
+                }
                 return;
             }
             
             const unreadCounts = await response.json();
+            console.log('Received unread counts:', unreadCounts);
             
             // Update individual feed counts
             let totalUnread = 0;
@@ -475,12 +480,21 @@ class GoReadApp {
                 if (countElement) {
                     countElement.textContent = unreadCount;
                     countElement.dataset.count = unreadCount;
+                } else {
+                    console.warn(`Count element not found for feed ${feed.id}`);
                 }
             });
             
             // Update "All Articles" count
-            document.getElementById('all-unread-count').textContent = totalUnread;
-            document.getElementById('all-unread-count').dataset.count = totalUnread;
+            const allUnreadElement = document.getElementById('all-unread-count');
+            if (allUnreadElement) {
+                allUnreadElement.textContent = totalUnread;
+                allUnreadElement.dataset.count = totalUnread;
+            } else {
+                console.warn('All unread count element not found');
+            }
+            
+            console.log(`Updated unread counts - total: ${totalUnread}`);
         } catch (error) {
             console.error('Error updating unread counts:', error);
         }
