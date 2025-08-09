@@ -333,6 +333,11 @@ class GoReadApp {
     }
 
     async selectArticle(index) {
+        // Mark previous article as read if we're navigating away from one
+        if (this.currentArticle !== null && this.currentArticle !== index) {
+            await this.markCurrentArticleAsReadIfUnread();
+        }
+        
         this.currentArticle = index;
         
         document.querySelectorAll('.article-item').forEach(item => {
@@ -345,14 +350,22 @@ class GoReadApp {
         const article = this.articles[index];
         this.displayArticle(article);
         
-        if (!article.is_read) {
-            this.markAsRead(article.id, true);
-            articleItem.classList.add('read');
-            article.is_read = true;
-            await this.updateUnreadCounts();
-        }
-        
         articleItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    async markCurrentArticleAsReadIfUnread() {
+        if (this.currentArticle !== null && this.articles[this.currentArticle]) {
+            const article = this.articles[this.currentArticle];
+            if (!article.is_read) {
+                this.markAsRead(article.id, true);
+                const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
+                if (articleItem) {
+                    articleItem.classList.add('read');
+                }
+                article.is_read = true;
+                await this.updateUnreadCounts();
+            }
+        }
     }
 
     displayArticle(article) {
