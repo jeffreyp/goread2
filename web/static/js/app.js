@@ -36,17 +36,26 @@ class GoReadApp {
     }
 
     bindEvents() {
-        document.getElementById('add-feed-btn').addEventListener('click', () => {
-            this.showAddFeedModal();
-        });
+        const addFeedBtn = document.getElementById('add-feed-btn');
+        if (addFeedBtn) {
+            addFeedBtn.addEventListener('click', () => {
+                this.showAddFeedModal();
+            });
+        }
 
-        document.getElementById('refresh-btn').addEventListener('click', () => {
-            this.refreshFeeds();
-        });
+        const refreshBtn = document.getElementById('refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.refreshFeeds();
+            });
+        }
 
-        document.getElementById('help-btn').addEventListener('click', () => {
-            this.showHelpModal();
-        });
+        const helpBtn = document.getElementById('help-btn');
+        if (helpBtn) {
+            helpBtn.addEventListener('click', () => {
+                this.showHelpModal();
+            });
+        }
 
         // Handle close buttons for both modals
         document.querySelectorAll('.close').forEach(closeBtn => {
@@ -60,14 +69,20 @@ class GoReadApp {
             });
         });
 
-        document.getElementById('cancel-add-feed').addEventListener('click', () => {
-            this.hideAddFeedModal();
-        });
+        const cancelBtn = document.getElementById('cancel-add-feed');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                this.hideAddFeedModal();
+            });
+        }
 
-        document.getElementById('add-feed-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.addFeed();
-        });
+        const addFeedForm = document.getElementById('add-feed-form');
+        if (addFeedForm) {
+            addFeedForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.addFeed();
+            });
+        }
 
         window.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
