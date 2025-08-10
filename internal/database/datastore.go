@@ -704,15 +704,14 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		
 		log.Printf("GetUserUnreadCounts: Feed %d has %d articles", feed.ID, len(articles))
 		
-		// Let's also try to query for ALL articles and see what FeedIDs exist
-		if len(articles) == 0 {
+		// Debug: Check what articles actually exist in database
+		if len(articles) == 0 && feed.ID == 5644004762845184 {
 			var allArticles []*Article
-			allQuery := datastore.NewQuery("Article").Limit(10)
+			allQuery := datastore.NewQuery("Article").Limit(5)
 			_, err := db.client.GetAll(ctx, allQuery, &allArticles)
 			if err == nil {
-				log.Printf("GetUserUnreadCounts: Sample articles FeedIDs: ")
 				for i, article := range allArticles {
-					log.Printf("  Article %d: FeedID=%d, Title=%s", i+1, article.FeedID, article.Title)
+					log.Printf("GetUserUnreadCounts: Sample article %d: FeedID=%d", i+1, article.FeedID)
 				}
 			}
 		}
