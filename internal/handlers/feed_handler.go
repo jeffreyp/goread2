@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 
@@ -250,4 +251,45 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, unreadCounts)
+}
+
+func (fh *FeedHandler) ImportOPML(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	// Parse multipart form
+	file, header, err := c.Request.FormFile("opml")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No OPML file provided"})
+		return
+	}
+	defer file.Close()
+
+	// Check file size (limit to 10MB)
+	if header.Size > 10*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File too large (max 10MB)"})
+		return
+	}
+
+	// Read file content
+	opmlData, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read OPML file"})
+		return
+	}
+
+	// Import feeds
+	importedCount, err := fh.feedService.ImportOPML(user.ID, opmlData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "OPML imported successfully",
+		"imported_count": importedCount,
+	})
 }

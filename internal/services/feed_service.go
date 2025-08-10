@@ -104,6 +104,30 @@ type ArticleData struct {
 	PublishedAt time.Time
 }
 
+// OPML structures for parsing OPML files
+type OPML struct {
+	XMLName xml.Name `xml:"opml"`
+	Head    OPMLHead `xml:"head"`
+	Body    OPMLBody `xml:"body"`
+}
+
+type OPMLHead struct {
+	Title string `xml:"title"`
+}
+
+type OPMLBody struct {
+	Outlines []OPMLOutline `xml:"outline"`
+}
+
+type OPMLOutline struct {
+	Text    string        `xml:"text,attr"`
+	Title   string        `xml:"title,attr"`
+	Type    string        `xml:"type,attr"`
+	XMLURL  string        `xml:"xmlUrl,attr"`
+	HTMLURL string        `xml:"htmlUrl,attr"`
+	Outline []OPMLOutline `xml:"outline"`
+}
+
 func NewFeedService(db database.Database) *FeedService {
 	return &FeedService{
 		db: db,
@@ -504,6 +528,52 @@ func (fs *FeedService) RefreshFeeds() error {
 	}
 
 	return nil
+}
+
+func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {
+	var opml OPML
+	if err := xml.Unmarshal(opmlData, &opml); err != nil {
+		return 0, fmt.Errorf("failed to parse OPML: %w", err)
+	}
+	
+	importedCount := 0
+	feeds := fs.extractFeedsFromOutlines(opml.Body.Outlines)
+	
+	for _, feedURL := range feeds {
+		if feedURL == "" {
+			continue
+		}
+		
+		_, err := fs.AddFeedForUser(userID, feedURL)
+		if err != nil {
+			// Log error but continue with other feeds
+			log.Printf("Failed to import feed %s: %v", feedURL, err)
+			continue
+		}
+		
+		importedCount++
+	}
+	
+	return importedCount, nil
+}
+
+func (fs *FeedService) extractFeedsFromOutlines(outlines []OPMLOutline) []string {
+	var feeds []string
+	
+	for _, outline := range outlines {
+		// If this outline has a feed URL, add it
+		if outline.XMLURL != "" {
+			feeds = append(feeds, outline.XMLURL)
+		}
+		
+		// Recursively process nested outlines (folders)
+		if len(outline.Outline) > 0 {
+			nestedFeeds := fs.extractFeedsFromOutlines(outline.Outline)
+			feeds = append(feeds, nestedFeeds...)
+		}
+	}
+	
+	return feeds
 }
 
 func (fs *FeedService) convertToUTF8(body []byte) ([]byte, error) {

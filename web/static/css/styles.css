@@ -464,6 +464,15 @@ body.app-body {
     font-size: 14px;
 }
 
+.success {
+    padding: 20px;
+    background-color: #e6f4ea;
+    color: #137333;
+    border-radius: 4px;
+    margin: 20px;
+    font-size: 14px;
+}
+
 ::-webkit-scrollbar {
     width: 8px;
 }

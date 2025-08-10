@@ -14,6 +14,7 @@
                 <div class="header-actions">
                     <button id="refresh-btn" class="btn btn-primary">Refresh</button>
                     <button id="add-feed-btn" class="btn btn-secondary">Add Feed</button>
+                    <button id="import-opml-btn" class="btn btn-secondary">Import OPML</button>
                     <button id="help-btn" class="btn btn-secondary">Help</button>
                 </div>
             </div>
@@ -110,6 +111,25 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Import OPML Modal -->
+    <div id="import-opml-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Import OPML File</h2>
+            <form id="import-opml-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="opml-file">OPML File:</label>
+                    <input type="file" id="opml-file" name="opml" accept=".opml,.xml" required>
+                    <small class="form-help">Select an OPML file exported from another RSS reader (max 10MB)</small>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Import Feeds</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-import-opml">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
