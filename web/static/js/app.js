@@ -94,7 +94,7 @@ class GoReadApp {
             }
         });
 
-        // Set up "All Articles" click listener
+        // Set up "Articles" click listener
         const allItem = document.querySelector('[data-feed-id="all"]');
         if (allItem) {
             allItem.addEventListener('click', () => {
@@ -244,7 +244,7 @@ class GoReadApp {
         
         await this.loadArticles(feedId);
         
-        const feedTitle = feedId === 'all' ? 'All Articles' : 
+        const feedTitle = feedId === 'all' ? 'Articles' : 
             this.feeds.find(f => f.id == feedId)?.title || 'Unknown Feed';
         document.getElementById('article-pane-title').textContent = feedTitle;
     }
@@ -498,7 +498,7 @@ class GoReadApp {
                 }
             });
             
-            // Update "All Articles" count
+            // Update "Articles" count
             const allUnreadElement = document.getElementById('all-unread-count');
             if (allUnreadElement) {
                 allUnreadElement.textContent = totalUnread;
@@ -673,7 +673,7 @@ class GoReadApp {
             
             await this.loadFeeds();
             
-            // Always go to "All Articles" after delete
+            // Always go to "Articles" after delete
             this.selectFeed('all');
         } catch (error) {
             console.error('Delete feed error:', error);
