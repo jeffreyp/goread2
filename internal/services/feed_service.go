@@ -464,12 +464,36 @@ func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) erro
 }
 
 func (fs *FeedService) RefreshFeeds() error {
-	feeds, err := fs.GetFeeds()
+	// Get all unique feeds from both global feeds and all user feeds
+	globalFeeds, err := fs.GetFeeds()
 	if err != nil {
 		return err
 	}
 
-	for _, feed := range feeds {
+	// Also get all user feeds to ensure we refresh feeds that users are subscribed to
+	allUserFeeds, err := fs.db.GetAllUserFeeds()
+	if err != nil {
+		log.Printf("RefreshFeeds: Failed to get user feeds, using global feeds only: %v", err)
+		allUserFeeds = []database.Feed{}
+	}
+
+	// Combine and deduplicate feeds by URL
+	feedMap := make(map[string]database.Feed)
+	
+	// Add global feeds
+	for _, feed := range globalFeeds {
+		feedMap[feed.URL] = feed
+	}
+	
+	// Add user feeds (will overwrite if same URL)
+	for _, feed := range allUserFeeds {
+		feedMap[feed.URL] = feed
+	}
+
+	log.Printf("RefreshFeeds: Found %d global feeds and %d user feeds, refreshing %d unique feeds", 
+		len(globalFeeds), len(allUserFeeds), len(feedMap))
+
+	for _, feed := range feedMap {
 		log.Printf("RefreshFeeds: Processing feed %d (%s)", feed.ID, feed.URL)
 		feedData, err := fs.fetchFeed(feed.URL)
 		if err != nil {

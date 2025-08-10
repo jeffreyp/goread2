@@ -688,3 +688,37 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	log.Printf("GetUserUnreadCounts: Final counts: %+v", unreadCounts)
 	return unreadCounts, nil
 }
+
+func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
+	ctx := context.Background()
+
+	// Query for all user feed relationships
+	query := datastore.NewQuery("UserFeed")
+	var userFeedEntities []UserFeedEntity
+	_, err := db.client.GetAll(ctx, query, &userFeedEntities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user feeds: %w", err)
+	}
+
+	// Get unique feed IDs
+	feedIDMap := make(map[int64]bool)
+	for _, userFeed := range userFeedEntities {
+		feedIDMap[userFeed.FeedID] = true
+	}
+
+	// Fetch all unique feeds
+	var feeds []Feed
+	for feedID := range feedIDMap {
+		feed, err := db.GetFeedByID(int(feedID))
+		if err != nil {
+			log.Printf("GetAllUserFeeds: Failed to get feed %d: %v", feedID, err)
+			continue
+		}
+		if feed != nil {
+			feeds = append(feeds, *feed)
+		}
+	}
+
+	log.Printf("GetAllUserFeeds: Found %d unique feeds from user subscriptions", len(feeds))
+	return feeds, nil
+}
