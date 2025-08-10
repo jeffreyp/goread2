@@ -694,3 +694,15 @@ body.app-body {
     flex: 1;
     margin-left: 15px;
 }
+
+.help-item {
+    margin: 12px 0;
+    line-height: 1.5;
+    font-size: 14px;
+    color: #5f6368;
+}
+
+.help-item strong {
+    color: #1a73e8;
+    font-weight: 600;
+}

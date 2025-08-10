@@ -9,6 +9,7 @@ A modern, multi-user RSS reader inspired by Google Reader, built with Go and fea
 - **Multi-user support**: Google OAuth authentication with secure user data isolation
 - **Three-pane layout**: Feed list → Article list → Article content (just like Google Reader)
 - **RSS/Atom feed support**: Add and manage multiple RSS and Atom feeds
+- **OPML import**: Import feed subscriptions from other RSS readers (Feedly, Inoreader, etc.)
 - **Real-time updates**: Background polling for new articles every 30 minutes
 - **Per-user article management**: Mark articles as read/unread, star favorites - all personal to each user
 - **Keyboard shortcuts**: Navigate efficiently with vim-like shortcuts
@@ -121,9 +122,13 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed production deployment instructio
 ### Managing Feeds
 
 1. **Adding feeds**: Click "Add Feed" and enter RSS/Atom URL
-2. **Subscribing**: Feeds are automatically subscribed for your user
-3. **Unsubscribing**: Click the × next to any feed in your list
-4. **Feed discovery**: Supports both RSS and Atom formats
+2. **OPML import**: Click "Import OPML" to import feeds from other RSS readers
+   - Supports exports from Feedly, Inoreader, NewsBlur, and other RSS readers
+   - Handles nested folders and complex OPML structures
+   - Shows import progress and success count
+3. **Subscribing**: Feeds are automatically subscribed for your user
+4. **Unsubscribing**: Click the × next to any feed in your list
+5. **Feed discovery**: Supports both RSS and Atom formats
 
 ### Reading Articles
 
@@ -152,6 +157,7 @@ All API endpoints require authentication via session cookies:
 ### Feeds (User-specific)
 - `GET /api/feeds` - List user's subscribed feeds
 - `POST /api/feeds` - Subscribe user to new feed
+- `POST /api/feeds/import` - Import feeds from OPML file
 - `DELETE /api/feeds/:id` - Unsubscribe user from feed
 - `POST /api/feeds/refresh` - Refresh all user's feeds
 
