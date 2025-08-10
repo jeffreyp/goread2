@@ -444,7 +444,9 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom) *FeedData {
 }
 
 func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) error {
-	for _, articleData := range feedData.Articles {
+	log.Printf("saveArticlesFromFeed: Saving %d articles for feed %d", len(feedData.Articles), feedID)
+	
+	for i, articleData := range feedData.Articles {
 		article := &database.Article{
 			FeedID:      feedID,
 			Title:       articleData.Title,
@@ -456,10 +458,15 @@ func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) erro
 			CreatedAt:   time.Now(),
 		}
 
+		log.Printf("saveArticlesFromFeed: Saving article %d with FeedID %d: %s", i+1, article.FeedID, article.Title)
+		
 		if err := fs.db.AddArticle(article); err != nil {
+			log.Printf("saveArticlesFromFeed: Failed to save article %d for feed %d: %v", i+1, feedID, err)
 			return err
 		}
 	}
+	
+	log.Printf("saveArticlesFromFeed: Successfully saved all %d articles for feed %d", len(feedData.Articles), feedID)
 	return nil
 }
 

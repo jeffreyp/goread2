@@ -189,6 +189,9 @@ func (db *DatastoreDB) AddArticle(article *Article) error {
 	if len(existing) > 0 {
 		// Article already exists, set the ID and return
 		article.ID = int(keys[0].ID)
+		existingFeedID := int(existing[0].FeedID)
+		log.Printf("AddArticle: Article already exists with ID %d (existing feedID: %d, requested feedID: %d): %s", 
+			article.ID, existingFeedID, article.FeedID, article.URL)
 		return nil
 	}
 
