@@ -470,15 +470,21 @@ func (fs *FeedService) RefreshFeeds() error {
 	}
 
 	for _, feed := range feeds {
+		log.Printf("RefreshFeeds: Processing feed %d (%s)", feed.ID, feed.URL)
 		feedData, err := fs.fetchFeed(feed.URL)
 		if err != nil {
+			log.Printf("RefreshFeeds: Failed to fetch feed %d: %v", feed.ID, err)
 			continue
 		}
+
+		log.Printf("RefreshFeeds: Fetched %d articles from feed %d", len(feedData.Articles), feed.ID)
 
 		if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
+			log.Printf("RefreshFeeds: Failed to save articles for feed %d: %v", feed.ID, err)
 			continue
 		}
 
+		log.Printf("RefreshFeeds: Successfully saved articles for feed %d", feed.ID)
 		_ = fs.db.UpdateFeedLastFetch(feed.ID, time.Now())
 	}
 
