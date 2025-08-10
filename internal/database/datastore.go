@@ -694,7 +694,7 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	// For each feed, count unread articles
 	for _, feed := range userFeeds {
 		var articles []*Article
-		q := datastore.NewQuery("Article").FilterField("FeedID", "=", feed.ID)
+		q := datastore.NewQuery("Article").FilterField("FeedID", "=", int64(feed.ID))
 		_, err := db.client.GetAll(ctx, q, &articles)
 		if err != nil {
 			return nil, err
