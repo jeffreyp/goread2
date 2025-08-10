@@ -189,9 +189,6 @@ func (db *DatastoreDB) AddArticle(article *Article) error {
 	if len(existing) > 0 {
 		// Article already exists, set the ID and return
 		article.ID = int(keys[0].ID)
-		existingFeedID := int(existing[0].FeedID)
-		log.Printf("AddArticle: Article already exists with ID %d (existing feedID: %d, requested feedID: %d): %s", 
-			article.ID, existingFeedID, article.FeedID, article.URL)
 		return nil
 	}
 
@@ -687,53 +684,30 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		return nil, err
 	}
 	
-	log.Printf("GetUserUnreadCounts: Found %d feeds for user %d", len(userFeeds), userID)
-	
 	unreadCounts := make(map[int]int)
 	
 	// For each feed, count unread articles
 	for _, feed := range userFeeds {
-		var articles []*Article
-		log.Printf("GetUserUnreadCounts: Querying for articles with FeedID = %d (as int64: %d)", feed.ID, int64(feed.ID))
-		q := datastore.NewQuery("Article").FilterField("FeedID", "=", int64(feed.ID))
-		_, err := db.client.GetAll(ctx, q, &articles)
+		var articles []ArticleEntity
+		q := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feed.ID))
+		keys, err := db.client.GetAll(ctx, q, &articles)
 		if err != nil {
-			log.Printf("GetUserUnreadCounts: Query error for feed %d: %v", feed.ID, err)
 			return nil, err
 		}
 		
-		log.Printf("GetUserUnreadCounts: Feed %d has %d articles", feed.ID, len(articles))
-		
-		// Debug: Check what articles actually exist in database
-		if len(articles) == 0 && feed.ID == 5644004762845184 {
-			var allArticles []*Article
-			allQuery := datastore.NewQuery("Article").Limit(5)
-			_, err := db.client.GetAll(ctx, allQuery, &allArticles)
-			if err == nil {
-				for i, article := range allArticles {
-					log.Printf("GetUserUnreadCounts: Sample article %d: FeedID=%d", i+1, article.FeedID)
-				}
-			}
-		}
-		
 		unreadCount := 0
-		for _, article := range articles {
+		for i := range articles {
+			articleID := int(keys[i].ID)
 			// Check if user has read this article
-			userStatus, err := db.GetUserArticleStatus(userID, article.ID)
+			userStatus, err := db.GetUserArticleStatus(userID, articleID)
 			if err != nil || userStatus == nil || !userStatus.IsRead {
 				unreadCount++
-				log.Printf("GetUserUnreadCounts: Article %d in feed %d is UNREAD (err: %v, userStatus: %v)", 
-					article.ID, feed.ID, err, userStatus)
-			} else {
-				log.Printf("GetUserUnreadCounts: Article %d in feed %d is READ", article.ID, feed.ID)
 			}
 		}
 		
-		log.Printf("GetUserUnreadCounts: Feed %d has %d unread articles", feed.ID, unreadCount)
 		unreadCounts[feed.ID] = unreadCount
 	}
 	
-	log.Printf("GetUserUnreadCounts: Final counts: %+v", unreadCounts)
 	return unreadCounts, nil
 }
 
@@ -759,7 +733,6 @@ func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
 	for feedID := range feedIDMap {
 		feed, err := db.GetFeedByID(int(feedID))
 		if err != nil {
-			log.Printf("GetAllUserFeeds: Failed to get feed %d: %v", feedID, err)
 			continue
 		}
 		if feed != nil {
@@ -767,6 +740,5 @@ func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
 		}
 	}
 
-	log.Printf("GetAllUserFeeds: Found %d unique feeds from user subscriptions", len(feeds))
 	return feeds, nil
 }

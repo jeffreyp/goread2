@@ -444,9 +444,7 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom) *FeedData {
 }
 
 func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) error {
-	log.Printf("saveArticlesFromFeed: Saving %d articles for feed %d", len(feedData.Articles), feedID)
-	
-	for i, articleData := range feedData.Articles {
+	for _, articleData := range feedData.Articles {
 		article := &database.Article{
 			FeedID:      feedID,
 			Title:       articleData.Title,
@@ -457,16 +455,12 @@ func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) erro
 			PublishedAt: articleData.PublishedAt,
 			CreatedAt:   time.Now(),
 		}
-
-		log.Printf("saveArticlesFromFeed: Saving article %d with FeedID %d: %s", i+1, article.FeedID, article.Title)
 		
 		if err := fs.db.AddArticle(article); err != nil {
-			log.Printf("saveArticlesFromFeed: Failed to save article %d for feed %d: %v", i+1, feedID, err)
 			return err
 		}
 	}
 	
-	log.Printf("saveArticlesFromFeed: Successfully saved all %d articles for feed %d", len(feedData.Articles), feedID)
 	return nil
 }
 
@@ -480,7 +474,6 @@ func (fs *FeedService) RefreshFeeds() error {
 	// Also get all user feeds to ensure we refresh feeds that users are subscribed to
 	allUserFeeds, err := fs.db.GetAllUserFeeds()
 	if err != nil {
-		log.Printf("RefreshFeeds: Failed to get user feeds, using global feeds only: %v", err)
 		allUserFeeds = []database.Feed{}
 	}
 
@@ -497,25 +490,16 @@ func (fs *FeedService) RefreshFeeds() error {
 		feedMap[feed.URL] = feed
 	}
 
-	log.Printf("RefreshFeeds: Found %d global feeds and %d user feeds, refreshing %d unique feeds", 
-		len(globalFeeds), len(allUserFeeds), len(feedMap))
-
 	for _, feed := range feedMap {
-		log.Printf("RefreshFeeds: Processing feed %d (%s)", feed.ID, feed.URL)
 		feedData, err := fs.fetchFeed(feed.URL)
 		if err != nil {
-			log.Printf("RefreshFeeds: Failed to fetch feed %d: %v", feed.ID, err)
 			continue
 		}
-
-		log.Printf("RefreshFeeds: Fetched %d articles from feed %d", len(feedData.Articles), feed.ID)
 
 		if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
-			log.Printf("RefreshFeeds: Failed to save articles for feed %d: %v", feed.ID, err)
 			continue
 		}
 
-		log.Printf("RefreshFeeds: Successfully saved articles for feed %d", feed.ID)
 		_ = fs.db.UpdateFeedLastFetch(feed.ID, time.Now())
 	}
 
