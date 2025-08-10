@@ -20,6 +20,7 @@ type Database interface {
 	AddFeed(feed *Feed) error
 	GetFeeds() ([]Feed, error)
 	GetUserFeeds(userID int) ([]Feed, error)
+	GetAllUserFeeds() ([]Feed, error)
 	DeleteFeed(id int) error
 	SubscribeUserToFeed(userID, feedID int) error
 	UnsubscribeUserFromFeed(userID, feedID int) error
@@ -387,6 +388,32 @@ func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
 			  ORDER BY f.title`
 
 	rows, err := db.DB.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var feeds []Feed
+	for rows.Next() {
+		var feed Feed
+		err := rows.Scan(&feed.ID, &feed.Title, &feed.URL, &feed.Description,
+			&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch)
+		if err != nil {
+			return nil, err
+		}
+		feeds = append(feeds, feed)
+	}
+
+	return feeds, nil
+}
+
+func (db *DB) GetAllUserFeeds() ([]Feed, error) {
+	query := `SELECT DISTINCT f.id, f.title, f.url, f.description, f.created_at, f.updated_at, f.last_fetch 
+			  FROM feeds f 
+			  JOIN user_feeds uf ON f.id = uf.feed_id 
+			  ORDER BY f.title`
+
+	rows, err := db.DB.Query(query)
 	if err != nil {
 		return nil, err
 	}
