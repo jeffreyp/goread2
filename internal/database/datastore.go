@@ -125,6 +125,33 @@ func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 	return feeds, nil
 }
 
+func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
+	ctx := context.Background()
+	
+	key := datastore.IDKey("Feed", int64(feedID), nil)
+	var entity FeedEntity
+	err := db.client.Get(ctx, key, &entity)
+	if err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			return nil, nil // Feed not found
+		}
+		return nil, fmt.Errorf("failed to get feed %d: %w", feedID, err)
+	}
+	
+	entity.ID = key.ID
+	feed := &Feed{
+		ID:          int(entity.ID),
+		Title:       entity.Title,
+		URL:         entity.URL,
+		Description: entity.Description,
+		CreatedAt:   entity.CreatedAt,
+		UpdatedAt:   entity.UpdatedAt,
+		LastFetch:   entity.LastFetch,
+	}
+	
+	return feed, nil
+}
+
 func (db *DatastoreDB) DeleteFeed(id int) error {
 	ctx := context.Background()
 
