@@ -705,6 +705,10 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 			userStatus, err := db.GetUserArticleStatus(userID, article.ID)
 			if err != nil || userStatus == nil || !userStatus.IsRead {
 				unreadCount++
+				log.Printf("GetUserUnreadCounts: Article %d in feed %d is UNREAD (err: %v, userStatus: %v)", 
+					article.ID, feed.ID, err, userStatus)
+			} else {
+				log.Printf("GetUserUnreadCounts: Article %d in feed %d is READ", article.ID, feed.ID)
 			}
 		}
 		
