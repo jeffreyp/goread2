@@ -445,20 +445,35 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 	query := `SELECT id, google_id, email, name, avatar, created_at,
 			  COALESCE(subscription_status, 'trial') as subscription_status,
 			  COALESCE(subscription_id, '') as subscription_id,
-			  COALESCE(trial_ends_at, datetime(created_at, '+30 days')) as trial_ends_at,
-			  last_payment_date,
+			  trial_ends_at, last_payment_date,
 			  COALESCE(is_admin, 0) as is_admin,
 			  COALESCE(free_months_remaining, 0) as free_months_remaining
 			  FROM users WHERE id = ?`
 
 	var user User
+	var trialEndsAt sql.NullTime
+	var lastPaymentDate sql.NullTime
+	
 	err := db.DB.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
-		&user.SubscriptionID, &user.TrialEndsAt, &user.LastPaymentDate,
+		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate,
 		&user.IsAdmin, &user.FreeMonthsRemaining)
 	if err != nil {
 		return nil, err
 	}
+	
+	// Handle nullable datetime fields
+	if trialEndsAt.Valid {
+		user.TrialEndsAt = trialEndsAt.Time
+	} else {
+		// Set default trial end date if not set
+		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30)
+	}
+	
+	if lastPaymentDate.Valid {
+		user.LastPaymentDate = lastPaymentDate.Time
+	}
+	
 	return &user, nil
 }
 
@@ -781,19 +796,37 @@ func (db *DB) GrantFreeMonths(userID int, months int) error {
 
 func (db *DB) GetUserByEmail(email string) (*User, error) {
 	query := `SELECT id, google_id, email, name, avatar, created_at, 
-			  subscription_status, subscription_id, trial_ends_at, last_payment_date,
-			  COALESCE(is_admin, 0), COALESCE(free_months_remaining, 0)
+			  COALESCE(subscription_status, 'trial') as subscription_status,
+			  COALESCE(subscription_id, '') as subscription_id,
+			  trial_ends_at, last_payment_date,
+			  COALESCE(is_admin, 0) as is_admin,
+			  COALESCE(free_months_remaining, 0) as free_months_remaining
 			  FROM users WHERE email = ?`
 	
 	var user User
+	var trialEndsAt sql.NullTime
+	var lastPaymentDate sql.NullTime
+	
 	err := db.DB.QueryRow(query, email).Scan(
 		&user.ID, &user.GoogleID, &user.Email, &user.Name, &user.Avatar,
 		&user.CreatedAt, &user.SubscriptionStatus, &user.SubscriptionID,
-		&user.TrialEndsAt, &user.LastPaymentDate, &user.IsAdmin, &user.FreeMonthsRemaining,
+		&trialEndsAt, &lastPaymentDate, &user.IsAdmin, &user.FreeMonthsRemaining,
 	)
 	
 	if err != nil {
 		return nil, err
+	}
+	
+	// Handle nullable datetime fields
+	if trialEndsAt.Valid {
+		user.TrialEndsAt = trialEndsAt.Time
+	} else {
+		// Set default trial end date if not set
+		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30)
+	}
+	
+	if lastPaymentDate.Valid {
+		user.LastPaymentDate = lastPaymentDate.Time
 	}
 	
 	return &user, nil
