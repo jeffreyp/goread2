@@ -557,6 +557,40 @@ func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {
 	return importedCount, nil
 }
 
+// ImportOPMLWithLimits imports OPML feeds while respecting subscription limits
+func (fs *FeedService) ImportOPMLWithLimits(userID int, opmlData []byte, subscriptionService *SubscriptionService) (int, error) {
+	var opml OPML
+	if err := xml.Unmarshal(opmlData, &opml); err != nil {
+		return 0, fmt.Errorf("failed to parse OPML: %w", err)
+	}
+	
+	feeds := fs.extractFeedsFromOutlines(opml.Body.Outlines)
+	importedCount := 0
+	
+	for _, feedURL := range feeds {
+		if feedURL == "" {
+			continue
+		}
+		
+		// Check if user can add more feeds before each import
+		if err := subscriptionService.CanUserAddFeed(userID); err != nil {
+			// Return partial import count and the error
+			return importedCount, err
+		}
+		
+		_, err := fs.AddFeedForUser(userID, feedURL)
+		if err != nil {
+			// Log error but continue with other feeds
+			log.Printf("Failed to import feed %s: %v", feedURL, err)
+			continue
+		}
+		
+		importedCount++
+	}
+	
+	return importedCount, nil
+}
+
 func (fs *FeedService) extractFeedsFromOutlines(outlines []OPMLOutline) []string {
 	var feeds []string
 	

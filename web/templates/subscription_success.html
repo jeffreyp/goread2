@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="privacy-container">
+        <h1>🎉 Welcome to GoRead2 Pro!</h1>
+        
+        <div class="privacy-content">
+            <p><strong>Your subscription has been successfully activated!</strong></p>
+            
+            <p>You now have access to:</p>
+            <ul>
+                <li>✅ Unlimited RSS feeds</li>
+                <li>✅ Priority support</li>
+                <li>✅ Advanced features</li>
+                <li>✅ No more feed limits</li>
+            </ul>
+            
+            <p>You can now add as many RSS feeds as you want and enjoy the full GoRead2 experience.</p>
+            
+            {{if .session_id}}
+            <p><small>Session ID: {{.session_id}}</small></p>
+            {{end}}
+        </div>
+        
+        <div class="privacy-actions">
+            <a href="/" class="btn btn-primary">Start Using GoRead2 Pro</a>
+            <a href="/subscription" class="btn btn-secondary">Manage Subscription</a>
+        </div>
+    </div>
+
+    <script>
+        // Auto-redirect to main app after 5 seconds
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 5000);
+    </script>
+</body>
+</html>

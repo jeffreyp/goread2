@@ -5,6 +5,7 @@ class GoReadApp {
         this.feeds = [];
         this.articles = [];
         this.user = null;
+        this.subscriptionInfo = null;
         
         this.init();
     }
@@ -13,6 +14,7 @@ class GoReadApp {
         await this.checkAuth();
         if (this.user) {
             this.bindEvents();
+            await this.loadSubscriptionInfo();
             this.loadFeeds();
             this.setupKeyboardShortcuts();
             this.showApp();
@@ -33,6 +35,19 @@ class GoReadApp {
             // Not authenticated
         }
         return false;
+    }
+
+    async loadSubscriptionInfo() {
+        try {
+            const response = await fetch('/api/subscription');
+            if (response.ok) {
+                this.subscriptionInfo = await response.json();
+            } else {
+                console.error('Failed to load subscription info:', response.status);
+            }
+        } catch (error) {
+            console.error('Error loading subscription info:', error);
+        }
     }
 
     bindEvents() {
@@ -625,11 +640,28 @@ class GoReadApp {
                 const result = await response.json();
                 this.hideImportOpmlModal();
                 await this.loadFeeds();
+                await this.loadSubscriptionInfo();
                 await this.updateUnreadCounts();
+                this.updateSubscriptionDisplay();
                 
                 // Show success message
                 const message = `Successfully imported ${result.imported_count} feed(s) from OPML file`;
                 this.showSuccess(message);
+            } else if (response.status === 402) { // Payment Required
+                const error = await response.json();
+                if (error.limit_reached) {
+                    // Show partial success if some feeds were imported
+                    if (error.imported_count > 0) {
+                        await this.loadFeeds();
+                        await this.updateUnreadCounts();
+                        this.showSuccess(`Imported ${error.imported_count} feed(s) before reaching your limit.`);
+                    }
+                    this.showSubscriptionLimitModal(error);
+                } else if (error.trial_expired) {
+                    this.showTrialExpiredModal(error);
+                } else {
+                    this.showError(error.error || 'Subscription required');
+                }
             } else {
                 let errorMessage = `HTTP ${response.status}`;
                 try {
@@ -725,7 +757,18 @@ class GoReadApp {
             if (response.ok) {
                 this.hideAddFeedModal();
                 await this.loadFeeds();
+                await this.loadSubscriptionInfo();
                 await this.updateUnreadCounts();
+                this.updateSubscriptionDisplay();
+            } else if (response.status === 402) { // Payment Required
+                const error = await response.json();
+                if (error.limit_reached) {
+                    this.showSubscriptionLimitModal(error);
+                } else if (error.trial_expired) {
+                    this.showTrialExpiredModal(error);
+                } else {
+                    this.showError(error.error || 'Subscription required');
+                }
             } else {
                 let errorMessage = `HTTP ${response.status}`;
                 try {
@@ -773,6 +816,8 @@ class GoReadApp {
             this.articles = [];
             
             await this.loadFeeds();
+            await this.loadSubscriptionInfo();
+            this.updateSubscriptionDisplay();
             
             // Always go to "Articles" after delete
             this.selectFeed('all');
@@ -836,6 +881,126 @@ class GoReadApp {
         return div.innerHTML;
     }
 
+    // Subscription management methods
+    showSubscriptionLimitModal(error) {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'block';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Upgrade to Pro</h2>
+                <p>You've reached the free limit of ${error.current_limit} feeds.</p>
+                <p>Upgrade to <strong>GoRead2 Pro</strong> for:</p>
+                <ul>
+                    <li>Unlimited RSS feeds</li>
+                    <li>Priority support</li>
+                    <li>Advanced features</li>
+                </ul>
+                <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $2.99/month</p>
+                <div class="form-actions">
+                    <button id="upgrade-btn" class="btn btn-primary">Upgrade to Pro</button>
+                    <button id="cancel-upgrade" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const closeModal = () => {
+            modal.remove();
+        };
+
+        modal.querySelector('.close').addEventListener('click', closeModal);
+        modal.querySelector('#cancel-upgrade').addEventListener('click', closeModal);
+        modal.querySelector('#upgrade-btn').addEventListener('click', () => {
+            this.startUpgradeProcess();
+            closeModal();
+        });
+
+        // Close on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+    }
+
+    showTrialExpiredModal(error) {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'block';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Free Trial Expired</h2>
+                <p>Your 30-day free trial has ended.</p>
+                <p>Subscribe to <strong>GoRead2 Pro</strong> to continue using the service with:</p>
+                <ul>
+                    <li>Unlimited RSS feeds</li>
+                    <li>Continued access to all articles</li>
+                    <li>Priority support</li>
+                </ul>
+                <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $2.99/month</p>
+                <div class="form-actions">
+                    <button id="subscribe-btn" class="btn btn-primary">Subscribe Now</button>
+                    <button id="cancel-subscribe" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const closeModal = () => {
+            modal.remove();
+        };
+
+        modal.querySelector('.close').addEventListener('click', closeModal);
+        modal.querySelector('#cancel-subscribe').addEventListener('click', closeModal);
+        modal.querySelector('#subscribe-btn').addEventListener('click', () => {
+            this.startUpgradeProcess();
+            closeModal();
+        });
+
+        // Close on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+    }
+
+    async startUpgradeProcess() {
+        try {
+            // Get Stripe configuration
+            const configResponse = await fetch('/api/stripe/config');
+            if (!configResponse.ok) {
+                throw new Error('Stripe not configured');
+            }
+            const config = await configResponse.json();
+
+            // Create checkout session
+            const checkoutResponse = await fetch('/api/subscription/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!checkoutResponse.ok) {
+                const error = await checkoutResponse.json();
+                throw new Error(error.error || 'Failed to create checkout session');
+            }
+
+            const session = await checkoutResponse.json();
+
+            // Redirect to Stripe Checkout
+            window.location.href = session.session_url;
+            
+        } catch (error) {
+            console.error('Upgrade process failed:', error);
+            if (error.message === 'Stripe not configured') {
+                this.showError('Payment processing is not available. Please contact support.');
+            } else {
+                this.showError('Failed to start upgrade process: ' + error.message);
+            }
+        }
+    }
+
     // Authentication methods
     showLogin() {
         document.getElementById('app').style.display = 'none';
@@ -894,13 +1059,19 @@ class GoReadApp {
 
     updateUserInfo() {
         if (this.user) {
-            // Update header with user info
+            // Update header with user info and subscription status
             const headerActions = document.querySelector('.header-actions');
+            
+            // Create subscription status element
+            const subscriptionStatus = this.createSubscriptionStatusElement();
+            
             const userInfo = document.createElement('div');
             userInfo.className = 'user-info';
             userInfo.innerHTML = `
+                ${subscriptionStatus}
                 <span class="user-name">${this.escapeHtml(this.user.name)}</span>
                 <img class="user-avatar" src="${this.user.avatar}" alt="User Avatar" width="32" height="32">
+                <a href="/account" class="btn btn-secondary">Account</a>
                 <button id="logout-btn" class="btn btn-secondary">Logout</button>
             `;
             headerActions.appendChild(userInfo);
@@ -910,8 +1081,148 @@ class GoReadApp {
             });
         }
     }
+
+    createSubscriptionStatusElement() {
+        if (!this.subscriptionInfo) {
+            return '<div class="subscription-status loading">Loading...</div>';
+        }
+
+        const info = this.subscriptionInfo;
+        let statusHTML = '';
+        let statusClass = '';
+
+        if (info.status === 'admin') {
+            statusClass = 'admin';
+            statusHTML = `
+                <div class="subscription-status ${statusClass}">
+                    <span class="status-badge">ADMIN</span>
+                    <span class="status-text">Unlimited access</span>
+                </div>
+            `;
+        } else if (info.status === 'active') {
+            statusClass = 'pro';
+            statusHTML = `
+                <div class="subscription-status ${statusClass}">
+                    <span class="status-badge">PRO</span>
+                    <span class="status-text">Unlimited feeds</span>
+                </div>
+            `;
+        } else if (info.status === 'free_months') {
+            statusClass = 'free';
+            statusHTML = `
+                <div class="subscription-status ${statusClass}">
+                    <span class="status-badge">FREE</span>
+                    <span class="status-text">Free months remaining</span>
+                </div>
+            `;
+        } else if (info.status === 'trial') {
+            statusClass = 'trial';
+            const daysLeft = info.trial_days_remaining || 0;
+            statusHTML = `
+                <div class="subscription-status ${statusClass}">
+                    <span class="status-badge">TRIAL</span>
+                    <span class="status-text">${info.current_feeds}/${info.feed_limit} feeds • ${daysLeft} days left</span>
+                </div>
+            `;
+        } else {
+            statusClass = 'expired';
+            statusHTML = `
+                <div class="subscription-status ${statusClass}">
+                    <span class="status-badge">EXPIRED</span>
+                    <span class="status-text">Subscribe to continue</span>
+                </div>
+            `;
+        }
+
+        return statusHTML;
+    }
+
+    updateSubscriptionDisplay() {
+        // Update header subscription status
+        const subscriptionElement = document.querySelector('.subscription-status');
+        if (subscriptionElement) {
+            const newStatusHTML = this.createSubscriptionStatusElement();
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newStatusHTML;
+            const newElement = tempDiv.firstElementChild;
+            subscriptionElement.replaceWith(newElement);
+        }
+        
+        // Update sidebar subscription panel
+        this.updateSubscriptionPanel();
+    }
+
+    updateSubscriptionPanel() {
+        const panel = document.getElementById('subscription-panel');
+        if (!panel) return;
+
+        if (!this.subscriptionInfo) {
+            panel.classList.add('hidden');
+            return;
+        }
+
+        panel.classList.remove('hidden');
+        const info = this.subscriptionInfo;
+        let panelHTML = '';
+
+        if (info.status === 'admin') {
+            panelHTML = `
+                <div class="subscription-info admin">
+                    <div>
+                        <div class="status">Admin Access</div>
+                        <div class="details">Unlimited feeds</div>
+                    </div>
+                </div>
+            `;
+        } else if (info.status === 'active') {
+            panelHTML = `
+                <div class="subscription-info pro">
+                    <div>
+                        <div class="status">GoRead2 Pro</div>
+                        <div class="details">Unlimited feeds</div>
+                    </div>
+                </div>
+            `;
+        } else if (info.status === 'free_months') {
+            panelHTML = `
+                <div class="subscription-info free">
+                    <div>
+                        <div class="status">Free Months</div>
+                        <div class="details">Unlimited feeds</div>
+                    </div>
+                </div>
+            `;
+        } else if (info.status === 'trial') {
+            const daysLeft = info.trial_days_remaining || 0;
+            const feedsUsed = info.current_feeds || 0;
+            const feedLimit = info.feed_limit || 20;
+            const isNearLimit = feedsUsed >= feedLimit - 3; // Show warning when 3 or fewer feeds left
+            
+            panelHTML = `
+                <div class="subscription-info trial">
+                    <div>
+                        <div class="status">Free Trial</div>
+                        <div class="details">${feedsUsed}/${feedLimit} feeds • ${daysLeft} days left</div>
+                    </div>
+                    ${(isNearLimit || daysLeft <= 7) ? '<button class="upgrade-btn" onclick="app.startUpgradeProcess()">Upgrade</button>' : ''}
+                </div>
+            `;
+        } else {
+            panelHTML = `
+                <div class="subscription-info expired">
+                    <div>
+                        <div class="status">Trial Expired</div>
+                        <div class="details">Subscribe to continue</div>
+                    </div>
+                    <button class="upgrade-btn" onclick="app.startUpgradeProcess()">Subscribe</button>
+                </div>
+            `;
+        }
+
+        panel.innerHTML = panelHTML;
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new GoReadApp();
+    window.app = new GoReadApp();
 });

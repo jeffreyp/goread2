@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/account.css">
+</head>
+<body>
+    <div id="account-app">
+        <header class="header">
+            <div class="header-content">
+                <a href="/" class="logo">GoRead2</a>
+                <div class="header-actions">
+                    <a href="/" class="btn btn-secondary">← Back to Feeds</a>
+                </div>
+            </div>
+        </header>
+
+        <div class="account-container">
+            <div class="account-content">
+                <h1>Account Management</h1>
+
+                <!-- User Info Section -->
+                <div class="account-section">
+                    <h2>Profile</h2>
+                    <div class="profile-info" id="profile-info">
+                        <div class="loading">Loading profile...</div>
+                    </div>
+                </div>
+
+                <!-- Subscription Section -->
+                <div class="account-section">
+                    <h2>Subscription</h2>
+                    <div class="subscription-details" id="subscription-details">
+                        <div class="loading">Loading subscription info...</div>
+                    </div>
+                </div>
+
+                <!-- Usage Stats Section -->
+                <div class="account-section">
+                    <h2>Usage Statistics</h2>
+                    <div class="usage-stats" id="usage-stats">
+                        <div class="loading">Loading usage stats...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="confirm-title">Confirm Action</h2>
+            <p id="confirm-message">Are you sure you want to proceed?</p>
+            <div class="form-actions">
+                <button id="confirm-action" class="btn btn-primary">Confirm</button>
+                <button id="cancel-action" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/account.js"></script>
+</body>
+</html>

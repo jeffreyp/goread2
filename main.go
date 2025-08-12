@@ -21,6 +21,8 @@ func main() {
 
 	// Initialize services
 	feedService := services.NewFeedService(db)
+	subscriptionService := services.NewSubscriptionService(db)
+	paymentService := services.NewPaymentService(db, subscriptionService)
 	authService := auth.NewAuthService(db)
 	sessionManager := auth.NewSessionManager(db)
 
@@ -29,9 +31,18 @@ func main() {
 		log.Fatal("OAuth configuration error:", err)
 	}
 
+	// Validate Stripe configuration (optional - only if Stripe keys are provided)
+	if os.Getenv("STRIPE_SECRET_KEY") != "" {
+		if err := paymentService.ValidateStripeConfig(); err != nil {
+			log.Printf("Warning: Stripe configuration incomplete: %v", err)
+			log.Println("Subscription features will be disabled")
+		}
+	}
+
 	// Initialize handlers
-	feedHandler := handlers.NewFeedHandler(feedService)
+	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager)
+	paymentHandler := handlers.NewPaymentHandler(paymentService)
 
 	// Initialize middleware
 	authMiddleware := auth.NewMiddleware(sessionManager)
@@ -62,6 +73,17 @@ func main() {
 		})
 	})
 
+	// Protected pages
+	r.GET("/account", authMiddleware.RequireAuth(), func(c *gin.Context) {
+		c.HTML(http.StatusOK, "account.html", gin.H{
+			"title": "Account Management - GoRead2",
+		})
+	})
+
+	// Subscription success/cancel pages (public)
+	r.GET("/subscription/success", paymentHandler.SubscriptionSuccess)
+	r.GET("/subscription/cancel", paymentHandler.SubscriptionCancel)
+
 	// Auth routes (public)
 	auth := r.Group("/auth")
 	{
@@ -82,10 +104,20 @@ func main() {
 		api.GET("/feeds/:id/articles", feedHandler.GetArticles)
 		api.GET("/feeds/:id/debug", feedHandler.DebugFeed)
 		api.GET("/feeds/unread-counts", feedHandler.GetUnreadCounts)
+		api.GET("/subscription", feedHandler.GetSubscriptionInfo)
+		api.GET("/account/stats", feedHandler.GetAccountStats)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
 		api.POST("/feeds/refresh", feedHandler.RefreshFeeds)
+		
+		// Payment/subscription routes
+		api.GET("/stripe/config", paymentHandler.GetStripeConfig)
+		api.POST("/subscription/checkout", paymentHandler.CreateCheckoutSession)
+		api.POST("/subscription/portal", paymentHandler.CreateCustomerPortal)
 	}
+
+	// Webhook routes (public - no auth required)
+	r.POST("/webhooks/stripe", paymentHandler.WebhookHandler)
 
 	// Get port from environment (App Engine sets this)
 	port := os.Getenv("PORT")

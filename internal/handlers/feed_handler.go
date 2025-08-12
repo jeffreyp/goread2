@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -12,11 +13,15 @@ import (
 )
 
 type FeedHandler struct {
-	feedService *services.FeedService
+	feedService         *services.FeedService
+	subscriptionService *services.SubscriptionService
 }
 
-func NewFeedHandler(feedService *services.FeedService) *FeedHandler {
-	return &FeedHandler{feedService: feedService}
+func NewFeedHandler(feedService *services.FeedService, subscriptionService *services.SubscriptionService) *FeedHandler {
+	return &FeedHandler{
+		feedService:         feedService,
+		subscriptionService: subscriptionService,
+	}
 }
 
 func (fh *FeedHandler) GetFeeds(c *gin.Context) {
@@ -43,6 +48,27 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	// Check if user can add more feeds
+	if err := fh.subscriptionService.CanUserAddFeed(user.ID); err != nil {
+		if errors.Is(err, services.ErrFeedLimitReached) {
+			c.JSON(http.StatusPaymentRequired, gin.H{
+				"error": "You've reached the limit of 20 feeds for free users. Upgrade to Pro for unlimited feeds.",
+				"limit_reached": true,
+				"current_limit": services.FreeTrialFeedLimit,
+			})
+			return
+		}
+		if errors.Is(err, services.ErrTrialExpired) {
+			c.JSON(http.StatusPaymentRequired, gin.H{
+				"error": "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
+				"trial_expired": true,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -281,9 +307,25 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 		return
 	}
 
-	// Import feeds
-	importedCount, err := fh.feedService.ImportOPML(user.ID, opmlData)
+	// Import feeds (this will check limits internally)
+	importedCount, err := fh.feedService.ImportOPMLWithLimits(user.ID, opmlData, fh.subscriptionService)
 	if err != nil {
+		if errors.Is(err, services.ErrFeedLimitReached) {
+			c.JSON(http.StatusPaymentRequired, gin.H{
+				"error": "Import would exceed your feed limit of 20 feeds. Upgrade to Pro for unlimited feeds.",
+				"limit_reached": true,
+				"current_limit": services.FreeTrialFeedLimit,
+				"imported_count": importedCount,
+			})
+			return
+		}
+		if errors.Is(err, services.ErrTrialExpired) {
+			c.JSON(http.StatusPaymentRequired, gin.H{
+				"error": "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
+				"trial_expired": true,
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -292,4 +334,73 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 		"message": "OPML imported successfully",
 		"imported_count": importedCount,
 	})
+}
+
+func (fh *FeedHandler) GetSubscriptionInfo(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	subscriptionInfo, err := fh.subscriptionService.GetUserSubscriptionInfo(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, subscriptionInfo)
+}
+
+func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	// Get user feeds
+	feeds, err := fh.feedService.GetUserFeeds(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get total articles count across all feeds
+	totalArticles := 0
+	totalUnread := 0
+	activeFeeds := 0
+	
+	for _, feed := range feeds {
+		articles, err := fh.feedService.GetUserFeedArticles(user.ID, feed.ID)
+		if err != nil {
+			continue // Skip failed feeds in stats
+		}
+		totalArticles += len(articles)
+		
+		unreadCount := 0
+		for _, article := range articles {
+			if !article.IsRead {
+				unreadCount++
+			}
+		}
+		totalUnread += unreadCount
+		if unreadCount > 0 {
+			activeFeeds++
+		}
+	}
+
+	// Get subscription info for additional stats
+	subscriptionInfo, _ := fh.subscriptionService.GetUserSubscriptionInfo(user.ID)
+
+	stats := gin.H{
+		"total_feeds":       len(feeds),
+		"total_articles":    totalArticles,
+		"total_unread":      totalUnread,
+		"active_feeds":      activeFeeds,
+		"subscription_info": subscriptionInfo,
+		"feeds":            feeds,
+	}
+
+	c.JSON(http.StatusOK, stats)
 }
