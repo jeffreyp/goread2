@@ -168,17 +168,27 @@ class GoReadApp {
 
     async loadFeeds() {
         try {
-            const response = await fetch('/api/feeds');
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+            // Batch feeds and unread counts requests
+            const [feedsResponse, countsResponse] = await Promise.all([
+                fetch('/api/feeds'),
+                fetch('/api/feeds/unread-counts')
+            ]);
+            
+            if (!feedsResponse.ok) {
+                throw new Error(`HTTP ${feedsResponse.status}`);
             }
             
-            const feedsData = await response.json();
+            const feedsData = await feedsResponse.json();
             this.feeds = feedsData;
             
             if (Array.isArray(this.feeds)) {
                 this.renderFeeds();
-                await this.updateUnreadCounts();
+                
+                // Process unread counts if available
+                if (countsResponse.ok) {
+                    const unreadCounts = await countsResponse.json();
+                    this.applyUnreadCounts(unreadCounts);
+                }
                 
                 if (this.feeds.length > 0) {
                     this.selectFeed('all');
@@ -298,7 +308,8 @@ class GoReadApp {
             return;
         }
         
-        articleList.innerHTML = '';
+        // Use DocumentFragment for better performance
+        const fragment = document.createDocumentFragment();
         
         // Remove existing event listeners by cloning the element
         const newArticleList = articleList.cloneNode(false);
@@ -324,6 +335,7 @@ class GoReadApp {
             }
         });
         
+        // Batch DOM operations using fragment
         this.articles.forEach((article, index) => {
             const articleItem = document.createElement('div');
             articleItem.className = `article-item ${article.is_read ? 'read' : ''}`;
@@ -349,8 +361,11 @@ class GoReadApp {
                 ${article.description ? `<div class="article-description">${this.escapeHtml(article.description)}</div>` : ''}
             `;
             
-            updatedArticleList.appendChild(articleItem);
+            fragment.appendChild(articleItem);
         });
+        
+        // Single DOM append operation
+        updatedArticleList.appendChild(fragment);
         
         // Auto-select the first article if articles exist
         if (this.articles.length > 0) {
@@ -507,36 +522,40 @@ class GoReadApp {
             }
             
             const unreadCounts = await response.json();
-            console.log('Received unread counts:', unreadCounts);
-            
-            // Update individual feed counts
-            let totalUnread = 0;
-            this.feeds.forEach(feed => {
-                const unreadCount = unreadCounts[feed.id] || unreadCounts[feed.id.toString()] || 0;
-                totalUnread += unreadCount;
-                
-                const countElement = document.querySelector(`[data-feed-id="${feed.id}"] .unread-count`);
-                if (countElement) {
-                    countElement.textContent = unreadCount;
-                    countElement.dataset.count = unreadCount;
-                } else {
-                    console.warn(`Count element not found for feed ${feed.id}`);
-                }
-            });
-            
-            // Update "Articles" count
-            const allUnreadElement = document.getElementById('all-unread-count');
-            if (allUnreadElement) {
-                allUnreadElement.textContent = totalUnread;
-                allUnreadElement.dataset.count = totalUnread;
-            } else {
-                console.warn('All unread count element not found');
-            }
-            
-            console.log(`Updated unread counts - total: ${totalUnread}`);
+            this.applyUnreadCounts(unreadCounts);
         } catch (error) {
             console.error('Error updating unread counts:', error);
         }
+    }
+
+    applyUnreadCounts(unreadCounts) {
+        console.log('Applying unread counts:', unreadCounts);
+        
+        // Update individual feed counts
+        let totalUnread = 0;
+        this.feeds.forEach(feed => {
+            const unreadCount = unreadCounts[feed.id] || unreadCounts[feed.id.toString()] || 0;
+            totalUnread += unreadCount;
+            
+            const countElement = document.querySelector(`[data-feed-id="${feed.id}"] .unread-count`);
+            if (countElement) {
+                countElement.textContent = unreadCount;
+                countElement.dataset.count = unreadCount;
+            } else {
+                console.warn(`Count element not found for feed ${feed.id}`);
+            }
+        });
+        
+        // Update "Articles" count
+        const allUnreadElement = document.getElementById('all-unread-count');
+        if (allUnreadElement) {
+            allUnreadElement.textContent = totalUnread;
+            allUnreadElement.dataset.count = totalUnread;
+        } else {
+            console.warn('All unread count element not found');
+        }
+        
+        console.log(`Updated unread counts - total: ${totalUnread}`);
     }
 
     showAddFeedModal() {

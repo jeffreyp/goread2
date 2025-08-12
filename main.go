@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"goread2/internal/auth"
@@ -42,6 +43,21 @@ func main() {
 	}
 
 	r := gin.Default()
+	
+	// Add caching headers middleware
+	r.Use(func(c *gin.Context) {
+		// Cache static assets for 1 hour
+		if strings.HasPrefix(c.Request.URL.Path, "/static/") {
+			c.Header("Cache-Control", "public, max-age=3600")
+			c.Header("ETag", "\"static-v1\"")
+		}
+		// Cache API responses for 30 seconds
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.Header("Cache-Control", "private, max-age=30")
+		}
+		c.Next()
+	})
+	
 	r.LoadHTMLGlob("web/templates/*")
 
 	// Static files are handled by app.yaml in App Engine

@@ -454,6 +454,20 @@ body.app-body {
     100% { transform: rotate(360deg); }
 }
 
+/* Performance optimizations */
+.article-item {
+    will-change: transform;
+}
+
+.feed-item {
+    will-change: background-color;
+}
+
+/* Lazy loading improvements */
+.article-content img {
+    loading: lazy;
+}
+
 .button-spinner-overlay {
     position: absolute !important;
     top: 0 !important;
