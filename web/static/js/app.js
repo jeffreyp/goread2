@@ -425,7 +425,6 @@ class GoReadApp {
             </div>
         `;
         
-        document.getElementById('content-pane-title').textContent = this.escapeHtml(article.title);
     }
 
     selectNextArticle() {
