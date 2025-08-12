@@ -76,40 +76,45 @@ func main() {
 	}
 }
 
-func listUsers(db *database.DB) {
-	// Simple query to list all users
-	query := `SELECT id, email, name, subscription_status, 
-			  COALESCE(is_admin, 0), COALESCE(free_months_remaining, 0),
-			  created_at FROM users ORDER BY id`
-	
-	rows, err := db.DB.Query(query)
-	if err != nil {
-		log.Fatal("Failed to query users:", err)
-	}
-	defer rows.Close()
-
-	fmt.Println("ID\tEmail\t\t\t\tName\t\t\tStatus\t\tAdmin\tFree Months\tJoined")
-	fmt.Println("--\t-----\t\t\t\t----\t\t\t------\t\t-----\t-----------\t------")
-
-	for rows.Next() {
-		var id int
-		var email, name, status string
-		var isAdmin bool
-		var freeMonths int
-		var createdAt string
-
-		err := rows.Scan(&id, &email, &name, &status, &isAdmin, &freeMonths, &createdAt)
+func listUsers(db database.Database) {
+	// For SQLite implementation, we can access the underlying DB
+	if sqliteDB, ok := db.(*database.DB); ok {
+		// Simple query to list all users
+		query := `SELECT id, email, name, subscription_status, 
+				  COALESCE(is_admin, 0), COALESCE(free_months_remaining, 0),
+				  created_at FROM users ORDER BY id`
+		
+		rows, err := sqliteDB.DB.Query(query)
 		if err != nil {
-			log.Fatal("Failed to scan user:", err)
+			log.Fatal("Failed to query users:", err)
 		}
+		defer rows.Close()
 
-		adminStr := "No"
-		if isAdmin {
-			adminStr = "Yes"
+		fmt.Println("ID\tEmail\t\t\t\tName\t\t\tStatus\t\tAdmin\tFree Months\tJoined")
+		fmt.Println("--\t-----\t\t\t\t----\t\t\t------\t\t-----\t-----------\t------")
+
+		for rows.Next() {
+			var id int
+			var email, name, status string
+			var isAdmin bool
+			var freeMonths int
+			var createdAt string
+
+			err := rows.Scan(&id, &email, &name, &status, &isAdmin, &freeMonths, &createdAt)
+			if err != nil {
+				log.Fatal("Failed to scan user:", err)
+			}
+
+			adminStr := "No"
+			if isAdmin {
+				adminStr = "Yes"
+			}
+
+			fmt.Printf("%d\t%-25s\t%-15s\t%-10s\t%s\t%d\t\t%s\n", 
+				id, email, truncate(name, 15), status, adminStr, freeMonths, createdAt[:10])
 		}
-
-		fmt.Printf("%d\t%-25s\t%-15s\t%-10s\t%s\t%d\t\t%s\n", 
-			id, email, truncate(name, 15), status, adminStr, freeMonths, createdAt[:10])
+	} else {
+		log.Fatal("List users command only supports SQLite database")
 	}
 }
 

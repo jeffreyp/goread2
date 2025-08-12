@@ -215,6 +215,8 @@ func (db *DB) migrateDatabase() error {
 		"ALTER TABLE users ADD COLUMN subscription_id TEXT",
 		"ALTER TABLE users ADD COLUMN trial_ends_at DATETIME", 
 		"ALTER TABLE users ADD COLUMN last_payment_date DATETIME",
+		"ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
+		"ALTER TABLE users ADD COLUMN free_months_remaining INTEGER DEFAULT 0",
 	}
 
 	for _, alterQuery := range subscriptionColumns {
