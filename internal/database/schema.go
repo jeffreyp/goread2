@@ -200,7 +200,7 @@ func (db *DB) createTables() error {
 	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable}
 
 	for _, table := range tables {
-		if _, err := db.DB.Exec(table); err != nil {
+		if _, err := db.Exec(table); err != nil {
 			return err
 		}
 	}
@@ -220,7 +220,7 @@ func (db *DB) migrateDatabase() error {
 	}
 
 	for _, alterQuery := range subscriptionColumns {
-		_, err := db.DB.Exec(alterQuery)
+		_, err := db.Exec(alterQuery)
 		if err != nil {
 			// Ignore "duplicate column" errors - column already exists
 			if !strings.Contains(err.Error(), "duplicate column name") {
@@ -235,7 +235,7 @@ func (db *DB) migrateDatabase() error {
 		SET trial_ends_at = datetime(created_at, '+30 days')
 		WHERE trial_ends_at IS NULL AND subscription_status = 'trial'
 	`
-	_, err := db.DB.Exec(updateTrialQuery)
+	_, err := db.Exec(updateTrialQuery)
 	if err != nil {
 		return fmt.Errorf("failed to set trial end dates: %w", err)
 	}
@@ -745,7 +745,7 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	
 	unreadCounts := make(map[int]int)
 	for rows.Next() {

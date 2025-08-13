@@ -28,7 +28,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	subscriptionService := services.NewSubscriptionService(db)
 
@@ -88,7 +88,7 @@ func listUsers(db database.Database) {
 		if err != nil {
 			log.Fatal("Failed to query users:", err)
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		fmt.Println("ID\tEmail\t\t\t\tName\t\t\tStatus\t\tAdmin\tFree Months\tJoined")
 		fmt.Println("--\t-----\t\t\t\t----\t\t\t------\t\t-----\t-----------\t------")

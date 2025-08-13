@@ -884,7 +884,7 @@ func (db *DatastoreDB) GrantFreeMonths(userID int, months int) error {
 func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 	ctx := context.Background()
 	
-	query := datastore.NewQuery("User").Filter("email =", email).Limit(1)
+	query := datastore.NewQuery("User").FilterField("email", "=", email).Limit(1)
 	
 	var users []UserEntity
 	keys, err := db.client.GetAll(ctx, query, &users)

@@ -24,7 +24,7 @@ func setupMainTestUser(t *testing.T, googleID, email, name string) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	user := &database.User{
 		GoogleID:  googleID,
@@ -56,7 +56,7 @@ func cleanupDatabase(t *testing.T) {
 		t.Logf("Failed to initialize database for cleanup: %v", err)
 		return
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Delete test users (this is a simple cleanup - just remove the test emails)
 	sqliteDB := db.(*database.DB)
