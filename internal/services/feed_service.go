@@ -206,6 +206,8 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		feedURL = "https://rss.slashdot.org/Slashdot/slashdotMain"
 	} else if strings.Contains(normalizedURL, "nytimes.com") {
 		feedURL = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
+	} else if strings.Contains(normalizedURL, "seattletimes.com") {
+		feedURL = "https://www.seattletimes.com/feed/"
 	} else {
 		// Use feed discovery for other sites
 		feedURLs, err := discovery.DiscoverFeedURL(inputURL)
@@ -337,7 +339,14 @@ func (fs *FeedService) markExistingArticlesAsUnreadForUser(userID, feedID int) e
 }
 
 func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
-	resp, err := http.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
+	
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

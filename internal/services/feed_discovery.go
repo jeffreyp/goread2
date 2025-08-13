@@ -106,6 +106,7 @@ func (fd *FeedDiscovery) validateFeedURL(urlStr string) bool {
 	if err != nil {
 		return false
 	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 	
 	resp, err := fd.client.Do(req)
 	if err != nil {
@@ -156,6 +157,7 @@ func (fd *FeedDiscovery) discoverFeedsFromHTML(urlStr string) ([]string, error) 
 			cancel()
 			continue
 		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 		
 		resp, err := fd.client.Do(req)
 		if err != nil {
@@ -261,6 +263,7 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 				cancel()
 				continue
 			}
+			req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 			
 			resp, err := fd.client.Do(req)
 			cancel()
