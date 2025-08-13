@@ -36,7 +36,13 @@ func createTestTables(db *database.DB) error {
 			email TEXT UNIQUE NOT NULL,
 			name TEXT NOT NULL,
 			avatar TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			subscription_status TEXT DEFAULT 'trial',
+			subscription_id TEXT,
+			trial_ends_at DATETIME,
+			last_payment_date DATETIME,
+			is_admin BOOLEAN DEFAULT 0,
+			free_months_remaining INTEGER DEFAULT 0
 		)`,
 		`CREATE TABLE feeds (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
