@@ -528,7 +528,6 @@ class GoReadApp {
     }
 
     applyUnreadCounts(unreadCounts) {
-        console.log('Applying unread counts:', unreadCounts);
         
         // Update individual feed counts
         let totalUnread = 0;
@@ -554,7 +553,6 @@ class GoReadApp {
             console.warn('All unread count element not found');
         }
         
-        console.log(`Updated unread counts - total: ${totalUnread}`);
     }
 
     showAddFeedModal() {
