@@ -5,6 +5,7 @@ class GoReadApp {
         this.feeds = [];
         this.articles = [];
         this.user = null;
+        this.articleFilter = 'unread'; // Default to showing unread articles
         
         this.init();
     }
@@ -127,6 +128,14 @@ class GoReadApp {
                 this.selectFeed('all');
             });
         }
+
+        // Set up article filter listeners
+        document.querySelectorAll('input[name="article-filter"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.articleFilter = e.target.value;
+                this.applyArticleFilter();
+            });
+        });
     }
 
     setupKeyboardShortcuts() {
@@ -367,9 +376,14 @@ class GoReadApp {
         // Single DOM append operation
         updatedArticleList.appendChild(fragment);
         
-        // Auto-select the first article if articles exist
-        if (this.articles.length > 0) {
-            this.selectArticle(0);
+        // Apply current filter after rendering
+        this.applyArticleFilter();
+        
+        // Auto-select the first visible article if any exist
+        const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
+        if (visibleArticles.length > 0) {
+            const firstVisibleIndex = parseInt(visibleArticles[0].dataset.index);
+            this.selectArticle(firstVisibleIndex);
         }
     }
 
@@ -402,6 +416,12 @@ class GoReadApp {
                 const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
                 if (articleItem) {
                     articleItem.classList.add('read');
+                    
+                    // If showing unread only and article is now read, hide it
+                    if (this.articleFilter === 'unread') {
+                        articleItem.classList.add('filtered-out');
+                        articleItem.style.display = 'none';
+                    }
                 }
                 article.is_read = true;
                 await this.updateUnreadCounts();
@@ -430,19 +450,50 @@ class GoReadApp {
     selectNextArticle() {
         if (this.currentArticle === null || this.articles.length === 0) return;
         
-        const nextIndex = Math.min(this.currentArticle + 1, this.articles.length - 1);
-        if (nextIndex !== this.currentArticle) {
-            this.selectArticle(nextIndex);
+        // Find next visible article
+        for (let i = this.currentArticle + 1; i < this.articles.length; i++) {
+            const articleItem = document.querySelector(`[data-index="${i}"]`);
+            if (articleItem && !articleItem.classList.contains('filtered-out')) {
+                this.selectArticle(i);
+                return;
+            }
         }
     }
 
     selectPreviousArticle() {
         if (this.currentArticle === null || this.articles.length === 0) return;
         
-        const prevIndex = Math.max(this.currentArticle - 1, 0);
-        if (prevIndex !== this.currentArticle) {
-            this.selectArticle(prevIndex);
+        // Find previous visible article
+        for (let i = this.currentArticle - 1; i >= 0; i--) {
+            const articleItem = document.querySelector(`[data-index="${i}"]`);
+            if (articleItem && !articleItem.classList.contains('filtered-out')) {
+                this.selectArticle(i);
+                return;
+            }
         }
+    }
+
+    selectNextVisibleArticle() {
+        // Try to select next visible article, otherwise select previous visible article
+        const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
+        if (visibleArticles.length === 0) {
+            this.currentArticle = null;
+            document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
+            return;
+        }
+        
+        // Find the first visible article after current index
+        for (let i = this.currentArticle + 1; i < this.articles.length; i++) {
+            const articleItem = document.querySelector(`[data-index="${i}"]`);
+            if (articleItem && !articleItem.classList.contains('filtered-out')) {
+                this.selectArticle(i);
+                return;
+            }
+        }
+        
+        // If no next visible article, select the first visible one
+        const firstVisibleIndex = parseInt(visibleArticles[0].dataset.index);
+        this.selectArticle(firstVisibleIndex);
     }
 
     openCurrentArticle() {
@@ -462,7 +513,34 @@ class GoReadApp {
         const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
         articleItem.classList.toggle('read', article.is_read);
         
+        // If showing unread only and article is now read, hide it
+        if (this.articleFilter === 'unread' && article.is_read) {
+            articleItem.classList.add('filtered-out');
+            articleItem.style.display = 'none';
+            
+            // Select next visible article
+            this.selectNextVisibleArticle();
+        }
+        
         await this.updateUnreadCounts();
+    }
+
+    applyArticleFilter() {
+        const articleItems = document.querySelectorAll('.article-item');
+        
+        articleItems.forEach((item, index) => {
+            const article = this.articles[index];
+            const shouldShow = this.articleFilter === 'all' || 
+                              (this.articleFilter === 'unread' && !article.is_read);
+            
+            if (shouldShow) {
+                item.classList.remove('filtered-out');
+                item.style.display = '';
+            } else {
+                item.classList.add('filtered-out');
+                item.style.display = 'none';
+            }
+        });
     }
 
     toggleCurrentArticleStar() {
