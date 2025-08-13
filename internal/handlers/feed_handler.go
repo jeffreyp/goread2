@@ -292,7 +292,7 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No OPML file provided"})
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Check file size (limit to 10MB)
 	if header.Size > 10*1024*1024 {

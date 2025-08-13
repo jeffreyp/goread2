@@ -63,7 +63,7 @@ func cleanupDatabase(t *testing.T) {
 	testEmails := []string{"main@example.com", "edge@example.com"}
 	
 	for _, email := range testEmails {
-		result, err := sqliteDB.DB.Exec("DELETE FROM users WHERE email = ?", email)
+		result, err := sqliteDB.Exec("DELETE FROM users WHERE email = ?", email)
 		if err != nil {
 			t.Logf("Failed to cleanup user %s: %v", email, err)
 		} else {

@@ -251,7 +251,7 @@ func (db *DB) AddFeed(feed *Feed) error {
 	query := `INSERT INTO feeds (title, url, description, created_at, updated_at, last_fetch) 
 			  VALUES (?, ?, ?, ?, ?, ?)`
 
-	result, err := db.DB.Exec(query, feed.Title, feed.URL, feed.Description,
+	result, err := db.Exec(query, feed.Title, feed.URL, feed.Description,
 		feed.CreatedAt, feed.UpdatedAt, feed.LastFetch)
 	if err != nil {
 		return err
@@ -267,7 +267,7 @@ func (db *DB) AddFeed(feed *Feed) error {
 
 func (db *DB) GetFeeds() ([]Feed, error) {
 	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch FROM feeds ORDER BY title`
-	rows, err := db.DB.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +289,7 @@ func (db *DB) GetFeeds() ([]Feed, error) {
 
 func (db *DB) DeleteFeed(id int) error {
 	query := `DELETE FROM feeds WHERE id = ?`
-	_, err := db.DB.Exec(query, id)
+	_, err := db.Exec(query, id)
 	return err
 }
 
@@ -298,7 +298,7 @@ func (db *DB) AddArticle(article *Article) error {
 			  (feed_id, title, url, content, description, author, published_at, created_at) 
 			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
-	result, err := db.DB.Exec(query, article.FeedID, article.Title, article.URL, article.Content,
+	result, err := db.Exec(query, article.FeedID, article.Title, article.URL, article.Content,
 		article.Description, article.Author, article.PublishedAt, article.CreatedAt)
 	if err != nil {
 		return err
@@ -314,7 +314,7 @@ func (db *DB) AddArticle(article *Article) error {
 	} else {
 		// Article already existed, fetch its ID
 		query = `SELECT id FROM articles WHERE url = ?`
-		err = db.DB.QueryRow(query, article.URL).Scan(&article.ID)
+		err = db.QueryRow(query, article.URL).Scan(&article.ID)
 	}
 	return err
 }
@@ -324,7 +324,7 @@ func (db *DB) GetArticles(feedID int) ([]Article, error) {
 			  published_at, created_at 
 			  FROM articles WHERE feed_id = ? ORDER BY published_at DESC`
 
-	rows, err := db.DB.Query(query, feedID)
+	rows, err := db.Query(query, feedID)
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +355,7 @@ func (db *DB) GetAllArticles() ([]Article, error) {
 			  JOIN feeds f ON a.feed_id = f.id 
 			  ORDER BY a.published_at DESC`
 
-	rows, err := db.DB.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +392,7 @@ func (db *DB) GetAllArticles() ([]Article, error) {
 
 func (db *DB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) error {
 	query := `UPDATE feeds SET last_fetch = ? WHERE id = ?`
-	_, err := db.DB.Exec(query, lastFetch, feedID)
+	_, err := db.Exec(query, lastFetch, feedID)
 	return err
 }
 
@@ -409,7 +409,7 @@ func (db *DB) CreateUser(user *User) error {
 	query := `INSERT INTO users (google_id, email, name, avatar, created_at, subscription_status, subscription_id, trial_ends_at, last_payment_date) 
 			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	result, err := db.DB.Exec(query, user.GoogleID, user.Email, user.Name, user.Avatar, user.CreatedAt,
+	result, err := db.Exec(query, user.GoogleID, user.Email, user.Name, user.Avatar, user.CreatedAt,
 		user.SubscriptionStatus, user.SubscriptionID, user.TrialEndsAt, user.LastPaymentDate)
 	if err != nil {
 		return err
@@ -436,7 +436,7 @@ func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
 	
-	err := db.DB.QueryRow(query, googleID).Scan(&user.ID, &user.GoogleID, &user.Email,
+	err := db.QueryRow(query, googleID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
 		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate,
 		&user.IsAdmin, &user.FreeMonthsRemaining)
@@ -472,7 +472,7 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
 	
-	err := db.DB.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
+	err := db.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
 		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate,
 		&user.IsAdmin, &user.FreeMonthsRemaining)
@@ -503,7 +503,7 @@ func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
 			  WHERE uf.user_id = ? 
 			  ORDER BY f.title`
 
-	rows, err := db.DB.Query(query, userID)
+	rows, err := db.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +529,7 @@ func (db *DB) GetAllUserFeeds() ([]Feed, error) {
 			  JOIN user_feeds uf ON f.id = uf.feed_id 
 			  ORDER BY f.title`
 
-	rows, err := db.DB.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -551,13 +551,13 @@ func (db *DB) GetAllUserFeeds() ([]Feed, error) {
 
 func (db *DB) SubscribeUserToFeed(userID, feedID int) error {
 	query := `INSERT OR IGNORE INTO user_feeds (user_id, feed_id) VALUES (?, ?)`
-	_, err := db.DB.Exec(query, userID, feedID)
+	_, err := db.Exec(query, userID, feedID)
 	return err
 }
 
 func (db *DB) UnsubscribeUserFromFeed(userID, feedID int) error {
 	query := `DELETE FROM user_feeds WHERE user_id = ? AND feed_id = ?`
-	_, err := db.DB.Exec(query, userID, feedID)
+	_, err := db.Exec(query, userID, feedID)
 	return err
 }
 
@@ -573,7 +573,7 @@ func (db *DB) GetUserArticles(userID int) ([]Article, error) {
 			  WHERE uf.user_id = ? 
 			  ORDER BY a.published_at DESC`
 
-	rows, err := db.DB.Query(query, userID, userID)
+	rows, err := db.Query(query, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -598,7 +598,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 	// First verify user is subscribed to this feed
 	var subscriptionExists bool
 	checkQuery := `SELECT EXISTS(SELECT 1 FROM user_feeds WHERE user_id = ? AND feed_id = ?)`
-	err := db.DB.QueryRow(checkQuery, userID, feedID).Scan(&subscriptionExists)
+	err := db.QueryRow(checkQuery, userID, feedID).Scan(&subscriptionExists)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check user subscription: %w", err)
 	}
@@ -617,7 +617,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 			  WHERE a.feed_id = ? 
 			  ORDER BY a.published_at DESC`
 
-	rows, err := db.DB.Query(query, userID, feedID)
+	rows, err := db.Query(query, userID, feedID)
 	if err != nil {
 		return nil, err
 	}
@@ -644,7 +644,7 @@ func (db *DB) GetUserArticleStatus(userID, articleID int) (*UserArticle, error) 
 			  WHERE user_id = ? AND article_id = ?`
 
 	var userArticle UserArticle
-	err := db.DB.QueryRow(query, userID, articleID).Scan(&userArticle.UserID, &userArticle.ArticleID,
+	err := db.QueryRow(query, userID, articleID).Scan(&userArticle.UserID, &userArticle.ArticleID,
 		&userArticle.IsRead, &userArticle.IsStarred)
 	if err != nil {
 		return nil, err
@@ -655,7 +655,7 @@ func (db *DB) GetUserArticleStatus(userID, articleID int) (*UserArticle, error) 
 func (db *DB) SetUserArticleStatus(userID, articleID int, isRead, isStarred bool) error {
 	query := `INSERT OR REPLACE INTO user_articles (user_id, article_id, is_read, is_starred) 
 			  VALUES (?, ?, ?, ?)`
-	_, err := db.DB.Exec(query, userID, articleID, isRead, isStarred)
+	_, err := db.Exec(query, userID, articleID, isRead, isStarred)
 	return err
 }
 
@@ -663,18 +663,18 @@ func (db *DB) MarkUserArticleRead(userID, articleID int, isRead bool) error {
 	// First check if record exists
 	var dummy int
 	checkQuery := `SELECT 1 FROM user_articles WHERE user_id = ? AND article_id = ?`
-	err := db.DB.QueryRow(checkQuery, userID, articleID).Scan(&dummy)
+	err := db.QueryRow(checkQuery, userID, articleID).Scan(&dummy)
 
 	switch err {
 	case sql.ErrNoRows:
 		// Create new record
 		query := `INSERT INTO user_articles (user_id, article_id, is_read, is_starred) 
 				  VALUES (?, ?, ?, 0)`
-		_, err = db.DB.Exec(query, userID, articleID, isRead)
+		_, err = db.Exec(query, userID, articleID, isRead)
 	case nil:
 		// Update existing record
 		query := `UPDATE user_articles SET is_read = ? WHERE user_id = ? AND article_id = ?`
-		_, err = db.DB.Exec(query, isRead, userID, articleID)
+		_, err = db.Exec(query, isRead, userID, articleID)
 	}
 
 	return err
@@ -684,18 +684,18 @@ func (db *DB) ToggleUserArticleStar(userID, articleID int) error {
 	// First check if record exists
 	var currentStarred bool
 	checkQuery := `SELECT is_starred FROM user_articles WHERE user_id = ? AND article_id = ?`
-	err := db.DB.QueryRow(checkQuery, userID, articleID).Scan(&currentStarred)
+	err := db.QueryRow(checkQuery, userID, articleID).Scan(&currentStarred)
 
 	switch err {
 	case sql.ErrNoRows:
 		// Create new record with starred = true
 		query := `INSERT INTO user_articles (user_id, article_id, is_read, is_starred) 
 				  VALUES (?, ?, 0, 1)`
-		_, err = db.DB.Exec(query, userID, articleID)
+		_, err = db.Exec(query, userID, articleID)
 	case nil:
 		// Update existing record
 		query := `UPDATE user_articles SET is_starred = ? WHERE user_id = ? AND article_id = ?`
-		_, err = db.DB.Exec(query, !currentStarred, userID, articleID)
+		_, err = db.Exec(query, !currentStarred, userID, articleID)
 	}
 
 	return err
@@ -724,7 +724,7 @@ func (db *DB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, 
 	
 	query += strings.Join(values, ", ")
 	
-	_, err := db.DB.Exec(query, args...)
+	_, err := db.Exec(query, args...)
 	return err
 }
 
@@ -741,7 +741,7 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		GROUP BY a.feed_id
 	`
 	
-	rows, err := db.DB.Query(query, userID, userID)
+	rows, err := db.Query(query, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -762,7 +762,7 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 // Subscription management methods
 func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error {
 	query := `UPDATE users SET subscription_status = ?, subscription_id = ?, last_payment_date = ? WHERE id = ?`
-	_, err := db.DB.Exec(query, status, subscriptionID, lastPaymentDate, userID)
+	_, err := db.Exec(query, status, subscriptionID, lastPaymentDate, userID)
 	return err
 }
 
@@ -771,7 +771,7 @@ func (db *DB) IsUserSubscriptionActive(userID int) (bool, error) {
 	
 	var status string
 	var trialEndsAt time.Time
-	err := db.DB.QueryRow(query, userID).Scan(&status, &trialEndsAt)
+	err := db.QueryRow(query, userID).Scan(&status, &trialEndsAt)
 	if err != nil {
 		return false, err
 	}
@@ -794,21 +794,21 @@ func (db *DB) GetUserFeedCount(userID int) (int, error) {
 	query := `SELECT COUNT(*) FROM user_feeds WHERE user_id = ?`
 	
 	var count int
-	err := db.DB.QueryRow(query, userID).Scan(&count)
+	err := db.QueryRow(query, userID).Scan(&count)
 	return count, err
 }
 
 // Admin management methods
 func (db *DB) SetUserAdmin(userID int, isAdmin bool) error {
 	query := `UPDATE users SET is_admin = ? WHERE id = ?`
-	_, err := db.DB.Exec(query, isAdmin, userID)
+	_, err := db.Exec(query, isAdmin, userID)
 	return err
 }
 
 func (db *DB) GrantFreeMonths(userID int, months int) error {
 	// Get current free months and add the new ones
 	query := `UPDATE users SET free_months_remaining = COALESCE(free_months_remaining, 0) + ? WHERE id = ?`
-	_, err := db.DB.Exec(query, months, userID)
+	_, err := db.Exec(query, months, userID)
 	return err
 }
 
@@ -825,7 +825,7 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
 	
-	err := db.DB.QueryRow(query, email).Scan(
+	err := db.QueryRow(query, email).Scan(
 		&user.ID, &user.GoogleID, &user.Email, &user.Name, &user.Avatar,
 		&user.CreatedAt, &user.SubscriptionStatus, &user.SubscriptionID,
 		&trialEndsAt, &lastPaymentDate, &user.IsAdmin, &user.FreeMonthsRemaining,

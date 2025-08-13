@@ -84,7 +84,7 @@ func listUsers(db database.Database) {
 				  COALESCE(is_admin, 0), COALESCE(free_months_remaining, 0),
 				  created_at FROM users ORDER BY id`
 		
-		rows, err := sqliteDB.DB.Query(query)
+		rows, err := sqliteDB.Query(query)
 		if err != nil {
 			log.Fatal("Failed to query users:", err)
 		}

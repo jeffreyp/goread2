@@ -25,7 +25,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	subscriptionService := services.NewSubscriptionService(db)
 	paymentService := services.NewPaymentService(db, subscriptionService)
