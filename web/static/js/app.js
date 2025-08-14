@@ -136,6 +136,12 @@ class GoReadApp {
                 this.applyArticleFilter();
             });
         });
+
+        // Ensure radio button state matches the initial articleFilter value
+        const checkedRadio = document.querySelector(`input[name="article-filter"][value="${this.articleFilter}"]`);
+        if (checkedRadio) {
+            checkedRadio.checked = true;
+        }
     }
 
     setupKeyboardShortcuts() {
@@ -383,6 +389,10 @@ class GoReadApp {
         if (visibleArticles.length > 0) {
             const firstVisibleIndex = parseInt(visibleArticles[0].dataset.index);
             this.selectArticle(firstVisibleIndex);
+        } else {
+            // No visible articles, clear current selection and show placeholder
+            this.currentArticle = null;
+            document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
         }
     }
 
@@ -561,6 +571,22 @@ class GoReadApp {
                 item.style.display = 'none';
             }
         });
+
+        // Check if any articles are visible after filtering
+        const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
+        if (visibleArticles.length === 0) {
+            // No visible articles, clear current selection and show placeholder
+            this.currentArticle = null;
+            document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
+        } else if (this.currentArticle !== null) {
+            // Check if current article is still visible
+            const currentArticleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
+            if (currentArticleItem && currentArticleItem.classList.contains('filtered-out')) {
+                // Current article is now hidden, select first visible article
+                const firstVisibleIndex = parseInt(visibleArticles[0].dataset.index);
+                this.selectArticle(firstVisibleIndex);
+            }
+        }
     }
 
     toggleCurrentArticleStar() {
