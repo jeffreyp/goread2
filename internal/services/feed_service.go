@@ -406,7 +406,7 @@ func (fs *FeedService) convertRSSToFeedData(rss *RSS) *FeedData {
 	}
 
 	return &FeedData{
-		Title:       rss.Channel.Title,
+		Title:       fs.cleanDuplicateTitle(rss.Channel.Title),
 		Description: rss.Channel.Description,
 		Articles:    articles,
 	}
@@ -431,7 +431,7 @@ func (fs *FeedService) convertRDFToFeedData(rdf *RDF) *FeedData {
 	}
 
 	return &FeedData{
-		Title:       rdf.Channel.Title,
+		Title:       fs.cleanDuplicateTitle(rdf.Channel.Title),
 		Description: rdf.Channel.Description,
 		Articles:    articles,
 	}
@@ -470,7 +470,7 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom) *FeedData {
 	}
 
 	return &FeedData{
-		Title:       atom.Title,
+		Title:       fs.cleanDuplicateTitle(atom.Title),
 		Description: description,
 		Articles:    articles,
 	}
@@ -583,6 +583,29 @@ func (fs *FeedService) extractFeedsFromOutlines(outlines []OPMLOutline) []string
 	}
 	
 	return feeds
+}
+
+func (fs *FeedService) cleanDuplicateTitle(title string) string {
+	title = strings.TrimSpace(title)
+	
+	// Split title into words
+	words := strings.Fields(title)
+	if len(words) <= 1 {
+		return title
+	}
+	
+	// Check if the title is a simple duplication (first half == second half)
+	halfLength := len(words) / 2
+	if len(words)%2 == 0 && halfLength > 0 {
+		firstHalf := strings.Join(words[:halfLength], " ")
+		secondHalf := strings.Join(words[halfLength:], " ")
+		
+		if firstHalf == secondHalf {
+			return firstHalf
+		}
+	}
+	
+	return title
 }
 
 func (fs *FeedService) convertToUTF8(body []byte) ([]byte, error) {

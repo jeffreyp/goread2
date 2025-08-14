@@ -289,8 +289,7 @@ class GoReadApp {
         
         await this.loadArticles(feedId);
         
-        const feedTitle = feedId === 'all' ? 'Articles' : 
-            this.feeds.find(f => f.id == feedId)?.title || 'Unknown Feed';
+        const feedTitle = 'Articles';
         document.getElementById('article-pane-title').textContent = feedTitle;
     }
 
