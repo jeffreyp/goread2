@@ -6,22 +6,28 @@ This document describes the comprehensive testing suite for GoRead2's multi-user
 
 ```
 test/
-├── helpers/           # Test utilities and setup functions
+├── helpers/           # Backend test utilities and setup functions
 │   ├── database.go    # Database test helpers
 │   └── http.go        # HTTP test helpers
-├── unit/              # Unit tests
+├── unit/              # Backend unit tests
 │   ├── auth_test.go   # Authentication service tests
 │   ├── database_test.go # Database layer tests
-│   └── feed_service_test.go # Feed service tests
-├── integration/       # Integration tests
+│   └── admin_test.go  # Admin functionality tests
+├── integration/       # Backend integration tests
 │   └── api_test.go    # API endpoint tests
-└── fixtures/          # Test data and sample feeds
-    └── sample_feeds.go # Sample data for tests
+│   └── admin_integration_test.go # Admin CLI tests
+├── fixtures/          # Test data and sample feeds
+│   └── sample_feeds.go # Sample data for tests
+└── web/tests/         # Frontend tests
+    ├── app-core.test.js # Core frontend functionality
+    ├── utils.js       # Frontend test utilities
+    ├── setup.js       # Test environment setup
+    └── README.md      # Frontend testing documentation
 ```
 
 ## Test Categories
 
-### 1. Unit Tests
+### 1. Backend Unit Tests
 
 **Database Layer (`test/unit/database_test.go`)**
 - User CRUD operations
@@ -44,7 +50,13 @@ test/
 - Article status management
 - Feed subscription logic
 
-### 2. Integration Tests
+**Admin Functionality (`test/unit/admin_test.go`)**
+- User admin operations
+- Free months granting
+- Subscription service methods
+- Permission management
+
+### 2. Backend Integration Tests
 
 **API Endpoints (`test/integration/api_test.go`)**
 - Authentication requirements
@@ -53,7 +65,33 @@ test/
 - User isolation verification
 - Error handling and status codes
 
-### 3. Test Infrastructure
+**Admin CLI (`test/integration/admin_integration_test.go`)**
+- Command-line admin operations
+- User management commands
+- Database integration testing
+- Error handling validation
+
+### 3. Frontend Tests
+
+**Core Functionality (`web/tests/app-core.test.js`)**
+- DOM manipulation and rendering
+- Event handling and user interactions
+- API mocking and error scenarios
+- Form validation and submission
+- UI state management
+- Utility function validation
+- Modal and dialog interactions
+- Keyboard navigation
+- Error handling and display
+
+**Test Infrastructure (`web/tests/`)**
+- Jest + jsdom testing environment
+- Comprehensive mocking utilities
+- Test data generators
+- DOM assertion helpers
+- Event simulation tools
+
+### 4. Test Infrastructure
 
 **Database Helpers (`test/helpers/database.go`)**
 - In-memory SQLite database creation
@@ -67,27 +105,40 @@ test/
 
 ## Running Tests
 
-### Quick Test Run
-```bash
-go test ./test/unit/... ./test/integration/...
-```
-
-### With Coverage
-```bash
-go test -coverprofile=coverage.out ./test/...
-go tool cover -html=coverage.out -o coverage.html
-```
-
-### Using Test Script
+### All Tests (Recommended)
 ```bash
 ./test.sh
 ```
 
-The test script provides:
-- Colored output for better readability
+The test script runs both backend and frontend tests:
+- Backend unit and integration tests
+- Frontend JavaScript tests  
 - Coverage report generation
-- Linting (if golangci-lint is available)
-- Test summary and failure reporting
+- Code quality checks (linting)
+- Build verification
+- Colored output for better readability
+
+### Backend Tests Only
+```bash
+# Quick test run
+go test ./test/unit/... ./test/integration/...
+
+# With coverage
+go test -coverprofile=coverage.out ./test/...
+go tool cover -html=coverage.out -o coverage.html
+```
+
+### Frontend Tests Only
+```bash
+# Navigate to project root and run
+npm test
+
+# With coverage
+npm run test:coverage
+
+# Watch mode for development
+npm run test:watch
+```
 
 ## CI/CD Integration
 
