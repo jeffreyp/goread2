@@ -548,6 +548,13 @@ class GoReadApp {
 
     applyArticleFilter() {
         const articleItems = document.querySelectorAll('.article-item');
+        const articleList = document.getElementById('article-list');
+        
+        // Remove any existing placeholders
+        const existingPlaceholder = articleList.querySelector('.article-list-placeholder');
+        if (existingPlaceholder) {
+            existingPlaceholder.remove();
+        }
         
         articleItems.forEach((item) => {
             const articleIndex = parseInt(item.dataset.index);
@@ -574,17 +581,32 @@ class GoReadApp {
 
         // Check if any articles are visible after filtering
         const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
+        
         if (visibleArticles.length === 0) {
             // No visible articles, clear current selection and show placeholder
             this.currentArticle = null;
             document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
-        } else if (this.currentArticle !== null) {
-            // Check if current article is still visible
-            const currentArticleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
-            if (currentArticleItem && currentArticleItem.classList.contains('filtered-out')) {
-                // Current article is now hidden, select first visible article
-                const firstVisibleIndex = parseInt(visibleArticles[0].dataset.index);
-                this.selectArticle(firstVisibleIndex);
+            
+            // Show placeholder in article list
+            const placeholder = document.createElement('div');
+            placeholder.className = 'placeholder article-list-placeholder';
+            placeholder.innerHTML = '<p>No unread articles in this feed.</p>';
+            articleList.appendChild(placeholder);
+        } else {
+            // Remove placeholder if articles are visible
+            const placeholder = articleList.querySelector('.article-list-placeholder');
+            if (placeholder) {
+                placeholder.remove();
+            }
+            
+            if (this.currentArticle !== null) {
+                // Check if current article is still visible
+                const currentArticleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
+                if (currentArticleItem && currentArticleItem.classList.contains('filtered-out')) {
+                    // Current article is now hidden, select first visible article
+                    const firstVisibleIndex = parseInt(visibleArticles[0].dataset.index);
+                    this.selectArticle(firstVisibleIndex);
+                }
             }
         }
     }

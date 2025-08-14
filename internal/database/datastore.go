@@ -688,6 +688,7 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	// For each feed, count unread articles
 	for _, feed := range userFeeds {
 		var articles []ArticleEntity
+		// Use eventually consistent query for articles (this is fine as articles don't change read status)
 		q := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feed.ID))
 		keys, err := db.client.GetAll(ctx, q, &articles)
 		if err != nil {
@@ -697,9 +698,16 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		unreadCount := 0
 		for i := range articles {
 			articleID := int(keys[i].ID)
-			// Check if user has read this article
-			userStatus, err := db.GetUserArticleStatus(userID, articleID)
-			if err != nil || userStatus == nil || !userStatus.IsRead {
+			// Check if user has read this article with strongly consistent read
+			userArticleKey := datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
+			var userArticleEntity UserArticleEntity
+			err := db.client.Get(ctx, userArticleKey, &userArticleEntity)
+			
+			// If no UserArticle record exists, or if it exists but is not read, count as unread
+			if err == datastore.ErrNoSuchEntity || (err == nil && !userArticleEntity.IsRead) {
+				unreadCount++
+			} else if err != nil {
+				// Some other error occurred, treat as unread to be safe
 				unreadCount++
 			}
 		}
