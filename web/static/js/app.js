@@ -411,19 +411,24 @@ class GoReadApp {
         if (this.currentArticle !== null && this.articles[this.currentArticle]) {
             const article = this.articles[this.currentArticle];
             if (!article.is_read) {
-                await this.markAsRead(article.id, true);
-                const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
-                if (articleItem) {
-                    articleItem.classList.add('read');
-                    
-                    // If showing unread only and article is now read, hide it
-                    if (this.articleFilter === 'unread') {
-                        articleItem.classList.add('filtered-out');
-                        articleItem.style.display = 'none';
+                try {
+                    await this.markAsRead(article.id, true);
+                    article.is_read = true;
+                    const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
+                    if (articleItem) {
+                        articleItem.classList.add('read');
+                        
+                        // If showing unread only and article is now read, hide it
+                        if (this.articleFilter === 'unread') {
+                            articleItem.classList.add('filtered-out');
+                            articleItem.style.display = 'none';
+                        }
                     }
+                    await this.updateUnreadCounts();
+                } catch (error) {
+                    // If marking as read failed, don't update the UI state
+                    console.error('Failed to mark article as read, not updating UI state');
                 }
-                article.is_read = true;
-                await this.updateUnreadCounts();
             }
         }
     }
@@ -506,22 +511,29 @@ class GoReadApp {
         if (this.currentArticle === null) return;
         
         const article = this.articles[this.currentArticle];
-        await this.markAsRead(article.id, !article.is_read);
+        const newReadState = !article.is_read;
         
-        article.is_read = !article.is_read;
-        const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
-        articleItem.classList.toggle('read', article.is_read);
-        
-        // If showing unread only and article is now read, hide it
-        if (this.articleFilter === 'unread' && article.is_read) {
-            articleItem.classList.add('filtered-out');
-            articleItem.style.display = 'none';
+        try {
+            await this.markAsRead(article.id, newReadState);
             
-            // Select next visible article
-            this.selectNextVisibleArticle();
+            article.is_read = newReadState;
+            const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
+            articleItem.classList.toggle('read', article.is_read);
+            
+            // If showing unread only and article is now read, hide it
+            if (this.articleFilter === 'unread' && article.is_read) {
+                articleItem.classList.add('filtered-out');
+                articleItem.style.display = 'none';
+                
+                // Select next visible article
+                this.selectNextVisibleArticle();
+            }
+            
+            await this.updateUnreadCounts();
+        } catch (error) {
+            // If marking as read failed, don't update the UI state
+            console.error('Failed to toggle article read status, not updating UI state');
         }
-        
-        await this.updateUnreadCounts();
     }
 
     applyArticleFilter() {
@@ -560,13 +572,18 @@ class GoReadApp {
 
     async markAsRead(articleId, isRead) {
         try {
-            await fetch(`/api/articles/${articleId}/read`, {
+            const response = await fetch(`/api/articles/${articleId}/read`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ is_read: isRead })
             });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
         } catch (error) {
             console.error('Failed to mark article as read:', error);
+            throw error; // Re-throw so callers can handle the failure
         }
     }
 
