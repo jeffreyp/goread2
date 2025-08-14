@@ -411,7 +411,7 @@ class GoReadApp {
         if (this.currentArticle !== null && this.articles[this.currentArticle]) {
             const article = this.articles[this.currentArticle];
             if (!article.is_read) {
-                this.markAsRead(article.id, true);
+                await this.markAsRead(article.id, true);
                 const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
                 if (articleItem) {
                     articleItem.classList.add('read');
@@ -506,7 +506,7 @@ class GoReadApp {
         if (this.currentArticle === null) return;
         
         const article = this.articles[this.currentArticle];
-        this.markAsRead(article.id, !article.is_read);
+        await this.markAsRead(article.id, !article.is_read);
         
         article.is_read = !article.is_read;
         const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
@@ -527,8 +527,17 @@ class GoReadApp {
     applyArticleFilter() {
         const articleItems = document.querySelectorAll('.article-item');
         
-        articleItems.forEach((item, index) => {
-            const article = this.articles[index];
+        articleItems.forEach((item) => {
+            const articleIndex = parseInt(item.dataset.index);
+            const article = this.articles[articleIndex];
+            
+            if (!article) {
+                // If article data is missing, hide the item
+                item.classList.add('filtered-out');
+                item.style.display = 'none';
+                return;
+            }
+            
             const shouldShow = this.articleFilter === 'all' || 
                               (this.articleFilter === 'unread' && !article.is_read);
             
