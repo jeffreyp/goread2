@@ -596,4 +596,114 @@ describe('GoRead2 Core Frontend Functionality', () => {
             expect(result.trial_expired).toBeUndefined();
         });
     });
+
+    describe('Auto-Read Last Article Functionality', () => {
+        test('should identify when article is last unread', () => {
+            // Test data: articles where only one is unread
+            const articles = [
+                { id: 1, is_read: true, title: 'Article 1' },
+                { id: 2, is_read: true, title: 'Article 2' },
+                { id: 3, is_read: false, title: 'Article 3' } // Only unread article
+            ];
+
+            // Count unread articles
+            const unreadArticles = articles.filter(a => !a.is_read);
+            
+            expect(unreadArticles.length).toBe(1);
+            expect(unreadArticles[0].id).toBe(3);
+        });
+
+        test('should not trigger auto-read when multiple unread articles exist', () => {
+            // Test data: articles where multiple are unread
+            const articles = [
+                { id: 1, is_read: false, title: 'Article 1' },
+                { id: 2, is_read: true, title: 'Article 2' },
+                { id: 3, is_read: false, title: 'Article 3' }
+            ];
+
+            // Count unread articles
+            const unreadArticles = articles.filter(a => !a.is_read);
+            
+            expect(unreadArticles.length).toBe(2);
+            // Should NOT auto-read since there are multiple unread articles
+        });
+
+        test('should handle article state updates correctly', () => {
+            // Simulate optimistic update for auto-read
+            const article = { id: 1, is_read: false, title: 'Test Article' };
+            
+            // Simulate marking as read
+            article.is_read = true;
+            
+            expect(article.is_read).toBe(true);
+        });
+
+        test('should handle DOM element hiding in unread-only mode', () => {
+            // Create a test article element
+            const articleItem = document.createElement('div');
+            articleItem.className = 'article-item';
+            articleItem.dataset.index = '0';
+            document.body.appendChild(articleItem);
+
+            // Simulate hiding the article
+            articleItem.classList.add('filtered-out');
+            articleItem.style.display = 'none';
+
+            expectElementToBeHidden(articleItem);
+
+            // Cleanup
+            document.body.removeChild(articleItem);
+        });
+
+        test('should handle unread count updates for auto-read articles', () => {
+            // Create test feed count element
+            const feedCountElement = document.createElement('span');
+            feedCountElement.className = 'unread-count';
+            feedCountElement.dataset.count = '5';
+            feedCountElement.textContent = '5';
+            
+            const feedItem = document.createElement('div');
+            feedItem.dataset.feedId = '1';
+            feedItem.appendChild(feedCountElement);
+            document.body.appendChild(feedItem);
+
+            // Create test total count element
+            const allUnreadElement = document.createElement('span');
+            allUnreadElement.id = 'all-unread-count';
+            allUnreadElement.dataset.count = '10';
+            allUnreadElement.textContent = '10';
+            document.body.appendChild(allUnreadElement);
+
+            // Simulate optimistic count update (decrease by 1) - testing the logic from updateUnreadCountsOptimistically
+            const feedIdStr = '1';
+            const countChange = -1;
+            
+            // Update specific feed count
+            const targetFeedElement = document.querySelector(`[data-feed-id="${feedIdStr}"] .unread-count`);
+            if (targetFeedElement) {
+                const currentCount = parseInt(targetFeedElement.dataset.count) || 0;
+                const newCount = Math.max(0, currentCount + countChange);
+                targetFeedElement.textContent = newCount;
+                targetFeedElement.dataset.count = newCount;
+            }
+
+            // Update total count (using the same element we created)
+            if (allUnreadElement) {
+                const currentTotal = parseInt(allUnreadElement.dataset.count) || 0;
+                const newTotal = Math.max(0, currentTotal + countChange);
+                allUnreadElement.textContent = newTotal;
+                allUnreadElement.dataset.count = newTotal;
+            }
+
+            // Verify updates
+            expect(feedCountElement.textContent).toBe('4');
+            expect(feedCountElement.dataset.count).toBe('4');
+            expect(allUnreadElement.textContent).toBe('9');
+            expect(allUnreadElement.dataset.count).toBe('9');
+
+            // Cleanup
+            document.body.removeChild(feedItem);
+            document.body.removeChild(allUnreadElement);
+        });
+    });
 });

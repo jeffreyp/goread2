@@ -291,6 +291,91 @@ describe('GoReadApp', () => {
                 body: JSON.stringify({ is_read: true })
             });
         });
+
+        test('should auto-mark last unread article as read when selected', async () => {
+            // Mock API call for marking as read
+            mockFetch({
+                '/api/articles/3/read': createMockResponse({})
+            });
+
+            // Create test articles where only the last one is unread
+            app.articles = createTestArticles().map((article, index) => ({
+                ...article,
+                is_read: index < 2 // First two articles are read, last one is unread
+            }));
+            app.renderArticles();
+
+            // Select the last unread article (index 2)
+            await app.selectArticle(2);
+
+            // Should automatically mark it as read
+            await waitFor(() => app.articles[2].is_read === true);
+
+            expect(app.articles[2].is_read).toBe(true);
+            expect(fetch).toHaveBeenCalledWith('/api/articles/3/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_read: true })
+            });
+        });
+
+        test('should not auto-mark article as read if there are other unread articles', async () => {
+            // Create test articles where multiple are unread
+            app.articles = createTestArticles().map(article => ({
+                ...article,
+                is_read: false // All articles are unread
+            }));
+            app.renderArticles();
+
+            // Select the first article
+            await app.selectArticle(0);
+
+            // Should NOT automatically mark it as read since there are other unread articles
+            expect(app.articles[0].is_read).toBe(false);
+            expect(fetch).not.toHaveBeenCalledWith('/api/articles/1/read', expect.anything());
+        });
+
+        test('should not auto-mark article if it is already read', async () => {
+            // Create test articles where the target article is already read
+            app.articles = createTestArticles().map(article => ({
+                ...article,
+                is_read: true // All articles are read
+            }));
+            app.renderArticles();
+
+            // Select an article
+            await app.selectArticle(0);
+
+            // Should not make any API calls since article is already read
+            expect(fetch).not.toHaveBeenCalledWith('/api/articles/1/read', expect.anything());
+        });
+
+        test('should hide auto-read article when navigating away in unread-only mode', async () => {
+            // Mock API call for marking as read
+            mockFetch({
+                '/api/articles/3/read': createMockResponse({})
+            });
+
+            app.articleFilter = 'unread'; // Set to unread-only mode
+            
+            // Create test articles where only the last one is unread
+            app.articles = createTestArticles().map((article, index) => ({
+                ...article,
+                is_read: index < 2 // First two articles are read, last one is unread
+            }));
+            app.renderArticles();
+
+            // Select the last unread article (should auto-mark as read)
+            await app.selectArticle(2);
+            await waitFor(() => app.articles[2].is_read === true);
+
+            // Navigate to another article
+            await app.selectArticle(0);
+
+            // The auto-read article should be hidden
+            const articleItem = document.querySelector('[data-index="2"]');
+            expectElementToBeHidden(articleItem);
+        });
     });
 
     describe('Keyboard Shortcuts', () => {
