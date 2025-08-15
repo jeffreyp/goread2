@@ -418,6 +418,10 @@ class GoReadApp {
         // Mark previous article as read if we're navigating away from one
         if (this.currentArticle !== null && this.currentArticle !== index) {
             await this.markCurrentArticleAsReadIfUnread();
+            
+            // If we're showing unread only and the previous article was auto-marked as read,
+            // hide it now that we're navigating away
+            this.hideAutoReadArticleIfNeeded(this.currentArticle);
         }
         
         this.currentArticle = index;
@@ -432,7 +436,74 @@ class GoReadApp {
         const article = this.articles[index];
         this.displayArticle(article);
         
+        // Auto-mark as read if this is the last unread article in the feed
+        await this.autoMarkLastUnreadArticle(index);
+        
         articleItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    async autoMarkLastUnreadArticle(index) {
+        const article = this.articles[index];
+        
+        // Only auto-mark if the article is currently unread
+        if (!article || article.is_read) {
+            return;
+        }
+        
+        // Count unread articles in current view
+        const unreadArticles = this.articles.filter(a => !a.is_read);
+        
+        // If this is the only unread article left, mark it as read immediately
+        if (unreadArticles.length === 1) {
+            try {
+                // Optimistically update UI first for instant feedback
+                article.is_read = true;
+                const articleItem = document.querySelector(`[data-index="${index}"]`);
+                if (articleItem) {
+                    articleItem.classList.add('read');
+                    // Note: Don't hide the article even if showing unread only - keep it visible until navigation
+                }
+                
+                // Update unread counts immediately (optimistically)
+                if (article.feed_id) {
+                    this.updateUnreadCountsOptimistically(article.feed_id, -1);
+                } else {
+                    this.updateUnreadCountsForCurrentFeed(-1);
+                }
+                
+                // Then make the API call to persist the change
+                await this.markAsRead(article.id, true);
+            } catch (error) {
+                // If marking as read failed, revert the optimistic changes
+                console.error('Failed to auto-mark last article as read, reverting UI state');
+                article.is_read = false;
+                const articleItem = document.querySelector(`[data-index="${index}"]`);
+                if (articleItem) {
+                    articleItem.classList.remove('read');
+                }
+                
+                // Revert the unread count change
+                if (article.feed_id) {
+                    this.updateUnreadCountsOptimistically(article.feed_id, 1);
+                } else {
+                    this.updateUnreadCountsForCurrentFeed(1);
+                }
+            }
+        }
+    }
+    
+    hideAutoReadArticleIfNeeded(articleIndex) {
+        // If showing unread only and the article is read, hide it
+        if (this.articleFilter === 'unread' && articleIndex !== null) {
+            const article = this.articles[articleIndex];
+            if (article && article.is_read) {
+                const articleItem = document.querySelector(`[data-index="${articleIndex}"]`);
+                if (articleItem) {
+                    articleItem.classList.add('filtered-out');
+                    articleItem.style.display = 'none';
+                }
+            }
+        }
     }
     
     async markCurrentArticleAsReadIfUnread() {
