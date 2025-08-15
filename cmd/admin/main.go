@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 
+	"goread2/internal/config"
 	"goread2/internal/database"
 	"goread2/internal/services"
 )
@@ -16,7 +17,9 @@ func main() {
 		fmt.Println("Commands:")
 		fmt.Println("  list-users                    - List all users")
 		fmt.Println("  set-admin <email> <true/false> - Set admin status for user")
-		fmt.Println("  grant-months <email> <months>  - Grant free months to user")
+		if config.IsSubscriptionEnabled() {
+			fmt.Println("  grant-months <email> <months>  - Grant free months to user")
+		}
 		fmt.Println("  user-info <email>             - Show user information")
 		os.Exit(1)
 	}
@@ -50,6 +53,11 @@ func main() {
 		setAdminStatus(subscriptionService, email, isAdmin)
 
 	case "grant-months":
+		if !config.IsSubscriptionEnabled() {
+			fmt.Println("Error: Subscription system is disabled. Cannot grant free months.")
+			fmt.Println("Set SUBSCRIPTION_ENABLED=true to enable subscription features.")
+			os.Exit(1)
+		}
 		if len(os.Args) != 4 {
 			fmt.Println("Usage: go run cmd/admin/main.go grant-months <email> <months>")
 			os.Exit(1)
@@ -175,10 +183,14 @@ func showUserInfo(subscriptionService *services.SubscriptionService, email strin
 	fmt.Printf("  Email: %s\n", user.Email)
 	fmt.Printf("  Joined: %s\n", user.CreatedAt.Format("2006-01-02 15:04:05"))
 	fmt.Printf("  Google ID: %s\n", user.GoogleID)
+	fmt.Printf("\nSystem Configuration:\n")
+	fmt.Printf("  Subscription System: %s\n", map[bool]string{true: "Enabled", false: "Disabled"}[config.IsSubscriptionEnabled()])
 	fmt.Printf("\nSubscription Details:\n")
 	fmt.Printf("  Status: %s\n", subscriptionInfo.Status)
 	fmt.Printf("  Is Admin: %t\n", user.IsAdmin)
-	fmt.Printf("  Free Months Remaining: %d\n", user.FreeMonthsRemaining)
+	if config.IsSubscriptionEnabled() {
+		fmt.Printf("  Free Months Remaining: %d\n", user.FreeMonthsRemaining)
+	}
 	fmt.Printf("  Current Feeds: %d\n", subscriptionInfo.CurrentFeeds)
 	
 	if subscriptionInfo.FeedLimit == -1 {

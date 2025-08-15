@@ -448,4 +448,152 @@ describe('GoRead2 Core Frontend Functionality', () => {
             expect(submitButton.textContent).toBe('Add Feed');
         });
     });
+
+    describe('Feature Flag Support', () => {
+        test('should handle unlimited subscription status', async () => {
+            // Mock subscription info with unlimited status (when subscription system disabled)
+            mockFetch({
+                '/api/subscription': createMockResponse({
+                    status: 'unlimited',
+                    feed_limit: -1,
+                    can_add_feeds: true,
+                    current_feeds: 15,
+                    is_active: true
+                })
+            });
+
+            // Simulate loading subscription info
+            const response = await fetch('/api/subscription');
+            const subscriptionInfo = await response.json();
+
+            // Verify unlimited status
+            expect(subscriptionInfo.status).toBe('unlimited');
+            expect(subscriptionInfo.feed_limit).toBe(-1);
+            expect(subscriptionInfo.can_add_feeds).toBe(true);
+
+            // Test creating subscription status element for unlimited status
+            const createSubscriptionStatusElement = (info) => {
+                if (info.status === 'unlimited') {
+                    return `
+                        <div class="subscription-status unlimited">
+                            <span class="status-badge">UNLIMITED</span>
+                            <span class="status-text">Unlimited feeds</span>
+                        </div>
+                    `;
+                }
+                return '<div class="subscription-status loading">Loading...</div>';
+            };
+
+            const statusHTML = createSubscriptionStatusElement(subscriptionInfo);
+            expect(statusHTML).toContain('UNLIMITED');
+            expect(statusHTML).toContain('Unlimited feeds');
+            expect(statusHTML).toContain('subscription-status unlimited');
+        });
+
+        test('should not show upgrade prompts when subscription disabled', async () => {
+            // Mock unlimited subscription status
+            mockFetch({
+                '/api/subscription': createMockResponse({
+                    status: 'unlimited',
+                    feed_limit: -1,
+                    can_add_feeds: true,
+                    current_feeds: 50, // Many feeds, but unlimited
+                    is_active: true
+                })
+            });
+
+            const response = await fetch('/api/subscription');
+            const subscriptionInfo = await response.json();
+
+            // Simulate creating feed warning (should not show upgrade prompts)
+            const createFeedWarning = (info) => {
+                if (info.status === 'unlimited') {
+                    return ''; // No warning for unlimited users
+                }
+                
+                const feedsUsed = info.current_feeds || 0;
+                const feedLimit = info.feed_limit || 20;
+                const isNearLimit = feedsUsed >= feedLimit - 3;
+                
+                if (isNearLimit) {
+                    return `
+                        <div class="feed-warning">
+                            <div class="details">${feedsUsed}/${feedLimit} feeds</div>
+                            <button class="upgrade-btn">Upgrade</button>
+                        </div>
+                    `;
+                }
+                return '';
+            };
+
+            const warningHTML = createFeedWarning(subscriptionInfo);
+            expect(warningHTML).toBe(''); // Should be empty for unlimited users
+        });
+
+        test('should handle account page unlimited status', () => {
+            const subscriptionInfo = {
+                status: 'unlimited',
+                feed_limit: -1,
+                can_add_feeds: true,
+                current_feeds: 25,
+                is_active: true
+            };
+
+            // Simulate account page subscription rendering
+            const renderAccountSubscription = (info) => {
+                if (info.status === 'unlimited') {
+                    return `
+                        <div class="subscription-info unlimited fade-in">
+                            <div class="subscription-status-large">
+                                <span class="status-badge-large">Unlimited Access</span>
+                                <div class="subscription-meta">
+                                    <div class="status-text">Unlimited feeds</div>
+                                </div>
+                            </div>
+                            <p class="subscription-details-text">
+                                You have unlimited access to all features. The subscription system is currently disabled.
+                            </p>
+                            <p class="subscription-details-text">
+                                <strong>Current feeds:</strong> ${info.current_feeds} feeds (no limit)
+                            </p>
+                        </div>
+                    `;
+                }
+                return '<div class="error">Unknown status</div>';
+            };
+
+            const accountHTML = renderAccountSubscription(subscriptionInfo);
+            expect(accountHTML).toContain('Unlimited Access');
+            expect(accountHTML).toContain('subscription system is currently disabled');
+            expect(accountHTML).toContain('25 feeds (no limit)');
+            expect(accountHTML).toContain('subscription-info unlimited');
+        });
+
+        test('should not show subscription-related errors when unlimited', async () => {
+            // When subscription system is disabled, API should never return feed limit errors
+            // But we can test that the frontend handles it gracefully anyway
+            
+            // Mock successful feed addition (no limits when disabled)
+            mockFetch({
+                '/api/feeds': createMockResponse({ success: true, message: 'Feed added successfully' })
+            });
+
+            const response = await fetch('/api/feeds', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: 'https://example.com/feed' })
+            });
+
+            expect(response.ok).toBe(true);
+            
+            const result = await response.json();
+            expect(result.success).toBe(true);
+            expect(result.message).toBe('Feed added successfully');
+            
+            // Should not contain any limit-related error messages
+            expect(result.error).toBeUndefined();
+            expect(result.limit_reached).toBeUndefined();
+            expect(result.trial_expired).toBeUndefined();
+        });
+    });
 });

@@ -117,7 +117,20 @@ class AccountApp {
         let detailsHTML = '';
         let actionsHTML = '';
 
-        if (info.status === 'active') {
+        if (info.status === 'unlimited') {
+            // When subscription system is disabled
+            statusClass = 'unlimited';
+            statusText = 'Unlimited Access';
+            detailsHTML = `
+                <p class="subscription-details-text">
+                    You have unlimited access to all features. The subscription system is currently disabled.
+                </p>
+                <p class="subscription-details-text">
+                    <strong>Current feeds:</strong> ${info.current_feeds} feeds (no limit)
+                </p>
+            `;
+            actionsHTML = '';
+        } else if (info.status === 'active') {
             statusClass = 'pro';
             statusText = 'GoRead2 Pro';
             detailsHTML = `

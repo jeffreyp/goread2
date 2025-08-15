@@ -1091,7 +1091,16 @@ class GoReadApp {
         let statusHTML = '';
         let statusClass = '';
 
-        if (info.status === 'admin') {
+        if (info.status === 'unlimited') {
+            // When subscription system is disabled, show unlimited status
+            statusClass = 'unlimited';
+            statusHTML = `
+                <div class="subscription-status ${statusClass}">
+                    <span class="status-badge">UNLIMITED</span>
+                    <span class="status-text">Unlimited feeds</span>
+                </div>
+            `;
+        } else if (info.status === 'admin') {
             statusClass = 'admin';
             statusHTML = `
                 <div class="subscription-status ${statusClass}">

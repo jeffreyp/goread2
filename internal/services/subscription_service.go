@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"goread2/internal/config"
 	"goread2/internal/database"
 )
 
@@ -26,6 +27,11 @@ func NewSubscriptionService(db database.Database) *SubscriptionService {
 
 // CanUserAddFeed checks if a user can add another feed based on their subscription status
 func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
+	// If subscription system is disabled, allow unlimited feeds for everyone
+	if !config.IsSubscriptionEnabled() {
+		return nil
+	}
+
 	// Get user details first
 	user, err := ss.db.GetUserByID(userID)
 	if err != nil {
@@ -91,6 +97,14 @@ func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*Subscriptio
 		LastPaymentDate: user.LastPaymentDate,
 		CurrentFeeds:    feedCount,
 		IsActive:        isActive,
+	}
+
+	// If subscription system is disabled, return unlimited access for everyone
+	if !config.IsSubscriptionEnabled() {
+		info.Status = "unlimited"
+		info.FeedLimit = -1 // Unlimited
+		info.CanAddFeeds = true
+		return info, nil
 	}
 
 	// Set feed limit and status based on user type
