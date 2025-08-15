@@ -320,15 +320,8 @@ class GoReadApp {
             document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
             
             const url = feedId === 'all' ? '/api/feeds/all/articles' : `/api/feeds/${feedId}/articles`;
-            console.log(`Loading articles from: ${url}`);
             const response = await fetch(url);
             this.articles = await response.json();
-            
-            console.log(`Loaded ${this.articles.length} articles:`, this.articles);
-            if (this.articles.length > 0) {
-                console.log(`First article structure:`, this.articles[0]);
-                console.log(`First article feed_id: ${this.articles[0].feed_id} (type: ${typeof this.articles[0].feed_id})`);
-            }
             
             this.renderArticles();
             // Note: Don't call updateUnreadCounts() here as it overwrites optimistic updates
@@ -461,13 +454,10 @@ class GoReadApp {
                     }
                     
                     // Update unread counts immediately (optimistically)
-                    console.log(`Article being marked as read:`, article);
-                    console.log(`Article feed_id: ${article.feed_id} (type: ${typeof article.feed_id})`);
                     if (article.feed_id) {
                         this.updateUnreadCountsOptimistically(article.feed_id, -1);
                     } else {
                         // When viewing "all articles", we need to determine which feed this article belongs to
-                        console.log(`Article has no feed_id, using updateUnreadCountsForCurrentFeed`);
                         this.updateUnreadCountsForCurrentFeed(-1);
                     }
                     
@@ -584,12 +574,9 @@ class GoReadApp {
             
             // Update unread counts immediately (optimistically)
             const countChange = newReadState ? -1 : 1; // -1 when marking as read, +1 when marking as unread
-            console.log(`Toggling article read state. Article:`, article);
-            console.log(`Article feed_id: ${article.feed_id} (type: ${typeof article.feed_id}), countChange: ${countChange}`);
             if (article.feed_id) {
                 this.updateUnreadCountsOptimistically(article.feed_id, countChange);
             } else {
-                console.log(`Article has no feed_id, using updateUnreadCountsForCurrentFeed`);
                 this.updateUnreadCountsForCurrentFeed(countChange);
             }
             
@@ -788,36 +775,16 @@ class GoReadApp {
     }
 
     updateUnreadCountsOptimistically(feedId, countChange) {
-        console.log(`Optimistically updating feed ${feedId} (type: ${typeof feedId}) by ${countChange}`);
-        
         // Ensure feedId is a string for selector matching  
         const feedIdStr = String(feedId);
-        console.log(`Looking for selector: [data-feed-id="${feedIdStr}"] .unread-count`);
-        
-        // Debug: log all feed elements
-        const allFeedElements = document.querySelectorAll('[data-feed-id]');
-        console.log(`Found ${allFeedElements.length} elements with data-feed-id:`);
-        allFeedElements.forEach(el => {
-            console.log(`  - data-feed-id="${el.dataset.feedId}" (type: ${typeof el.dataset.feedId}) (element:`, el, ')');
-        });
         
         // Update the specific feed's unread count immediately
         const feedCountElement = document.querySelector(`[data-feed-id="${feedIdStr}"] .unread-count`);
-        console.log(`Feed count element found:`, feedCountElement);
-        
         if (feedCountElement) {
             const currentCount = parseInt(feedCountElement.dataset.count) || 0;
             const newCount = Math.max(0, currentCount + countChange); // Don't go below 0
-            console.log(`Feed ${feedIdStr}: ${currentCount} -> ${newCount}`);
             feedCountElement.textContent = newCount;
             feedCountElement.dataset.count = newCount;
-        } else {
-            console.warn(`Feed count element not found for feed ${feedIdStr}`);
-            console.warn(`Available feed elements:`, Array.from(allFeedElements).map(el => ({
-                id: el.dataset.feedId,
-                type: typeof el.dataset.feedId,
-                element: el
-            })));
         }
         
         // Update the "All Articles" total count
@@ -834,28 +801,19 @@ class GoReadApp {
     }
 
     updateUnreadCountsForCurrentFeed(countChange) {
-        console.log(`updateUnreadCountsForCurrentFeed called with countChange=${countChange}, currentFeed=${this.currentFeed}`);
-        
         // When viewing "all articles", we only update the total count
         // since we don't know which specific feed the article belongs to
         if (this.currentFeed === 'all') {
-            console.log('Updating total count for "all articles" view');
             const allUnreadElement = document.getElementById('all-unread-count');
             if (allUnreadElement) {
                 const currentTotal = parseInt(allUnreadElement.dataset.count) || 0;
                 const newTotal = Math.max(0, currentTotal + countChange); // Don't go below 0
-                console.log(`All articles total: ${currentTotal} -> ${newTotal}`);
                 allUnreadElement.textContent = newTotal;
                 allUnreadElement.dataset.count = newTotal;
-            } else {
-                console.warn('All unread count element not found in updateUnreadCountsForCurrentFeed');
             }
         } else if (this.currentFeed) {
             // For specific feeds, update both the feed and total counts
-            console.log(`Updating specific feed ${this.currentFeed}`);
             this.updateUnreadCountsOptimistically(this.currentFeed, countChange);
-        } else {
-            console.warn('No current feed set');
         }
     }
 
