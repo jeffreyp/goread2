@@ -863,7 +863,6 @@ class GoReadApp {
         if (allUnreadElement) {
             const currentTotal = parseInt(allUnreadElement.dataset.count) || 0;
             const newTotal = Math.max(0, currentTotal + countChange); // Don't go below 0
-            console.log(`Total count: ${currentTotal} -> ${newTotal}`);
             allUnreadElement.textContent = newTotal;
             allUnreadElement.dataset.count = newTotal;
         } else {
