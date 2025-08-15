@@ -150,12 +150,12 @@ func TestConfigLoad(t *testing.T) {
 			
 			// Set test environment variables
 			for key, value := range tt.envVars {
-				os.Setenv(key, value)
+				_ = os.Setenv(key, value)
 			}
 			defer func() {
 				// Clean up after test
 				for key := range tt.envVars {
-					os.Unsetenv(key)
+					_ = os.Unsetenv(key)
 				}
 				clearConfigEnvVars()
 			}()
@@ -218,10 +218,10 @@ func TestConfigParseBool(t *testing.T) {
 			// Clear environment and set test value
 			clearConfigEnvVars()
 			if tt.input != "" {
-				os.Setenv("SUBSCRIPTION_ENABLED", tt.input)
+				_ = os.Setenv("SUBSCRIPTION_ENABLED", tt.input)
 			}
 			defer func() {
-				os.Unsetenv("SUBSCRIPTION_ENABLED")
+				_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
 				clearConfigEnvVars()
 			}()
 
@@ -240,26 +240,26 @@ func TestConfigEnvVarPrecedence(t *testing.T) {
 	// Test that environment variables take precedence over defaults
 	clearConfigEnvVars()
 	
-	os.Setenv("SUBSCRIPTION_ENABLED", "true")
-	os.Setenv("PORT", "9000")
-	os.Setenv("DATABASE_PATH", "/custom/path.db")
-	os.Setenv("GOOGLE_CLIENT_ID", "test_client_id")
-	os.Setenv("GOOGLE_CLIENT_SECRET", "test_secret")
-	os.Setenv("GOOGLE_REDIRECT_URL", "http://test.com/callback")
-	os.Setenv("STRIPE_SECRET_KEY", "sk_test_123")
-	os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_123")
-	os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_123")
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	_ = os.Setenv("PORT", "9000")
+	_ = os.Setenv("DATABASE_PATH", "/custom/path.db")
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "test_client_id")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "test_secret")
+	_ = os.Setenv("GOOGLE_REDIRECT_URL", "http://test.com/callback")
+	_ = os.Setenv("STRIPE_SECRET_KEY", "sk_test_123")
+	_ = os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_123")
+	_ = os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_123")
 
 	defer func() {
-		os.Unsetenv("SUBSCRIPTION_ENABLED")
-		os.Unsetenv("PORT")
-		os.Unsetenv("DATABASE_PATH")
-		os.Unsetenv("GOOGLE_CLIENT_ID")
-		os.Unsetenv("GOOGLE_CLIENT_SECRET")
-		os.Unsetenv("GOOGLE_REDIRECT_URL")
-		os.Unsetenv("STRIPE_SECRET_KEY")
-		os.Unsetenv("STRIPE_PUBLISHABLE_KEY")
-		os.Unsetenv("STRIPE_WEBHOOK_SECRET")
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		_ = os.Unsetenv("PORT")
+		_ = os.Unsetenv("DATABASE_PATH")
+		_ = os.Unsetenv("GOOGLE_CLIENT_ID")
+		_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
+		_ = os.Unsetenv("STRIPE_SECRET_KEY")
+		_ = os.Unsetenv("STRIPE_PUBLISHABLE_KEY")
+		_ = os.Unsetenv("STRIPE_WEBHOOK_SECRET")
 		clearConfigEnvVars()
 	}()
 
@@ -303,7 +303,7 @@ func clearConfigEnvVars() {
 	}
 	
 	for _, envVar := range envVars {
-		os.Unsetenv(envVar)
+		_ = os.Unsetenv(envVar)
 	}
 	
 	config.ResetForTesting()

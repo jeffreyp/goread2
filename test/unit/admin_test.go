@@ -181,13 +181,13 @@ func TestSubscriptionServiceWithFeatureFlag(t *testing.T) {
 
 	// Clean up environment at the end
 	defer func() {
-		os.Unsetenv("SUBSCRIPTION_ENABLED")
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
 		config.ResetForTesting()
 	}()
 
 	t.Run("CanUserAddFeed_SubscriptionDisabled", func(t *testing.T) {
 		// Set subscription system to disabled
-		os.Setenv("SUBSCRIPTION_ENABLED", "false")
+		_ = os.Setenv("SUBSCRIPTION_ENABLED", "false")
 		config.ResetForTesting()
 		config.Load()
 
@@ -205,7 +205,7 @@ func TestSubscriptionServiceWithFeatureFlag(t *testing.T) {
 
 	t.Run("CanUserAddFeed_SubscriptionEnabled", func(t *testing.T) {
 		// Set subscription system to enabled
-		os.Setenv("SUBSCRIPTION_ENABLED", "true")
+		_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
 		config.ResetForTesting()
 		config.Load()
 
@@ -248,7 +248,7 @@ func TestSubscriptionServiceWithFeatureFlag(t *testing.T) {
 
 	t.Run("GetUserSubscriptionInfo_SubscriptionDisabled", func(t *testing.T) {
 		// Set subscription system to disabled
-		os.Setenv("SUBSCRIPTION_ENABLED", "false")
+		_ = os.Setenv("SUBSCRIPTION_ENABLED", "false")
 		config.ResetForTesting()
 		config.Load()
 
@@ -277,7 +277,7 @@ func TestSubscriptionServiceWithFeatureFlag(t *testing.T) {
 
 	t.Run("GetUserSubscriptionInfo_SubscriptionEnabled", func(t *testing.T) {
 		// Set subscription system to enabled
-		os.Setenv("SUBSCRIPTION_ENABLED", "true")
+		_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
 		config.ResetForTesting()
 		config.Load()
 
@@ -305,7 +305,7 @@ func TestSubscriptionServiceWithFeatureFlag(t *testing.T) {
 		for _, enabled := range []bool{true, false} {
 			t.Run(map[bool]string{true: "enabled", false: "disabled"}[enabled], func(t *testing.T) {
 				// Set subscription system state
-				os.Setenv("SUBSCRIPTION_ENABLED", map[bool]string{true: "true", false: "false"}[enabled])
+				_ = os.Setenv("SUBSCRIPTION_ENABLED", map[bool]string{true: "true", false: "false"}[enabled])
 				config.ResetForTesting()
 				config.Load()
 

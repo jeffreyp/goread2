@@ -15,13 +15,13 @@ import (
 func TestAPIWithFeatureFlag(t *testing.T) {
 	// Clean up environment at the end
 	defer func() {
-		os.Unsetenv("SUBSCRIPTION_ENABLED")
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
 		config.ResetForTesting()
 	}()
 
 	t.Run("SubscriptionEndpoint_SubscriptionDisabled", func(t *testing.T) {
 		// Set subscription system to disabled
-		os.Setenv("SUBSCRIPTION_ENABLED", "false")
+		_ = os.Setenv("SUBSCRIPTION_ENABLED", "false")
 		config.ResetForTesting()
 		config.Load()
 
@@ -43,7 +43,7 @@ func TestAPIWithFeatureFlag(t *testing.T) {
 				}
 
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(info)
+				_ = json.NewEncoder(w).Encode(info)
 				return
 			}
 			http.NotFound(w, r)
@@ -55,7 +55,7 @@ func TestAPIWithFeatureFlag(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to make request: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -84,7 +84,7 @@ func TestAPIWithFeatureFlag(t *testing.T) {
 
 	t.Run("SubscriptionEndpoint_SubscriptionEnabled", func(t *testing.T) {
 		// Set subscription system to enabled
-		os.Setenv("SUBSCRIPTION_ENABLED", "true")
+		_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
 		config.ResetForTesting()
 		config.Load()
 
@@ -106,7 +106,7 @@ func TestAPIWithFeatureFlag(t *testing.T) {
 				}
 
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(info)
+				_ = json.NewEncoder(w).Encode(info)
 				return
 			}
 			http.NotFound(w, r)
@@ -118,7 +118,7 @@ func TestAPIWithFeatureFlag(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to make request: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -143,7 +143,7 @@ func TestAPIWithFeatureFlag(t *testing.T) {
 
 	t.Run("FeedLimitBehavior_SubscriptionDisabled", func(t *testing.T) {
 		// Set subscription system to disabled
-		os.Setenv("SUBSCRIPTION_ENABLED", "false")
+		_ = os.Setenv("SUBSCRIPTION_ENABLED", "false")
 		config.ResetForTesting()
 		config.Load()
 
@@ -166,7 +166,7 @@ func TestAPIWithFeatureFlag(t *testing.T) {
 
 	t.Run("FeedLimitBehavior_SubscriptionEnabled", func(t *testing.T) {
 		// Set subscription system to enabled
-		os.Setenv("SUBSCRIPTION_ENABLED", "true")
+		_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
 		config.ResetForTesting()
 		config.Load()
 
