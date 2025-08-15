@@ -30,10 +30,11 @@ func SetupTestServer(t *testing.T) *TestServer {
 
 	db := CreateTestDB(t)
 	feedService := services.NewFeedService(db)
+	subscriptionService := services.NewSubscriptionService(db)
 	authService := auth.NewAuthService(db)
 	sessionManager := auth.NewSessionManager(db)
 
-	feedHandler := handlers.NewFeedHandler(feedService)
+	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager)
 	authMiddleware := auth.NewMiddleware(sessionManager)
 

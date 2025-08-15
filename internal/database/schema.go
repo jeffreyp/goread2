@@ -15,6 +15,14 @@ type Database interface {
 	CreateUser(user *User) error
 	GetUserByGoogleID(googleID string) (*User, error)
 	GetUserByID(userID int) (*User, error)
+	UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error
+	IsUserSubscriptionActive(userID int) (bool, error)
+	GetUserFeedCount(userID int) (int, error)
+	
+	// Admin methods
+	SetUserAdmin(userID int, isAdmin bool) error
+	GrantFreeMonths(userID int, months int) error
+	GetUserByEmail(email string) (*User, error)
 
 	// Feed methods
 	AddFeed(feed *Feed) error
@@ -51,12 +59,18 @@ type DB struct {
 }
 
 type User struct {
-	ID        int       `json:"id"`
-	GoogleID  string    `json:"google_id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	Avatar    string    `json:"avatar"`
-	CreatedAt time.Time `json:"created_at"`
+	ID                  int       `json:"id"`
+	GoogleID            string    `json:"google_id"`
+	Email               string    `json:"email"`
+	Name                string    `json:"name"`
+	Avatar              string    `json:"avatar"`
+	CreatedAt           time.Time `json:"created_at"`
+	SubscriptionStatus  string    `json:"subscription_status"`   // 'trial', 'active', 'cancelled', 'expired', 'admin'
+	SubscriptionID      string    `json:"subscription_id"`       // Stripe subscription ID
+	TrialEndsAt         time.Time `json:"trial_ends_at"`         // When free trial expires
+	LastPaymentDate     time.Time `json:"last_payment_date"`     // Last successful payment
+	IsAdmin             bool      `json:"is_admin"`              // Admin users bypass subscription limits
+	FreeMonthsRemaining int       `json:"free_months_remaining"` // Additional free months granted
 }
 
 type Feed struct {
@@ -114,6 +128,10 @@ func InitDB() (Database, error) {
 		return nil, err
 	}
 
+	if err := dbWrapper.migrateDatabase(); err != nil {
+		return nil, err
+	}
+
 	return dbWrapper, nil
 }
 
@@ -125,7 +143,13 @@ func (db *DB) createTables() error {
 		email TEXT UNIQUE NOT NULL,
 		name TEXT NOT NULL,
 		avatar TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		subscription_status TEXT DEFAULT 'trial',
+		subscription_id TEXT,
+		trial_ends_at DATETIME,
+		last_payment_date DATETIME,
+		is_admin BOOLEAN DEFAULT 0,
+		free_months_remaining INTEGER DEFAULT 0
 	);`
 
 	feedsTable := `
@@ -176,9 +200,44 @@ func (db *DB) createTables() error {
 	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable}
 
 	for _, table := range tables {
-		if _, err := db.DB.Exec(table); err != nil {
+		if _, err := db.Exec(table); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (db *DB) migrateDatabase() error {
+	// Add subscription columns to existing users table if they don't exist
+	subscriptionColumns := []string{
+		"ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'trial'",
+		"ALTER TABLE users ADD COLUMN subscription_id TEXT",
+		"ALTER TABLE users ADD COLUMN trial_ends_at DATETIME", 
+		"ALTER TABLE users ADD COLUMN last_payment_date DATETIME",
+		"ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
+		"ALTER TABLE users ADD COLUMN free_months_remaining INTEGER DEFAULT 0",
+	}
+
+	for _, alterQuery := range subscriptionColumns {
+		_, err := db.Exec(alterQuery)
+		if err != nil {
+			// Ignore "duplicate column" errors - column already exists
+			if !strings.Contains(err.Error(), "duplicate column name") {
+				return fmt.Errorf("migration failed: %w", err)
+			}
+		}
+	}
+
+	// Set trial_ends_at for existing users who don't have it set
+	updateTrialQuery := `
+		UPDATE users 
+		SET trial_ends_at = datetime(created_at, '+30 days')
+		WHERE trial_ends_at IS NULL AND subscription_status = 'trial'
+	`
+	_, err := db.Exec(updateTrialQuery)
+	if err != nil {
+		return fmt.Errorf("failed to set trial end dates: %w", err)
 	}
 
 	return nil
@@ -192,7 +251,7 @@ func (db *DB) AddFeed(feed *Feed) error {
 	query := `INSERT INTO feeds (title, url, description, created_at, updated_at, last_fetch) 
 			  VALUES (?, ?, ?, ?, ?, ?)`
 
-	result, err := db.DB.Exec(query, feed.Title, feed.URL, feed.Description,
+	result, err := db.Exec(query, feed.Title, feed.URL, feed.Description,
 		feed.CreatedAt, feed.UpdatedAt, feed.LastFetch)
 	if err != nil {
 		return err
@@ -208,7 +267,7 @@ func (db *DB) AddFeed(feed *Feed) error {
 
 func (db *DB) GetFeeds() ([]Feed, error) {
 	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch FROM feeds ORDER BY title`
-	rows, err := db.DB.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +289,7 @@ func (db *DB) GetFeeds() ([]Feed, error) {
 
 func (db *DB) DeleteFeed(id int) error {
 	query := `DELETE FROM feeds WHERE id = ?`
-	_, err := db.DB.Exec(query, id)
+	_, err := db.Exec(query, id)
 	return err
 }
 
@@ -239,7 +298,7 @@ func (db *DB) AddArticle(article *Article) error {
 			  (feed_id, title, url, content, description, author, published_at, created_at) 
 			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
-	result, err := db.DB.Exec(query, article.FeedID, article.Title, article.URL, article.Content,
+	result, err := db.Exec(query, article.FeedID, article.Title, article.URL, article.Content,
 		article.Description, article.Author, article.PublishedAt, article.CreatedAt)
 	if err != nil {
 		return err
@@ -255,7 +314,7 @@ func (db *DB) AddArticle(article *Article) error {
 	} else {
 		// Article already existed, fetch its ID
 		query = `SELECT id FROM articles WHERE url = ?`
-		err = db.DB.QueryRow(query, article.URL).Scan(&article.ID)
+		err = db.QueryRow(query, article.URL).Scan(&article.ID)
 	}
 	return err
 }
@@ -265,7 +324,7 @@ func (db *DB) GetArticles(feedID int) ([]Article, error) {
 			  published_at, created_at 
 			  FROM articles WHERE feed_id = ? ORDER BY published_at DESC`
 
-	rows, err := db.DB.Query(query, feedID)
+	rows, err := db.Query(query, feedID)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +355,7 @@ func (db *DB) GetAllArticles() ([]Article, error) {
 			  JOIN feeds f ON a.feed_id = f.id 
 			  ORDER BY a.published_at DESC`
 
-	rows, err := db.DB.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -333,16 +392,25 @@ func (db *DB) GetAllArticles() ([]Article, error) {
 
 func (db *DB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) error {
 	query := `UPDATE feeds SET last_fetch = ? WHERE id = ?`
-	_, err := db.DB.Exec(query, lastFetch, feedID)
+	_, err := db.Exec(query, lastFetch, feedID)
 	return err
 }
 
 // User methods
 func (db *DB) CreateUser(user *User) error {
-	query := `INSERT INTO users (google_id, email, name, avatar, created_at) 
-			  VALUES (?, ?, ?, ?, ?)`
+	// Set default subscription values for new users
+	if user.SubscriptionStatus == "" {
+		user.SubscriptionStatus = "trial"
+	}
+	if user.TrialEndsAt.IsZero() {
+		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30) // 30 days from creation
+	}
 
-	result, err := db.DB.Exec(query, user.GoogleID, user.Email, user.Name, user.Avatar, user.CreatedAt)
+	query := `INSERT INTO users (google_id, email, name, avatar, created_at, subscription_status, subscription_id, trial_ends_at, last_payment_date) 
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	result, err := db.Exec(query, user.GoogleID, user.Email, user.Name, user.Avatar, user.CreatedAt,
+		user.SubscriptionStatus, user.SubscriptionID, user.TrialEndsAt, user.LastPaymentDate)
 	if err != nil {
 		return err
 	}
@@ -356,26 +424,74 @@ func (db *DB) CreateUser(user *User) error {
 }
 
 func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
-	query := `SELECT id, google_id, email, name, avatar, created_at FROM users WHERE google_id = ?`
+	query := `SELECT id, google_id, email, name, avatar, created_at, 
+			  COALESCE(subscription_status, 'trial') as subscription_status,
+			  COALESCE(subscription_id, '') as subscription_id,
+			  trial_ends_at, last_payment_date,
+			  COALESCE(is_admin, 0) as is_admin,
+			  COALESCE(free_months_remaining, 0) as free_months_remaining
+			  FROM users WHERE google_id = ?`
 
 	var user User
-	err := db.DB.QueryRow(query, googleID).Scan(&user.ID, &user.GoogleID, &user.Email,
-		&user.Name, &user.Avatar, &user.CreatedAt)
+	var trialEndsAt sql.NullTime
+	var lastPaymentDate sql.NullTime
+	
+	err := db.QueryRow(query, googleID).Scan(&user.ID, &user.GoogleID, &user.Email,
+		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
+		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate,
+		&user.IsAdmin, &user.FreeMonthsRemaining)
 	if err != nil {
 		return nil, err
 	}
+	
+	// Handle nullable datetime fields
+	if trialEndsAt.Valid {
+		user.TrialEndsAt = trialEndsAt.Time
+	} else {
+		// Set default trial end date if not set
+		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30)
+	}
+	
+	if lastPaymentDate.Valid {
+		user.LastPaymentDate = lastPaymentDate.Time
+	}
+	
 	return &user, nil
 }
 
 func (db *DB) GetUserByID(userID int) (*User, error) {
-	query := `SELECT id, google_id, email, name, avatar, created_at FROM users WHERE id = ?`
+	query := `SELECT id, google_id, email, name, avatar, created_at,
+			  COALESCE(subscription_status, 'trial') as subscription_status,
+			  COALESCE(subscription_id, '') as subscription_id,
+			  trial_ends_at, last_payment_date,
+			  COALESCE(is_admin, 0) as is_admin,
+			  COALESCE(free_months_remaining, 0) as free_months_remaining
+			  FROM users WHERE id = ?`
 
 	var user User
-	err := db.DB.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
-		&user.Name, &user.Avatar, &user.CreatedAt)
+	var trialEndsAt sql.NullTime
+	var lastPaymentDate sql.NullTime
+	
+	err := db.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
+		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
+		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate,
+		&user.IsAdmin, &user.FreeMonthsRemaining)
 	if err != nil {
 		return nil, err
 	}
+	
+	// Handle nullable datetime fields
+	if trialEndsAt.Valid {
+		user.TrialEndsAt = trialEndsAt.Time
+	} else {
+		// Set default trial end date if not set
+		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30)
+	}
+	
+	if lastPaymentDate.Valid {
+		user.LastPaymentDate = lastPaymentDate.Time
+	}
+	
 	return &user, nil
 }
 
@@ -387,7 +503,7 @@ func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
 			  WHERE uf.user_id = ? 
 			  ORDER BY f.title`
 
-	rows, err := db.DB.Query(query, userID)
+	rows, err := db.Query(query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +529,7 @@ func (db *DB) GetAllUserFeeds() ([]Feed, error) {
 			  JOIN user_feeds uf ON f.id = uf.feed_id 
 			  ORDER BY f.title`
 
-	rows, err := db.DB.Query(query)
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -435,13 +551,13 @@ func (db *DB) GetAllUserFeeds() ([]Feed, error) {
 
 func (db *DB) SubscribeUserToFeed(userID, feedID int) error {
 	query := `INSERT OR IGNORE INTO user_feeds (user_id, feed_id) VALUES (?, ?)`
-	_, err := db.DB.Exec(query, userID, feedID)
+	_, err := db.Exec(query, userID, feedID)
 	return err
 }
 
 func (db *DB) UnsubscribeUserFromFeed(userID, feedID int) error {
 	query := `DELETE FROM user_feeds WHERE user_id = ? AND feed_id = ?`
-	_, err := db.DB.Exec(query, userID, feedID)
+	_, err := db.Exec(query, userID, feedID)
 	return err
 }
 
@@ -457,7 +573,7 @@ func (db *DB) GetUserArticles(userID int) ([]Article, error) {
 			  WHERE uf.user_id = ? 
 			  ORDER BY a.published_at DESC`
 
-	rows, err := db.DB.Query(query, userID, userID)
+	rows, err := db.Query(query, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -482,7 +598,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 	// First verify user is subscribed to this feed
 	var subscriptionExists bool
 	checkQuery := `SELECT EXISTS(SELECT 1 FROM user_feeds WHERE user_id = ? AND feed_id = ?)`
-	err := db.DB.QueryRow(checkQuery, userID, feedID).Scan(&subscriptionExists)
+	err := db.QueryRow(checkQuery, userID, feedID).Scan(&subscriptionExists)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check user subscription: %w", err)
 	}
@@ -501,7 +617,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 			  WHERE a.feed_id = ? 
 			  ORDER BY a.published_at DESC`
 
-	rows, err := db.DB.Query(query, userID, feedID)
+	rows, err := db.Query(query, userID, feedID)
 	if err != nil {
 		return nil, err
 	}
@@ -528,7 +644,7 @@ func (db *DB) GetUserArticleStatus(userID, articleID int) (*UserArticle, error) 
 			  WHERE user_id = ? AND article_id = ?`
 
 	var userArticle UserArticle
-	err := db.DB.QueryRow(query, userID, articleID).Scan(&userArticle.UserID, &userArticle.ArticleID,
+	err := db.QueryRow(query, userID, articleID).Scan(&userArticle.UserID, &userArticle.ArticleID,
 		&userArticle.IsRead, &userArticle.IsStarred)
 	if err != nil {
 		return nil, err
@@ -539,7 +655,7 @@ func (db *DB) GetUserArticleStatus(userID, articleID int) (*UserArticle, error) 
 func (db *DB) SetUserArticleStatus(userID, articleID int, isRead, isStarred bool) error {
 	query := `INSERT OR REPLACE INTO user_articles (user_id, article_id, is_read, is_starred) 
 			  VALUES (?, ?, ?, ?)`
-	_, err := db.DB.Exec(query, userID, articleID, isRead, isStarred)
+	_, err := db.Exec(query, userID, articleID, isRead, isStarred)
 	return err
 }
 
@@ -547,18 +663,18 @@ func (db *DB) MarkUserArticleRead(userID, articleID int, isRead bool) error {
 	// First check if record exists
 	var dummy int
 	checkQuery := `SELECT 1 FROM user_articles WHERE user_id = ? AND article_id = ?`
-	err := db.DB.QueryRow(checkQuery, userID, articleID).Scan(&dummy)
+	err := db.QueryRow(checkQuery, userID, articleID).Scan(&dummy)
 
 	switch err {
 	case sql.ErrNoRows:
 		// Create new record
 		query := `INSERT INTO user_articles (user_id, article_id, is_read, is_starred) 
 				  VALUES (?, ?, ?, 0)`
-		_, err = db.DB.Exec(query, userID, articleID, isRead)
+		_, err = db.Exec(query, userID, articleID, isRead)
 	case nil:
 		// Update existing record
 		query := `UPDATE user_articles SET is_read = ? WHERE user_id = ? AND article_id = ?`
-		_, err = db.DB.Exec(query, isRead, userID, articleID)
+		_, err = db.Exec(query, isRead, userID, articleID)
 	}
 
 	return err
@@ -568,18 +684,18 @@ func (db *DB) ToggleUserArticleStar(userID, articleID int) error {
 	// First check if record exists
 	var currentStarred bool
 	checkQuery := `SELECT is_starred FROM user_articles WHERE user_id = ? AND article_id = ?`
-	err := db.DB.QueryRow(checkQuery, userID, articleID).Scan(&currentStarred)
+	err := db.QueryRow(checkQuery, userID, articleID).Scan(&currentStarred)
 
 	switch err {
 	case sql.ErrNoRows:
 		// Create new record with starred = true
 		query := `INSERT INTO user_articles (user_id, article_id, is_read, is_starred) 
 				  VALUES (?, ?, 0, 1)`
-		_, err = db.DB.Exec(query, userID, articleID)
+		_, err = db.Exec(query, userID, articleID)
 	case nil:
 		// Update existing record
 		query := `UPDATE user_articles SET is_starred = ? WHERE user_id = ? AND article_id = ?`
-		_, err = db.DB.Exec(query, !currentStarred, userID, articleID)
+		_, err = db.Exec(query, !currentStarred, userID, articleID)
 	}
 
 	return err
@@ -608,7 +724,7 @@ func (db *DB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, 
 	
 	query += strings.Join(values, ", ")
 	
-	_, err := db.DB.Exec(query, args...)
+	_, err := db.Exec(query, args...)
 	return err
 }
 
@@ -625,11 +741,11 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		GROUP BY a.feed_id
 	`
 	
-	rows, err := db.DB.Query(query, userID, userID)
+	rows, err := db.Query(query, userID, userID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	
 	unreadCounts := make(map[int]int)
 	for rows.Next() {
@@ -641,4 +757,95 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	}
 	
 	return unreadCounts, rows.Err()
+}
+
+// Subscription management methods
+func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error {
+	query := `UPDATE users SET subscription_status = ?, subscription_id = ?, last_payment_date = ? WHERE id = ?`
+	_, err := db.Exec(query, status, subscriptionID, lastPaymentDate, userID)
+	return err
+}
+
+func (db *DB) IsUserSubscriptionActive(userID int) (bool, error) {
+	query := `SELECT subscription_status, trial_ends_at FROM users WHERE id = ?`
+	
+	var status string
+	var trialEndsAt time.Time
+	err := db.QueryRow(query, userID).Scan(&status, &trialEndsAt)
+	if err != nil {
+		return false, err
+	}
+
+	// User is active if:
+	// 1. They have an active paid subscription, OR
+	// 2. They're on trial and trial hasn't expired
+	if status == "active" {
+		return true, nil
+	}
+	
+	if status == "trial" && time.Now().Before(trialEndsAt) {
+		return true, nil
+	}
+	
+	return false, nil
+}
+
+func (db *DB) GetUserFeedCount(userID int) (int, error) {
+	query := `SELECT COUNT(*) FROM user_feeds WHERE user_id = ?`
+	
+	var count int
+	err := db.QueryRow(query, userID).Scan(&count)
+	return count, err
+}
+
+// Admin management methods
+func (db *DB) SetUserAdmin(userID int, isAdmin bool) error {
+	query := `UPDATE users SET is_admin = ? WHERE id = ?`
+	_, err := db.Exec(query, isAdmin, userID)
+	return err
+}
+
+func (db *DB) GrantFreeMonths(userID int, months int) error {
+	// Get current free months and add the new ones
+	query := `UPDATE users SET free_months_remaining = COALESCE(free_months_remaining, 0) + ? WHERE id = ?`
+	_, err := db.Exec(query, months, userID)
+	return err
+}
+
+func (db *DB) GetUserByEmail(email string) (*User, error) {
+	query := `SELECT id, google_id, email, name, avatar, created_at, 
+			  COALESCE(subscription_status, 'trial') as subscription_status,
+			  COALESCE(subscription_id, '') as subscription_id,
+			  trial_ends_at, last_payment_date,
+			  COALESCE(is_admin, 0) as is_admin,
+			  COALESCE(free_months_remaining, 0) as free_months_remaining
+			  FROM users WHERE email = ?`
+	
+	var user User
+	var trialEndsAt sql.NullTime
+	var lastPaymentDate sql.NullTime
+	
+	err := db.QueryRow(query, email).Scan(
+		&user.ID, &user.GoogleID, &user.Email, &user.Name, &user.Avatar,
+		&user.CreatedAt, &user.SubscriptionStatus, &user.SubscriptionID,
+		&trialEndsAt, &lastPaymentDate, &user.IsAdmin, &user.FreeMonthsRemaining,
+	)
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	// Handle nullable datetime fields
+	if trialEndsAt.Valid {
+		user.TrialEndsAt = trialEndsAt.Time
+	} else {
+		// Set default trial end date if not set
+		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30)
+	}
+	
+	if lastPaymentDate.Valid {
+		user.LastPaymentDate = lastPaymentDate.Time
+	}
+	
+	return &user, nil
 }

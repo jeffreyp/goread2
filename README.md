@@ -12,6 +12,8 @@ A modern, multi-user RSS reader inspired by Google Reader, built with Go and fea
 - **OPML import**: Import feed subscriptions from other RSS readers (Feedly, Inoreader, etc.)
 - **Real-time updates**: Background polling for new articles every 30 minutes
 - **Per-user article management**: Mark articles as read/unread, star favorites - all personal to each user
+- **Subscription system**: 30-day free trial with 20 feeds, then $2.99/month for unlimited feeds
+- **Stripe integration**: Secure payment processing with customer portal for billing management
 - **Keyboard shortcuts**: Navigate efficiently with vim-like shortcuts
 - **Clean UI**: Fast, responsive interface with modern design
 - **Self-hosted**: Can run locally or deploy to cloud platforms
@@ -21,6 +23,7 @@ A modern, multi-user RSS reader inspired by Google Reader, built with Go and fea
 
 - **Multi-user authentication**: Google OAuth 2.0 integration
 - **User data isolation**: Each user has their own read/star status and feed subscriptions
+- **Subscription management**: Stripe-powered billing with trial periods and feed limits
 - **Secure sessions**: HTTP-only cookies with proper session management
 - **Database flexibility**: SQLite for local development, Google Cloud Datastore for production
 - **Test coverage**: 90%+ test coverage with automated CI/CD pipeline
@@ -49,6 +52,7 @@ The interface features:
 - Go 1.21 or later
 - Google Cloud Project (for OAuth)
 - SQLite3 (automatically included with go-sqlite3)
+- Stripe Account (optional, for subscription features)
 
 ### Google OAuth Setup
 
@@ -72,6 +76,29 @@ The interface features:
    export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
    ```
 
+### Stripe Setup (Optional)
+
+For subscription features, configure Stripe:
+
+1. **Create Stripe Account:**
+   - Go to [stripe.com](https://stripe.com) and create an account
+   - Get your API keys from the Stripe Dashboard
+
+2. **Set Stripe Environment Variables:**
+   ```bash
+   export STRIPE_SECRET_KEY="sk_test_your-secret-key"
+   export STRIPE_PUBLISHABLE_KEY="pk_test_your-publishable-key"
+   export STRIPE_WEBHOOK_SECRET="whsec_your-webhook-secret"
+   export STRIPE_PRICE_ID="price_your-price-id"
+   ```
+
+3. **Create Product and Price:**
+   ```bash
+   go run cmd/setup-stripe/main.go create-product
+   ```
+
+For detailed Stripe setup instructions, see [STRIPE_SETUP.md](STRIPE_SETUP.md).
+
 ### Local Development
 
 1. **Clone the project:**
@@ -91,6 +118,12 @@ The interface features:
    export GOOGLE_CLIENT_ID="your-client-id"
    export GOOGLE_CLIENT_SECRET="your-client-secret"
    export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
+   
+   # Optional: For subscription features
+   export STRIPE_SECRET_KEY="sk_test_your-secret-key"
+   export STRIPE_PUBLISHABLE_KEY="pk_test_your-publishable-key"
+   export STRIPE_WEBHOOK_SECRET="whsec_your-webhook-secret"
+   export STRIPE_PRICE_ID="price_your-price-id"
    ```
 
 4. **Build and run:**
@@ -130,6 +163,14 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed production deployment instructio
 4. **Unsubscribing**: Click the × next to any feed in your list
 5. **Feed discovery**: Supports both RSS and Atom formats
 
+### Subscription Management
+
+1. **Free Trial**: New users get 30 days free with up to 20 feeds
+2. **Feed Limits**: Adding more than 20 feeds during trial requires subscription
+3. **Upgrading**: Click "Upgrade to Pro" to subscribe for $2.99/month unlimited feeds
+4. **Account Management**: Access billing and subscription details via "Account" button
+5. **Customer Portal**: Manage billing, download invoices, and update payment methods
+
 ### Reading Articles
 
 1. **Personal feed list**: Left panel shows only your subscribed feeds
@@ -167,6 +208,13 @@ All API endpoints require authentication via session cookies:
 - `POST /api/articles/:id/read` - Mark article read/unread for user
 - `POST /api/articles/:id/star` - Toggle article star for user
 
+### Subscription & Account
+- `GET /api/subscription` - Get user's subscription status and limits
+- `GET /api/account/stats` - Get detailed account statistics
+- `POST /api/subscription/checkout` - Create Stripe checkout session
+- `POST /api/subscription/portal` - Create customer portal session
+- `GET /api/stripe/config` - Get Stripe configuration for frontend
+
 ## Configuration
 
 ### Environment Variables
@@ -179,6 +227,10 @@ All API endpoints require authentication via session cookies:
 **Optional:**
 - `GOOGLE_CLOUD_PROJECT` - Use Google Cloud Datastore (if set)
 - `PORT` - Server port (default: 8080)
+- `STRIPE_SECRET_KEY` - Stripe secret key for payment processing
+- `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key for frontend
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook endpoint secret
+- `STRIPE_PRICE_ID` - Stripe price ID for Pro subscription
 
 ### Database Configuration
 
@@ -240,9 +292,12 @@ goread2/
 │   │   └── datastore.go       # Google Cloud Datastore implementation
 │   ├── handlers/
 │   │   ├── feed_handler.go    # Feed API handlers
-│   │   └── auth_handler.go    # Authentication handlers
+│   │   ├── auth_handler.go    # Authentication handlers
+│   │   └── payment_handler.go # Subscription/payment handlers
 │   └── services/
-│       └── feed_service.go    # Multi-user business logic
+│       ├── feed_service.go    # Multi-user business logic
+│       ├── subscription_service.go # Subscription management
+│       └── payment_service.go # Stripe payment processing
 ├── test/                      # Comprehensive test suite
 │   ├── unit/                  # Unit tests
 │   ├── integration/           # Integration tests
@@ -250,17 +305,25 @@ goread2/
 │   └── fixtures/              # Test data
 ├── web/
 │   ├── templates/
-│   │   └── index.html         # Main application template
+│   │   ├── index.html         # Main application template
+│   │   ├── account.html       # Account management page
+│   │   └── privacy.html       # Privacy policy page
 │   └── static/
 │       ├── css/
-│       │   └── styles.css     # Google Reader-inspired styles
+│       │   ├── styles.css     # Google Reader-inspired styles
+│       │   └── account.css    # Account page styles
 │       └── js/
-│           └── app.js         # Frontend with auth integration
+│           ├── app.js         # Frontend with auth integration
+│           └── account.js     # Account management frontend
 ├── .github/
 │   └── workflows/
 │       └── test.yml           # CI/CD pipeline
+├── cmd/
+│   └── setup-stripe/
+│       └── main.go            # Stripe setup utility
 ├── README_TESTING.md          # Testing documentation
 ├── DEPLOYMENT.md              # Deployment guide
+├── STRIPE_SETUP.md           # Stripe integration guide
 └── test.sh                    # Test runner script
 ```
 
@@ -364,6 +427,24 @@ goread2/
 - Verify user ID is properly set in session
 - Check database queries include user filtering
 - Review test results for isolation verification
+
+### Subscription Issues
+
+**Feed limit errors:**
+- Check user's trial status and current feed count
+- Verify subscription is active in Stripe Dashboard
+- Review webhook delivery for subscription events
+
+**Payment processing:**
+- Verify Stripe keys are correctly configured
+- Check webhook signature validation
+- Monitor Stripe Dashboard for failed payments
+- Ensure webhook endpoint is publicly accessible
+
+**Trial period problems:**
+- Verify user creation date and trial calculation
+- Check subscription service logic for trial expiration
+- Review database schema for subscription fields
 
 ### Performance
 

@@ -126,6 +126,68 @@ body.app-body {
     margin: 0;
 }
 
+/* Subscription Panel */
+.subscription-panel {
+    padding: 12px 20px;
+    border-bottom: 1px solid #f1f3f4;
+    background-color: #f8f9fa;
+    margin-bottom: 10px;
+}
+
+.subscription-panel.hidden {
+    display: none;
+}
+
+.subscription-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.subscription-info .status {
+    font-weight: 600;
+}
+
+.subscription-info .details {
+    color: #5f6368;
+}
+
+.subscription-info.admin {
+    color: #9c27b0;
+}
+
+.subscription-info.pro {
+    color: #34a853;
+}
+
+.subscription-info.free {
+    color: #2196f3;
+}
+
+.subscription-info.trial {
+    color: #ea4335;
+}
+
+.subscription-info.expired {
+    color: #ea4335;
+}
+
+.subscription-panel .upgrade-btn {
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.subscription-panel .upgrade-btn:hover {
+    background-color: #1765cc;
+}
+
 .feed-list {
     padding: 10px 0;
 }
@@ -645,6 +707,61 @@ body.app-body {
 
 #logout-btn:hover {
     background-color: #e8eaed;
+}
+
+/* Subscription Status */
+.subscription-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-right: 12px;
+    text-align: right;
+}
+
+.status-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.status-text {
+    font-size: 11px;
+    color: #5f6368;
+    line-height: 1.2;
+}
+
+.subscription-status.admin .status-badge {
+    background-color: #9c27b0;
+    color: white;
+}
+
+.subscription-status.pro .status-badge {
+    background-color: #34a853;
+    color: white;
+}
+
+.subscription-status.free .status-badge {
+    background-color: #2196f3;
+    color: white;
+}
+
+.subscription-status.trial .status-badge {
+    background-color: #fbbc04;
+    color: #202124;
+}
+
+.subscription-status.expired .status-badge {
+    background-color: #ea4335;
+    color: white;
+}
+
+.subscription-status.loading {
+    color: #5f6368;
+    font-size: 11px;
 }
 
 /* Login Footer */

@@ -78,6 +78,25 @@ if go tool cover -func=coverage.out | tail -1; then
     print_status "Coverage summary displayed"
 fi
 
+# Run frontend tests if Node.js is available
+echo ""
+echo "🌐 Running Frontend Tests..."
+echo "----------------------------"
+if command -v npm &> /dev/null; then
+    if [ -f "package.json" ]; then
+        if npm test; then
+            print_status "Frontend tests passed"
+        else
+            print_error "Frontend tests failed"
+            exit 1
+        fi
+    else
+        print_warning "package.json not found, skipping frontend tests"
+    fi
+else
+    print_warning "npm not found, skipping frontend tests"
+fi
+
 # Run linting if available
 echo ""
 echo "🔍 Running Code Quality Checks..."
@@ -113,5 +132,8 @@ rm -f unit_coverage.out integration_coverage.out
 
 echo ""
 echo "🎉 All tests completed successfully!"
-echo "Coverage report: coverage.html"
+echo "Backend coverage report: coverage.html"
+if [ -d "web/coverage" ]; then
+    echo "Frontend coverage report: web/coverage/index.html"
+fi
 echo "================================"

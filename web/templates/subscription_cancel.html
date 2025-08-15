@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="privacy-container">
+        <h1>Subscription Cancelled</h1>
+        
+        <div class="privacy-content">
+            <p>Your subscription process was cancelled. No charges have been made to your account.</p>
+            
+            <p>You can still enjoy GoRead2 with the free plan:</p>
+            <ul>
+                <li>✅ Up to 20 RSS feeds</li>
+                <li>✅ 30-day free trial</li>
+                <li>✅ Full article reading</li>
+                <li>✅ Article starring and read status</li>
+            </ul>
+            
+            <p>Ready to upgrade? You can subscribe anytime to unlock unlimited feeds and premium features.</p>
+        </div>
+        
+        <div class="privacy-actions">
+            <a href="/" class="btn btn-primary">Continue with Free Plan</a>
+            <a href="#" id="try-again-btn" class="btn btn-secondary">Try Subscribing Again</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('try-again-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = '/';
+            // The subscription modal will be triggered from the main app
+        });
+
+        // Auto-redirect to main app after 10 seconds
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 10000);
+    </script>
+</body>
+</html>

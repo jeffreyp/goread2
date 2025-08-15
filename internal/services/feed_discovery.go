@@ -112,7 +112,7 @@ func (fd *FeedDiscovery) validateFeedURL(urlStr string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return false
@@ -166,13 +166,13 @@ func (fd *FeedDiscovery) discoverFeedsFromHTML(urlStr string) ([]string, error) 
 		}
 		
 		if resp.StatusCode != 200 {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			cancel()
 			continue
 		}
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		cancel()
 		
 		if err != nil {
@@ -273,7 +273,7 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 			}
 			
 			if resp != nil {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				if resp.StatusCode == 200 {
 					// Do full validation to ensure it's actually a feed
 					if fd.validateFeedURL(feedURL) {
