@@ -828,15 +828,13 @@ func (db *DatastoreDB) IsUserSubscriptionActive(userID int) (bool, error) {
 func (db *DatastoreDB) GetUserFeedCount(userID int) (int, error) {
 	ctx := context.Background()
 
+	// Use Count() instead of GetAll for better performance
 	query := datastore.NewQuery("UserFeed").FilterField("user_id", "=", int64(userID))
-	count := 0
-	
-	keys, err := db.client.GetAll(ctx, query, nil)
+	count, err := db.client.Count(ctx, query)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get user feed count: %w", err)
 	}
 	
-	count = len(keys)
 	return count, nil
 }
 
