@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -75,7 +76,10 @@ func Get() *Config {
 
 // IsSubscriptionEnabled returns true if subscription features are enabled
 func IsSubscriptionEnabled() bool {
-	return Get().SubscriptionEnabled
+	enabled := Get().SubscriptionEnabled
+	// Debug logging for production issue
+	fmt.Printf("DEBUG: IsSubscriptionEnabled() returning %v (env: %s)\n", enabled, os.Getenv("SUBSCRIPTION_ENABLED"))
+	return enabled
 }
 
 // getEnvOrDefault returns environment variable value or default if not set

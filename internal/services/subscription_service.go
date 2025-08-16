@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"goread2/internal/config"
@@ -75,20 +76,30 @@ func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
 
 // GetUserSubscriptionInfo returns subscription information for the user
 func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*SubscriptionInfo, error) {
+	// Debug logging to identify production issue
+	log.Printf("DEBUG: GetUserSubscriptionInfo called for user %d", userID)
+	log.Printf("DEBUG: Subscription enabled: %v", config.IsSubscriptionEnabled())
+	
 	user, err := ss.db.GetUserByID(userID)
 	if err != nil {
+		log.Printf("DEBUG: Failed to get user %d: %v", userID, err)
 		return nil, err
 	}
+	log.Printf("DEBUG: User %d - Status: %s, TrialEndsAt: %v, IsAdmin: %v", userID, user.SubscriptionStatus, user.TrialEndsAt, user.IsAdmin)
 
 	feedCount, err := ss.db.GetUserFeedCount(userID)
 	if err != nil {
+		log.Printf("DEBUG: Failed to get feed count for user %d: %v", userID, err)
 		return nil, err
 	}
+	log.Printf("DEBUG: User %d feed count: %d", userID, feedCount)
 
 	isActive, err := ss.db.IsUserSubscriptionActive(userID)
 	if err != nil {
+		log.Printf("DEBUG: Failed to check if user %d is active: %v", userID, err)
 		return nil, err
 	}
+	log.Printf("DEBUG: User %d is active: %v", userID, isActive)
 
 	info := &SubscriptionInfo{
 		Status:          user.SubscriptionStatus,
@@ -101,11 +112,14 @@ func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*Subscriptio
 
 	// If subscription system is disabled, return unlimited access for everyone
 	if !config.IsSubscriptionEnabled() {
+		log.Printf("DEBUG: Subscriptions disabled, returning unlimited status for user %d", userID)
 		info.Status = "unlimited"
 		info.FeedLimit = -1 // Unlimited
 		info.CanAddFeeds = true
 		return info, nil
 	}
+	
+	log.Printf("DEBUG: Subscriptions enabled, processing subscription logic for user %d", userID)
 
 	// Set feed limit and status based on user type
 	if user.IsAdmin {
