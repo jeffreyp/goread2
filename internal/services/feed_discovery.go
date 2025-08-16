@@ -96,44 +96,6 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 }
 
 
-// validateFeedURL checks if a URL actually contains valid RSS/Atom content
-func (fd *FeedDiscovery) validateFeedURL(urlStr string) bool {
-	// Create a context with timeout for validation
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	
-	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
-	if err != nil {
-		return false
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
-	
-	resp, err := fd.client.Do(req)
-	if err != nil {
-		return false
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != 200 {
-		return false
-	}
-
-	// Read first 1KB to check for RSS/Atom structure
-	buffer := make([]byte, 1024)
-	n, err := resp.Body.Read(buffer)
-	if err != nil && err != io.EOF {
-		return false
-	}
-
-	content := string(buffer[:n])
-	content = strings.ToLower(content)
-	
-	// Check for RSS/Atom indicators
-	return strings.Contains(content, "<rss") || 
-		   strings.Contains(content, "<feed") ||
-		   strings.Contains(content, "<channel>") ||
-		   strings.Contains(content, "xmlns=\"http://www.w3.org/2005/atom\"")
-}
 
 // discoverFeedsFromHTML parses HTML to find feed links
 func (fd *FeedDiscovery) discoverFeedsFromHTML(urlStr string) ([]string, error) {
@@ -275,10 +237,11 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 			if resp != nil {
 				_ = resp.Body.Close()
 				if resp.StatusCode == 200 {
-					// Do full validation to ensure it's actually a feed
-					if fd.validateFeedURL(feedURL) {
-						validFeeds = append(validFeeds, feedURL)
-					}
+					// For performance, trust that HEAD requests to feed paths are valid
+					// This avoids additional validation requests in production
+					validFeeds = append(validFeeds, feedURL)
+					// Stop after finding the first working feed for faster discovery
+					break
 				}
 			}
 		}

@@ -169,8 +169,8 @@ func (fs *FeedService) GetUserFeeds(userID int) ([]database.Feed, error) {
 }
 
 func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Feed, error) {
-	// Add overall timeout to prevent infinite hangs
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Add overall timeout to prevent infinite hangs - reduced for better UX
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	
 	// Use a channel to handle timeout
@@ -185,7 +185,7 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 	
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("feed discovery timed out after 30 seconds for %s", inputURL)
+		return nil, fmt.Errorf("feed discovery timed out after 15 seconds for %s", inputURL)
 	case <-done:
 		return result, resultErr
 	}
@@ -268,12 +268,13 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		return nil, fmt.Errorf("failed to subscribe user to feed: %w", err)
 	}
 
-	// Immediately mark all articles in this feed as unread for the subscriber
-	// This must happen before the function returns so the frontend sees correct state
-	if err := fs.markExistingArticlesAsUnreadForUser(userID, existingFeed.ID); err != nil {
-		// Don't fail the entire operation if this fails, just log the error
-		log.Printf("Failed to mark existing articles as unread for user %d, feed %d: %v", userID, existingFeed.ID, err)
-	}
+	// Mark all articles in this feed as unread for the subscriber asynchronously
+	// This improves response time for feed addition, especially in production with many articles
+	go func() {
+		if err := fs.markExistingArticlesAsUnreadForUser(userID, existingFeed.ID); err != nil {
+			log.Printf("Failed to mark existing articles as unread for user %d, feed %d: %v", userID, existingFeed.ID, err)
+		}
+	}()
 
 	return existingFeed, nil
 }
