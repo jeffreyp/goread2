@@ -1528,7 +1528,16 @@ class GoReadApp {
         const info = this.subscriptionInfo;
         let panelHTML = '';
 
-        if (info.status === 'admin') {
+        if (info.status === 'unlimited') {
+            panelHTML = `
+                <div class="subscription-info unlimited">
+                    <div>
+                        <div class="status">Unlimited Access</div>
+                        <div class="details">No subscription required</div>
+                    </div>
+                </div>
+            `;
+        } else if (info.status === 'admin') {
             panelHTML = `
                 <div class="subscription-info admin">
                     <div>
