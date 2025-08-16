@@ -10,7 +10,6 @@ class GoReadApp {
         
         // Performance optimizations
         this.throttleTimeout = null;
-        this.requestAnimationFrame = window.requestAnimationFrame || ((fn) => setTimeout(fn, 16));
         
         this.init();
     }
@@ -445,6 +444,7 @@ class GoReadApp {
         
         articleItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+
     
     async autoMarkLastUnreadArticle(index) {
         const article = this.articles[index];
@@ -589,6 +589,9 @@ class GoReadApp {
                 return;
             }
         }
+        
+        // If no next article found, stay on current article
+        // No action needed - current selection remains
     }
 
     selectPreviousArticle() {
@@ -602,6 +605,9 @@ class GoReadApp {
                 return;
             }
         }
+        
+        // If no previous article found, stay on current article
+        // No action needed - current selection remains
     }
 
     selectNextVisibleArticle() {
@@ -850,8 +856,8 @@ class GoReadApp {
     }
 
     updateUnreadCountsOptimistically(feedId, countChange) {
-        // Use requestAnimationFrame for smooth DOM updates
-        this.requestAnimationFrame(() => {
+        // Update DOM counts immediately (removed requestAnimationFrame to fix error)
+        {
             // Ensure feedId is a string for selector matching  
             const feedIdStr = String(feedId);
             
@@ -874,7 +880,7 @@ class GoReadApp {
             } else {
                 console.warn('All unread count element not found');
             }
-        });
+        }
     }
 
     updateUnreadCountsForCurrentFeed(countChange) {
@@ -1085,7 +1091,7 @@ class GoReadApp {
             if (!isAnimating) return;
             rotation += 6; // 6 degrees per frame
             spinnerInner.style.transform = `rotate(${rotation}deg)`;
-            requestAnimationFrame(animateSpinner);
+            setTimeout(animateSpinner, 16);
         };
         
         // Store reference to stop animation later
