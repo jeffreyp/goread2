@@ -8,6 +8,10 @@ class GoReadApp {
         this.articleFilter = 'unread'; // Default to showing unread articles
         this.subscriptionInfo = null;
         
+        // Performance optimizations
+        this.throttleTimeout = null;
+        this.requestAnimationFrame = window.requestAnimationFrame || ((fn) => setTimeout(fn, 16));
+        
         this.init();
     }
 
@@ -846,28 +850,31 @@ class GoReadApp {
     }
 
     updateUnreadCountsOptimistically(feedId, countChange) {
-        // Ensure feedId is a string for selector matching  
-        const feedIdStr = String(feedId);
-        
-        // Update the specific feed's unread count immediately
-        const feedCountElement = document.querySelector(`[data-feed-id="${feedIdStr}"] .unread-count`);
-        if (feedCountElement) {
-            const currentCount = parseInt(feedCountElement.dataset.count) || 0;
-            const newCount = Math.max(0, currentCount + countChange); // Don't go below 0
-            feedCountElement.textContent = newCount;
-            feedCountElement.dataset.count = newCount;
-        }
-        
-        // Update the "All Articles" total count
-        const allUnreadElement = document.getElementById('all-unread-count');
-        if (allUnreadElement) {
-            const currentTotal = parseInt(allUnreadElement.dataset.count) || 0;
-            const newTotal = Math.max(0, currentTotal + countChange); // Don't go below 0
-            allUnreadElement.textContent = newTotal;
-            allUnreadElement.dataset.count = newTotal;
-        } else {
-            console.warn('All unread count element not found');
-        }
+        // Use requestAnimationFrame for smooth DOM updates
+        this.requestAnimationFrame(() => {
+            // Ensure feedId is a string for selector matching  
+            const feedIdStr = String(feedId);
+            
+            // Update the specific feed's unread count immediately
+            const feedCountElement = document.querySelector(`[data-feed-id="${feedIdStr}"] .unread-count`);
+            if (feedCountElement) {
+                const currentCount = parseInt(feedCountElement.dataset.count) || 0;
+                const newCount = Math.max(0, currentCount + countChange); // Don't go below 0
+                feedCountElement.textContent = newCount;
+                feedCountElement.dataset.count = newCount;
+            }
+            
+            // Update the "All Articles" total count
+            const allUnreadElement = document.getElementById('all-unread-count');
+            if (allUnreadElement) {
+                const currentTotal = parseInt(allUnreadElement.dataset.count) || 0;
+                const newTotal = Math.max(0, currentTotal + countChange); // Don't go below 0
+                allUnreadElement.textContent = newTotal;
+                allUnreadElement.dataset.count = newTotal;
+            } else {
+                console.warn('All unread count element not found');
+            }
+        });
     }
 
     updateUnreadCountsForCurrentFeed(countChange) {

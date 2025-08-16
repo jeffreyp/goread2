@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"goread2/internal/auth"
 	"goread2/internal/config"
@@ -70,16 +71,24 @@ func main() {
 
 	r := gin.Default()
 	
+	// Add gzip compression for all responses
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
+	
 	// Add caching headers middleware
 	r.Use(func(c *gin.Context) {
-		// Cache static assets for 1 hour
+		// Cache static assets for 24 hours with versioning
 		if strings.HasPrefix(c.Request.URL.Path, "/static/") {
-			c.Header("Cache-Control", "public, max-age=3600")
-			c.Header("ETag", "\"static-v1\"")
+			c.Header("Cache-Control", "public, max-age=86400, immutable")
+			c.Header("ETag", "\"static-v2\"")
+			c.Header("Vary", "Accept-Encoding")
 		}
-		// Cache API responses for 30 seconds
+		// Cache API responses for 60 seconds
 		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-			c.Header("Cache-Control", "private, max-age=30")
+			c.Header("Cache-Control", "private, max-age=60")
+		}
+		// Cache HTML pages for 5 minutes
+		if c.Request.URL.Path == "/" || strings.HasSuffix(c.Request.URL.Path, ".html") {
+			c.Header("Cache-Control", "public, max-age=300")
 		}
 		c.Next()
 	})

@@ -41,6 +41,9 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 	if feeds == nil {
 		feeds = []database.Feed{}
 	}
+	
+	// Cache feeds list for 5 minutes as it doesn't change very often
+	c.Header("Cache-Control", "private, max-age=300")
 	c.JSON(http.StatusOK, feeds)
 }
 
@@ -276,6 +279,8 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 		return
 	}
 
+	// Short cache for unread counts since they change frequently but not instantly
+	c.Header("Cache-Control", "private, max-age=10")
 	c.JSON(http.StatusOK, unreadCounts)
 }
 
