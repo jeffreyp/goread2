@@ -51,9 +51,11 @@ class GoReadApp {
 
     async loadSubscriptionInfo() {
         try {
+            console.log('Loading subscription info...');
             const response = await fetch('/api/subscription');
             if (response.ok) {
                 this.subscriptionInfo = await response.json();
+                console.log('Subscription info loaded:', this.subscriptionInfo);
             } else {
                 console.error('Failed to load subscription info:', response.status);
             }
@@ -1671,13 +1673,17 @@ class GoReadApp {
         const panel = document.getElementById('subscription-panel');
         if (!panel) return;
 
+        console.log('Updating subscription panel with info:', this.subscriptionInfo);
+
         if (!this.subscriptionInfo) {
+            console.log('No subscription info, hiding panel');
             panel.classList.add('hidden');
             return;
         }
 
         panel.classList.remove('hidden');
         const info = this.subscriptionInfo;
+        console.log('Subscription status:', info.status);
         let panelHTML = '';
 
         if (info.status === 'unlimited') {
@@ -1732,6 +1738,7 @@ class GoReadApp {
                 </div>
             `;
         } else {
+            console.log('Falling through to expired case - status was:', info.status);
             panelHTML = `
                 <div class="subscription-info expired">
                     <div>
