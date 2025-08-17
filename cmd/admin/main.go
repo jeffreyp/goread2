@@ -98,8 +98,10 @@ func listUsers(db database.Database) {
 		}
 		defer func() { _ = rows.Close() }()
 
-		fmt.Println("ID\tEmail\t\t\t\tName\t\t\tStatus\t\tAdmin\tFree Months\tJoined")
-		fmt.Println("--\t-----\t\t\t\t----\t\t\t------\t\t-----\t-----------\t------")
+		fmt.Printf("\n%-4s %-35s %-25s %-12s %-6s %-6s %-12s\n", 
+			"ID", "Email", "Name", "Status", "Admin", "Free", "Joined")
+		fmt.Printf("%-4s %-35s %-25s %-12s %-6s %-6s %-12s\n", 
+			"----", "-----------------------------------", "-------------------------", "------------", "------", "------", "------------")
 
 		for rows.Next() {
 			var id int
@@ -118,9 +120,10 @@ func listUsers(db database.Database) {
 				adminStr = "Yes"
 			}
 
-			fmt.Printf("%d\t%-25s\t%-15s\t%-10s\t%s\t%d\t\t%s\n", 
-				id, email, truncate(name, 15), status, adminStr, freeMonths, createdAt[:10])
+			fmt.Printf("%-4d %-35s %-25s %-12s %-6s %-6d %-12s\n", 
+				id, truncate(email, 34), truncate(name, 24), status, adminStr, freeMonths, createdAt[:10])
 		}
+		fmt.Println()
 	} else {
 		log.Fatal("List users command only supports SQLite database")
 	}
@@ -177,40 +180,50 @@ func showUserInfo(subscriptionService *services.SubscriptionService, email strin
 		log.Fatal("Failed to get subscription info:", err)
 	}
 
-	fmt.Printf("User Information:\n")
-	fmt.Printf("  ID: %d\n", user.ID)
-	fmt.Printf("  Name: %s\n", user.Name)
-	fmt.Printf("  Email: %s\n", user.Email)
-	fmt.Printf("  Joined: %s\n", user.CreatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("  Google ID: %s\n", user.GoogleID)
-	fmt.Printf("\nSystem Configuration:\n")
-	fmt.Printf("  Subscription System: %s\n", map[bool]string{true: "Enabled", false: "Disabled"}[config.IsSubscriptionEnabled()])
-	fmt.Printf("\nSubscription Details:\n")
-	fmt.Printf("  Status: %s\n", subscriptionInfo.Status)
-	fmt.Printf("  Is Admin: %t\n", user.IsAdmin)
+	fmt.Printf("\n┌─────────────────────────────────────────────────────────────────┐\n")
+	fmt.Printf("│                         User Information                        │\n")
+	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
+	fmt.Printf("│ %-20s │ %-42s │\n", "ID:", fmt.Sprintf("%d", user.ID))
+	fmt.Printf("│ %-20s │ %-42s │\n", "Name:", user.Name)
+	fmt.Printf("│ %-20s │ %-42s │\n", "Email:", user.Email)
+	fmt.Printf("│ %-20s │ %-42s │\n", "Joined:", user.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("│ %-20s │ %-42s │\n", "Google ID:", user.GoogleID)
+	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
+	fmt.Printf("│                      System Configuration                       │\n")
+	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
+	fmt.Printf("│ %-20s │ %-42s │\n", "Subscription System:", map[bool]string{true: "Enabled", false: "Disabled"}[config.IsSubscriptionEnabled()])
+	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
+	fmt.Printf("│                      Subscription Details                       │\n")
+	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
+	fmt.Printf("│ %-20s │ %-42s │\n", "Status:", subscriptionInfo.Status)
+	fmt.Printf("│ %-20s │ %-42s │\n", "Is Admin:", map[bool]string{true: "Yes", false: "No"}[user.IsAdmin])
+	
 	if config.IsSubscriptionEnabled() {
-		fmt.Printf("  Free Months Remaining: %d\n", user.FreeMonthsRemaining)
+		fmt.Printf("│ %-20s │ %-42s │\n", "Free Months:", fmt.Sprintf("%d", user.FreeMonthsRemaining))
 	}
-	fmt.Printf("  Current Feeds: %d\n", subscriptionInfo.CurrentFeeds)
+	
+	fmt.Printf("│ %-20s │ %-42s │\n", "Current Feeds:", fmt.Sprintf("%d", subscriptionInfo.CurrentFeeds))
 	
 	if subscriptionInfo.FeedLimit == -1 {
-		fmt.Printf("  Feed Limit: Unlimited\n")
+		fmt.Printf("│ %-20s │ %-42s │\n", "Feed Limit:", "Unlimited")
 	} else {
-		fmt.Printf("  Feed Limit: %d\n", subscriptionInfo.FeedLimit)
+		fmt.Printf("│ %-20s │ %-42s │\n", "Feed Limit:", fmt.Sprintf("%d", subscriptionInfo.FeedLimit))
 	}
 	
 	if subscriptionInfo.Status == "trial" {
-		fmt.Printf("  Trial Ends: %s\n", user.TrialEndsAt.Format("2006-01-02 15:04:05"))
-		fmt.Printf("  Days Remaining: %d\n", subscriptionInfo.TrialDaysRemaining)
+		fmt.Printf("│ %-20s │ %-42s │\n", "Trial Ends:", user.TrialEndsAt.Format("2006-01-02 15:04:05"))
+		fmt.Printf("│ %-20s │ %-42s │\n", "Days Remaining:", fmt.Sprintf("%d", subscriptionInfo.TrialDaysRemaining))
 	}
 	
 	if user.SubscriptionID != "" {
-		fmt.Printf("  Stripe Subscription ID: %s\n", user.SubscriptionID)
+		fmt.Printf("│ %-20s │ %-42s │\n", "Stripe Subscription:", user.SubscriptionID)
 	}
 	
 	if !user.LastPaymentDate.IsZero() {
-		fmt.Printf("  Last Payment: %s\n", user.LastPaymentDate.Format("2006-01-02 15:04:05"))
+		fmt.Printf("│ %-20s │ %-42s │\n", "Last Payment:", user.LastPaymentDate.Format("2006-01-02 15:04:05"))
 	}
+	
+	fmt.Printf("└─────────────────────────────────────────────────────────────────┘\n\n")
 }
 
 func truncate(s string, max int) string {
