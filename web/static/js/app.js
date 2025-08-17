@@ -15,8 +15,10 @@ class GoReadApp {
     }
 
     async init() {
+        console.log('GoReadApp initializing...');
         await this.checkAuth();
         if (this.user) {
+            console.log('User authenticated, showing app');
             // Show app immediately for better perceived performance
             this.showApp();
             this.bindEvents();
@@ -27,10 +29,12 @@ class GoReadApp {
                 this.loadSubscriptionInfo(),
                 this.loadFeedsOptimized()
             ]).then(() => {
+                console.log('Initial data loading complete');
                 // Optional: Start background sync after initial load
                 this.startUnreadCountSync();
             });
         } else {
+            console.log('User not authenticated, showing login');
             this.showLogin();
         }
     }
@@ -1263,10 +1267,13 @@ class GoReadApp {
             });
             
             if (response.ok) {
+                console.log('Feed added successfully, reloading data...');
                 this.hideAddFeedModal();
                 await this.loadFeeds();
+                console.log('Reloading subscription info after adding feed...');
                 await this.loadSubscriptionInfo();
                 await this.updateUnreadCounts();
+                console.log('Calling updateSubscriptionDisplay after adding feed...');
                 this.updateSubscriptionDisplay();
             } else if (response.status === 402) { // Payment Required
                 const error = await response.json();
@@ -1671,7 +1678,10 @@ class GoReadApp {
 
     updateSubscriptionPanel() {
         const panel = document.getElementById('subscription-panel');
-        if (!panel) return;
+        if (!panel) {
+            console.log('ERROR: subscription-panel element not found in DOM');
+            return;
+        }
 
         console.log('Updating subscription panel with info:', this.subscriptionInfo);
 
@@ -1755,5 +1765,20 @@ class GoReadApp {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new GoReadApp();
+    try {
+        console.log('DOM loaded, initializing GoReadApp');
+        window.app = new GoReadApp();
+        console.log('GoReadApp initialized:', window.app);
+    } catch (error) {
+        console.error('Error initializing GoReadApp:', error);
+    }
+});
+
+// Global error handler to catch any unhandled errors
+window.addEventListener('error', (event) => {
+    console.error('Global error caught:', event.error);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
 });
