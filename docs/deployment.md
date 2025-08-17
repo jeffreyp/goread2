@@ -1,14 +1,18 @@
-# GoRead2 - Multi-User Deployment Guide
+# Deployment Guide
 
-This guide explains how to deploy the multi-user GoRead2 RSS Reader with Google OAuth authentication to various platforms.
+Complete guide for deploying GoRead2 to production environments.
 
 ## Overview
 
-GoRead2 now supports multiple users with Google OAuth authentication, requiring additional setup for:
+GoRead2 supports multiple deployment options:
+- **Google App Engine** (Recommended)
+- **Docker/Containers**
+- **Traditional VPS/Server**
+
+All deployment methods require:
 - Google OAuth 2.0 configuration
-- Multi-user database schema
+- Multi-user database setup
 - Session management
-- User data isolation
 - Production security considerations
 
 ## Prerequisites
@@ -43,41 +47,9 @@ GoRead2 now supports multiple users with Google OAuth authentication, requiring 
    gcloud config set project YOUR_PROJECT_ID
    ```
 
-## Deployment Options
+## Google App Engine (Recommended)
 
-### Option 1: Google App Engine (Recommended)
-
-#### Project Structure for App Engine
-
-```
-goread2/
-├── app.yaml                     # App Engine configuration
-├── cron.yaml                    # Cron jobs for feed refresh
-├── main.go                      # Application entry point
-├── go.mod                       # Dependencies with OAuth libraries
-├── internal/
-│   ├── auth/                    # Authentication system
-│   │   ├── auth.go             # Google OAuth integration
-│   │   ├── middleware.go       # Auth middleware
-│   │   └── session.go          # Session management
-│   ├── database/
-│   │   ├── schema.go           # Multi-user database schema
-│   │   └── datastore.go        # Google Datastore implementation
-│   ├── handlers/
-│   │   ├── feed_handler.go     # User-aware feed handlers
-│   │   └── auth_handler.go     # Authentication handlers
-│   └── services/
-│       └── feed_service.go     # Multi-user business logic
-└── web/                        # Static files served by GAE
-    ├── templates/
-    │   └── index.html          # Updated with auth UI
-    └── static/
-        ├── css/
-        └── js/
-            └── app.js          # Frontend with auth integration
-```
-
-#### app.yaml Configuration
+### app.yaml Configuration
 
 ```yaml
 runtime: go121
@@ -87,6 +59,11 @@ env_variables:
   GOOGLE_CLIENT_ID: "your-oauth-client-id"
   GOOGLE_CLIENT_SECRET: "your-oauth-client-secret"
   GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
+  SUBSCRIPTION_ENABLED: "true"
+  STRIPE_SECRET_KEY: "sk_live_your-secret-key"
+  STRIPE_PUBLISHABLE_KEY: "pk_live_your-publishable-key"
+  STRIPE_WEBHOOK_SECRET: "whsec_your-webhook-secret"
+  STRIPE_PRICE_ID: "price_your-price-id"
 
 handlers:
 - url: /static
@@ -106,13 +83,9 @@ resources:
   cpu: 1
   memory_gb: 0.5
   disk_size_gb: 10
-
-# Session configuration for security
-vpc_access_connector:
-  name: projects/PROJECT_ID/locations/REGION/connectors/CONNECTOR_NAME
 ```
 
-#### cron.yaml Configuration
+### cron.yaml Configuration
 
 ```yaml
 cron:
@@ -127,28 +100,18 @@ cron:
   target: default
 ```
 
-#### Deployment Steps
+### Deployment Steps
 
 1. **Configure OAuth redirect URI:**
-   ```bash
-   # Update OAuth configuration with production URL
-   # https://your-app.appspot.com/auth/callback
-   ```
+   Update OAuth configuration with production URL:
+   `https://your-app.appspot.com/auth/callback`
 
-2. **Set environment variables in app.yaml:**
-   ```yaml
-   env_variables:
-     GOOGLE_CLIENT_ID: "your-production-client-id"
-     GOOGLE_CLIENT_SECRET: "your-production-client-secret"
-     GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
-   ```
-
-3. **Initialize App Engine:**
+2. **Initialize App Engine:**
    ```bash
    gcloud app create --region=us-central1
    ```
 
-4. **Deploy application:**
+3. **Deploy application:**
    ```bash
    # Deploy main application
    gcloud app deploy app.yaml
@@ -157,21 +120,21 @@ cron:
    gcloud app deploy cron.yaml
    ```
 
-5. **Open application:**
+4. **Open application:**
    ```bash
    gcloud app browse
    ```
 
-#### Database Configuration (App Engine)
+### Database Configuration (App Engine)
 
 - **Production**: Google Cloud Datastore (automatically detected)
 - **Multi-user entities**: Users, UserFeeds, UserArticles
 - **User isolation**: All queries filtered by authenticated user ID
 - **Scalability**: Handles multiple concurrent users efficiently
 
-### Option 2: Docker Deployment
+## Docker Deployment
 
-#### Dockerfile
+### Dockerfile
 
 ```dockerfile
 FROM golang:1.21-alpine AS builder
@@ -194,7 +157,7 @@ EXPOSE 8080
 CMD ["./goread2"]
 ```
 
-#### docker-compose.yml
+### docker-compose.yml
 
 ```yaml
 version: '3.8'
@@ -208,6 +171,9 @@ services:
       - GOOGLE_CLIENT_SECRET=your-oauth-client-secret
       - GOOGLE_REDIRECT_URL=https://your-domain.com/auth/callback
       - GIN_MODE=release
+      - SUBSCRIPTION_ENABLED=true
+      - STRIPE_SECRET_KEY=sk_live_your-secret-key
+      - STRIPE_PUBLISHABLE_KEY=pk_live_your-publishable-key
     volumes:
       - ./data:/root/data
     restart: unless-stopped
@@ -225,7 +191,7 @@ services:
     restart: unless-stopped
 ```
 
-#### nginx.conf (SSL Termination)
+### nginx.conf (SSL Termination)
 
 ```nginx
 events {
@@ -261,13 +227,11 @@ http {
 }
 ```
 
-#### Docker Deployment Steps
+### Docker Deployment Steps
 
 1. **Configure OAuth:**
-   ```bash
-   # Set production redirect URI in Google Console
-   # https://your-domain.com/auth/callback
-   ```
+   Set production redirect URI in Google Console:
+   `https://your-domain.com/auth/callback`
 
 2. **Create environment file:**
    ```bash
@@ -276,6 +240,7 @@ http {
    GOOGLE_CLIENT_SECRET=your-oauth-client-secret
    GOOGLE_REDIRECT_URL=https://your-domain.com/auth/callback
    GIN_MODE=release
+   SUBSCRIPTION_ENABLED=true
    EOF
    ```
 
@@ -284,9 +249,9 @@ http {
    docker-compose up -d
    ```
 
-### Option 3: Traditional VPS/Server
+## Traditional VPS/Server
 
-#### Prerequisites
+### Prerequisites
 
 ```bash
 # Install Go 1.21+
@@ -299,7 +264,7 @@ sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx sqlite3
 ```
 
-#### systemd Service
+### systemd Service
 
 ```ini
 # /etc/systemd/system/goread2.service
@@ -319,12 +284,13 @@ Environment=GOOGLE_CLIENT_ID=your-oauth-client-id
 Environment=GOOGLE_CLIENT_SECRET=your-oauth-client-secret
 Environment=GOOGLE_REDIRECT_URL=https://your-domain.com/auth/callback
 Environment=GIN_MODE=release
+Environment=SUBSCRIPTION_ENABLED=true
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-#### Server Deployment Steps
+### Server Deployment Steps
 
 1. **Create user and directories:**
    ```bash
@@ -366,50 +332,7 @@ WantedBy=multi-user.target
 - `GIN_MODE` - Set to "release" for production
 - `PORT` - Server port (default: 8080)
 - `SESSION_SECRET` - Custom session encryption key (auto-generated if not set)
-
-## Database Configuration
-
-### Multi-User Schema
-
-The application now includes comprehensive multi-user support:
-
-```sql
--- Users table
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    google_id TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    avatar TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- User-specific feed subscriptions
-CREATE TABLE user_feeds (
-    user_id INTEGER NOT NULL,
-    feed_id INTEGER NOT NULL,
-    PRIMARY KEY (user_id, feed_id),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    FOREIGN KEY (feed_id) REFERENCES feeds (id) ON DELETE CASCADE
-);
-
--- User-specific article status
-CREATE TABLE user_articles (
-    user_id INTEGER NOT NULL,
-    article_id INTEGER NOT NULL,
-    is_read BOOLEAN DEFAULT FALSE,
-    is_starred BOOLEAN DEFAULT FALSE,
-    PRIMARY KEY (user_id, article_id),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
-);
-```
-
-### Database Backends
-
-- **Local Development**: SQLite with multi-user schema
-- **Google App Engine**: Cloud Datastore with user entity isolation
-- **Docker/VPS**: SQLite with persistent volume mounting
+- `SUBSCRIPTION_ENABLED` - Enable/disable subscription system (default: false)
 
 ## Security Considerations
 
@@ -446,20 +369,6 @@ handlers:
 
 ### Health Checks
 
-```go
-// Health check endpoint for monitoring
-func healthCheck(c *gin.Context) {
-    c.JSON(200, gin.H{
-        "status": "healthy",
-        "timestamp": time.Now(),
-        "users": getUserCount(),
-        "feeds": getFeedCount(),
-    })
-}
-```
-
-### Logging
-
 ```bash
 # App Engine logs
 gcloud app logs tail -s default
@@ -471,47 +380,18 @@ docker-compose logs -f goread2
 sudo journalctl -u goread2 -f
 ```
 
-### User Management
+### Performance Optimization
 
-```bash
-# View active users (via database query)
-sqlite3 goread2.db "SELECT COUNT(*) FROM users;"
-
-# View user sessions
-sqlite3 goread2.db "SELECT user_id, created_at FROM sessions WHERE expires_at > datetime('now');"
-```
-
-## Performance Optimization
-
-### Caching Strategies
-
-1. **Session caching**: In-memory session store for frequently accessed sessions
-2. **Feed caching**: Cache RSS feed responses to reduce external requests
-3. **User data caching**: Cache user preferences and feed subscriptions
-4. **Static asset caching**: Leverage CDN for static files
-
-### Database Optimization
-
-1. **Indexing**: Proper indexes on user_id and feed_id columns
-2. **Connection pooling**: For high-traffic deployments
-3. **Query optimization**: Efficient user-filtered queries
-4. **Cleanup jobs**: Regular cleanup of expired sessions and old articles
-
-### Scaling Considerations
-
-1. **Horizontal scaling**: Multiple app instances behind load balancer
-2. **Database scaling**: Consider PostgreSQL for very high user counts
-3. **Feed fetching**: Queue-based system for many concurrent users
-4. **Session storage**: Redis for distributed session management
+1. **Caching**: Session, feed, and static asset caching
+2. **Database optimization**: Proper indexes and connection pooling
+3. **Scaling**: Horizontal scaling with load balancers
+4. **Cleanup**: Regular cleanup of expired sessions and old articles
 
 ## Testing in Production
 
 ### Deployment Testing
 
 ```bash
-# Run comprehensive test suite
-./test.sh
-
 # Test OAuth flow
 curl -I https://your-domain.com/auth/login
 
@@ -565,13 +445,6 @@ artillery quick --count 10 --num 50 https://your-domain.com
    - Monitor query performance
    - Consider database optimization
 
-### Feed Fetching
-
-1. **Feeds not updating for users:**
-   - Check cron job/background task logs
-   - Verify user-specific feed refresh logic
-   - Monitor external RSS feed accessibility
-
 ## Cost Optimization
 
 ### Google App Engine
@@ -588,52 +461,9 @@ artillery quick --count 10 --num 50 https://your-domain.com
 - **SSL certificates**: Use Let's Encrypt for free SSL
 - **CDN**: CloudFlare free tier for static asset caching
 
-## Migration Guide
+## Next Steps
 
-### From Single-User to Multi-User
-
-If upgrading from a single-user installation:
-
-1. **Backup existing data:**
-   ```bash
-   cp goread2.db goread2_backup.db
-   ```
-
-2. **Run migration script:**
-   ```bash
-   # Create default user and migrate data
-   go run scripts/migrate_to_multiuser.go
-   ```
-
-3. **Update configuration:**
-   - Add OAuth environment variables
-   - Update frontend to include authentication UI
-   - Test multi-user functionality
-
-## Support and Resources
-
-- [Google OAuth 2.0 Documentation](https://developers.google.com/identity/protocols/oauth2)
-- [App Engine Go Documentation](https://cloud.google.com/appengine/docs/standard/go)
-- [Cloud Datastore Documentation](https://cloud.google.com/datastore/docs)
-- [GoRead2 Testing Guide](./README_TESTING.md)
-- [Multi-User Security Best Practices](https://owasp.org/www-community/Multi-User_Security)
-
-## Example Deployment Commands
-
-```bash
-# Google App Engine deployment
-gcloud app deploy app.yaml
-gcloud app deploy cron.yaml
-
-# Docker deployment
-docker-compose up -d
-
-# Traditional server deployment
-sudo systemctl start goread2
-sudo nginx -t && sudo systemctl reload nginx
-
-# Health check
-curl -f https://your-domain.com/api/health || exit 1
-```
-
-This comprehensive deployment guide covers all aspects of deploying the multi-user GoRead2 application with proper authentication, security, and scalability considerations.
+- Configure [Stripe payments](stripe.md) for subscription features
+- Set up [monitoring and logging](monitoring.md) for production
+- Review [security best practices](security.md)
+- Plan [backup and recovery](backup.md) procedures

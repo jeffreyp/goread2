@@ -1,6 +1,6 @@
-# GoRead2 Feature Flags
+# Feature Flags
 
-This document describes the available feature flags in GoRead2 and how to use them.
+Configuration options for enabling/disabling GoRead2 features.
 
 ## Subscription System Toggle
 
@@ -8,20 +8,18 @@ This document describes the available feature flags in GoRead2 and how to use th
 
 The subscription system can be enabled or disabled using the `SUBSCRIPTION_ENABLED` environment variable. This allows you to:
 
-- **Safely merge** subscription features without affecting existing users
-- **Gradually roll out** subscription functionality
-- **Test deployments** without enabling billing
+- **Safely deploy** subscription features without affecting existing users
 - **Run GoRead2 as a free service** without any subscription limits
+- **Test deployments** without enabling billing
+- **Gradually roll out** subscription functionality
 
 ### Configuration
 
-Set the `SUBSCRIPTION_ENABLED` environment variable to control subscription functionality:
-
 ```bash
-# Enable subscription system (default: false)
+# Enable subscription system
 export SUBSCRIPTION_ENABLED=true
 
-# Disable subscription system  
+# Disable subscription system (default)
 export SUBSCRIPTION_ENABLED=false
 ```
 
@@ -47,6 +45,7 @@ SUBSCRIPTION_ENABLED=true
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_PUBLISHABLE_KEY=pk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID=price_...
 ```
 
 ### When Subscription System is DISABLED
@@ -56,7 +55,6 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 - **No billing** or payment processing
 - **No subscription limits** or restrictions
 - **Simplified UI** without upgrade prompts
-- **Admin access** without subscription concerns
 
 ❌ **Disabled Features:**
 - Stripe payment processing
@@ -76,17 +74,8 @@ SUBSCRIPTION_ENABLED=false
 
 ### Backend Changes
 
-**Configuration Loading:**
-```go
-// config/config.go
-func IsSubscriptionEnabled() bool {
-    return Get().SubscriptionEnabled
-}
-```
-
 **Service Layer:**
 ```go
-// subscription_service.go
 func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
     // If subscription system is disabled, allow unlimited feeds
     if !config.IsSubscriptionEnabled() {
@@ -115,25 +104,16 @@ func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
 
 ### Admin Commands
 
-**Available Commands:**
+**Always Available:**
 ```bash
-# Always available
 go run cmd/admin/main.go list-users
 go run cmd/admin/main.go set-admin user@example.com true
 go run cmd/admin/main.go user-info user@example.com
+```
 
-# Only when SUBSCRIPTION_ENABLED=true
+**Only When Enabled:**
+```bash
 go run cmd/admin/main.go grant-months user@example.com 3
-```
-
-**User Info Output:**
-```
-System Configuration:
-  Subscription System: Enabled/Disabled
-
-Subscription Details:
-  Status: unlimited  # When disabled
-  Feed Limit: Unlimited
 ```
 
 ## Migration Strategy
@@ -152,7 +132,6 @@ Subscription Details:
 
 3. **Enable gradually:**
    ```bash
-   # Enable for testing environment first
    SUBSCRIPTION_ENABLED=true
    ```
 
@@ -181,8 +160,9 @@ SUBSCRIPTION_ENABLED=false
 | `STRIPE_SECRET_KEY` | When enabled | - | Stripe secret key for payments |
 | `STRIPE_PUBLISHABLE_KEY` | When enabled | - | Stripe public key for frontend |
 | `STRIPE_WEBHOOK_SECRET` | When enabled | - | Stripe webhook signature verification |
+| `STRIPE_PRICE_ID` | When enabled | - | Stripe price ID for Pro subscription |
 
-## Testing
+## Testing Different Modes
 
 ### Test Subscription Disabled
 
@@ -193,8 +173,6 @@ SUBSCRIPTION_ENABLED=false
 # Verify behavior
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/subscription
 # Should return: {"status": "unlimited", "feed_limit": -1, ...}
-
-# Test adding many feeds - should succeed without limits
 ```
 
 ### Test Subscription Enabled
@@ -207,13 +185,11 @@ STRIPE_SECRET_KEY=sk_test_...
 # Verify behavior
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/subscription
 # Should return trial status with limits
-
-# Test feed limits - should enforce 20 feed limit for trial users
 ```
 
 ## Troubleshooting
 
-**Common Issues:**
+### Common Issues
 
 1. **Subscription routes not found (404)**
    - Check `SUBSCRIPTION_ENABLED=true`
@@ -227,21 +203,13 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/subscription
    - Verify command exists for current configuration
    - Check environment variable spelling
 
-**Debug Commands:**
+### Debug Commands
+
 ```bash
 # Check current configuration
 go run cmd/admin/main.go user-info any@email.com
 
-# Look for "System Configuration" section
+# Look for "System Configuration" section in output
 ```
 
-## Future Enhancements
-
-Potential additional feature flags:
-
-- `ANALYTICS_ENABLED` - Enable/disable usage analytics
-- `OPML_IMPORT_ENABLED` - Control OPML import functionality  
-- `ADMIN_PANEL_ENABLED` - Show/hide admin interface
-- `RATE_LIMITING_ENABLED` - Enable API rate limiting
-
-These can follow the same pattern established by the subscription toggle.
+This feature flag system provides flexible control over subscription functionality while maintaining a smooth user experience.
