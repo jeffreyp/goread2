@@ -17,12 +17,19 @@ class GoReadApp {
     async init() {
         await this.checkAuth();
         if (this.user) {
-            this.bindEvents();
-            await this.loadSubscriptionInfo();
-            this.loadFeeds();
-            this.setupKeyboardShortcuts();
-            this.startUnreadCountSync();
+            // Show app immediately for better perceived performance
             this.showApp();
+            this.bindEvents();
+            this.setupKeyboardShortcuts();
+            
+            // Load data in parallel but don't block UI
+            Promise.all([
+                this.loadSubscriptionInfo(),
+                this.loadFeedsOptimized()
+            ]).then(() => {
+                // Optional: Start background sync after initial load
+                this.startUnreadCountSync();
+            });
         } else {
             this.showLogin();
         }
@@ -236,6 +243,54 @@ class GoReadApp {
         }
     }
 
+    async loadFeedsOptimized() {
+        try {
+            // Show loading state immediately
+            document.getElementById('feed-list').innerHTML = '<div class="loading">Loading feeds...</div>';
+            document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
+            
+            // Batch feeds and unread counts requests
+            const [feedsResponse, countsResponse] = await Promise.all([
+                fetch('/api/feeds'),
+                fetch('/api/feeds/unread-counts')
+            ]);
+            
+            if (!feedsResponse.ok) {
+                throw new Error(`HTTP ${feedsResponse.status}`);
+            }
+            
+            const feedsData = await feedsResponse.json();
+            this.feeds = feedsData;
+            
+            if (Array.isArray(this.feeds)) {
+                this.renderFeeds();
+                
+                // Process unread counts if available
+                if (countsResponse.ok) {
+                    const unreadCounts = await countsResponse.json();
+                    this.applyUnreadCounts(unreadCounts);
+                }
+                
+                if (this.feeds.length > 0) {
+                    // Select "all" but don't load articles immediately - defer it
+                    this.currentFeed = 'all';
+                    document.querySelector(`[data-feed-id="all"]`).classList.add('active');
+                    document.getElementById('article-pane-title').textContent = 'Articles';
+                    
+                    // Load articles after a short delay to let UI settle
+                    setTimeout(() => {
+                        this.loadArticles('all');
+                    }, 100);
+                }
+            } else {
+                this.showError('Invalid feed data received from server');
+            }
+        } catch (error) {
+            console.error('Failed to load feeds:', error);
+            this.showError('Failed to load feeds: ' + error.message);
+        }
+    }
+
     renderFeeds() {
         if (!Array.isArray(this.feeds)) {
             return;
@@ -326,7 +381,8 @@ class GoReadApp {
             const response = await fetch(url);
             this.articles = await response.json();
             
-            this.renderArticles();
+            // For initial load, limit articles to improve performance
+            this.renderArticlesOptimized();
             // Note: Don't call updateUnreadCounts() here as it overwrites optimistic updates
             // The counts will be updated optimistically when user actions occur
             // and periodically synced via startUnreadCountSync()
@@ -415,6 +471,102 @@ class GoReadApp {
             this.currentArticle = null;
             document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
         }
+    }
+
+    renderArticlesOptimized() {
+        const articleList = document.getElementById('article-list');
+        
+        if (this.articles.length === 0) {
+            articleList.innerHTML = '<div class="placeholder">No articles found</div>';
+            return;
+        }
+        
+        // Limit initial render to first 50 articles for performance
+        const INITIAL_RENDER_LIMIT = 50;
+        const articlesToRender = this.articles.slice(0, INITIAL_RENDER_LIMIT);
+        
+        // Use DocumentFragment for better performance
+        const fragment = document.createDocumentFragment();
+        
+        // Remove existing event listeners by cloning the element
+        const newArticleList = articleList.cloneNode(false);
+        articleList.parentNode.replaceChild(newArticleList, articleList);
+        // Update reference
+        const updatedArticleList = document.getElementById('article-list');
+        
+        // Add event delegation for star buttons and article selection
+        updatedArticleList.addEventListener('click', (e) => {
+            // Handle star button clicks via event delegation
+            if (e.target.classList.contains('star-btn')) {
+                e.stopPropagation();
+                e.preventDefault();
+                this.toggleStar(parseInt(e.target.dataset.articleId));
+                return;
+            }
+            
+            // Handle article selection
+            const articleItem = e.target.closest('.article-item');
+            if (articleItem && !e.target.classList.contains('star-btn')) {
+                const index = parseInt(articleItem.dataset.index);
+                this.selectArticle(index);
+            }
+        });
+        
+        articlesToRender.forEach((article, i) => {
+            const articleItem = document.createElement('div');
+            articleItem.className = `article-item ${article.is_read ? 'read' : ''}`;
+            articleItem.dataset.articleId = article.id;
+            articleItem.dataset.index = i;  // Use actual index from slice
+            
+            const publishedDate = new Date(article.published_at).toLocaleDateString();
+            articleItem.innerHTML = `
+                <div class="article-header">
+                    <div style="flex: 1;">
+                        <div class="article-title">${this.escapeHtml(article.title)}</div>
+                        <div class="article-meta">
+                            <span>${publishedDate}</span>
+                            ${article.author ? `<span>by ${this.escapeHtml(article.author)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="article-actions">
+                        <button class="action-btn star-btn ${article.is_starred ? 'starred' : ''}" 
+                                data-article-id="${article.id}" title="Star article">★</button>
+                    </div>
+                </div>
+                ${article.description ? `<div class="article-description">${this.escapeHtml(article.description)}</div>` : ''}
+            `;
+            
+            fragment.appendChild(articleItem);
+        });
+        
+        // Add "Load More" button if there are more articles
+        if (this.articles.length > INITIAL_RENDER_LIMIT) {
+            const loadMoreBtn = document.createElement('div');
+            loadMoreBtn.className = 'load-more-btn';
+            loadMoreBtn.innerHTML = `<button onclick="app.loadMoreArticles()">Load More Articles (${this.articles.length - INITIAL_RENDER_LIMIT} remaining)</button>`;
+            fragment.appendChild(loadMoreBtn);
+        }
+        
+        // Single DOM append operation
+        updatedArticleList.appendChild(fragment);
+        
+        // Apply current filter after rendering
+        this.applyArticleFilter();
+        
+        // Auto-select the first visible article if any exist
+        const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
+        if (visibleArticles.length > 0) {
+            const firstVisibleIndex = parseInt(visibleArticles[0].dataset.index);
+            this.selectArticle(firstVisibleIndex);
+        } else {
+            this.currentArticle = null;
+            document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
+        }
+    }
+
+    loadMoreArticles() {
+        // This can be enhanced later to load more articles incrementally
+        this.renderArticles(); // Fall back to full render for now
     }
 
     async selectArticle(index) {
