@@ -60,6 +60,8 @@ class GoReadApp {
             if (response.ok) {
                 this.subscriptionInfo = await response.json();
                 console.log('Subscription info loaded:', this.subscriptionInfo);
+                // Update the subscription display in header and sidebar
+                this.updateSubscriptionDisplay();
             } else {
                 console.error('Failed to load subscription info:', response.status);
             }
@@ -251,8 +253,20 @@ class GoReadApp {
 
     async loadFeedsOptimized() {
         try {
-            // Show loading state immediately
-            document.getElementById('feed-list').innerHTML = '<div class="loading">Loading feeds...</div>';
+            // Show loading state for feeds while preserving special items
+            const feedList = document.getElementById('feed-list');
+            // Remove existing feed items and loading, but preserve special items
+            const existingFeeds = feedList.querySelectorAll('.feed-item:not(.special)');
+            const existingLoading = feedList.querySelector('.loading');
+            existingFeeds.forEach(item => item.remove());
+            if (existingLoading) existingLoading.remove();
+            
+            // Add loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading';
+            loadingDiv.textContent = 'Loading feeds...';
+            feedList.appendChild(loadingDiv);
+            
             document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
             
             // Batch feeds and unread counts requests
@@ -278,9 +292,12 @@ class GoReadApp {
                 }
                 
                 if (this.feeds.length > 0) {
-                    // Select "all" but don't load articles immediately - defer it
+                    // Select "all" - now the element should exist
                     this.currentFeed = 'all';
-                    document.querySelector(`[data-feed-id="all"]`).classList.add('active');
+                    const allElement = document.querySelector(`[data-feed-id="all"]`);
+                    if (allElement) {
+                        allElement.classList.add('active');
+                    }
                     document.getElementById('article-pane-title').textContent = 'Articles';
                     
                     // Load articles after a short delay to let UI settle
@@ -304,9 +321,11 @@ class GoReadApp {
         
         const feedList = document.getElementById('feed-list');
         
-        // Remove existing feed items (not the "All" item)
+        // Remove existing feed items and loading indicator (not the "All" item)
         const existingFeeds = feedList.querySelectorAll('.feed-item:not(.special)');
+        const loadingIndicator = feedList.querySelector('.loading');
         existingFeeds.forEach(item => item.remove());
+        if (loadingIndicator) loadingIndicator.remove();
         
         this.feeds.forEach((feed) => {
             // Create main container
