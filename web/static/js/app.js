@@ -552,9 +552,7 @@ class GoReadApp {
             
             const button = document.createElement('button');
             button.textContent = `Load More Articles (${this.articles.length - INITIAL_RENDER_LIMIT} remaining)`;
-            button.addEventListener('click', () => {
-                this.loadMoreArticles();
-            });
+            button.addEventListener('click', this.loadMoreArticles.bind(this));
             
             loadMoreBtn.appendChild(button);
             fragment.appendChild(loadMoreBtn);
