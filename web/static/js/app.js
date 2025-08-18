@@ -1367,16 +1367,45 @@ class GoReadApp {
     }
 
     async refreshFeeds() {
+        const refreshBtn = document.getElementById('refresh-btn');
+        const originalText = refreshBtn ? refreshBtn.textContent : '';
+        
         try {
-            await fetch('/api/feeds/refresh', { method: 'POST' });
+            // Show loading state
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = 'Refreshing...';
+            }
             
+            console.log('Refreshing feeds...');
+            const response = await fetch('/api/feeds/refresh', { method: 'POST' });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            console.log('Feeds refreshed successfully');
+            
+            // Reload articles for current feed to show any new content
             if (this.currentFeed) {
                 await this.loadArticles(this.currentFeed);
             }
             
+            // Update unread counts to reflect any changes
             await this.updateUnreadCounts();
+            
+            // Show success feedback
+            this.showSuccess('Feeds refreshed successfully');
+            
         } catch (error) {
             console.error('Failed to refresh feeds:', error);
+            this.showError('Failed to refresh feeds: ' + error.message);
+        } finally {
+            // Restore button state
+            if (refreshBtn) {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = originalText;
+            }
         }
     }
 
