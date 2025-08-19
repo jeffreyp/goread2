@@ -15,10 +15,8 @@ class GoReadApp {
     }
 
     async init() {
-        console.log('GoReadApp initializing...');
         await this.checkAuth();
         if (this.user) {
-            console.log('User authenticated, showing app');
             // Show app immediately for better perceived performance
             this.showApp();
             this.bindEvents();
@@ -91,6 +89,7 @@ class GoReadApp {
                 this.showHelpModal();
             });
         }
+
 
         const importOpmlBtn = document.getElementById('import-opml-btn');
         if (importOpmlBtn) {
@@ -300,10 +299,8 @@ class GoReadApp {
                     }
                     document.getElementById('article-pane-title').textContent = 'Articles';
                     
-                    // Load articles after a short delay to let UI settle
-                    setTimeout(() => {
-                        this.loadArticles('all');
-                    }, 100);
+                    // Load articles immediately after unread counts are applied
+                    this.loadArticles('all');
                 }
             } else {
                 this.showError('Invalid feed data received from server');
@@ -406,11 +403,8 @@ class GoReadApp {
             const response = await fetch(url);
             this.articles = await response.json();
             
-            // For initial load, limit articles to improve performance
+            
             this.renderArticlesOptimized();
-            // Note: Don't call updateUnreadCounts() here as it overwrites optimistic updates
-            // The counts will be updated optimistically when user actions occur
-            // and periodically synced via startUnreadCountSync()
         } catch (error) {
             this.showError('Failed to load articles: ' + error.message);
         }
@@ -600,14 +594,7 @@ class GoReadApp {
     }
 
     async selectArticle(index) {
-        // Mark previous article as read if we're navigating away from one
-        if (this.currentArticle !== null && this.currentArticle !== index) {
-            await this.markCurrentArticleAsReadIfUnread();
-            
-            // If we're showing unread only and the previous article was auto-marked as read,
-            // hide it now that we're navigating away
-            this.hideAutoReadArticleIfNeeded(this.currentArticle);
-        }
+        // Auto-read behavior is disabled - users manually control read status with 'm' key
         
         this.currentArticle = index;
         
@@ -621,126 +608,10 @@ class GoReadApp {
         const article = this.articles[index];
         this.displayArticle(article);
         
-        // Auto-mark as read if this is the last unread article in the feed
-        await this.autoMarkLastUnreadArticle(index);
         
         articleItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
-    
-    async autoMarkLastUnreadArticle(index) {
-        const article = this.articles[index];
-        
-        // Only auto-mark if the article is currently unread
-        if (!article || article.is_read) {
-            return;
-        }
-        
-        // Count unread articles in current view
-        const unreadArticles = this.articles.filter(a => !a.is_read);
-        
-        // If this is the only unread article left, mark it as read immediately
-        if (unreadArticles.length === 1) {
-            try {
-                // Optimistically update UI first for instant feedback
-                article.is_read = true;
-                const articleItem = document.querySelector(`[data-index="${index}"]`);
-                if (articleItem) {
-                    articleItem.classList.add('read');
-                    // Note: Don't hide the article even if showing unread only - keep it visible until navigation
-                }
-                
-                // Update unread counts immediately (optimistically)
-                if (article.feed_id) {
-                    this.updateUnreadCountsOptimistically(article.feed_id, -1);
-                } else {
-                    this.updateUnreadCountsForCurrentFeed(-1);
-                }
-                
-                // Then make the API call to persist the change
-                await this.markAsRead(article.id, true);
-            } catch (error) {
-                // If marking as read failed, revert the optimistic changes
-                console.error('Failed to auto-mark last article as read, reverting UI state');
-                article.is_read = false;
-                const articleItem = document.querySelector(`[data-index="${index}"]`);
-                if (articleItem) {
-                    articleItem.classList.remove('read');
-                }
-                
-                // Revert the unread count change
-                if (article.feed_id) {
-                    this.updateUnreadCountsOptimistically(article.feed_id, 1);
-                } else {
-                    this.updateUnreadCountsForCurrentFeed(1);
-                }
-            }
-        }
-    }
-    
-    hideAutoReadArticleIfNeeded(articleIndex) {
-        // If showing unread only and the article is read, hide it
-        if (this.articleFilter === 'unread' && articleIndex !== null) {
-            const article = this.articles[articleIndex];
-            if (article && article.is_read) {
-                const articleItem = document.querySelector(`[data-index="${articleIndex}"]`);
-                if (articleItem) {
-                    articleItem.classList.add('filtered-out');
-                    articleItem.style.display = 'none';
-                }
-            }
-        }
-    }
-    
-    async markCurrentArticleAsReadIfUnread() {
-        if (this.currentArticle !== null && this.articles[this.currentArticle]) {
-            const article = this.articles[this.currentArticle];
-            if (!article.is_read) {
-                try {
-                    // Optimistically update UI first for instant feedback
-                    article.is_read = true;
-                    const articleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
-                    if (articleItem) {
-                        articleItem.classList.add('read');
-                        
-                        // If showing unread only and article is now read, hide it
-                        if (this.articleFilter === 'unread') {
-                            articleItem.classList.add('filtered-out');
-                            articleItem.style.display = 'none';
-                        }
-                    }
-                    
-                    // Update unread counts immediately (optimistically)
-                    if (article.feed_id) {
-                        this.updateUnreadCountsOptimistically(article.feed_id, -1);
-                    } else {
-                        // When viewing "all articles", we need to determine which feed this article belongs to
-                        this.updateUnreadCountsForCurrentFeed(-1);
-                    }
-                    
-                    // Then make the API call
-                    await this.markAsRead(article.id, true);
-                } catch (error) {
-                    // If marking as read failed, revert the optimistic changes
-                    console.error('Failed to mark article as read, reverting UI state');
-                    article.is_read = false;
-                    if (articleItem) {
-                        articleItem.classList.remove('read');
-                        if (this.articleFilter === 'unread') {
-                            articleItem.classList.remove('filtered-out');
-                            articleItem.style.display = '';
-                        }
-                    }
-                    // Revert the unread count change
-                    if (article.feed_id) {
-                        this.updateUnreadCountsOptimistically(article.feed_id, 1);
-                    } else {
-                        this.updateUnreadCountsForCurrentFeed(1);
-                    }
-                }
-            }
-        }
-    }
 
     displayArticle(article) {
         const contentPane = document.getElementById('article-content');
@@ -1010,11 +881,36 @@ class GoReadApp {
     }
 
     applyUnreadCounts(unreadCounts) {
+        // Handle empty or null unreadCounts
+        if (!unreadCounts || typeof unreadCounts !== 'object') {
+            unreadCounts = {};
+        }
         
         // Update individual feed counts
         let totalUnread = 0;
         this.feeds.forEach(feed => {
-            const unreadCount = unreadCounts[feed.id] || unreadCounts[feed.id.toString()] || 0;
+            // Try multiple ways to match feed IDs (number, string, parseInt)
+            let unreadCount = 0;
+            const feedId = feed.id;
+            
+            if (unreadCounts.hasOwnProperty(feedId)) {
+                unreadCount = unreadCounts[feedId];
+            } else if (unreadCounts.hasOwnProperty(feedId.toString())) {
+                unreadCount = unreadCounts[feedId.toString()];
+            } else if (unreadCounts.hasOwnProperty(parseInt(feedId))) {
+                unreadCount = unreadCounts[parseInt(feedId)];
+            } else {
+                // Try to find by any matching value
+                for (const [key, value] of Object.entries(unreadCounts)) {
+                    if (parseInt(key) === parseInt(feedId) || key.toString() === feedId.toString()) {
+                        unreadCount = value;
+                        break;
+                    }
+                }
+            }
+            
+            // Ensure unreadCount is a number
+            unreadCount = parseInt(unreadCount) || 0;
             totalUnread += unreadCount;
             
             const countElement = document.querySelector(`[data-feed-id="${feed.id}"] .unread-count`);
@@ -1022,7 +918,12 @@ class GoReadApp {
                 countElement.textContent = unreadCount;
                 countElement.dataset.count = unreadCount;
             } else {
-                console.warn(`Count element not found for feed ${feed.id}`);
+                // Try alternative selectors
+                const altElement = document.querySelector(`[data-feed-id='${feed.id}'] .unread-count`);
+                if (altElement) {
+                    altElement.textContent = unreadCount;
+                    altElement.dataset.count = unreadCount;
+                }
             }
         });
         
@@ -1031,10 +932,19 @@ class GoReadApp {
         if (allUnreadElement) {
             allUnreadElement.textContent = totalUnread;
             allUnreadElement.dataset.count = totalUnread;
-        } else {
-            console.warn('All unread count element not found');
         }
         
+        // Force a DOM refresh
+        if (totalUnread > 0) {
+            // Trigger a visual update to ensure changes are visible
+            setTimeout(() => {
+                const allElement = document.getElementById('all-unread-count');
+                if (allElement && allElement.textContent === '0' && totalUnread > 0) {
+                    allElement.textContent = totalUnread;
+                    allElement.dataset.count = totalUnread;
+                }
+            }, 100);
+        }
     }
 
     updateUnreadCountsOptimistically(feedId, countChange) {
@@ -1448,6 +1358,7 @@ class GoReadApp {
         div.textContent = text;
         return div.innerHTML;
     }
+
 
     // Subscription management methods
     showSubscriptionLimitModal(error) {
