@@ -187,7 +187,7 @@ class GoReadApp {
             switch(e.key) {
                 case 'j':
                     e.preventDefault();
-                    this.selectNextArticleAndMarkCurrentAsRead();
+                    await this.selectNextArticleAndMarkCurrentAsRead();
                     break;
                 case 'k':
                     e.preventDefault();
@@ -636,13 +636,23 @@ class GoReadApp {
         
         const currentArticle = this.articles[this.currentArticle];
         
-        // Find the next visible article BEFORE marking current as read
+        // Find the next unread article (since that's what we care about when filtering by unread)
         let nextArticleIndex = null;
         for (let i = this.currentArticle + 1; i < this.articles.length; i++) {
-            const articleItem = document.querySelector(`[data-index="${i}"]`);
-            if (articleItem && !articleItem.classList.contains('filtered-out')) {
-                nextArticleIndex = i;
-                break;
+            const nextArticle = this.articles[i];
+            if (this.articleFilter === 'unread') {
+                // When filtering by unread, find next unread article
+                if (!nextArticle.is_read) {
+                    nextArticleIndex = i;
+                    break;
+                }
+            } else {
+                // When showing all articles, find next visible article
+                const articleItem = document.querySelector(`[data-index="${i}"]`);
+                if (articleItem && !articleItem.classList.contains('filtered-out')) {
+                    nextArticleIndex = i;
+                    break;
+                }
             }
         }
         
@@ -696,13 +706,23 @@ class GoReadApp {
         if (nextArticleIndex !== null) {
             this.selectArticle(nextArticleIndex);
         } else {
-            // No next article found, check if we have any visible articles left
-            const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
-            if (visibleArticles.length === 0) {
-                this.currentArticle = null;
-                document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
+            // No next article found - check what articles are still available
+            if (this.articleFilter === 'unread') {
+                // Check if any unread articles remain
+                const hasUnreadArticles = this.articles.some((article, index) => 
+                    index > this.currentArticle && !article.is_read);
+                if (!hasUnreadArticles) {
+                    this.currentArticle = null;
+                    document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No more unread articles.</p></div>';
+                }
+            } else {
+                // Check visible articles
+                const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
+                if (visibleArticles.length === 0) {
+                    this.currentArticle = null;
+                    document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
+                }
             }
-            // Otherwise stay on current article (which may now be hidden if filtering unread)
         }
     }
 
