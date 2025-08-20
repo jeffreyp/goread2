@@ -178,7 +178,7 @@ class GoReadApp {
     }
 
     setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
+        document.addEventListener('keydown', async (e) => {
             if (e.ctrlKey || e.metaKey) return;
             
             // Don't handle shortcuts when typing in input fields
@@ -187,6 +187,10 @@ class GoReadApp {
             switch(e.key) {
                 case 'j':
                     e.preventDefault();
+                    // Mark current article as read before moving to next
+                    if (this.currentArticle !== null && !this.articles[this.currentArticle].is_read) {
+                        await this.toggleCurrentArticleRead();
+                    }
                     this.selectNextArticle();
                     break;
                 case 'k':
