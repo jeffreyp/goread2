@@ -187,11 +187,7 @@ class GoReadApp {
             switch(e.key) {
                 case 'j':
                     e.preventDefault();
-                    // Mark current article as read before moving to next
-                    if (this.currentArticle !== null && !this.articles[this.currentArticle].is_read) {
-                        await this.toggleCurrentArticleRead();
-                    }
-                    this.selectNextArticle();
+                    this.selectNextArticleAndMarkCurrentAsRead();
                     break;
                 case 'k':
                     e.preventDefault();
@@ -633,6 +629,81 @@ class GoReadApp {
             </div>
         `;
         
+    }
+
+    async selectNextArticleAndMarkCurrentAsRead() {
+        if (this.currentArticle === null || this.articles.length === 0) return;
+        
+        const currentArticle = this.articles[this.currentArticle];
+        
+        // Find the next visible article BEFORE marking current as read
+        let nextArticleIndex = null;
+        for (let i = this.currentArticle + 1; i < this.articles.length; i++) {
+            const articleItem = document.querySelector(`[data-index="${i}"]`);
+            if (articleItem && !articleItem.classList.contains('filtered-out')) {
+                nextArticleIndex = i;
+                break;
+            }
+        }
+        
+        // Mark current article as read if it's unread
+        if (!currentArticle.is_read) {
+            try {
+                // Update the data model
+                currentArticle.is_read = true;
+                
+                // Update UI
+                const currentArticleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
+                currentArticleItem.classList.add('read');
+                
+                // Update unread counts
+                const countChange = -1; // Marking as read
+                if (currentArticle.feed_id) {
+                    this.updateUnreadCountsOptimistically(currentArticle.feed_id, countChange);
+                } else {
+                    this.updateUnreadCountsForCurrentFeed(countChange);
+                }
+                
+                // If showing unread only, hide the current article
+                if (this.articleFilter === 'unread') {
+                    currentArticleItem.classList.add('filtered-out');
+                    currentArticleItem.style.display = 'none';
+                }
+                
+                // Make the API call
+                await this.markAsRead(currentArticle.id, true);
+            } catch (error) {
+                console.error('Failed to mark article as read:', error);
+                // Revert on error
+                currentArticle.is_read = false;
+                const currentArticleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
+                currentArticleItem.classList.remove('read');
+                if (this.articleFilter === 'unread') {
+                    currentArticleItem.classList.remove('filtered-out');
+                    currentArticleItem.style.display = '';
+                }
+                // Revert unread count
+                const revertCountChange = 1;
+                if (currentArticle.feed_id) {
+                    this.updateUnreadCountsOptimistically(currentArticle.feed_id, revertCountChange);
+                } else {
+                    this.updateUnreadCountsForCurrentFeed(revertCountChange);
+                }
+            }
+        }
+        
+        // Navigate to next article if we found one
+        if (nextArticleIndex !== null) {
+            this.selectArticle(nextArticleIndex);
+        } else {
+            // No next article found, check if we have any visible articles left
+            const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
+            if (visibleArticles.length === 0) {
+                this.currentArticle = null;
+                document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
+            }
+            // Otherwise stay on current article (which may now be hidden if filtering unread)
+        }
     }
 
     selectNextArticle() {
