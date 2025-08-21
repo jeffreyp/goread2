@@ -20,7 +20,7 @@ handlers:
   secure: always
 
 automatic_scaling:
-  min_instances: 0
+  min_instances: 1
   max_instances: 10
   target_cpu_utilization: 0.6
 

@@ -1,5 +1,9 @@
 cron:
 - description: "Refresh RSS feeds"
-  url: /api/feeds/refresh
+  url: /cron/refresh-feeds
   schedule: every 30 minutes
   target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3

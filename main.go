@@ -135,6 +135,10 @@ func main() {
 		auth.GET("/me", authMiddleware.OptionalAuth(), authHandler.Me)
 	}
 
+	// Public cron endpoint (no auth required)
+	r.GET("/cron/refresh-feeds", feedHandler.RefreshFeeds)
+	r.POST("/cron/refresh-feeds", feedHandler.RefreshFeeds)
+
 	// Protected API routes
 	api := r.Group("/api")
 	api.Use(authMiddleware.RequireAuth())
@@ -150,7 +154,7 @@ func main() {
 		api.GET("/account/stats", feedHandler.GetAccountStats)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
-		api.POST("/feeds/refresh", feedHandler.RefreshFeeds)
+		api.POST("/feeds/refresh", feedHandler.RefreshFeeds)  // Keep for authenticated manual refresh
 		
 		// Payment/subscription routes - only if subscriptions are enabled
 		if cfg.SubscriptionEnabled && paymentHandler != nil {

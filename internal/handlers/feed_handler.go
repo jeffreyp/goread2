@@ -3,8 +3,10 @@ package handlers
 import (
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"goread2/internal/auth"
@@ -201,11 +203,26 @@ func (fh *FeedHandler) ToggleStar(c *gin.Context) {
 }
 
 func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
+	// If this is the cron endpoint, verify it's from App Engine cron
+	if c.Request.URL.Path == "/cron/refresh-feeds" {
+		cronHeader := c.GetHeader("X-Appengine-Cron")
+		if cronHeader != "true" {
+			log.Printf("Unauthorized cron request from IP: %s", c.ClientIP())
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		log.Printf("Cron feed refresh started at %v", time.Now())
+	} else {
+		log.Printf("Manual feed refresh started at %v", time.Now())
+	}
+	
 	if err := fh.feedService.RefreshFeeds(); err != nil {
+		log.Printf("Feed refresh failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("Feed refresh completed successfully at %v", time.Now())
 	c.JSON(http.StatusOK, gin.H{"message": "Feeds refreshed successfully"})
 }
 
