@@ -7,6 +7,7 @@ class GoReadApp {
         this.user = null;
         this.articleFilter = 'unread'; // Default to showing unread articles
         this.subscriptionInfo = null;
+        this.sessionStarted = true; // Track if this is a fresh session for filtering behavior
         
         // Performance optimizations
         this.throttleTimeout = null;
@@ -166,7 +167,11 @@ class GoReadApp {
         document.querySelectorAll('input[name="article-filter"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 this.articleFilter = e.target.value;
+                // Reset session state when switching filters to apply proper filtering
+                this.sessionStarted = true;
                 this.applyArticleFilter();
+                // Allow session navigation after filter change
+                this.sessionStarted = false;
             });
         });
 
@@ -577,6 +582,9 @@ class GoReadApp {
         // Apply current filter after rendering
         this.applyArticleFilter();
         
+        // Mark session as no longer fresh after first article load
+        this.sessionStarted = false;
+        
         // Auto-select the first visible article if any exist
         const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
         if (visibleArticles.length > 0) {
@@ -674,11 +682,8 @@ class GoReadApp {
                     this.updateUnreadCountsForCurrentFeed(countChange);
                 }
                 
-                // If showing unread only, hide the current article
-                if (this.articleFilter === 'unread') {
-                    currentArticleItem.classList.add('filtered-out');
-                    currentArticleItem.style.display = 'none';
-                }
+                // Article will be greyed out by the .read CSS class applied above
+                // No need to hide it during session navigation
                 
                 // Make the API call
                 await this.markAsRead(currentArticle.id, true);
@@ -688,10 +693,7 @@ class GoReadApp {
                 currentArticle.is_read = false;
                 const currentArticleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
                 currentArticleItem.classList.remove('read');
-                if (this.articleFilter === 'unread') {
-                    currentArticleItem.classList.remove('filtered-out');
-                    currentArticleItem.style.display = '';
-                }
+                // No need to show/hide since we no longer hide during session navigation
                 // Revert unread count
                 const revertCountChange = 1;
                 if (currentArticle.feed_id) {
@@ -809,14 +811,9 @@ class GoReadApp {
                 this.updateUnreadCountsForCurrentFeed(countChange);
             }
             
-            // If showing unread only and article is now read, hide it
-            if (this.articleFilter === 'unread' && article.is_read) {
-                articleItem.classList.add('filtered-out');
-                articleItem.style.display = 'none';
-                
-                // Select next visible article
-                this.selectNextVisibleArticle();
-            }
+            // No longer hide articles when marked as read during the session
+            // They will be greyed out by the .read CSS class applied above
+            // Articles are only completely filtered out when the page loads/refreshes
             
             // Then make the API call
             await this.markAsRead(article.id, newReadState);
@@ -835,11 +832,7 @@ class GoReadApp {
                 this.updateUnreadCountsForCurrentFeed(revertCountChange);
             }
             
-            // If we had hidden the article, show it again
-            if (this.articleFilter === 'unread' && !article.is_read) {
-                articleItem.classList.remove('filtered-out');
-                articleItem.style.display = '';
-            }
+            // No need to show/hide articles since we no longer hide them during the session
         }
     }
 
@@ -871,8 +864,18 @@ class GoReadApp {
                 item.classList.remove('filtered-out');
                 item.style.display = '';
             } else {
-                item.classList.add('filtered-out');
-                item.style.display = 'none';
+                // Only hide read articles on fresh session/reload, not during navigation
+                if (this.sessionStarted && this.articleFilter === 'unread' && article.is_read) {
+                    item.classList.add('filtered-out');
+                    item.style.display = 'none';
+                } else if (this.articleFilter !== 'unread') {
+                    item.classList.add('filtered-out');
+                    item.style.display = 'none';
+                } else {
+                    // During session navigation, keep read articles visible but greyed out
+                    item.classList.remove('filtered-out');
+                    item.style.display = '';
+                }
             }
         });
 
