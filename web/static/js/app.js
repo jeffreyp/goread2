@@ -317,6 +317,7 @@ class GoReadApp {
     }
 
     renderFeeds() {
+        console.log('RENDER FEEDS CALLED WITH:', this.feeds?.length || 0, 'feeds');
         if (!Array.isArray(this.feeds)) {
             return;
         }
@@ -378,6 +379,7 @@ class GoReadApp {
             
             deleteButton.addEventListener('click', (e) => {
                 e.stopPropagation();
+                console.log('DELETE BUTTON CLICKED FOR FEED:', feed.id);
                 this.deleteFeed(feed.id);
             });
             
@@ -1430,6 +1432,9 @@ class GoReadApp {
             this.articles = [];
             
             console.log('Reloading feeds after delete...');
+            // Force a slight delay to ensure backend has processed the unsubscribe
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
             await this.loadFeedsOptimized();
             await this.loadSubscriptionInfo();
             this.updateSubscriptionDisplay();
