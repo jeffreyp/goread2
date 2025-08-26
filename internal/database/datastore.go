@@ -842,10 +842,11 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 	if multiErr, ok := err.(datastore.MultiError); ok {
 		// Handle partial results - some UserArticle entities may not exist
 		for i, singleErr := range multiErr {
-			if singleErr == datastore.ErrNoSuchEntity {
+			switch singleErr {
+			case datastore.ErrNoSuchEntity:
 				// No UserArticle record means unread
 				unreadCount++
-			} else if singleErr == nil {
+			case nil:
 				// UserArticle exists, check if it's read
 				if !userArticles[i].IsRead {
 					unreadCount++
