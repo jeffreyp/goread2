@@ -39,13 +39,14 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 		return
 	}
 	
+	
 	// Ensure we return an empty array instead of null
 	if feeds == nil {
 		feeds = []database.Feed{}
 	}
 	
-	// Cache feeds list for 5 minutes as it doesn't change very often
-	c.Header("Cache-Control", "private, max-age=300")
+	// Don't cache feeds list since it needs to update immediately after deletions/additions
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.JSON(http.StatusOK, feeds)
 }
 
@@ -108,6 +109,7 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 		return
 	}
 
+	
 	if err := fh.feedService.UnsubscribeUserFromFeed(user.ID, id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

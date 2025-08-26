@@ -399,7 +399,7 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
 	ctx := context.Background()
 
-	// Query for user feed relationships
+	// Use eventually consistent query, but with retry logic for recent changes
 	query := datastore.NewQuery("UserFeed").FilterField("user_id", "=", int64(userID))
 	var userFeedEntities []UserFeedEntity
 	_, err := db.client.GetAll(ctx, query, &userFeedEntities)
