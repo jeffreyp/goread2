@@ -37,6 +37,7 @@ type Database interface {
 	AddArticle(article *Article) error
 	GetArticles(feedID int) ([]Article, error)
 	GetUserArticles(userID int) ([]Article, error)
+	GetUserArticlesPaginated(userID, limit, offset int) ([]Article, error)
 	GetUserFeedArticles(userID, feedID int) ([]Article, error)
 
 	// User article status methods
@@ -205,6 +206,43 @@ func (db *DB) createTables() error {
 		}
 	}
 
+	// Create performance indexes
+	if err := db.createIndexes(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (db *DB) createIndexes() error {
+	indexes := []string{
+		// Articles table indexes for better query performance
+		`CREATE INDEX IF NOT EXISTS idx_articles_feed_id ON articles (feed_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_articles_published_at ON articles (published_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_articles_feed_published ON articles (feed_id, published_at DESC)`,
+		
+		// User articles table indexes for read status queries
+		`CREATE INDEX IF NOT EXISTS idx_user_articles_user_id ON user_articles (user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_user_articles_article_id ON user_articles (article_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_user_articles_read ON user_articles (user_id, is_read)`,
+		// Critical index for unread count queries - optimizes EXISTS subquery
+		`CREATE INDEX IF NOT EXISTS idx_user_articles_article_user_read ON user_articles (article_id, user_id, is_read)`,
+		
+		// User feeds table index for subscription lookups
+		`CREATE INDEX IF NOT EXISTS idx_user_feeds_user_id ON user_feeds (user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_user_feeds_feed_id ON user_feeds (feed_id)`,
+		
+		// Users table indexes for authentication
+		`CREATE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)`,
+	}
+
+	for _, index := range indexes {
+		if _, err := db.Exec(index); err != nil {
+			return fmt.Errorf("failed to create index: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -238,6 +276,11 @@ func (db *DB) migrateDatabase() error {
 	_, err := db.Exec(updateTrialQuery)
 	if err != nil {
 		return fmt.Errorf("failed to set trial end dates: %w", err)
+	}
+
+	// Ensure indexes are created on existing databases
+	if err := db.createIndexes(); err != nil {
+		return err
 	}
 
 	return nil
@@ -563,6 +606,11 @@ func (db *DB) UnsubscribeUserFromFeed(userID, feedID int) error {
 
 // User article methods
 func (db *DB) GetUserArticles(userID int) ([]Article, error) {
+	return db.GetUserArticlesPaginated(userID, 50, 0) // Default: first 50 articles
+}
+
+// GetUserArticlesPaginated fetches user articles with pagination
+func (db *DB) GetUserArticlesPaginated(userID, limit, offset int) ([]Article, error) {
 	query := `SELECT a.id, a.feed_id, a.title, a.url, a.content, a.description, a.author, 
 			  a.published_at, a.created_at, 
 			  COALESCE(ua.is_read, 0) as is_read, 
@@ -571,9 +619,10 @@ func (db *DB) GetUserArticles(userID int) ([]Article, error) {
 			  JOIN user_feeds uf ON a.feed_id = uf.feed_id 
 			  LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
 			  WHERE uf.user_id = ? 
-			  ORDER BY a.published_at DESC`
+			  ORDER BY a.published_at DESC
+			  LIMIT ? OFFSET ?`
 
-	rows, err := db.Query(query, userID, userID)
+	rows, err := db.Query(query, userID, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -729,34 +778,52 @@ func (db *DB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, 
 }
 
 func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
-	query := `
-		SELECT 
-			a.feed_id,
-			COUNT(*) as unread_count
-		FROM articles a
-		INNER JOIN user_feeds uf ON a.feed_id = uf.feed_id
-		LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
-		WHERE uf.user_id = ? 
-		AND (ua.is_read IS NULL OR ua.is_read = 0)
-		GROUP BY a.feed_id
-	`
-	
-	rows, err := db.Query(query, userID, userID)
+	// First get user's feeds
+	userFeeds, err := db.GetUserFeeds(userID)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
 	
-	unreadCounts := make(map[int]int)
-	for rows.Next() {
-		var feedID, count int
-		if err := rows.Scan(&feedID, &count); err != nil {
-			return nil, err
-		}
-		unreadCounts[feedID] = count
+	if len(userFeeds) == 0 {
+		return make(map[int]int), nil
 	}
 	
-	return unreadCounts, rows.Err()
+	unreadCounts := make(map[int]int)
+	
+	// Process each feed individually for better performance with indexes
+	for _, feed := range userFeeds {
+		count, err := db.getFeedUnreadCountForUser(userID, feed.ID)
+		if err != nil {
+			return nil, err
+		}
+		unreadCounts[feed.ID] = count
+	}
+	
+	return unreadCounts, nil
+}
+
+// Helper function to get unread count for a specific feed efficiently
+func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
+	// Count articles in feed that are NOT marked as read by user
+	query := `
+		SELECT COUNT(*)
+		FROM articles a
+		WHERE a.feed_id = ?
+		AND NOT EXISTS (
+			SELECT 1 FROM user_articles ua 
+			WHERE ua.article_id = a.id 
+			AND ua.user_id = ? 
+			AND ua.is_read = 1
+		)
+	`
+	
+	var count int
+	err := db.QueryRow(query, feedID, userID).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	
+	return count, nil
 }
 
 // Subscription management methods

@@ -124,7 +124,23 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 
 	idStr := c.Param("id")
 	if idStr == "all" {
-		articles, err := fh.feedService.GetUserArticles(user.ID)
+		// Parse pagination parameters
+		limit := 50 // Default limit
+		offset := 0 // Default offset
+
+		if limitStr := c.Query("limit"); limitStr != "" {
+			if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 200 {
+				limit = parsedLimit
+			}
+		}
+
+		if offsetStr := c.Query("offset"); offsetStr != "" {
+			if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+				offset = parsedOffset
+			}
+		}
+
+		articles, err := fh.feedService.GetUserArticlesPaginated(user.ID, limit, offset)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -296,8 +312,9 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 		return
 	}
 
-	// Short cache for unread counts since they change frequently but not instantly
-	c.Header("Cache-Control", "private, max-age=10")
+	// Increased cache time since unread counts are now efficiently calculated
+	// and don't need to be fetched as frequently
+	c.Header("Cache-Control", "private, max-age=30")
 	c.JSON(http.StatusOK, unreadCounts)
 }
 

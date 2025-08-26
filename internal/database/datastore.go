@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"cloud.google.com/go/datastore"
@@ -515,7 +516,13 @@ func (db *DatastoreDB) UnsubscribeUserFromFeed(userID, feedID int) error {
 }
 
 func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
-	// First get user's subscribed feeds
+	return db.GetUserArticlesPaginated(userID, 50, 0) // Default: first 50 articles
+}
+
+func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Article, error) {
+	ctx := context.Background()
+	
+	// Get user's subscribed feeds
 	feeds, err := db.GetUserFeeds(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user feeds: %w", err)
@@ -525,17 +532,73 @@ func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
 		return []Article{}, nil
 	}
 
-	// Get all articles from subscribed feeds
+	// Since Datastore doesn't support IN operator, we need to query each feed separately
+	// and then merge and sort the results
 	var allArticles []Article
+	
+	// Collect articles from all feeds
 	for _, feed := range feeds {
-		articles, err := db.GetUserFeedArticles(userID, feed.ID)
+		// Get articles for this specific feed
+		query := datastore.NewQuery("Article").
+			FilterField("feed_id", "=", int64(feed.ID)).
+			Order("-published_at")
+		
+		var feedArticles []ArticleEntity
+		keys, err := db.client.GetAll(ctx, query, &feedArticles)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get articles for feed %d: %w", feed.ID, err)
+			continue // Skip feeds that fail, don't fail entire request
 		}
-		allArticles = append(allArticles, articles...)
+
+		// Convert to Article structs with user status
+		for i, entity := range feedArticles {
+			entity.ID = keys[i].ID
+			
+			// Get user-specific read/starred status
+			userArticle, err := db.GetUserArticleStatus(userID, int(entity.ID))
+			isRead := false
+			isStarred := false
+			if err == nil && userArticle != nil {
+				isRead = userArticle.IsRead
+				isStarred = userArticle.IsStarred
+			}
+
+			article := Article{
+				ID:          int(entity.ID),
+				FeedID:      int(entity.FeedID),
+				Title:       entity.Title,
+				URL:         entity.URL,
+				Content:     entity.Content,
+				Description: entity.Description,
+				Author:      entity.Author,
+				PublishedAt: entity.PublishedAt,
+				CreatedAt:   entity.CreatedAt,
+				IsRead:      isRead,
+				IsStarred:   isStarred,
+			}
+			
+			allArticles = append(allArticles, article)
+		}
 	}
 
-	return allArticles, nil
+	// Sort all articles by published date (most recent first)
+	// Since we can't rely on Datastore to sort across multiple queries
+	sort.Slice(allArticles, func(i, j int) bool {
+		return allArticles[i].PublishedAt.After(allArticles[j].PublishedAt)
+	})
+
+	// Apply pagination manually since we had to merge results
+	startIdx := offset
+	endIdx := offset + limit
+	
+	if startIdx >= len(allArticles) {
+		return []Article{}, nil
+	}
+	
+	if endIdx > len(allArticles) {
+		endIdx = len(allArticles)
+	}
+
+	return allArticles[startIdx:endIdx], nil
 }
 
 func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
@@ -713,39 +776,96 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		return nil, err
 	}
 	
+	if len(userFeeds) == 0 {
+		return make(map[int]int), nil
+	}
+	
 	unreadCounts := make(map[int]int)
 	
-	// For each feed, count unread articles
+	// Process feeds in parallel for better performance
+	type feedResult struct {
+		feedID int
+		count  int
+		err    error
+	}
+	
+	results := make(chan feedResult, len(userFeeds))
+	
+	// Start goroutines for each feed
 	for _, feed := range userFeeds {
-		var articles []ArticleEntity
-		// Use eventually consistent query for articles (this is fine as articles don't change read status)
-		q := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feed.ID))
-		keys, err := db.client.GetAll(ctx, q, &articles)
-		if err != nil {
-			return nil, err
+		go func(feedID int) {
+			count, err := db.getFeedUnreadCountForUser(ctx, userID, feedID)
+			results <- feedResult{feedID: feedID, count: count, err: err}
+		}(feed.ID)
+	}
+	
+	// Collect results
+	for i := 0; i < len(userFeeds); i++ {
+		result := <-results
+		if result.err != nil {
+			return nil, result.err
 		}
-		
-		unreadCount := 0
-		for i := range articles {
-			articleID := int(keys[i].ID)
-			// Check if user has read this article with strongly consistent read
-			userArticleKey := datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
-			var userArticleEntity UserArticleEntity
-			err := db.client.Get(ctx, userArticleKey, &userArticleEntity)
-			
-			// If no UserArticle record exists, or if it exists but is not read, count as unread
-			if err == datastore.ErrNoSuchEntity || (err == nil && !userArticleEntity.IsRead) {
-				unreadCount++
-			} else if err != nil {
-				// Some other error occurred, treat as unread to be safe
-				unreadCount++
-			}
-		}
-		
-		unreadCounts[feed.ID] = unreadCount
+		unreadCounts[result.feedID] = result.count
 	}
 	
 	return unreadCounts, nil
+}
+
+// Helper function to efficiently count unread articles for a specific feed
+func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, feedID int) (int, error) {
+	// Get all articles for this feed (keys only for efficiency)
+	articleQuery := datastore.NewQuery("Article").
+		FilterField("feed_id", "=", int64(feedID)).
+		KeysOnly()
+	
+	articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
+	if err != nil {
+		return 0, err
+	}
+	
+	if len(articleKeys) == 0 {
+		return 0, nil
+	}
+	
+	// Batch check which articles are read by this user
+	userArticleKeys := make([]*datastore.Key, len(articleKeys))
+	for i, articleKey := range articleKeys {
+		articleID := articleKey.ID
+		userArticleKeys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
+	}
+	
+	// Use GetMulti for efficient batch read
+	userArticles := make([]UserArticleEntity, len(userArticleKeys))
+	err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
+	
+	unreadCount := 0
+	if multiErr, ok := err.(datastore.MultiError); ok {
+		// Handle partial results - some UserArticle entities may not exist
+		for i, singleErr := range multiErr {
+			if singleErr == datastore.ErrNoSuchEntity {
+				// No UserArticle record means unread
+				unreadCount++
+			} else if singleErr == nil {
+				// UserArticle exists, check if it's read
+				if !userArticles[i].IsRead {
+					unreadCount++
+				}
+			}
+			// Other errors are ignored (treated as read to be conservative)
+		}
+	} else if err == nil {
+		// All UserArticle entities exist, count unread ones
+		for _, userArticle := range userArticles {
+			if !userArticle.IsRead {
+				unreadCount++
+			}
+		}
+	} else {
+		// Complete failure - treat all as unread to be safe
+		unreadCount = len(articleKeys)
+	}
+	
+	return unreadCount, nil
 }
 
 func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {

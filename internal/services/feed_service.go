@@ -299,6 +299,10 @@ func (fs *FeedService) GetUserArticles(userID int) ([]database.Article, error) {
 	return fs.db.GetUserArticles(userID)
 }
 
+func (fs *FeedService) GetUserArticlesPaginated(userID, limit, offset int) ([]database.Article, error) {
+	return fs.db.GetUserArticlesPaginated(userID, limit, offset)
+}
+
 func (fs *FeedService) GetUserFeedArticles(userID, feedID int) ([]database.Article, error) {
 	return fs.db.GetUserFeedArticles(userID, feedID)
 }

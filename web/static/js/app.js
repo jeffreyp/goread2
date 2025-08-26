@@ -400,18 +400,83 @@ class GoReadApp {
         document.getElementById('article-pane-title').textContent = feedTitle;
     }
 
-    async loadArticles(feedId) {
+    async loadArticles(feedId, append = false) {
         try {
-            document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
+            if (!append) {
+                document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
+                this.articles = [];
+                this.articleOffset = 0;
+            }
             
-            const url = feedId === 'all' ? '/api/feeds/all/articles' : `/api/feeds/${feedId}/articles`;
+            const limit = 50;
+            let url;
+            if (feedId === 'all') {
+                url = `/api/feeds/all/articles?limit=${limit}&offset=${this.articleOffset || 0}`;
+            } else {
+                url = `/api/feeds/${feedId}/articles`;
+            }
+            
             const response = await fetch(url);
-            this.articles = await response.json();
+            const newArticles = await response.json();
             
+            if (append) {
+                this.articles.push(...newArticles);
+            } else {
+                this.articles = newArticles;
+            }
+            
+            this.articleOffset = (this.articleOffset || 0) + newArticles.length;
+            this.hasMoreArticles = newArticles.length === limit;
             
             this.renderArticlesOptimized();
+            
+            // Add load more button if needed
+            if (feedId === 'all' && this.hasMoreArticles && !append) {
+                this.addLoadMoreButton();
+            }
         } catch (error) {
             this.showError('Failed to load articles: ' + error.message);
+        }
+    }
+
+    addLoadMoreButton() {
+        const articleList = document.getElementById('article-list');
+        
+        // Remove existing load more button
+        const existingButton = articleList.querySelector('.load-more-button');
+        if (existingButton) {
+            existingButton.remove();
+        }
+        
+        if (this.hasMoreArticles) {
+            const loadMoreDiv = document.createElement('div');
+            loadMoreDiv.className = 'load-more-button';
+            loadMoreDiv.style.cssText = 'padding: 20px; text-align: center; border-top: 1px solid #e1e5e9;';
+            
+            const button = document.createElement('button');
+            button.className = 'btn btn-secondary';
+            button.textContent = 'Load More Articles';
+            button.onclick = () => this.loadMoreArticles();
+            
+            loadMoreDiv.appendChild(button);
+            articleList.appendChild(loadMoreDiv);
+        }
+    }
+
+    async loadMoreArticles() {
+        if (this.currentFeed === 'all' && this.hasMoreArticles) {
+            const button = document.querySelector('.load-more-button button');
+            if (button) {
+                button.textContent = 'Loading...';
+                button.disabled = true;
+            }
+            
+            await this.loadArticles('all', true);
+            
+            if (button) {
+                button.textContent = 'Load More Articles';
+                button.disabled = false;
+            }
         }
     }
 
@@ -505,9 +570,8 @@ class GoReadApp {
             return;
         }
         
-        // Limit initial render to first 50 articles for performance
-        const INITIAL_RENDER_LIMIT = 50;
-        const articlesToRender = this.articles.slice(0, INITIAL_RENDER_LIMIT);
+        // Render all loaded articles (pagination handles limiting on server side)
+        const articlesToRender = this.articles;
         
         // Use DocumentFragment for better performance
         const fragment = document.createDocumentFragment();
@@ -563,21 +627,16 @@ class GoReadApp {
             fragment.appendChild(articleItem);
         });
         
-        // Add "Load More" button if there are more articles
-        if (this.articles.length > INITIAL_RENDER_LIMIT) {
-            const loadMoreBtn = document.createElement('div');
-            loadMoreBtn.className = 'load-more-btn';
-            
-            const button = document.createElement('button');
-            button.textContent = `Load More Articles (${this.articles.length - INITIAL_RENDER_LIMIT} remaining)`;
-            button.addEventListener('click', this.loadMoreArticles.bind(this));
-            
-            loadMoreBtn.appendChild(button);
-            fragment.appendChild(loadMoreBtn);
-        }
+        // Pagination load more button is handled separately by addLoadMoreButton method
+        // No need to add it here as it's managed by the pagination system
         
         // Single DOM append operation
         updatedArticleList.appendChild(fragment);
+        
+        // Add load more button if needed (for paginated "all articles" view)
+        if (this.currentFeed === 'all' && this.hasMoreArticles) {
+            this.addLoadMoreButton();
+        }
         
         // Apply current filter after rendering
         this.applyArticleFilter();
