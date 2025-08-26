@@ -1406,25 +1406,35 @@ class GoReadApp {
     async deleteFeed(feedId) {
         if (!confirm('Are you sure you want to remove this feed from your subscriptions?')) return;
         
+        console.log('Attempting to delete feed:', feedId);
+        
         try {
             const response = await fetch(`/api/feeds/${feedId}`, {
                 method: 'DELETE'
             });
             
+            console.log('Delete response status:', response.status);
+            
             if (!response.ok) {
                 const errorData = await response.json();
+                console.error('Delete feed API error:', errorData);
                 throw new Error(errorData.error || `HTTP ${response.status}`);
             }
+            
+            const result = await response.json();
+            console.log('Delete feed success:', result);
             
             // Always clear current selection after delete
             this.currentFeed = null;
             this.currentArticle = null;
             this.articles = [];
             
-            await this.loadFeeds();
+            console.log('Reloading feeds after delete...');
+            await this.loadFeedsOptimized();
             await this.loadSubscriptionInfo();
             this.updateSubscriptionDisplay();
             
+            console.log('Selecting all articles after delete...');
             // Always go to "Articles" after delete
             this.selectFeed('all');
         } catch (error) {
