@@ -229,7 +229,7 @@ class GoReadApp {
         const contentPane = document.querySelector('.content-pane');
 
         // Initialize mobile navigation - show content pane by default
-        if (window.innerWidth <= 1024) {
+        if (window.innerWidth < 1024) {
             // Start with content pane visible
             if (feedPane) feedPane.classList.remove('active');
             if (articlePane) articlePane.classList.remove('active');
@@ -277,8 +277,8 @@ class GoReadApp {
     }
 
     updateMobileNavigation(pane) {
-        // Only update on mobile/tablet screens (including iPad landscape)
-        if (window.innerWidth > 1024) return;
+        // Only update on mobile/small tablet screens (exclude iPad landscape)
+        if (window.innerWidth >= 1024) return;
 
         const mobileNavButtons = document.querySelectorAll('.mobile-nav-btn');
         const feedPane = document.querySelector('.feed-pane');

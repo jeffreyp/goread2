@@ -947,7 +947,7 @@ body.app-body {
     }
 }
 
-@media screen and (max-width: 1024px) {
+@media screen and (max-width: 1023px) {
     .header {
         padding: 0 15px;
         height: 50px;
@@ -1197,7 +1197,7 @@ body.app-body {
 }
 
 /* Ensure mobile menu toggle is hidden on desktop */
-@media screen and (min-width: 1025px) {
+@media screen and (min-width: 1024px) {
     .mobile-menu-btn {
         display: none;
     }
