@@ -8,6 +8,7 @@ class GoReadApp {
         this.articleFilter = 'unread'; // Default to showing unread articles
         this.subscriptionInfo = null;
         this.sessionStarted = true; // Track if this is a fresh session for filtering behavior
+        this.authCheckFailed = false; // Track if we've already failed auth to avoid repeated requests
         
         // Performance optimizations
         this.throttleTimeout = null;
@@ -39,17 +40,35 @@ class GoReadApp {
     }
 
     async checkAuth() {
+        // If we've already determined the user isn't authenticated, don't make another request
+        if (this.authCheckFailed) {
+            return false;
+        }
+        
         try {
             const response = await fetch('/auth/me');
             if (response.ok) {
                 const data = await response.json();
                 this.user = data.user;
+                this.authCheckFailed = false; // Reset flag on successful auth
                 return true;
             }
+            // Handle specific auth failure cases
+            if (response.status === 401) {
+                this.authCheckFailed = true; // Set flag to prevent future requests
+                console.log('User not authenticated - showing login screen');
+                return false;
+            }
+            // Other response errors
+            console.warn('Auth check failed with status:', response.status);
+            this.authCheckFailed = true;
+            return false;
         } catch (error) {
-            // Not authenticated
+            // Network or other errors (like server not running)
+            console.warn('Unable to connect to authentication service:', error.message);
+            this.authCheckFailed = true;
+            return false;
         }
-        return false;
     }
 
     async loadSubscriptionInfo() {
@@ -805,9 +824,24 @@ class GoReadApp {
     }
 
 
+    sanitizeContent(content) {
+        // Use DOMPurify to sanitize HTML content, removing iframes and other potentially harmful elements
+        if (typeof DOMPurify !== 'undefined') {
+            return DOMPurify.sanitize(content, {
+                FORBID_TAGS: ['iframe', 'object', 'embed', 'applet', 'script'],
+                FORBID_ATTR: ['onload', 'onclick', 'onerror', 'onmouseover']
+            });
+        }
+        // Fallback: simple iframe removal if DOMPurify is not available
+        return content.replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<p><em>[Embedded content removed]</em></p>');
+    }
+
     displayArticle(article) {
         const contentPane = document.getElementById('article-content');
         const publishedDate = new Date(article.published_at).toLocaleString();
+        
+        // Sanitize the article content to prevent iframe and other security issues
+        const sanitizedContent = this.sanitizeContent(article.content || article.description || '<p>No content available.</p>');
         
         contentPane.innerHTML = `
             <h1>${this.escapeHtml(article.title)}</h1>
@@ -817,7 +851,7 @@ class GoReadApp {
                 <a href="${article.url}" target="_blank" rel="noopener">View Original</a>
             </div>
             <div class="content">
-                ${article.content || article.description || '<p>No content available.</p>'}
+                ${sanitizedContent}
             </div>
         `;
         
@@ -1804,6 +1838,8 @@ class GoReadApp {
 
     async login() {
         try {
+            // Reset auth check flag when attempting login
+            this.authCheckFailed = false;
             const response = await fetch('/auth/login');
             if (response.ok) {
                 const data = await response.json();
