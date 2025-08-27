@@ -20,7 +20,8 @@
         <header class="header">
             <div class="header-content">
                 <h1 class="logo">GoRead2</h1>
-                <div class="header-actions">
+                <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+                <div class="header-actions" id="header-actions">
                     <button id="refresh-btn" class="btn btn-primary">Refresh</button>
                     <button id="add-feed-btn" class="btn btn-secondary">Add Feed</button>
                     <button id="import-opml-btn" class="btn btn-secondary">Import OPML</button>
@@ -74,6 +75,22 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Mobile Navigation -->
+        <div class="mobile-nav" id="mobile-nav">
+            <button class="mobile-nav-btn" id="mobile-feeds-btn" data-pane="feeds">
+                <div class="mobile-nav-btn-icon">📑</div>
+                <span>Feeds</span>
+            </button>
+            <button class="mobile-nav-btn" id="mobile-articles-btn" data-pane="articles">
+                <div class="mobile-nav-btn-icon">📄</div>
+                <span>Articles</span>
+            </button>
+            <button class="mobile-nav-btn" id="mobile-content-btn" data-pane="content">
+                <div class="mobile-nav-btn-icon">📖</div>
+                <span>Content</span>
+            </button>
         </div>
     </div>
 

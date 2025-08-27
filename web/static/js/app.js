@@ -180,6 +180,112 @@ class GoReadApp {
         if (checkedRadio) {
             checkedRadio.checked = true;
         }
+
+        // Mobile navigation events
+        this.setupMobileNavigation();
+    }
+
+    setupMobileNavigation() {
+        // Mobile menu toggle
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const headerActions = document.getElementById('header-actions');
+        
+        if (mobileMenuBtn && headerActions) {
+            mobileMenuBtn.addEventListener('click', () => {
+                headerActions.classList.toggle('show');
+            });
+            
+            // Close mobile menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!mobileMenuBtn.contains(e.target) && !headerActions.contains(e.target)) {
+                    headerActions.classList.remove('show');
+                }
+            });
+        }
+
+        // Mobile pane navigation
+        const mobileNavButtons = document.querySelectorAll('.mobile-nav-btn');
+        const feedPane = document.querySelector('.feed-pane');
+        const articlePane = document.querySelector('.article-pane');
+        const contentPane = document.querySelector('.content-pane');
+
+        // Initialize mobile navigation - show content pane by default
+        if (window.innerWidth <= 1024) {
+            // Start with content pane visible
+            if (feedPane) feedPane.classList.remove('active');
+            if (articlePane) articlePane.classList.remove('active');
+            
+            // Set content button as active
+            const contentBtn = document.querySelector('[data-pane="content"]');
+            if (contentBtn) {
+                mobileNavButtons.forEach(btn => btn.classList.remove('active'));
+                contentBtn.classList.add('active');
+            }
+        }
+
+        if (mobileNavButtons.length > 0) {
+            mobileNavButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const pane = btn.dataset.pane;
+                    console.log('Mobile nav button clicked:', pane);
+                    
+                    // Remove active class from all buttons
+                    mobileNavButtons.forEach(b => b.classList.remove('active'));
+                    // Add active class to clicked button
+                    btn.classList.add('active');
+                    
+                    // Hide all panes
+                    if (feedPane) feedPane.classList.remove('active');
+                    if (articlePane) articlePane.classList.remove('active');
+                    
+                    // Show selected pane
+                    if (pane === 'feeds' && feedPane) {
+                        feedPane.classList.add('active');
+                        console.log('Showing feeds pane');
+                    } else if (pane === 'articles' && articlePane) {
+                        articlePane.classList.add('active');
+                        console.log('Showing articles pane');
+                    } else if (pane === 'content') {
+                        console.log('Showing content pane');
+                    }
+                    // Content pane is always visible as background
+                });
+            });
+        }
+    }
+
+    updateMobileNavigation(pane) {
+        // Only update on mobile/tablet screens (including iPad landscape)
+        if (window.innerWidth > 1024) return;
+
+        const mobileNavButtons = document.querySelectorAll('.mobile-nav-btn');
+        const feedPane = document.querySelector('.feed-pane');
+        const articlePane = document.querySelector('.article-pane');
+        
+        // Remove active class from all buttons
+        mobileNavButtons.forEach(btn => btn.classList.remove('active'));
+        
+        // Hide all panes
+        if (feedPane) feedPane.classList.remove('active');
+        if (articlePane) articlePane.classList.remove('active');
+        
+        // Show selected pane and activate corresponding button
+        if (pane === 'feeds' && feedPane) {
+            feedPane.classList.add('active');
+            const feedsBtn = document.querySelector('[data-pane="feeds"]');
+            if (feedsBtn) feedsBtn.classList.add('active');
+        } else if (pane === 'articles' && articlePane) {
+            articlePane.classList.add('active');
+            const articlesBtn = document.querySelector('[data-pane="articles"]');
+            if (articlesBtn) articlesBtn.classList.add('active');
+        } else if (pane === 'content') {
+            // Content pane is always visible as background, just activate the button
+            const contentBtn = document.querySelector('[data-pane="content"]');
+            if (contentBtn) contentBtn.classList.add('active');
+        }
     }
 
     setupKeyboardShortcuts() {
@@ -399,6 +505,9 @@ class GoReadApp {
         
         const feedTitle = 'Articles';
         document.getElementById('article-pane-title').textContent = feedTitle;
+
+        // Update mobile navigation to show articles pane when feed is selected
+        this.updateMobileNavigation('articles');
     }
 
     async loadArticles(feedId, append = false) {
@@ -584,11 +693,15 @@ class GoReadApp {
         const updatedArticleList = document.getElementById('article-list');
         
         // Add event delegation for star buttons and article selection
-        updatedArticleList.addEventListener('click', (e) => {
+        // Use both click and touchend for better iPad support
+        const handleArticleInteraction = (e) => {
+            console.log('Article interaction:', e.type, e.target);
+            
             // Handle star button clicks via event delegation
             if (e.target.classList.contains('star-btn')) {
                 e.stopPropagation();
                 e.preventDefault();
+                console.log('Star button clicked');
                 this.toggleStar(parseInt(e.target.dataset.articleId));
                 return;
             }
@@ -597,8 +710,17 @@ class GoReadApp {
             const articleItem = e.target.closest('.article-item');
             if (articleItem && !e.target.classList.contains('star-btn')) {
                 const index = parseInt(articleItem.dataset.index);
+                console.log('Article selected, index:', index);
                 this.selectArticle(index);
             }
+        };
+        
+        updatedArticleList.addEventListener('click', handleArticleInteraction);
+        // Add touchend for better iPad support
+        updatedArticleList.addEventListener('touchend', (e) => {
+            // Prevent the click event from firing after touchend
+            e.preventDefault();
+            handleArticleInteraction(e);
         });
         
         articlesToRender.forEach((article, i) => {
@@ -676,6 +798,8 @@ class GoReadApp {
         const article = this.articles[index];
         this.displayArticle(article);
         
+        // Update mobile navigation to show content pane when article is selected
+        this.updateMobileNavigation('content');
         
         articleItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }

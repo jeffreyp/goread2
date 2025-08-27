@@ -915,3 +915,294 @@ body.app-body {
     color: #1a73e8;
     font-weight: 600;
 }
+
+/* Mobile Responsive Styles */
+/* iPad and smaller tablets in landscape */
+@media screen and (max-width: 1024px) and (min-width: 769px) {
+    .header-actions {
+        gap: 8px;
+    }
+    
+    .btn {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+    
+    .article-pane {
+        width: 320px;
+    }
+    
+    .feed-pane {
+        width: 260px;
+    }
+    
+    /* Show mobile nav but with larger touch targets for tablets */
+    .mobile-nav-btn {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+    
+    .mobile-nav-btn-icon {
+        font-size: 20px;
+    }
+}
+
+@media screen and (max-width: 1024px) {
+    .header {
+        padding: 0 15px;
+        height: 50px;
+    }
+    
+    .header-content {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .logo {
+        font-size: 20px;
+    }
+    
+    .header-actions {
+        display: none;
+        position: absolute;
+        top: 50px;
+        left: 0;
+        right: 0;
+        background: white;
+        border-bottom: 1px solid #e1e5e9;
+        padding: 10px 15px;
+        gap: 8px;
+        flex-wrap: wrap;
+        z-index: 1001;
+    }
+    
+    .header-actions.show {
+        display: flex;
+    }
+    
+    .mobile-menu-btn {
+        display: block;
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 4px;
+        color: #5f6368;
+    }
+    
+    .main-container {
+        height: calc(100vh - 50px);
+        position: relative;
+    }
+    
+    .feed-pane,
+    .article-pane {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 10;
+    }
+    
+    .feed-pane.active {
+        transform: translateX(0);
+    }
+    
+    .article-pane.active {
+        transform: translateX(0);
+    }
+    
+    .content-pane {
+        width: 100%;
+        height: 100%;
+    }
+    
+    /* Mobile navigation */
+    .mobile-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #e1e5e9;
+        display: flex;
+        justify-content: space-around;
+        padding: 8px 0;
+        z-index: 1000;
+    }
+    
+    .mobile-nav-btn {
+        background: none;
+        border: none;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 12px;
+        color: #5f6368;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        transition: color 0.2s;
+    }
+    
+    .mobile-nav-btn.active {
+        color: #1a73e8;
+    }
+    
+    .mobile-nav-btn-icon {
+        font-size: 18px;
+    }
+    
+    /* Adjust main container for mobile nav */
+    .main-container {
+        height: calc(100vh - 50px - 60px);
+    }
+    
+    .pane-header {
+        padding: 15px;
+    }
+    
+    .pane-header h2 {
+        font-size: 16px;
+    }
+    
+    .feed-item,
+    .article-item {
+        padding: 12px 15px;
+    }
+    
+    .feed-title,
+    .article-title {
+        font-size: 14px;
+    }
+    
+    .article-meta {
+        font-size: 11px;
+    }
+    
+    .article-content {
+        padding: 15px;
+    }
+    
+    .article-content h1 {
+        font-size: 24px;
+    }
+    
+    /* Modal adjustments */
+    .modal-content {
+        width: 95%;
+        padding: 20px;
+        margin: 20px auto;
+    }
+    
+    .login-container {
+        padding: 40px 20px;
+        width: 95%;
+    }
+    
+    .privacy-container {
+        padding: 20px 15px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .header {
+        padding: 0 10px;
+        height: 45px;
+    }
+    
+    .logo {
+        font-size: 18px;
+    }
+    
+    .main-container {
+        height: calc(100vh - 45px - 55px);
+    }
+    
+    .mobile-nav {
+        padding: 6px 0;
+    }
+    
+    .mobile-nav-btn {
+        padding: 6px 8px;
+        font-size: 10px;
+    }
+    
+    .mobile-nav-btn-icon {
+        font-size: 16px;
+    }
+    
+    .pane-header {
+        padding: 12px;
+    }
+    
+    .feed-item,
+    .article-item {
+        padding: 10px 12px;
+    }
+    
+    .article-content {
+        padding: 12px;
+    }
+    
+    .article-content h1 {
+        font-size: 20px;
+    }
+    
+    .article-content .content {
+        font-size: 15px;
+    }
+    
+    .btn {
+        padding: 8px 12px;
+        font-size: 14px;
+        min-height: 44px;
+    }
+    
+    .form-group input {
+        padding: 12px;
+        font-size: 16px;
+        min-height: 44px;
+    }
+    
+    .action-btn {
+        padding: 8px;
+        font-size: 16px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+    
+    .subscription-panel {
+        padding: 10px 12px;
+    }
+    
+    .subscription-info {
+        font-size: 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+}
+
+/* Better touch support for mobile interactions */
+.mobile-nav-btn, .article-item, .feed-item, .btn {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Ensure mobile menu toggle is hidden on desktop */
+@media screen and (min-width: 1025px) {
+    .mobile-menu-btn {
+        display: none;
+    }
+    
+    .mobile-nav {
+        display: none;
+    }
+}
