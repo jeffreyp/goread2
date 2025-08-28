@@ -820,8 +820,8 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	ctx := context.Background()
 	
-	// Get all user feeds
-	userFeeds, err := db.GetUserFeeds(userID)
+	// Get all user feeds with strong consistency retry for recent changes
+	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
@@ -917,6 +917,38 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 	}
 	
 	return unreadCount, nil
+}
+
+// getUserFeedsWithRetry gets user feeds with retry logic to handle eventual consistency
+func (db *DatastoreDB) getUserFeedsWithRetry(ctx context.Context, userID int, maxRetries int, delay time.Duration) ([]Feed, error) {
+	var lastFeeds []Feed
+	var lastErr error
+	
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		feeds, err := db.GetUserFeeds(userID)
+		if err != nil {
+			lastErr = err
+			if attempt < maxRetries {
+				time.Sleep(delay)
+				continue
+			}
+			return nil, lastErr
+		}
+		
+		// If we got feeds on the first attempt or same number as previous, return
+		if attempt == 0 || len(feeds) >= len(lastFeeds) {
+			return feeds, nil
+		}
+		
+		// If we got fewer feeds than before, retry (might be consistency issue)
+		lastFeeds = feeds
+		if attempt < maxRetries {
+			time.Sleep(delay)
+		}
+	}
+	
+	// Return the last result we got
+	return lastFeeds, lastErr
 }
 
 func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
