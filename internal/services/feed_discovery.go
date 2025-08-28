@@ -57,14 +57,16 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 		return nil, fmt.Errorf("URL normalization failed: %w", err)
 	}
 
-	// Try common feed paths first (faster and more reliable than checking the main URL)
+	// First check if the input URL itself is already a valid feed
+	if fd.isValidFeed(normalizedURL) {
+		return []string{normalizedURL}, nil
+	}
+
+	// Try common feed paths (faster and more reliable than checking the main URL)
 	commonFeeds := fd.tryCommonFeedPaths(normalizedURL)
 	if len(commonFeeds) > 0 {
 		return commonFeeds, nil
 	}
-
-	// Skip checking if main URL is a feed directly since it can hang
-	// Most websites won't serve feeds on their main page anyway
 
 	// If no common paths worked, try to discover feeds from the page
 	feedURLs, err := fd.discoverFeedsFromHTML(normalizedURL)
@@ -253,4 +255,54 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 	}
 
 	return validFeeds
+}
+
+// isValidFeed checks if a given URL is a valid RSS/Atom feed
+func (fd *FeedDiscovery) isValidFeed(feedURL string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
+	
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+	
+	// Check content type
+	contentType := resp.Header.Get("Content-Type")
+	if strings.Contains(contentType, "xml") || 
+	   strings.Contains(contentType, "rss") || 
+	   strings.Contains(contentType, "atom") {
+		return true
+	}
+	
+	// If content type is not indicative, check the first few bytes of content
+	body := make([]byte, 1024)
+	n, err := resp.Body.Read(body)
+	if err != nil && err != io.EOF {
+		return false
+	}
+	
+	content := string(body[:n])
+	content = strings.ToLower(strings.TrimSpace(content))
+	
+	// Check for XML declaration and RSS/Atom root elements
+	return strings.Contains(content, "<?xml") && 
+		   (strings.Contains(content, "<rss") || 
+		    strings.Contains(content, "<feed") ||
+		    strings.Contains(content, "<atom"))
 }
