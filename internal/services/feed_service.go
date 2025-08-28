@@ -268,13 +268,12 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		return nil, fmt.Errorf("failed to subscribe user to feed: %w", err)
 	}
 
-	// Mark all articles in this feed as unread for the subscriber asynchronously
-	// This improves response time for feed addition, especially in production with many articles
-	go func() {
-		if err := fs.markExistingArticlesAsUnreadForUser(userID, existingFeed.ID); err != nil {
-			log.Printf("Failed to mark existing articles as unread for user %d, feed %d: %v", userID, existingFeed.ID, err)
-		}
-	}()
+	// Mark all articles in this feed as unread for the subscriber synchronously
+	// This ensures unread counts are immediately accurate after feed addition
+	if err := fs.markExistingArticlesAsUnreadForUser(userID, existingFeed.ID); err != nil {
+		log.Printf("Failed to mark existing articles as unread for user %d, feed %d: %v", userID, existingFeed.ID, err)
+		// Don't fail the entire operation, just log the error
+	}
 
 	return existingFeed, nil
 }
