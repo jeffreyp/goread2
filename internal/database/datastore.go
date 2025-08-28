@@ -532,61 +532,79 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 		return []Article{}, nil
 	}
 
-	// Since Datastore doesn't support IN operator, we need to query each feed separately
-	// and then merge and sort the results
+	// Extract feed IDs for efficient querying
+	feedIDs := make([]int64, len(feeds))
+	for i, feed := range feeds {
+		feedIDs[i] = int64(feed.ID)
+	}
+
+	// Get articles more efficiently by running fewer, larger queries
+	// We'll get more articles than needed and sort/paginate in memory
+	// This reduces query overhead significantly
 	var allArticles []Article
 	
-	// Collect articles from all feeds
-	for _, feed := range feeds {
-		// Get articles for this specific feed
-		query := datastore.NewQuery("Article").
-			FilterField("feed_id", "=", int64(feed.ID)).
-			Order("-published_at")
-		
-		var feedArticles []ArticleEntity
-		keys, err := db.client.GetAll(ctx, query, &feedArticles)
-		if err != nil {
-			continue // Skip feeds that fail, don't fail entire request
+	// Query articles from all feeds in parallel batches
+	batchSize := 5 // Process 5 feeds at a time
+	for i := 0; i < len(feedIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(feedIDs) {
+			end = len(feedIDs)
 		}
+		
+		// Process this batch of feeds in parallel
+		batch := feedIDs[i:end]
+		batchArticles := make(chan []Article, len(batch))
+		
+		for _, feedID := range batch {
+			go func(fid int64) {
+				// Get recent articles from this feed (more than needed for better sorting)
+				query := datastore.NewQuery("Article").
+					FilterField("feed_id", "=", fid).
+					Order("-published_at").
+					Limit(limit + offset + 50) // Get extra for better sorting across feeds
+				
+				var feedArticles []ArticleEntity
+				keys, err := db.client.GetAll(ctx, query, &feedArticles)
+				if err != nil {
+					batchArticles <- []Article{} // Empty result on error
+					return
+				}
 
-		// Convert to Article structs with user status
-		for i, entity := range feedArticles {
-			entity.ID = keys[i].ID
-			
-			// Get user-specific read/starred status
-			userArticle, err := db.GetUserArticleStatus(userID, int(entity.ID))
-			isRead := false
-			isStarred := false
-			if err == nil && userArticle != nil {
-				isRead = userArticle.IsRead
-				isStarred = userArticle.IsStarred
-			}
-
-			article := Article{
-				ID:          int(entity.ID),
-				FeedID:      int(entity.FeedID),
-				Title:       entity.Title,
-				URL:         entity.URL,
-				Content:     entity.Content,
-				Description: entity.Description,
-				Author:      entity.Author,
-				PublishedAt: entity.PublishedAt,
-				CreatedAt:   entity.CreatedAt,
-				IsRead:      isRead,
-				IsStarred:   isStarred,
-			}
-			
-			allArticles = append(allArticles, article)
+				// Convert to Article structs
+				articles := make([]Article, len(feedArticles))
+				for j, entity := range feedArticles {
+					entity.ID = keys[j].ID
+					articles[j] = Article{
+						ID:          int(entity.ID),
+						FeedID:      int(entity.FeedID),
+						Title:       entity.Title,
+						URL:         entity.URL,
+						Content:     entity.Content,
+						Description: entity.Description,
+						Author:      entity.Author,
+						PublishedAt: entity.PublishedAt,
+						CreatedAt:   entity.CreatedAt,
+						IsRead:      false, // Default, will be updated in bulk below
+						IsStarred:   false, // Default, will be updated in bulk below
+					}
+				}
+				batchArticles <- articles
+			}(feedID)
+		}
+		
+		// Collect results from this batch
+		for j := 0; j < len(batch); j++ {
+			articles := <-batchArticles
+			allArticles = append(allArticles, articles...)
 		}
 	}
 
-	// Sort all articles by published date (most recent first)
-	// Since we can't rely on Datastore to sort across multiple queries
+	// Sort all articles by published_at desc
 	sort.Slice(allArticles, func(i, j int) bool {
 		return allArticles[i].PublishedAt.After(allArticles[j].PublishedAt)
 	})
 
-	// Apply pagination manually since we had to merge results
+	// Apply pagination first to reduce user status queries
 	startIdx := offset
 	endIdx := offset + limit
 	
@@ -597,8 +615,40 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 	if endIdx > len(allArticles) {
 		endIdx = len(allArticles)
 	}
+	
+	paginatedArticles := allArticles[startIdx:endIdx]
 
-	return allArticles[startIdx:endIdx], nil
+	// Now get user status for only the articles we're returning (bulk operation)
+	if len(paginatedArticles) > 0 {
+		articleIDs := make([]int64, len(paginatedArticles))
+		for i, article := range paginatedArticles {
+			articleIDs[i] = int64(article.ID)
+		}
+		
+		// Query user article statuses in bulk
+		query := datastore.NewQuery("UserArticle").
+			FilterField("user_id", "=", int64(userID))
+		
+		var userArticles []UserArticleEntity
+		_, err := db.client.GetAll(ctx, query, &userArticles)
+		if err == nil {
+			// Create a map for fast lookup
+			statusMap := make(map[int]UserArticleEntity)
+			for _, ua := range userArticles {
+				statusMap[int(ua.ArticleID)] = ua
+			}
+			
+			// Update articles with user status
+			for i := range paginatedArticles {
+				if userStatus, exists := statusMap[paginatedArticles[i].ID]; exists {
+					paginatedArticles[i].IsRead = userStatus.IsRead
+					paginatedArticles[i].IsStarred = userStatus.IsStarred
+				}
+			}
+		}
+	}
+
+	return paginatedArticles, nil
 }
 
 func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
