@@ -679,17 +679,53 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 		return nil, fmt.Errorf("failed to get articles: %w", err)
 	}
 
+	if len(articleEntities) == 0 {
+		return []Article{}, nil
+	}
+
+	// Batch lookup user article statuses for better performance
+	userArticleKeys := make([]*datastore.Key, len(articleEntities))
+	for i, key := range keys {
+		articleID := key.ID
+		userArticleKeys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
+	}
+	
+	// Use GetMulti for efficient batch read
+	userArticles := make([]UserArticleEntity, len(userArticleKeys))
+	err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
+	
+	// Create status map for quick lookup
+	statusMap := make(map[int64]UserArticleEntity)
+	if multiErr, ok := err.(datastore.MultiError); ok {
+		// Handle partial results - some UserArticle entities may not exist
+		for i, singleErr := range multiErr {
+			if singleErr == nil {
+				articleID := keys[i].ID
+				statusMap[articleID] = userArticles[i]
+			}
+			// Ignore ErrNoSuchEntity and other errors - they mean unread/unstarred
+		}
+	} else if err == nil {
+		// All UserArticle entities exist
+		for i, userArticle := range userArticles {
+			articleID := keys[i].ID
+			statusMap[articleID] = userArticle
+		}
+	}
+	// If there's a complete failure, statusMap remains empty (all unread/unstarred)
+
+	// Build articles with user status
 	articles := make([]Article, len(articleEntities))
 	for i, entity := range articleEntities {
 		entity.ID = keys[i].ID
+		articleID := keys[i].ID
 		
-		// Get user-specific read/starred status
-		userArticle, err := db.GetUserArticleStatus(userID, int(entity.ID))
+		// Get user status from map (defaults to false if not found)
 		isRead := false
 		isStarred := false
-		if err == nil && userArticle != nil {
-			isRead = userArticle.IsRead
-			isStarred = userArticle.IsStarred
+		if userStatus, exists := statusMap[articleID]; exists {
+			isRead = userStatus.IsRead
+			isStarred = userStatus.IsStarred
 		}
 
 		articles[i] = Article{
