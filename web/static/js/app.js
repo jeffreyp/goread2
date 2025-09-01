@@ -820,7 +820,7 @@ class GoReadApp {
         // Update mobile navigation to show content pane when article is selected
         this.updateMobileNavigation('content');
         
-        articleItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        articleItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
 
