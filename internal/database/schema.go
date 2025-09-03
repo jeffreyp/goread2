@@ -247,8 +247,12 @@ func (db *DB) createIndexes() error {
 }
 
 func (db *DB) migrateDatabase() error {
-	// Add subscription columns to existing users table if they don't exist
-	subscriptionColumns := []string{
+	// Add missing columns to existing users table if they don't exist
+	allColumns := []string{
+		"ALTER TABLE users ADD COLUMN google_id TEXT",
+		"ALTER TABLE users ADD COLUMN email TEXT",
+		"ALTER TABLE users ADD COLUMN name TEXT",
+		"ALTER TABLE users ADD COLUMN avatar TEXT",
 		"ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'trial'",
 		"ALTER TABLE users ADD COLUMN subscription_id TEXT",
 		"ALTER TABLE users ADD COLUMN trial_ends_at DATETIME", 
@@ -257,7 +261,7 @@ func (db *DB) migrateDatabase() error {
 		"ALTER TABLE users ADD COLUMN free_months_remaining INTEGER DEFAULT 0",
 	}
 
-	for _, alterQuery := range subscriptionColumns {
+	for _, alterQuery := range allColumns {
 		_, err := db.Exec(alterQuery)
 		if err != nil {
 			// Ignore "duplicate column" errors - column already exists
