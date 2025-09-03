@@ -1,10 +1,8 @@
-package unit
+package config
 
 import (
 	"os"
 	"testing"
-
-	"goread2/internal/config"
 )
 
 func TestConfigLoad(t *testing.T) {
@@ -145,27 +143,22 @@ func TestConfigLoad(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clear environment
 			clearConfigEnvVars()
 			
-			// Set test environment variables
 			for key, value := range tt.envVars {
 				_ = os.Setenv(key, value)
 			}
 			defer func() {
-				// Clean up after test
 				for key := range tt.envVars {
 					_ = os.Unsetenv(key)
 				}
 				clearConfigEnvVars()
 			}()
 
-			// Reset and load config
-			config.ResetForTesting()
-			config.Load()
-			cfg := config.Get()
+			ResetForTesting()
+			Load()
+			cfg := Get()
 
-			// Verify results
 			if cfg.SubscriptionEnabled != tt.expectedSubscriptionEnabled {
 				t.Errorf("SubscriptionEnabled = %v, want %v", cfg.SubscriptionEnabled, tt.expectedSubscriptionEnabled)
 			}
@@ -178,9 +171,8 @@ func TestConfigLoad(t *testing.T) {
 				t.Errorf("DatabasePath = %v, want %v", cfg.DatabasePath, tt.expectedDatabasePath)
 			}
 
-			// Test the convenience function
-			if config.IsSubscriptionEnabled() != tt.expectedSubscriptionEnabled {
-				t.Errorf("IsSubscriptionEnabled() = %v, want %v", config.IsSubscriptionEnabled(), tt.expectedSubscriptionEnabled)
+			if IsSubscriptionEnabled() != tt.expectedSubscriptionEnabled {
+				t.Errorf("IsSubscriptionEnabled() = %v, want %v", IsSubscriptionEnabled(), tt.expectedSubscriptionEnabled)
 			}
 		})
 	}
@@ -215,7 +207,6 @@ func TestConfigParseBool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			// Clear environment and set test value
 			clearConfigEnvVars()
 			if tt.input != "" {
 				_ = os.Setenv("SUBSCRIPTION_ENABLED", tt.input)
@@ -225,9 +216,9 @@ func TestConfigParseBool(t *testing.T) {
 				clearConfigEnvVars()
 			}()
 
-			config.ResetForTesting()
-			config.Load()
-			result := config.IsSubscriptionEnabled()
+			ResetForTesting()
+			Load()
+			result := IsSubscriptionEnabled()
 
 			if result != tt.expected {
 				t.Errorf("parseBool(%q) = %v, want %v", tt.input, result, tt.expected)
@@ -237,7 +228,6 @@ func TestConfigParseBool(t *testing.T) {
 }
 
 func TestConfigEnvVarPrecedence(t *testing.T) {
-	// Test that environment variables take precedence over defaults
 	clearConfigEnvVars()
 	
 	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
@@ -263,9 +253,9 @@ func TestConfigEnvVarPrecedence(t *testing.T) {
 		clearConfigEnvVars()
 	}()
 
-	config.ResetForTesting()
-	config.Load()
-	cfg := config.Get()
+	ResetForTesting()
+	Load()
+	cfg := Get()
 
 	if !cfg.SubscriptionEnabled {
 		t.Error("Expected SubscriptionEnabled to be true")
@@ -288,7 +278,6 @@ func TestConfigEnvVarPrecedence(t *testing.T) {
 	}
 }
 
-// Helper function to clear config-related environment variables
 func clearConfigEnvVars() {
 	envVars := []string{
 		"SUBSCRIPTION_ENABLED",
@@ -306,5 +295,5 @@ func clearConfigEnvVars() {
 		_ = os.Unsetenv(envVar)
 	}
 	
-	config.ResetForTesting()
+	ResetForTesting()
 }
