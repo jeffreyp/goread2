@@ -1,37 +1,31 @@
 # Testing Guide
 
-Comprehensive testing guide for GoRead2's multi-user RSS reader application.
+Testing guide for GoRead2's multi-user RSS reader application.
 
 ## Overview
 
-GoRead2 includes a robust testing suite covering:
-- **Backend unit tests** for core functionality
-- **Integration tests** for API endpoints and user isolation
-- **Frontend tests** with Jest and jsdom
-- **Security tests** for multi-user data isolation
+GoRead2's testing infrastructure includes:
+- **Package-level unit tests** (currently config package with 85.7% coverage)
+- **Integration tests** for end-to-end API validation
+- **Frontend tests** with Jest and jsdom (26 tests)
 - **CI/CD integration** with GitHub Actions
 
-## Test Structure
+## Current Test Structure
 
 ```
+internal/
+├── config/
+│   └── config_test.go   # Config package unit tests (85.7% coverage)
 test/
-├── helpers/              # Backend test utilities
-│   ├── database.go       # Database test helpers
-│   └── http.go          # HTTP test helpers
-├── unit/                # Backend unit tests
-│   ├── auth_test.go     # Authentication service tests
-│   ├── database_test.go # Database layer tests
-│   └── admin_test.go    # Admin functionality tests
 ├── integration/         # Backend integration tests
-│   ├── api_test.go      # API endpoint tests
-│   └── admin_integration_test.go # Admin CLI tests
-├── fixtures/            # Test data and sample feeds
-│   └── sample_feeds.go  # Sample data for tests
-└── web/tests/           # Frontend tests
-    ├── app-core.test.js # Core frontend functionality
-    ├── utils.js         # Frontend test utilities
-    ├── setup.js         # Test environment setup
-    └── README.md        # Frontend testing documentation
+│   └── api_test.go      # End-to-end API testing
+└── fixtures/            # Test data and sample feeds
+    └── sample_feeds.go  # Sample data for tests
+web/tests/               # Frontend tests
+├── app-core.test.js     # Core frontend functionality (26 tests)
+├── utils.js             # Frontend test utilities  
+├── setup.js             # Test environment setup
+└── README.md            # Frontend testing documentation
 ```
 
 ## Running Tests
@@ -53,19 +47,22 @@ The test script runs:
 ### Backend Tests Only
 
 ```bash
-# Quick test run
-go test ./test/unit/... ./test/integration/...
+# Package-level unit tests (currently config package)
+go test ./internal/config/...
+
+# Integration tests
+go test ./test/integration/...
 
 # With coverage
-go test -coverprofile=coverage.out ./test/...
+go test -coverprofile=coverage.out ./internal/...
 go tool cover -html=coverage.out -o coverage.html
 
 # Verbose output
-go test -v -timeout=30s ./test/...
+go test -v ./internal/... ./test/integration/...
 
 # Specific test package
-go test ./test/unit/database_test.go
-go test ./test/integration/api_test.go
+go test ./internal/config/
+go test ./test/integration/
 ```
 
 ### Frontend Tests Only
@@ -86,84 +83,52 @@ npm test -- app-core.test.js
 
 ## Test Categories
 
-### 1. Backend Unit Tests
+### 1. Package-Level Unit Tests
 
-#### Database Layer (`test/unit/database_test.go`)
+#### Config Package (`internal/config/config_test.go`)
 
-Tests core database operations:
+Tests configuration management with 85.7% coverage:
 
 ```go
-func TestUserCRUD(t *testing.T) {
-    // Test user creation, retrieval, updates
+func TestLoadConfig(t *testing.T) {
+    // Test configuration loading from environment
 }
 
-func TestUserDataIsolation(t *testing.T) {
-    // Verify users cannot access each other's data
+func TestConfigValidation(t *testing.T) {
+    // Test configuration parameter validation
 }
 
-func TestFeedSubscriptions(t *testing.T) {
-    // Test user-specific feed subscriptions
+func TestDatabaseConfig(t *testing.T) {
+    // Test database connection configuration
 }
 ```
 
 **Coverage includes:**
-- User CRUD operations
-- Feed management
-- Article storage and retrieval
-- User-feed subscriptions
-- User-specific read/starred status
-- Data isolation between users
+- Environment variable loading
+- Configuration validation
+- Database connection strings
+- OAuth configuration parameters
+- Default value handling
 
-#### Authentication (`test/unit/auth_test.go`)
+### 2. Future Unit Tests (Requires Interface Fixes)
 
-Tests authentication system:
+The following packages need interface reconciliation before unit tests can be added:
 
-```go
-func TestOAuthConfiguration(t *testing.T) {
-    // Verify OAuth setup and configuration
-}
+#### Database Interface Issues
+- Interface expects value types but implementations use pointers
+- Method signature inconsistencies between interface and implementations
+- Parameter count mismatches in some methods
 
-func TestSessionManagement(t *testing.T) {
-    // Test session creation, validation, expiration
-}
+#### Affected Areas
+- Database operations (User CRUD, Feed management, Article operations)
+- Authentication system (OAuth, sessions, middleware)
+- Admin functionality (user operations, subscriptions)
 
-func TestAuthenticationMiddleware(t *testing.T) {
-    // Verify middleware protects endpoints
-}
-```
-
-**Coverage includes:**
-- OAuth configuration validation
-- Session creation and management
-- Session expiration handling
-- Authentication middleware
-- User context extraction
-
-#### Admin Functionality (`test/unit/admin_test.go`)
-
-Tests admin operations:
-
-```go
-func TestAdminUserOperations(t *testing.T) {
-    // Test admin privilege management
-}
-
-func TestSubscriptionService(t *testing.T) {
-    // Test subscription logic and limits
-}
-```
-
-**Coverage includes:**
-- User admin operations
-- Free months granting
-- Subscription service methods
-- Permission management
-
-### 2. Backend Integration Tests
+### 3. Backend Integration Tests
 
 #### API Endpoints (`test/integration/api_test.go`)
 
-Tests complete API functionality:
+Tests end-to-end API functionality:
 
 ```go
 func TestFeedAPIWithAuth(t *testing.T) {
@@ -181,28 +146,13 @@ func TestUserIsolationInAPI(t *testing.T) {
 - Article operations (read/star)
 - User isolation verification
 - Error handling and status codes
+- Full request/response cycle testing
 
-#### Admin CLI (`test/integration/admin_integration_test.go`)
-
-Tests command-line admin operations:
-
-```go
-func TestAdminCommands(t *testing.T) {
-    // Test CLI admin functionality
-}
-```
-
-**Coverage includes:**
-- Command-line admin operations
-- User management commands
-- Database integration testing
-- Error handling validation
-
-### 3. Frontend Tests
+### 4. Frontend Tests
 
 #### Core Functionality (`web/tests/app-core.test.js`)
 
-Tests frontend application logic:
+Tests frontend application logic with 26 comprehensive tests:
 
 ```javascript
 describe('GoReadApp', () => {
@@ -246,52 +196,56 @@ export SUBSCRIPTION_ENABLED=false  # Disable for most tests
 
 ### Database Setup
 
-Tests use isolated databases:
+Tests use isolated test databases:
 
 ```go
-// test/helpers/database.go
-func SetupTestDB(t *testing.T) Database {
-    // Creates fresh in-memory SQLite database
-    // Each test gets isolated database
+// Integration tests create isolated database instances
+func setupTestDB(t *testing.T) *sql.DB {
+    // Creates fresh test database
+    // Each test gets clean database state
 }
 ```
 
 ### HTTP Test Setup
 
-Tests use test servers:
+Integration tests use test servers:
 
 ```go
-// test/helpers/http.go
-func SetupTestServer(t *testing.T) *httptest.Server {
-    // Creates test server with full middleware stack
+// Integration tests setup full HTTP stack
+func setupTestServer(t *testing.T) *httptest.Server {
+    // Creates test server with middleware
     // Includes authentication and session handling
 }
 ```
 
 ## Coverage Goals
 
-Current test coverage targets:
+Current test coverage status and targets:
 
-- **Database operations**: 95%+ coverage
-- **Authentication logic**: 90%+ coverage  
-- **API endpoints**: 85%+ coverage
-- **User isolation**: 100% coverage (critical for security)
-- **Admin functions**: 90%+ coverage
-- **Frontend core**: 80%+ coverage
+### ✅ Achieved Coverage
+- **Config package**: 85.7% coverage (package-level unit tests)
+- **Integration tests**: Full end-to-end API validation
+- **Frontend**: 26 tests covering core functionality
+- **User isolation**: Verified through integration tests
+
+### 🎯 Future Coverage Targets (Post Interface Fixes)
+- **Database operations**: 90%+ coverage goal
+- **Authentication logic**: 85%+ coverage goal
+- **Additional packages**: 80%+ coverage goal
 
 ### Viewing Coverage
 
 ```bash
-# Generate backend coverage
-go test -coverprofile=coverage.out ./test/...
-go tool cover -html=coverage.out
+# Generate package-level coverage
+go test -coverprofile=coverage.out ./internal/...
+go tool cover -html=coverage.out -o coverage.html
 
 # Generate frontend coverage
 npm run test:coverage
 
 # View coverage in browser
 open coverage.html                    # Backend
-open coverage/lcov-report/index.html  # Frontend
+open web/coverage/index.html          # Frontend
 ```
 
 ## Test Data and Fixtures
@@ -391,53 +345,61 @@ The CI pipeline includes:
 
 ```yaml
 name: Tests
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.21, 1.22, 1.23]
+        go-version: [1.23]
         
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
           
-      - name: Run tests
-        run: ./test.sh
+      - name: Run unit tests
+        run: go test -short -race -coverprofile=coverage.out ./internal/...
+        
+      - name: Run integration tests
+        run: go test -race ./test/integration/...
         
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
 ```
 
 **Pipeline features:**
-- Multi-version Go testing
-- Code coverage reporting
+- Go 1.23 testing
+- Package-level unit tests (`./internal/...`)
+- Integration tests (`./test/integration/...`)
+- Coverage reporting to Codecov
 - Linting with golangci-lint
-- Security scanning with gosec
-- Build artifact generation
-- Parallel job execution
+- Multi-platform build artifacts
+- Separate test, lint, and build jobs
 
 ## Writing New Tests
 
-### Backend Test Example
+### Package-Level Unit Test Example
 
 ```go
-func TestNewFeature(t *testing.T) {
-    // Setup
-    db := helpers.SetupTestDB(t)
-    defer db.Close()
-    
-    user := helpers.CreateTestUser(t, db, "test@example.com")
+func TestNewConfigFeature(t *testing.T) {
+    // Setup - create test environment
+    os.Setenv("TEST_VAR", "test_value")
+    defer os.Unsetenv("TEST_VAR")
     
     // Test
-    result := newFeatureFunction(user.ID)
+    config := LoadConfig()
+    result := config.GetTestValue()
     
     // Assert
-    assert.NotNil(t, result)
-    assert.Equal(t, expectedValue, result.Value)
+    if result != "test_value" {
+        t.Errorf("expected 'test_value', got %s", result)
+    }
 }
 ```
 
@@ -469,22 +431,26 @@ describe('New Feature', () => {
 
 ```go
 func TestAPIIntegration(t *testing.T) {
-    // Setup test server
-    server := helpers.SetupTestServer(t)
+    // Setup test server and database
+    db := setupTestDB(t)
+    server := setupTestServer(t, db)
     defer server.Close()
     
-    // Create authenticated session
-    session := helpers.CreateAuthenticatedSession(t, "test@example.com")
+    // Create test user and session
+    user := createTestUser(t, db, "test@example.com")
+    session := createAuthenticatedSession(t, user)
     
-    // Make authenticated request
-    resp := helpers.MakeAuthenticatedRequest(t, server, session, "GET", "/api/feeds")
+    // Make authenticated API request
+    resp := makeAuthenticatedRequest(t, server, session, "GET", "/api/feeds")
     
-    // Assert
-    assert.Equal(t, http.StatusOK, resp.StatusCode)
+    // Assert response
+    if resp.StatusCode != http.StatusOK {
+        t.Errorf("expected status 200, got %d", resp.StatusCode)
+    }
     
     var feeds []Feed
     json.NewDecoder(resp.Body).Decode(&feeds)
-    assert.IsType(t, []Feed{}, feeds)
+    // Verify feed data structure
 }
 ```
 
@@ -545,37 +511,43 @@ func TestWithDebugging(t *testing.T) {
 
 ### Common Issues
 
-**Test Database Errors:**
-- Ensure SQLite driver is available: `go mod tidy`
-- Check file permissions in test directory
-- Verify tests clean up properly
+**Package-Level Unit Test Issues:**
+- Ensure dependencies are available: `go mod tidy`
+- Check environment variables for config tests
+- Verify test isolation and cleanup
 
-**Authentication Test Failures:**
-- Check environment variables are set correctly
-- Verify Google OAuth configuration in tests
-- Ensure session handling works in test environment
+**Integration Test Issues:**
+- Check test database setup and permissions
+- Verify environment variables are set
+- Ensure test server starts correctly
+- Check for port conflicts
 
 **Frontend Test Issues:**
 - Verify Jest and jsdom are installed: `npm install`
 - Check DOM setup in test files
 - Ensure fetch mocking is configured properly
 
-**Integration Test Timeouts:**
-- Increase timeout for network-dependent tests
-- Consider mocking external HTTP calls
-- Check test server startup time
+**Interface Mismatch Issues:**
+- Cannot add unit tests for packages with interface inconsistencies
+- Need to reconcile pointer vs value type mismatches
+- Method signatures must match between interface and implementations
 
 ### Debug Commands
 
 ```bash
-# Run specific test with timing
-go test -v -timeout=60s -run TestSlowFunction ./test/...
+# Run specific package tests with verbose output
+go test -v ./internal/config/
+go test -v ./test/integration/
+
+# Run tests with race detection
+go test -race ./internal/... ./test/integration/...
 
 # Frontend tests with coverage and debugging
 npm test -- --coverage --verbose
 
-# Check test dependencies
+# Check dependencies
 go mod verify
+go mod tidy
 npm audit
 ```
 
@@ -613,18 +585,25 @@ npm audit
 
 When adding new features:
 
-1. **Write tests first** (TDD approach)
-2. **Ensure data isolation** for multi-user features
-3. **Add integration tests** for new API endpoints
-4. **Update test documentation** for new test categories
-5. **Maintain coverage goals** (aim for >90% for new code)
+1. **Write package-level tests** for new functionality
+2. **Add integration tests** for new API endpoints  
+3. **Ensure interface consistency** before adding unit tests
+4. **Maintain current coverage** (don't decrease existing coverage)
+5. **Follow Go testing conventions** (tests in same package as code)
 
 ### Pull Request Requirements
 
 - All tests must pass: `./test.sh`
-- Code coverage must not decrease
-- Include both unit and integration tests
+- Package-level coverage should not decrease
+- Include integration tests for API changes
 - Update documentation for user-facing changes
 - Follow existing test patterns and conventions
 
-This comprehensive testing suite ensures GoRead2 maintains high quality, security, and reliability across all user scenarios.
+### Future Testing Roadmap
+
+1. **Fix interface mismatches** to enable more unit tests
+2. **Add package-level tests** for database, auth, and admin packages
+3. **Achieve target coverage goals** (80-90% for new packages)
+4. **Maintain security testing** for multi-user isolation
+
+The testing infrastructure follows Go conventions with package-level tests co-located with source code, comprehensive integration testing, and frontend validation to ensure GoRead2 maintains quality and reliability.
