@@ -24,6 +24,9 @@ type Config struct {
 	StripePublishableKey string
 	StripeWebhookSecret  string
 	
+	// Admin initialization
+	InitialAdminEmails []string
+	
 	// Server
 	Port string
 }
@@ -57,6 +60,9 @@ func Load() *Config {
 		StripeSecretKey:      os.Getenv("STRIPE_SECRET_KEY"),
 		StripePublishableKey: os.Getenv("STRIPE_PUBLISHABLE_KEY"),
 		StripeWebhookSecret:  os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		
+		// Admin initialization
+		InitialAdminEmails: parseEmailList(os.Getenv("INITIAL_ADMIN_EMAILS")),
 		
 		// Server
 		Port: getEnvOrDefault("PORT", "8080"),
@@ -106,4 +112,23 @@ func parseBool(value string, defaultValue bool) bool {
 		}
 		return defaultValue
 	}
+}
+
+// parseEmailList parses a comma-separated list of emails
+func parseEmailList(value string) []string {
+	if value == "" {
+		return nil
+	}
+	
+	emails := strings.Split(value, ",")
+	var result []string
+	
+	for _, email := range emails {
+		email = strings.TrimSpace(email)
+		if email != "" {
+			result = append(result, email)
+		}
+	}
+	
+	return result
 }

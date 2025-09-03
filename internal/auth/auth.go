@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"goread2/internal/config"
 	"goread2/internal/database"
 	"goread2/internal/secrets"
 )
@@ -109,5 +111,41 @@ func (a *AuthService) ValidateConfig() error {
 	if a.config.RedirectURL == "" {
 		return fmt.Errorf("GOOGLE_REDIRECT_URL environment variable is required")
 	}
+	return nil
+}
+
+// InitializeAdminUsers grants admin privileges to users specified in INITIAL_ADMIN_EMAILS
+// This should be called on application startup to ensure initial admin access
+func (a *AuthService) InitializeAdminUsers() error {
+	cfg := config.Get()
+	
+	if len(cfg.InitialAdminEmails) == 0 {
+		log.Println("No initial admin emails configured (INITIAL_ADMIN_EMAILS)")
+		return nil
+	}
+	
+	log.Printf("Initializing admin privileges for %d users", len(cfg.InitialAdminEmails))
+	
+	for _, email := range cfg.InitialAdminEmails {
+		user, err := a.db.GetUserByEmail(email)
+		if err != nil {
+			log.Printf("Warning: Initial admin user not found: %s (user must sign in first)", email)
+			continue
+		}
+		
+		if user.IsAdmin {
+			log.Printf("User %s already has admin privileges", email)
+			continue
+		}
+		
+		err = a.db.SetUserAdmin(user.ID, true)
+		if err != nil {
+			log.Printf("Error granting admin privileges to %s: %v", email, err)
+			continue
+		}
+		
+		log.Printf("✅ Granted admin privileges to user: %s (%s)", user.Name, user.Email)
+	}
+	
 	return nil
 }

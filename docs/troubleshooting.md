@@ -523,6 +523,9 @@ sudo journalctl -u goread2 -f
 ### Debug Commands
 
 ```bash
+# SECURITY: Set admin token first
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+
 # Check system status
 go run cmd/admin/main.go system-info
 

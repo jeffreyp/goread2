@@ -9,12 +9,19 @@ import (
 	"goread2/internal/database"
 )
 
-// createAdminCommand creates an exec.Command for admin commands with proper working directory
+// createAdminCommand creates an exec.Command for admin commands with proper working directory and security
 func createAdminCommand(args ...string) *exec.Cmd {
 	cmdArgs := append([]string{"run", "cmd/admin/main.go"}, args...)
 	cmd := exec.Command("go", cmdArgs...)
 	
 	cmd.Dir = "../.." // Set working directory to project root
+	
+	// SECURITY: Set required admin tokens
+	cmd.Env = append(cmd.Env,
+		"ADMIN_TOKEN=test-token-for-integration-tests",
+		"ADMIN_TOKEN_VERIFY=test-token-for-integration-tests",
+	)
+	
 	return cmd
 }
 

@@ -10,58 +10,123 @@ GoRead2 provides several ways to grant users unlimited access:
 2. **Free Months**: Temporary unlimited access for a specific duration
 3. **Subscription Management**: Handle Stripe subscriptions and billing
 
-## Quick Start
+## ⚠️ Security Requirements
 
-### Make Yourself Admin
+**CRITICAL:** All admin operations now require authentication tokens to prevent unauthorized access.
+
+### Required Environment Variables
 
 ```bash
-# Replace with your actual email address
+# Generate a secure admin token
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+
+# For initial admin setup (users must sign in first)
+export INITIAL_ADMIN_EMAILS="your-email@gmail.com"
+```
+
+## Quick Start
+
+### Initial Admin Setup (Recommended)
+
+The safest way to set up admin access:
+
+1. **Set environment variables:**
+   ```bash
+   export INITIAL_ADMIN_EMAILS="your-email@gmail.com"
+   export ADMIN_TOKEN="$(openssl rand -hex 32)"
+   ```
+
+2. **Start the application:**
+   ```bash
+   go run main.go
+   ```
+
+3. **Sign in with Google OAuth** - Admin privileges will be automatically granted
+
+### Manual Admin Setup (Advanced)
+
+If you need to grant admin access after deployment:
+
+```bash
+# Set secure token
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+
+# Grant admin access (user must exist - sign in first)
 ./admin.sh admin your-email@gmail.com on
 ```
 
-That's it! You now have unlimited feeds forever.
-
 ## Admin Script Usage
 
-The `admin.sh` script provides an easy interface for user management:
+The `admin.sh` script provides an easy interface for user management.
+
+**⚠️ Security:** ADMIN_TOKEN environment variable is required for all operations.
 
 ```bash
+# Set secure token first
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+
 # Make script executable (first time only)
 chmod +x admin.sh
 
-# List all users
+# List all users (read-only)
 ./admin.sh list
 
-# Grant admin access
+# Grant admin access (requires ADMIN_TOKEN)
 ./admin.sh admin your-email@gmail.com on
 
-# Grant 6 free months to a user
+# Grant 6 free months to a user (requires ADMIN_TOKEN)
 ./admin.sh grant user@example.com 6
 
-# View user information
+# View user information (read-only)
 ./admin.sh info user@example.com
 
-# Revoke admin access
+# Revoke admin access (requires ADMIN_TOKEN)
 ./admin.sh admin user@example.com off
 ```
 
 ## Manual Commands
 
-You can also run admin commands directly:
+You can also run admin commands directly with proper security tokens:
 
 ```bash
-# List all users
+# Set security tokens
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"  # Required for sensitive operations
+
+# List all users (requires ADMIN_TOKEN)
 go run cmd/admin/main.go list-users
 
-# Set admin status
+# Set admin status (requires both tokens)
 go run cmd/admin/main.go set-admin your-email@gmail.com true
 go run cmd/admin/main.go set-admin user@example.com false
 
-# Grant free months
+# Grant free months (requires both tokens)
 go run cmd/admin/main.go grant-months user@example.com 6
 
-# Show user information
+# Show user information (requires ADMIN_TOKEN)
 go run cmd/admin/main.go user-info user@example.com
+```
+
+## Web-Based Admin API
+
+For programmatic access, use the authenticated admin endpoints:
+
+```bash
+# Get user info (requires admin session cookie)
+curl -X GET "https://yourdomain.com/admin/users/user@example.com" \
+  -H "Cookie: session=your-admin-session"
+
+# Set admin status (requires admin session cookie)
+curl -X POST "https://yourdomain.com/admin/users/user@example.com/admin" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your-admin-session" \
+  -d '{"is_admin": true}'
+
+# Grant free months (requires admin session cookie)
+curl -X POST "https://yourdomain.com/admin/users/user@example.com/free-months" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=your-admin-session" \
+  -d '{"months": 6}'
 ```
 
 ## User Status Types
@@ -253,6 +318,9 @@ When subscriptions are enabled (`SUBSCRIPTION_ENABLED=true`):
 ### Manual Subscription Operations
 
 ```bash
+# SECURITY: Set admin token first
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+
 # Check subscription system status
 go run cmd/admin/main.go system-info
 
@@ -345,6 +413,9 @@ Admin and free month users still see Stripe UI elements:
 ### User Statistics
 
 ```bash
+# SECURITY: Set admin token first
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+
 # View user breakdown
 ./admin.sh list
 

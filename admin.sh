@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # GoRead2 Admin Management Script
+# SECURITY: This script requires ADMIN_TOKEN environment variable
 # Usage: ./admin.sh <command> [args]
 
 # Colors for output
@@ -8,6 +9,19 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# SECURITY CHECK: Require ADMIN_TOKEN
+if [ -z "$ADMIN_TOKEN" ]; then
+    echo -e "${RED}🔒 SECURITY ERROR: ADMIN_TOKEN environment variable is required${NC}"
+    echo ""
+    echo "This is a security requirement to prevent unauthorized admin access."
+    echo "Set ADMIN_TOKEN to a secure random value:"
+    echo ""
+    echo "  export ADMIN_TOKEN=\"\$(openssl rand -hex 32)\""
+    echo "  $0 $@"
+    echo ""
+    exit 1
+fi
 
 # Check if go is available
 if ! command -v go &> /dev/null; then
@@ -73,6 +87,8 @@ case $COMMAND in
                 ;;
         esac
         
+        # SECURITY: Set ADMIN_TOKEN_VERIFY for sensitive operations
+        export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
         go run cmd/admin/main.go set-admin "$EMAIL" "$BOOL_STATUS"
         ;;
     
@@ -92,6 +108,8 @@ case $COMMAND in
         fi
         
         echo -e "${YELLOW}🎁 Granting $MONTHS free months to $EMAIL...${NC}"
+        # SECURITY: Set ADMIN_TOKEN_VERIFY for sensitive operations
+        export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
         go run cmd/admin/main.go grant-months "$EMAIL" "$MONTHS"
         ;;
     

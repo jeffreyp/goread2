@@ -12,19 +12,45 @@ import (
 )
 
 func main() {
+	// SECURITY: Require admin token for sensitive operations
+	adminToken := os.Getenv("ADMIN_TOKEN")
+	if adminToken == "" {
+		fmt.Println("ERROR: ADMIN_TOKEN environment variable must be set")
+		fmt.Println("This is a security requirement to prevent unauthorized admin access.")
+		fmt.Println("Set ADMIN_TOKEN to a secure random value before running admin commands.")
+		os.Exit(1)
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: go run cmd/admin/main.go <command> [args]")
 		fmt.Println("Commands:")
 		fmt.Println("  list-users                    - List all users")
-		fmt.Println("  set-admin <email> <true/false> - Set admin status for user")
+		fmt.Println("  set-admin <email> <true/false> - Set admin status for user (REQUIRES ADMIN_TOKEN)")
 		if config.IsSubscriptionEnabled() {
-			fmt.Println("  grant-months <email> <months>  - Grant free months to user")
+			fmt.Println("  grant-months <email> <months>  - Grant free months to user (REQUIRES ADMIN_TOKEN)")
 		}
 		fmt.Println("  user-info <email>             - Show user information")
+		fmt.Println("")
+		fmt.Println("SECURITY NOTE: All commands require ADMIN_TOKEN environment variable to be set.")
 		os.Exit(1)
 	}
 
 	command := os.Args[1]
+
+	// Verify admin token for sensitive operations
+	if command == "set-admin" || command == "grant-months" {
+		providedToken := os.Getenv("ADMIN_TOKEN_VERIFY")
+		if providedToken == "" {
+			fmt.Println("ERROR: ADMIN_TOKEN_VERIFY environment variable must be set for sensitive operations")
+			fmt.Println("This must match the ADMIN_TOKEN value as an additional security check.")
+			os.Exit(1)
+		}
+		if providedToken != adminToken {
+			fmt.Println("ERROR: ADMIN_TOKEN_VERIFY does not match ADMIN_TOKEN")
+			fmt.Println("Both environment variables must have the same value for security verification.")
+			os.Exit(1)
+		}
+	}
 
 	// Initialize database and services
 	db, err := database.InitDB()

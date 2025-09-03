@@ -104,8 +104,14 @@ func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
 
 ### Admin Commands
 
+**⚠️ Security:** All admin commands now require ADMIN_TOKEN authentication.
+
 **Always Available:**
 ```bash
+# SECURITY: Set admin tokens first
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
+
 go run cmd/admin/main.go list-users
 go run cmd/admin/main.go set-admin user@example.com true
 go run cmd/admin/main.go user-info user@example.com
@@ -113,6 +119,10 @@ go run cmd/admin/main.go user-info user@example.com
 
 **Only When Enabled:**
 ```bash
+# SECURITY: Requires both tokens for sensitive operations
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
+
 go run cmd/admin/main.go grant-months user@example.com 3
 ```
 
@@ -206,6 +216,9 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/subscription
 ### Debug Commands
 
 ```bash
+# SECURITY: Set admin token first
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+
 # Check current configuration
 go run cmd/admin/main.go user-info any@email.com
 

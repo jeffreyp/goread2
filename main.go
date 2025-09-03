@@ -56,6 +56,7 @@ func main() {
 	// Initialize handlers
 	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager)
+	adminHandler := handlers.NewAdminHandler(subscriptionService)
 	var paymentHandler *handlers.PaymentHandler
 	if cfg.SubscriptionEnabled && paymentService != nil {
 		paymentHandler = handlers.NewPaymentHandler(paymentService)
@@ -164,9 +165,24 @@ func main() {
 		}
 	}
 
+	// Admin routes - require admin privileges
+	admin := r.Group("/admin")
+	admin.Use(authMiddleware.RequireAdmin())
+	{
+		admin.GET("/users", adminHandler.ListUsers)
+		admin.GET("/users/:email", adminHandler.GetUserInfo)
+		admin.POST("/users/:email/admin", adminHandler.SetAdminStatus)
+		admin.POST("/users/:email/free-months", adminHandler.GrantFreeMonths)
+	}
+
 	// Webhook routes (public - no auth required) - only if subscriptions are enabled
 	if cfg.SubscriptionEnabled && paymentHandler != nil {
 		r.POST("/webhooks/stripe", paymentHandler.WebhookHandler)
+	}
+
+	// Initialize admin users from environment configuration
+	if err := authService.InitializeAdminUsers(); err != nil {
+		log.Printf("Warning: Failed to initialize admin users: %v", err)
 	}
 
 	// Get port from configuration
