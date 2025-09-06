@@ -147,7 +147,7 @@ func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 
 func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
 	ctx := context.Background()
-	
+
 	key := datastore.IDKey("Feed", int64(feedID), nil)
 	var entity FeedEntity
 	err := db.client.Get(ctx, key, &entity)
@@ -157,7 +157,7 @@ func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
 		}
 		return nil, fmt.Errorf("failed to get feed %d: %w", feedID, err)
 	}
-	
+
 	entity.ID = key.ID
 	feed := &Feed{
 		ID:          int(entity.ID),
@@ -168,7 +168,7 @@ func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
 		UpdatedAt:   entity.UpdatedAt,
 		LastFetch:   entity.LastFetch,
 	}
-	
+
 	return feed, nil
 }
 
@@ -205,7 +205,7 @@ func (db *DatastoreDB) AddArticle(article *Article) error {
 	if err != nil {
 		return fmt.Errorf("failed to check for existing article: %w", err)
 	}
-	
+
 	if len(existing) > 0 {
 		// Article already exists, set the ID and return
 		article.ID = int(keys[0].ID)
@@ -488,7 +488,7 @@ func (db *DatastoreDB) SubscribeUserToFeed(userID, feedID int) error {
 		FilterField("user_id", "=", int64(userID)).
 		FilterField("feed_id", "=", int64(feedID)).
 		Limit(1)
-	
+
 	var existing []UserFeedEntity
 	_, err := db.client.GetAll(ctx, query, &existing)
 	if err != nil {
@@ -535,7 +535,7 @@ func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
 
 func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Article, error) {
 	ctx := context.Background()
-	
+
 	// Get user's subscribed feeds
 	feeds, err := db.GetUserFeeds(userID)
 	if err != nil {
@@ -556,7 +556,7 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 	// We'll get more articles than needed and sort/paginate in memory
 	// This reduces query overhead significantly
 	var allArticles []Article
-	
+
 	// Query articles from all feeds in parallel batches
 	batchSize := 5 // Process 5 feeds at a time
 	for i := 0; i < len(feedIDs); i += batchSize {
@@ -564,11 +564,11 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 		if end > len(feedIDs) {
 			end = len(feedIDs)
 		}
-		
+
 		// Process this batch of feeds in parallel
 		batch := feedIDs[i:end]
 		batchArticles := make(chan []Article, len(batch))
-		
+
 		for _, feedID := range batch {
 			go func(fid int64) {
 				// Get recent articles from this feed (more than needed for better sorting)
@@ -576,7 +576,7 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 					FilterField("feed_id", "=", fid).
 					Order("-published_at").
 					Limit(limit + offset + 50) // Get extra for better sorting across feeds
-				
+
 				var feedArticles []ArticleEntity
 				keys, err := db.client.GetAll(ctx, query, &feedArticles)
 				if err != nil {
@@ -605,7 +605,7 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 				batchArticles <- articles
 			}(feedID)
 		}
-		
+
 		// Collect results from this batch
 		for j := 0; j < len(batch); j++ {
 			articles := <-batchArticles
@@ -621,15 +621,15 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 	// Apply pagination first to reduce user status queries
 	startIdx := offset
 	endIdx := offset + limit
-	
+
 	if startIdx >= len(allArticles) {
 		return []Article{}, nil
 	}
-	
+
 	if endIdx > len(allArticles) {
 		endIdx = len(allArticles)
 	}
-	
+
 	paginatedArticles := allArticles[startIdx:endIdx]
 
 	// Now get user status for only the articles we're returning (bulk operation)
@@ -638,11 +638,11 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 		for i, article := range paginatedArticles {
 			articleIDs[i] = int64(article.ID)
 		}
-		
+
 		// Query user article statuses in bulk
 		query := datastore.NewQuery("UserArticle").
 			FilterField("user_id", "=", int64(userID))
-		
+
 		var userArticles []UserArticleEntity
 		_, err := db.client.GetAll(ctx, query, &userArticles)
 		if err == nil {
@@ -651,7 +651,7 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 			for _, ua := range userArticles {
 				statusMap[int(ua.ArticleID)] = ua
 			}
-			
+
 			// Update articles with user status
 			for i := range paginatedArticles {
 				if userStatus, exists := statusMap[paginatedArticles[i].ID]; exists {
@@ -673,7 +673,7 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 		FilterField("user_id", "=", int64(userID)).
 		FilterField("feed_id", "=", int64(feedID)).
 		Limit(1)
-	
+
 	var subscriptions []UserFeedEntity
 	_, err := db.client.GetAll(ctx, subscriptionQuery, &subscriptions)
 	if err != nil {
@@ -703,11 +703,11 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 		articleID := key.ID
 		userArticleKeys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
 	}
-	
+
 	// Use GetMulti for efficient batch read
 	userArticles := make([]UserArticleEntity, len(userArticleKeys))
 	err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
-	
+
 	// Create status map for quick lookup
 	statusMap := make(map[int64]UserArticleEntity)
 	if multiErr, ok := err.(datastore.MultiError); ok {
@@ -733,7 +733,7 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 	for i, entity := range articleEntities {
 		entity.ID = keys[i].ID
 		articleID := keys[i].ID
-		
+
 		// Get user status from map (defaults to false if not found)
 		isRead := false
 		isStarred := false
@@ -816,7 +816,7 @@ func (db *DatastoreDB) ToggleUserArticleStar(userID, articleID int) error {
 	existing, err := db.GetUserArticleStatus(userID, articleID)
 	isRead := false
 	isStarred := false
-	
+
 	if err == nil && existing != nil {
 		isRead = existing.IsRead
 		isStarred = existing.IsStarred
@@ -830,9 +830,9 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 	if len(articles) == 0 {
 		return nil
 	}
-	
+
 	ctx := context.Background()
-	
+
 	// Batch process articles in chunks to avoid datastore limits
 	chunkSize := 100
 	for i := 0; i < len(articles); i += chunkSize {
@@ -840,11 +840,11 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 		if end > len(articles) {
 			end = len(articles)
 		}
-		
+
 		chunk := articles[i:end]
 		entities := make([]*UserArticle, len(chunk))
 		keys := make([]*datastore.Key, len(chunk))
-		
+
 		for j, article := range chunk {
 			entities[j] = &UserArticle{
 				UserID:    userID,
@@ -852,45 +852,45 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 				IsRead:    isRead,
 				IsStarred: isStarred,
 			}
-			
+
 			// Create composite key
 			keyStr := fmt.Sprintf("%d_%d", userID, article.ID)
 			keys[j] = datastore.NameKey("UserArticle", keyStr, nil)
 		}
-		
+
 		_, err := db.client.PutMulti(ctx, keys, entities)
 		if err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
 func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	ctx := context.Background()
-	
+
 	// Get all user feeds with strong consistency retry for recent changes
 	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(userFeeds) == 0 {
 		return make(map[int]int), nil
 	}
-	
+
 	unreadCounts := make(map[int]int)
-	
+
 	// Process feeds in parallel for better performance
 	type feedResult struct {
 		feedID int
 		count  int
 		err    error
 	}
-	
+
 	results := make(chan feedResult, len(userFeeds))
-	
+
 	// Start goroutines for each feed
 	for _, feed := range userFeeds {
 		go func(feedID int) {
@@ -898,7 +898,7 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 			results <- feedResult{feedID: feedID, count: count, err: err}
 		}(feed.ID)
 	}
-	
+
 	// Collect results
 	for i := 0; i < len(userFeeds); i++ {
 		result := <-results
@@ -907,7 +907,7 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		}
 		unreadCounts[result.feedID] = result.count
 	}
-	
+
 	return unreadCounts, nil
 }
 
@@ -917,27 +917,27 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 	articleQuery := datastore.NewQuery("Article").
 		FilterField("feed_id", "=", int64(feedID)).
 		KeysOnly()
-	
+
 	articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
 	if err != nil {
 		return 0, err
 	}
-	
+
 	if len(articleKeys) == 0 {
 		return 0, nil
 	}
-	
+
 	// Batch check which articles are read by this user
 	userArticleKeys := make([]*datastore.Key, len(articleKeys))
 	for i, articleKey := range articleKeys {
 		articleID := articleKey.ID
 		userArticleKeys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
 	}
-	
+
 	// Use GetMulti for efficient batch read
 	userArticles := make([]UserArticleEntity, len(userArticleKeys))
 	err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
-	
+
 	unreadCount := 0
 	if multiErr, ok := err.(datastore.MultiError); ok {
 		// Handle partial results - some UserArticle entities may not exist
@@ -965,7 +965,7 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 		// Complete failure - treat all as unread to be safe
 		unreadCount = len(articleKeys)
 	}
-	
+
 	return unreadCount, nil
 }
 
@@ -973,7 +973,7 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 func (db *DatastoreDB) getUserFeedsWithRetry(ctx context.Context, userID int, maxRetries int, delay time.Duration) ([]Feed, error) {
 	var lastFeeds []Feed
 	var lastErr error
-	
+
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		feeds, err := db.GetUserFeeds(userID)
 		if err != nil {
@@ -984,19 +984,19 @@ func (db *DatastoreDB) getUserFeedsWithRetry(ctx context.Context, userID int, ma
 			}
 			return nil, lastErr
 		}
-		
+
 		// If we got feeds on the first attempt or same number as previous, return
 		if attempt == 0 || len(feeds) >= len(lastFeeds) {
 			return feeds, nil
 		}
-		
+
 		// If we got fewer feeds than before, retry (might be consistency issue)
 		lastFeeds = feeds
 		if attempt < maxRetries {
 			time.Sleep(delay)
 		}
 	}
-	
+
 	// Return the last result we got
 	return lastFeeds, lastErr
 }
@@ -1070,11 +1070,11 @@ func (db *DatastoreDB) IsUserSubscriptionActive(userID int) (bool, error) {
 	if entity.SubscriptionStatus == "active" {
 		return true, nil
 	}
-	
+
 	if entity.SubscriptionStatus == "trial" && time.Now().Before(entity.TrialEndsAt) {
 		return true, nil
 	}
-	
+
 	return false, nil
 }
 
@@ -1087,77 +1087,77 @@ func (db *DatastoreDB) GetUserFeedCount(userID int) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to get user feed count: %w", err)
 	}
-	
+
 	return count, nil
 }
 
 // Admin management methods
 func (db *DatastoreDB) SetUserAdmin(userID int, isAdmin bool) error {
 	ctx := context.Background()
-	
+
 	// Get user entity first
 	userKey := datastore.IDKey("User", int64(userID), nil)
 	var user UserEntity
-	
+
 	err := db.client.Get(ctx, userKey, &user)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
-	
+
 	// Update admin status
 	user.IsAdmin = isAdmin
-	
+
 	// Save back to datastore
 	_, err = db.client.Put(ctx, userKey, &user)
 	if err != nil {
 		return fmt.Errorf("failed to update user admin status: %w", err)
 	}
-	
+
 	return nil
 }
 
 func (db *DatastoreDB) GrantFreeMonths(userID int, months int) error {
 	ctx := context.Background()
-	
+
 	// Get user entity first
 	userKey := datastore.IDKey("User", int64(userID), nil)
 	var user UserEntity
-	
+
 	err := db.client.Get(ctx, userKey, &user)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
-	
+
 	// Add free months
 	user.FreeMonthsRemaining += months
-	
+
 	// Save back to datastore
 	_, err = db.client.Put(ctx, userKey, &user)
 	if err != nil {
 		return fmt.Errorf("failed to update user free months: %w", err)
 	}
-	
+
 	return nil
 }
 
 func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 	ctx := context.Background()
-	
+
 	query := datastore.NewQuery("User").FilterField("email", "=", email).Limit(1)
-	
+
 	var users []UserEntity
 	keys, err := db.client.GetAll(ctx, query, &users)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user by email: %w", err)
 	}
-	
+
 	if len(users) == 0 {
 		return nil, fmt.Errorf("user not found")
 	}
-	
+
 	user := users[0]
 	user.ID = keys[0].ID
-	
+
 	return &User{
 		ID:                  int(user.ID),
 		GoogleID:            user.GoogleID,

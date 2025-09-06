@@ -7,18 +7,18 @@ import (
 
 func TestConfigLoad(t *testing.T) {
 	tests := []struct {
-		name                    string
-		envVars                 map[string]string
+		name                        string
+		envVars                     map[string]string
 		expectedSubscriptionEnabled bool
-		expectedPort            string
-		expectedDatabasePath    string
+		expectedPort                string
+		expectedDatabasePath        string
 	}{
 		{
-			name:                    "default values when no env vars set",
-			envVars:                 map[string]string{},
+			name:                        "default values when no env vars set",
+			envVars:                     map[string]string{},
 			expectedSubscriptionEnabled: false,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription enabled with true",
@@ -28,8 +28,8 @@ func TestConfigLoad(t *testing.T) {
 				"DATABASE_PATH":        "/tmp/test.db",
 			},
 			expectedSubscriptionEnabled: true,
-			expectedPort:            "3000",
-			expectedDatabasePath:    "/tmp/test.db",
+			expectedPort:                "3000",
+			expectedDatabasePath:        "/tmp/test.db",
 		},
 		{
 			name: "subscription enabled with 1",
@@ -37,8 +37,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "1",
 			},
 			expectedSubscriptionEnabled: true,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription enabled with yes",
@@ -46,8 +46,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "yes",
 			},
 			expectedSubscriptionEnabled: true,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription enabled with on",
@@ -55,8 +55,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "on",
 			},
 			expectedSubscriptionEnabled: true,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription enabled with enabled",
@@ -64,8 +64,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "enabled",
 			},
 			expectedSubscriptionEnabled: true,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription disabled with false",
@@ -73,8 +73,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "false",
 			},
 			expectedSubscriptionEnabled: false,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription disabled with 0",
@@ -82,8 +82,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "0",
 			},
 			expectedSubscriptionEnabled: false,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription disabled with no",
@@ -91,8 +91,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "no",
 			},
 			expectedSubscriptionEnabled: false,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription disabled with off",
@@ -100,8 +100,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "off",
 			},
 			expectedSubscriptionEnabled: false,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription disabled with disabled",
@@ -109,8 +109,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "disabled",
 			},
 			expectedSubscriptionEnabled: false,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "subscription disabled with invalid value",
@@ -118,8 +118,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "invalid",
 			},
 			expectedSubscriptionEnabled: false,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "case insensitive values",
@@ -127,8 +127,8 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "TRUE",
 			},
 			expectedSubscriptionEnabled: true,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 		{
 			name: "whitespace handling",
@@ -136,15 +136,15 @@ func TestConfigLoad(t *testing.T) {
 				"SUBSCRIPTION_ENABLED": "  true  ",
 			},
 			expectedSubscriptionEnabled: true,
-			expectedPort:            "8080",
-			expectedDatabasePath:    "./goread2.db",
+			expectedPort:                "8080",
+			expectedDatabasePath:        "./goread2.db",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clearConfigEnvVars()
-			
+
 			for key, value := range tt.envVars {
 				_ = os.Setenv(key, value)
 			}
@@ -229,7 +229,7 @@ func TestConfigParseBool(t *testing.T) {
 
 func TestConfigEnvVarPrecedence(t *testing.T) {
 	clearConfigEnvVars()
-	
+
 	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
 	_ = os.Setenv("PORT", "9000")
 	_ = os.Setenv("DATABASE_PATH", "/custom/path.db")
@@ -324,11 +324,11 @@ func TestParseEmailList(t *testing.T) {
 
 func TestGetEnvOrDefault(t *testing.T) {
 	tests := []struct {
-		envKey      string
-		envValue    string
-		defaultVal  string
-		expected    string
-		desc        string
+		envKey     string
+		envValue   string
+		defaultVal string
+		expected   string
+		desc       string
 	}{
 		{"TEST_VAR", "custom_value", "default", "custom_value", "env var set"},
 		{"UNSET_VAR", "", "default", "default", "env var not set"},
@@ -345,7 +345,7 @@ func TestGetEnvOrDefault(t *testing.T) {
 
 			clearConfigEnvVars()
 			ResetForTesting()
-			
+
 			// Test via config loading
 			if tt.envKey == "PORT" {
 				Load()
@@ -361,19 +361,19 @@ func TestGetEnvOrDefault(t *testing.T) {
 func TestLoadSingleton(t *testing.T) {
 	clearConfigEnvVars()
 	ResetForTesting()
-	
+
 	// First call should create config
 	cfg1 := Load()
 	if cfg1 == nil {
 		t.Error("Load() returned nil")
 	}
-	
+
 	// Second call should return same instance
 	cfg2 := Load()
 	if cfg1 != cfg2 {
 		t.Error("Load() should return singleton instance")
 	}
-	
+
 	// Get() should also return same instance
 	cfg3 := Get()
 	if cfg1 != cfg3 {
@@ -384,13 +384,13 @@ func TestLoadSingleton(t *testing.T) {
 func TestGetWithoutLoad(t *testing.T) {
 	clearConfigEnvVars()
 	ResetForTesting()
-	
+
 	// Get() should call Load() if config not initialized
 	cfg := Get()
 	if cfg == nil {
 		t.Fatal("Get() returned nil")
 	}
-	
+
 	// Should have default values
 	if cfg.Port != "8080" {
 		t.Errorf("Default port = %v, want 8080", cfg.Port)
@@ -403,17 +403,17 @@ func clearConfigEnvVars() {
 		"PORT",
 		"DATABASE_PATH",
 		"GOOGLE_CLIENT_ID",
-		"GOOGLE_CLIENT_SECRET", 
+		"GOOGLE_CLIENT_SECRET",
 		"GOOGLE_REDIRECT_URL",
 		"STRIPE_SECRET_KEY",
 		"STRIPE_PUBLISHABLE_KEY",
 		"STRIPE_WEBHOOK_SECRET",
 		"INITIAL_ADMIN_EMAILS",
 	}
-	
+
 	for _, envVar := range envVars {
 		_ = os.Unsetenv(envVar)
 	}
-	
+
 	ResetForTesting()
 }

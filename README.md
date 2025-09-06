@@ -98,9 +98,11 @@ Run the comprehensive test suite:
 ./test.sh  # Runs both backend and frontend tests
 ```
 
-- **90%+ test coverage** across all components
+- **Comprehensive test coverage** with significant improvements in critical areas
+- **Admin security testing** for the new database-based token authentication system
 - **Multi-user isolation testing** to ensure data security
-- **Integration tests** for API endpoints and authentication
+- **Integration tests** for API endpoints, authentication, and admin functionality
+- **Dual database support testing** (SQLite + Google Datastore) 
 - **Frontend tests** with Jest and jsdom
 
 ## 🤝 Contributing

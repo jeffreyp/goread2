@@ -12,15 +12,15 @@ import (
 
 // mockDBForSub implements database.Database interface for subscription service testing
 type mockDBForSub struct {
-	users              map[int]*database.User
-	feedCounts         map[int]int
-	subscriptionActive map[int]bool
-	shouldFailGetUser  bool
-	shouldFailGetCount bool
+	users               map[int]*database.User
+	feedCounts          map[int]int
+	subscriptionActive  map[int]bool
+	shouldFailGetUser   bool
+	shouldFailGetCount  bool
 	shouldFailGetActive bool
-	shouldFailUpdate   bool
-	shouldFailSetAdmin bool
-	shouldFailGrant    bool
+	shouldFailUpdate    bool
+	shouldFailSetAdmin  bool
+	shouldFailGrant     bool
 }
 
 func newMockDBForSub() *mockDBForSub {
@@ -41,8 +41,8 @@ func (m *mockDBForSub) addUser(user *database.User) {
 }
 
 // Mock implementations
-func (m *mockDBForSub) Close() error { return nil }
-func (m *mockDBForSub) CreateUser(*database.User) error { return nil }
+func (m *mockDBForSub) Close() error                                     { return nil }
+func (m *mockDBForSub) CreateUser(*database.User) error                  { return nil }
 func (m *mockDBForSub) GetUserByGoogleID(string) (*database.User, error) { return nil, nil }
 func (m *mockDBForSub) GetUserByID(userID int) (*database.User, error) {
 	if m.shouldFailGetUser {
@@ -105,26 +105,30 @@ func (m *mockDBForSub) GetUserByEmail(email string) (*database.User, error) {
 }
 
 // Stub methods to satisfy interface
-func (m *mockDBForSub) AddFeed(*database.Feed) error { return nil }
-func (m *mockDBForSub) GetFeeds() ([]database.Feed, error) { return nil, nil }
-func (m *mockDBForSub) GetUserFeeds(int) ([]database.Feed, error) { return nil, nil }
-func (m *mockDBForSub) GetAllUserFeeds() ([]database.Feed, error) { return nil, nil }
-func (m *mockDBForSub) DeleteFeed(int) error { return nil }
-func (m *mockDBForSub) SubscribeUserToFeed(int, int) error { return nil }
-func (m *mockDBForSub) UnsubscribeUserFromFeed(int, int) error { return nil }
-func (m *mockDBForSub) AddArticle(*database.Article) error { return nil }
-func (m *mockDBForSub) GetArticles(int) ([]database.Article, error) { return nil, nil }
+func (m *mockDBForSub) AddFeed(*database.Feed) error                    { return nil }
+func (m *mockDBForSub) GetFeeds() ([]database.Feed, error)              { return nil, nil }
+func (m *mockDBForSub) GetUserFeeds(int) ([]database.Feed, error)       { return nil, nil }
+func (m *mockDBForSub) GetAllUserFeeds() ([]database.Feed, error)       { return nil, nil }
+func (m *mockDBForSub) DeleteFeed(int) error                            { return nil }
+func (m *mockDBForSub) SubscribeUserToFeed(int, int) error              { return nil }
+func (m *mockDBForSub) UnsubscribeUserFromFeed(int, int) error          { return nil }
+func (m *mockDBForSub) AddArticle(*database.Article) error              { return nil }
+func (m *mockDBForSub) GetArticles(int) ([]database.Article, error)     { return nil, nil }
 func (m *mockDBForSub) GetUserArticles(int) ([]database.Article, error) { return nil, nil }
-func (m *mockDBForSub) GetUserArticlesPaginated(int, int, int) ([]database.Article, error) { return nil, nil }
-func (m *mockDBForSub) GetUserFeedArticles(int, int) ([]database.Article, error) { return nil, nil }
+func (m *mockDBForSub) GetUserArticlesPaginated(int, int, int) ([]database.Article, error) {
+	return nil, nil
+}
+func (m *mockDBForSub) GetUserFeedArticles(int, int) ([]database.Article, error)     { return nil, nil }
 func (m *mockDBForSub) GetUserArticleStatus(int, int) (*database.UserArticle, error) { return nil, nil }
-func (m *mockDBForSub) SetUserArticleStatus(int, int, bool, bool) error { return nil }
-func (m *mockDBForSub) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error { return nil }
-func (m *mockDBForSub) MarkUserArticleRead(int, int, bool) error { return nil }
-func (m *mockDBForSub) ToggleUserArticleStar(int, int) error { return nil }
+func (m *mockDBForSub) SetUserArticleStatus(int, int, bool, bool) error              { return nil }
+func (m *mockDBForSub) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
+	return nil
+}
+func (m *mockDBForSub) MarkUserArticleRead(int, int, bool) error     { return nil }
+func (m *mockDBForSub) ToggleUserArticleStar(int, int) error         { return nil }
 func (m *mockDBForSub) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
-func (m *mockDBForSub) GetAllArticles() ([]database.Article, error) { return nil, nil }
-func (m *mockDBForSub) UpdateFeedLastFetch(int, time.Time) error { return nil }
+func (m *mockDBForSub) GetAllArticles() ([]database.Article, error)  { return nil, nil }
+func (m *mockDBForSub) UpdateFeedLastFetch(int, time.Time) error     { return nil }
 
 func TestNewSubscriptionService(t *testing.T) {
 	db := newMockDBForSub()
@@ -376,10 +380,10 @@ func TestUpdateUserSubscription(t *testing.T) {
 	db.addUser(user)
 
 	service := NewSubscriptionService(db)
-	
+
 	testTime := time.Now()
 	err := service.UpdateUserSubscription(1, "active", "sub_123", testTime)
-	
+
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -403,7 +407,7 @@ func TestSetUserAdmin(t *testing.T) {
 	db.addUser(user)
 
 	service := NewSubscriptionService(db)
-	
+
 	err := service.SetUserAdmin(1, true)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -421,7 +425,7 @@ func TestGrantFreeMonths(t *testing.T) {
 	db.addUser(user)
 
 	service := NewSubscriptionService(db)
-	
+
 	err := service.GrantFreeMonths(1, 3)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -439,7 +443,7 @@ func TestGetUserByEmail(t *testing.T) {
 	db.addUser(user)
 
 	service := NewSubscriptionService(db)
-	
+
 	foundUser, err := service.GetUserByEmail("test@example.com")
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -466,10 +470,10 @@ func TestErrorHandling(t *testing.T) {
 
 		db := newMockDBForSub()
 		db.shouldFailGetUser = true
-		
+
 		service := NewSubscriptionService(db)
 		err := service.CanUserAddFeed(1)
-		
+
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -478,10 +482,10 @@ func TestErrorHandling(t *testing.T) {
 	t.Run("GetUserSubscriptionInfo with get user error", func(t *testing.T) {
 		db := newMockDBForSub()
 		db.shouldFailGetUser = true
-		
+
 		service := NewSubscriptionService(db)
 		_, err := service.GetUserSubscriptionInfo(1)
-		
+
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -492,10 +496,10 @@ func TestErrorHandling(t *testing.T) {
 		user := &database.User{ID: 1}
 		db.addUser(user)
 		db.shouldFailGetCount = true
-		
+
 		service := NewSubscriptionService(db)
 		_, err := service.GetUserSubscriptionInfo(1)
-		
+
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -504,10 +508,10 @@ func TestErrorHandling(t *testing.T) {
 	t.Run("UpdateUserSubscription with error", func(t *testing.T) {
 		db := newMockDBForSub()
 		db.shouldFailUpdate = true
-		
+
 		service := NewSubscriptionService(db)
 		err := service.UpdateUserSubscription(1, "active", "sub_123", time.Now())
-		
+
 		if err == nil {
 			t.Error("Expected error but got none")
 		}

@@ -41,7 +41,7 @@ func main() {
 	var paymentService *services.PaymentService
 	if cfg.SubscriptionEnabled {
 		paymentService = services.NewPaymentService(db, subscriptionService)
-		
+
 		// Validate Stripe configuration (optional - only if Stripe keys are provided)
 		if cfg.StripeSecretKey != "" {
 			if err := paymentService.ValidateStripeConfig(); err != nil {
@@ -71,10 +71,10 @@ func main() {
 	}
 
 	r := gin.Default()
-	
+
 	// Add gzip compression for all responses
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
-	
+
 	// Add caching headers middleware
 	r.Use(func(c *gin.Context) {
 		// Cache static assets for 24 hours with versioning
@@ -93,7 +93,7 @@ func main() {
 		}
 		c.Next()
 	})
-	
+
 	r.LoadHTMLGlob("web/templates/*")
 
 	// Static files are handled by app.yaml in App Engine
@@ -155,8 +155,8 @@ func main() {
 		api.GET("/account/stats", feedHandler.GetAccountStats)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
-		api.POST("/feeds/refresh", feedHandler.RefreshFeeds)  // Keep for authenticated manual refresh
-		
+		api.POST("/feeds/refresh", feedHandler.RefreshFeeds) // Keep for authenticated manual refresh
+
 		// Payment/subscription routes - only if subscriptions are enabled
 		if cfg.SubscriptionEnabled && paymentHandler != nil {
 			api.GET("/stripe/config", paymentHandler.GetStripeConfig)

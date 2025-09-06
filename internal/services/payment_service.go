@@ -20,9 +20,9 @@ type PaymentService struct {
 }
 
 type CheckoutSessionRequest struct {
-	UserID      int    `json:"user_id"`
-	SuccessURL  string `json:"success_url"`
-	CancelURL   string `json:"cancel_url"`
+	UserID     int    `json:"user_id"`
+	SuccessURL string `json:"success_url"`
+	CancelURL  string `json:"cancel_url"`
 }
 
 type CheckoutSessionResponse struct {
@@ -33,7 +33,7 @@ type CheckoutSessionResponse struct {
 func NewPaymentService(db database.Database, subscriptionService *SubscriptionService) *PaymentService {
 	// Initialize Stripe with secret key
 	stripe.Key = os.Getenv("STRIPE_SECRET_KEY")
-	
+
 	return &PaymentService{
 		db:                  db,
 		subscriptionService: subscriptionService,
@@ -71,7 +71,7 @@ func (ps *PaymentService) CreateCheckoutSession(req CheckoutSessionRequest) (*Ch
 	if err != nil {
 		return nil, fmt.Errorf("failed to check subscription status: %w", err)
 	}
-	
+
 	if isActive && user.SubscriptionStatus == "active" {
 		return nil, fmt.Errorf("user already has an active subscription")
 	}

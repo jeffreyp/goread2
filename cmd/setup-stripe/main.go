@@ -40,7 +40,7 @@ func main() {
 
 	case "create-product":
 		fmt.Println("Creating GoRead2 Pro product and price...")
-		
+
 		price, err := paymentService.CreateProductAndPrice()
 		if err != nil {
 			log.Fatal("Failed to create product and price:", err)

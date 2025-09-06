@@ -73,8 +73,8 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 	}
 
 	// TODO: Add audit logging here
-	// log.Printf("Admin %s (%d) %s admin privileges for user %s (%d)", 
-	//     currentUser.Email, currentUser.ID, 
+	// log.Printf("Admin %s (%d) %s admin privileges for user %s (%d)",
+	//     currentUser.Email, currentUser.ID,
 	//     map[bool]string{true: "granted", false: "removed"}[request.IsAdmin],
 	//     user.Email, user.ID)
 
@@ -86,11 +86,11 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Admin status updated successfully",
 		"details": map[string]interface{}{
-			"user_email":    user.Email,
-			"user_name":     user.Name,
-			"is_admin":      request.IsAdmin,
-			"action":        "Admin privileges " + status + " user",
-			"performed_by":  currentUser.Email,
+			"user_email":   user.Email,
+			"user_name":    user.Name,
+			"is_admin":     request.IsAdmin,
+			"action":       "Admin privileges " + status + " user",
+			"performed_by": currentUser.Email,
 		},
 	})
 }
@@ -134,17 +134,17 @@ func (ah *AdminHandler) GrantFreeMonths(c *gin.Context) {
 	}
 
 	// TODO: Add audit logging here
-	// log.Printf("Admin %s (%d) granted %d free months to user %s (%d)", 
+	// log.Printf("Admin %s (%d) granted %d free months to user %s (%d)",
 	//     currentUser.Email, currentUser.ID, request.Months, user.Email, user.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Free months granted successfully",
 		"details": map[string]interface{}{
-			"user_email":           user.Email,
-			"user_name":            user.Name,
-			"months_granted":       request.Months,
-			"total_free_months":    user.FreeMonthsRemaining + request.Months,
-			"performed_by":         currentUser.Email,
+			"user_email":        user.Email,
+			"user_name":         user.Name,
+			"months_granted":    request.Months,
+			"total_free_months": user.FreeMonthsRemaining + request.Months,
+			"performed_by":      currentUser.Email,
 		},
 	})
 }

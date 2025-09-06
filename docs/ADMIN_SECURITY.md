@@ -223,10 +223,43 @@ Planned security improvements:
 - Role-based permissions (read-only vs full admin)
 - Integration with external identity providers
 
+## Testing and Validation
+
+The admin token security system includes comprehensive test coverage:
+
+### Unit Tests (`internal/services/`)
+- **SQLite Backend**: 6 test suites with 20+ individual test cases covering token generation, validation, listing, revocation, and lifecycle management
+- **Datastore Backend**: 6 test suites for Google App Engine deployment compatibility (requires emulator)
+- **Security Features**: Cryptographic token generation, database validation, bootstrap protection
+- **Edge Cases**: Invalid formats, non-existent tokens, already-revoked tokens, concurrent operations
+
+### Integration Tests (`test/integration/`)
+- **Admin Command Testing**: Full CLI command validation with proper environment setup
+- **Bootstrap Security**: Tests preventing unauthorized token creation without existing admin users
+- **Token Lifecycle**: End-to-end testing of create → validate → list → revoke operations
+- **Security Warnings**: Verification of prompts when creating additional tokens
+
+### Running Admin Security Tests
+
+```bash
+# Run all admin token unit tests
+go test ./internal/services -run "TestGenerateAdminToken|TestValidateAdminToken|TestListAdminTokens|TestRevokeAdminToken|TestHasAdminTokens|TestAdminTokenUniqueGeneration" -v
+
+# Run Datastore tests (requires emulator)
+DATASTORE_EMULATOR_HOST=localhost:8081 go test ./internal/services -run "TestDatastore" -v
+
+# Run security integration tests  
+go test ./test/integration -run "TestAdminSecurity" -v
+
+# Run all tests with coverage
+go test ./internal/services -cover
+```
+
 ## Support
 
 For security questions or issues:
 1. Review this documentation thoroughly
-2. Test token generation and validation
+2. **Run the security test suite** to validate token generation and validation
 3. Check database connectivity and schema
-4. Contact system administrator for enterprise deployment guidance
+4. Verify test coverage with `go test -cover ./internal/services`
+5. Contact system administrator for enterprise deployment guidance

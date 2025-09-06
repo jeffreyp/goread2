@@ -12,20 +12,20 @@ import (
 // mockDBForAuth extends mockDB with specific behaviors for auth testing
 type mockDBForAuth struct {
 	mockDB
-	users map[string]*database.User
-	usersByEmail map[string]*database.User
-	usersByID map[int]*database.User
-	shouldFailCreate bool
+	users                 map[string]*database.User
+	usersByEmail          map[string]*database.User
+	usersByID             map[int]*database.User
+	shouldFailCreate      bool
 	shouldFailGetByGoogle bool
-	shouldFailGetByEmail bool
-	shouldFailSetAdmin bool
+	shouldFailGetByEmail  bool
+	shouldFailSetAdmin    bool
 }
 
 func newMockDBForAuth() *mockDBForAuth {
 	return &mockDBForAuth{
-		users: make(map[string]*database.User),
+		users:        make(map[string]*database.User),
 		usersByEmail: make(map[string]*database.User),
-		usersByID: make(map[int]*database.User),
+		usersByID:    make(map[int]*database.User),
 	}
 }
 
@@ -74,44 +74,8 @@ func (m *mockDBForAuth) SetUserAdmin(userID int, isAdmin bool) error {
 
 func TestNewAuthService(t *testing.T) {
 	db := newMockDBForAuth()
-	
+
 	// Set environment variables for OAuth config
-	_ = os.Setenv("GOOGLE_CLIENT_ID", "test_client_id_123")
-	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "test_client_secret_456") 
-	_ = os.Setenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/callback")
-	defer func() {
-		_ = os.Unsetenv("GOOGLE_CLIENT_ID")
-		_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
-		_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
-	}()
-
-	authService := NewAuthService(db)
-	
-	if authService == nil {
-		t.Fatal("NewAuthService returned nil")
-	}
-	
-	if authService.db != db {
-		t.Error("AuthService database not set correctly")
-	}
-	
-	if authService.config == nil {
-		t.Error("AuthService OAuth config not set")
-		return
-	}
-	
-	if authService.config.ClientID != "test_client_id_123" {
-		t.Errorf("ClientID = %s, want test_client_id_123", authService.config.ClientID)
-	}
-	
-	if authService.config.ClientSecret != "test_client_secret_456" {
-		t.Errorf("ClientSecret = %s, want test_client_secret_456", authService.config.ClientSecret)
-	}
-}
-
-func TestGetAuthURL(t *testing.T) {
-	db := newMockDBForAuth()
-	
 	_ = os.Setenv("GOOGLE_CLIENT_ID", "test_client_id_123")
 	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "test_client_secret_456")
 	_ = os.Setenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/callback")
@@ -122,19 +86,55 @@ func TestGetAuthURL(t *testing.T) {
 	}()
 
 	authService := NewAuthService(db)
-	
+
+	if authService == nil {
+		t.Fatal("NewAuthService returned nil")
+	}
+
+	if authService.db != db {
+		t.Error("AuthService database not set correctly")
+	}
+
+	if authService.config == nil {
+		t.Error("AuthService OAuth config not set")
+		return
+	}
+
+	if authService.config.ClientID != "test_client_id_123" {
+		t.Errorf("ClientID = %s, want test_client_id_123", authService.config.ClientID)
+	}
+
+	if authService.config.ClientSecret != "test_client_secret_456" {
+		t.Errorf("ClientSecret = %s, want test_client_secret_456", authService.config.ClientSecret)
+	}
+}
+
+func TestGetAuthURL(t *testing.T) {
+	db := newMockDBForAuth()
+
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "test_client_id_123")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "test_client_secret_456")
+	_ = os.Setenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/callback")
+	defer func() {
+		_ = os.Unsetenv("GOOGLE_CLIENT_ID")
+		_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
+	}()
+
+	authService := NewAuthService(db)
+
 	state := "test_state_123"
 	authURL := authService.GetAuthURL(state)
-	
+
 	if authURL == "" {
 		t.Error("GetAuthURL returned empty string")
 	}
-	
+
 	// Should contain the state parameter
 	if !contains(authURL, state) {
 		t.Error("Auth URL should contain state parameter")
 	}
-	
+
 	// Should contain Google OAuth endpoint
 	if !contains(authURL, "accounts.google.com") {
 		t.Error("Auth URL should contain Google OAuth endpoint")
@@ -143,16 +143,16 @@ func TestGetAuthURL(t *testing.T) {
 
 func TestValidateConfig(t *testing.T) {
 	tests := []struct {
-		name        string
-		clientID    string
+		name         string
+		clientID     string
 		clientSecret string
-		redirectURL string
-		expectError bool
+		redirectURL  string
+		expectError  bool
 	}{
 		{
 			name:         "valid config",
 			clientID:     "test_client_id_123",
-			clientSecret: "test_client_secret_456", 
+			clientSecret: "test_client_secret_456",
 			redirectURL:  "http://localhost:8080/callback",
 			expectError:  false,
 		},
@@ -160,7 +160,7 @@ func TestValidateConfig(t *testing.T) {
 			name:         "missing client ID",
 			clientID:     "",
 			clientSecret: "test_client_secret_456",
-			redirectURL:  "http://localhost:8080/callback", 
+			redirectURL:  "http://localhost:8080/callback",
 			expectError:  true,
 		},
 		{
@@ -172,7 +172,7 @@ func TestValidateConfig(t *testing.T) {
 		},
 		{
 			name:         "missing redirect URL",
-			clientID:     "test_client_id_123", 
+			clientID:     "test_client_id_123",
 			clientSecret: "test_client_secret_456",
 			redirectURL:  "",
 			expectError:  true,
@@ -182,23 +182,23 @@ func TestValidateConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := newMockDBForAuth()
-			
+
 			_ = os.Setenv("GOOGLE_CLIENT_ID", tt.clientID)
 			_ = os.Setenv("GOOGLE_CLIENT_SECRET", tt.clientSecret)
 			_ = os.Setenv("GOOGLE_REDIRECT_URL", tt.redirectURL)
 			defer func() {
 				_ = os.Unsetenv("GOOGLE_CLIENT_ID")
-				_ = os.Unsetenv("GOOGLE_CLIENT_SECRET") 
+				_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
 				_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
 			}()
 
 			authService := NewAuthService(db)
 			err := authService.ValidateConfig()
-			
+
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")
 			}
-			
+
 			if !tt.expectError && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -208,12 +208,12 @@ func TestValidateConfig(t *testing.T) {
 
 func TestInitializeAdminUsers(t *testing.T) {
 	tests := []struct {
-		name           string
-		adminEmails    []string
-		existingUsers  map[string]*database.User
-		shouldFailGet  bool
-		shouldFailSet  bool
-		expectError    bool
+		name          string
+		adminEmails   []string
+		existingUsers map[string]*database.User
+		shouldFailGet bool
+		shouldFailSet bool
+		expectError   bool
 	}{
 		{
 			name:        "no admin emails configured",
@@ -221,14 +221,14 @@ func TestInitializeAdminUsers(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "admin user exists and gets privileges", 
+			name:        "admin user exists and gets privileges",
 			adminEmails: []string{"admin@example.com"},
 			existingUsers: map[string]*database.User{
 				"admin@example.com": {
-					ID:       1,
-					Email:    "admin@example.com",
-					Name:     "Admin User",
-					IsAdmin:  false,
+					ID:      1,
+					Email:   "admin@example.com",
+					Name:    "Admin User",
+					IsAdmin: false,
 				},
 			},
 			expectError: false,
@@ -244,7 +244,7 @@ func TestInitializeAdminUsers(t *testing.T) {
 			existingUsers: map[string]*database.User{
 				"admin@example.com": {
 					ID:      1,
-					Email:   "admin@example.com", 
+					Email:   "admin@example.com",
 					Name:    "Admin User",
 					IsAdmin: true,
 				},
@@ -252,10 +252,10 @@ func TestInitializeAdminUsers(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "database error when getting user",
-			adminEmails: []string{"admin@example.com"},
+			name:          "database error when getting user",
+			adminEmails:   []string{"admin@example.com"},
 			shouldFailGet: true,
-			expectError: false, // Should continue processing despite error
+			expectError:   false, // Should continue processing despite error
 		},
 		{
 			name:        "database error when setting admin",
@@ -264,12 +264,12 @@ func TestInitializeAdminUsers(t *testing.T) {
 				"admin@example.com": {
 					ID:      1,
 					Email:   "admin@example.com",
-					Name:    "Admin User", 
+					Name:    "Admin User",
 					IsAdmin: false,
 				},
 			},
 			shouldFailSet: true,
-			expectError: false, // Should continue processing despite error
+			expectError:   false, // Should continue processing despite error
 		},
 	}
 
@@ -295,7 +295,7 @@ func TestInitializeAdminUsers(t *testing.T) {
 			db := newMockDBForAuth()
 			db.shouldFailGetByEmail = tt.shouldFailGet
 			db.shouldFailSetAdmin = tt.shouldFailSet
-			
+
 			// Add existing users
 			for email, user := range tt.existingUsers {
 				db.usersByEmail[email] = user
@@ -314,15 +314,15 @@ func TestInitializeAdminUsers(t *testing.T) {
 
 			authService := NewAuthService(db)
 			err := authService.InitializeAdminUsers()
-			
+
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")
 			}
-			
+
 			if !tt.expectError && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			// Verify admin privileges were set for existing users
 			for email, originalUser := range tt.existingUsers {
 				if !originalUser.IsAdmin && !tt.shouldFailSet {

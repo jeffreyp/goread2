@@ -6,15 +6,15 @@ import (
 
 func TestNewFeedDiscovery(t *testing.T) {
 	fd := NewFeedDiscovery()
-	
+
 	if fd == nil {
 		t.Fatal("NewFeedDiscovery returned nil")
 	}
-	
+
 	if fd.client == nil {
 		t.Error("HTTP client not initialized")
 	}
-	
+
 	if fd.client.Timeout == 0 {
 		t.Error("HTTP client timeout not set")
 	}
@@ -22,7 +22,7 @@ func TestNewFeedDiscovery(t *testing.T) {
 
 func TestNormalizeURL(t *testing.T) {
 	fd := NewFeedDiscovery()
-	
+
 	tests := []struct {
 		name        string
 		input       string
@@ -130,7 +130,7 @@ func TestNormalizeURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := fd.NormalizeURL(tt.input)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error for input '%s', but got none", tt.input)

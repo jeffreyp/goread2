@@ -41,7 +41,7 @@ func main() {
 		fmt.Println("Usage: go run cmd/admin/main.go <command> [args]")
 		fmt.Println("Commands:")
 		fmt.Println("  create-token <description>    - Generate new admin token (bootstrap only)")
-		fmt.Println("  list-tokens                   - List all admin tokens") 
+		fmt.Println("  list-tokens                   - List all admin tokens")
 		fmt.Println("  revoke-token <token-id>       - Revoke an admin token")
 		fmt.Println("  list-users                    - List all users")
 		fmt.Println("  set-admin <email> <true/false> - Set admin status for user")
@@ -163,16 +163,16 @@ func listUsers(db database.Database) {
 		query := `SELECT id, email, name, subscription_status, 
 				  COALESCE(is_admin, 0), COALESCE(free_months_remaining, 0),
 				  created_at FROM users ORDER BY id`
-		
+
 		rows, err := sqliteDB.Query(query)
 		if err != nil {
 			log.Fatal("Failed to query users:", err)
 		}
 		defer func() { _ = rows.Close() }()
 
-		fmt.Printf("\n%-4s %-35s %-25s %-12s %-6s %-6s %-12s\n", 
+		fmt.Printf("\n%-4s %-35s %-25s %-12s %-6s %-6s %-12s\n",
 			"ID", "Email", "Name", "Status", "Admin", "Free", "Joined")
-		fmt.Printf("%-4s %-35s %-25s %-12s %-6s %-6s %-12s\n", 
+		fmt.Printf("%-4s %-35s %-25s %-12s %-6s %-6s %-12s\n",
 			"----", "-----------------------------------", "-------------------------", "------------", "------", "------", "------------")
 
 		for rows.Next() {
@@ -192,7 +192,7 @@ func listUsers(db database.Database) {
 				adminStr = "Yes"
 			}
 
-			fmt.Printf("%-4d %-35s %-25s %-12s %-6s %-6d %-12s\n", 
+			fmt.Printf("%-4d %-35s %-25s %-12s %-6s %-6d %-12s\n",
 				id, truncate(email, 34), truncate(name, 24), status, adminStr, freeMonths, createdAt[:10])
 		}
 		fmt.Println()
@@ -269,32 +269,32 @@ func showUserInfo(subscriptionService *services.SubscriptionService, email strin
 	fmt.Printf("├─────────────────────────────────────────────────────────────────┤\n")
 	fmt.Printf("│ %-20s │ %-42s │\n", "Status:", subscriptionInfo.Status)
 	fmt.Printf("│ %-20s │ %-42s │\n", "Is Admin:", map[bool]string{true: "Yes", false: "No"}[user.IsAdmin])
-	
+
 	if config.IsSubscriptionEnabled() {
 		fmt.Printf("│ %-20s │ %-42s │\n", "Free Months:", fmt.Sprintf("%d", user.FreeMonthsRemaining))
 	}
-	
+
 	fmt.Printf("│ %-20s │ %-42s │\n", "Current Feeds:", fmt.Sprintf("%d", subscriptionInfo.CurrentFeeds))
-	
+
 	if subscriptionInfo.FeedLimit == -1 {
 		fmt.Printf("│ %-20s │ %-42s │\n", "Feed Limit:", "Unlimited")
 	} else {
 		fmt.Printf("│ %-20s │ %-42s │\n", "Feed Limit:", fmt.Sprintf("%d", subscriptionInfo.FeedLimit))
 	}
-	
+
 	if subscriptionInfo.Status == "trial" {
 		fmt.Printf("│ %-20s │ %-42s │\n", "Trial Ends:", user.TrialEndsAt.Format("2006-01-02 15:04:05"))
 		fmt.Printf("│ %-20s │ %-42s │\n", "Days Remaining:", fmt.Sprintf("%d", subscriptionInfo.TrialDaysRemaining))
 	}
-	
+
 	if user.SubscriptionID != "" {
 		fmt.Printf("│ %-20s │ %-42s │\n", "Stripe Subscription:", user.SubscriptionID)
 	}
-	
+
 	if !user.LastPaymentDate.IsZero() {
 		fmt.Printf("│ %-20s │ %-42s │\n", "Last Payment:", user.LastPaymentDate.Format("2006-01-02 15:04:05"))
 	}
-	
+
 	fmt.Printf("└─────────────────────────────────────────────────────────────────┘\n\n")
 }
 
@@ -305,7 +305,6 @@ func truncate(s string, max int) string {
 	return s[:max-3] + "..."
 }
 
-
 // createAdminToken generates a new admin token and stores it in the database
 func createAdminToken(subscriptionService *services.SubscriptionService, description string) {
 	// Check if any admin tokens already exist (for security warning)
@@ -313,14 +312,14 @@ func createAdminToken(subscriptionService *services.SubscriptionService, descrip
 	if err != nil {
 		log.Fatal("Failed to check existing admin tokens:", err)
 	}
-	
+
 	if hasTokens {
 		fmt.Println("WARNING: Admin tokens already exist in the database.")
 		fmt.Println("Only create new tokens if you're an authorized administrator.")
 		fmt.Print("Continue? (y/N): ")
-		
+
 		var response string
-		fmt.Scanln(&response)
+		_, _ = fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
 			fmt.Println("Token creation cancelled.")
 			os.Exit(0)
@@ -340,16 +339,16 @@ func createAdminToken(subscriptionService *services.SubscriptionService, descrip
 			fmt.Println("This prevents unauthorized token creation by requiring database access.")
 			os.Exit(1)
 		}
-		
+
 		fmt.Println("Creating initial admin token...")
 		fmt.Printf("Found admin users in database - proceeding with bootstrap.\n\n")
 	}
-	
+
 	token, err := subscriptionService.GenerateAdminToken(description)
 	if err != nil {
 		log.Fatal("Failed to generate admin token:", err)
 	}
-	
+
 	fmt.Printf("✅ Admin token created successfully!\n\n")
 	fmt.Printf("Token: %s\n\n", token)
 	fmt.Printf("IMPORTANT SECURITY NOTES:\n")
@@ -367,24 +366,24 @@ func listAdminTokens(subscriptionService *services.SubscriptionService) {
 	if err != nil {
 		log.Fatal("Failed to list admin tokens:", err)
 	}
-	
+
 	if len(tokens) == 0 {
 		fmt.Println("No admin tokens found.")
 		fmt.Println("Create one with: go run cmd/admin/main.go create-token <description>")
 		return
 	}
-	
-	fmt.Printf("\n%-4s %-25s %-20s %-20s %-8s\n", 
+
+	fmt.Printf("\n%-4s %-25s %-20s %-20s %-8s\n",
 		"ID", "Description", "Created", "Last Used", "Status")
-	fmt.Printf("%-4s %-25s %-20s %-20s %-8s\n", 
+	fmt.Printf("%-4s %-25s %-20s %-20s %-8s\n",
 		"----", "-------------------------", "--------------------", "--------------------", "--------")
-	
+
 	for _, token := range tokens {
 		status := "Active"
 		if !token.IsActive {
 			status = "Revoked"
 		}
-		
+
 		fmt.Printf("%-4d %-25s %-20s %-20s %-8s\n",
 			token.ID,
 			truncate(token.Description, 24),
@@ -401,7 +400,7 @@ func revokeAdminToken(subscriptionService *services.SubscriptionService, tokenID
 	if err != nil {
 		log.Fatal("Failed to revoke admin token:", err)
 	}
-	
+
 	fmt.Printf("✅ Admin token %d has been revoked successfully.\n", tokenID)
 	fmt.Printf("The token is now inactive and cannot be used for authentication.\n")
 }
@@ -410,14 +409,14 @@ func revokeAdminToken(subscriptionService *services.SubscriptionService, tokenID
 func hasAdminUsers(subscriptionService *services.SubscriptionService) bool {
 	// We need to check the database directly since SubscriptionService doesn't have this method
 	// This is a security check to prevent unauthorized bootstrap
-	
+
 	db, err := database.InitDB()
 	if err != nil {
 		fmt.Printf("ERROR: Cannot connect to database: %v\n", err)
 		return false
 	}
 	defer func() { _ = db.Close() }()
-	
+
 	// Check if database supports direct queries (SQLite implementation)
 	if sqliteDB, ok := db.(*database.DB); ok {
 		var count int
@@ -427,14 +426,15 @@ func hasAdminUsers(subscriptionService *services.SubscriptionService) bool {
 			fmt.Printf("ERROR: Failed to check admin users: %v\n", err)
 			return false
 		}
+		
 		return count > 0
 	} else if datastoreDB, ok := db.(*database.DatastoreDB); ok {
 		ctx := context.Background()
-		
+
 		query := datastore.NewQuery("User").
-			Filter("is_admin =", true).
+			FilterField("is_admin", "=", true).
 			Limit(1)
-		
+
 		count, err := datastoreDB.GetClient().Count(ctx, query)
 		if err != nil {
 			fmt.Printf("ERROR: Failed to check admin users in datastore: %v\n", err)
@@ -442,7 +442,7 @@ func hasAdminUsers(subscriptionService *services.SubscriptionService) bool {
 		}
 		return count > 0
 	}
-	
+
 	// For unknown database types, assume no admin users for security
 	fmt.Println("WARNING: Cannot verify admin users for this database type")
 	return false

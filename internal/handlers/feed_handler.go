@@ -38,13 +38,12 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
-	
+
 	// Ensure we return an empty array instead of null
 	if feeds == nil {
 		feeds = []database.Feed{}
 	}
-	
+
 	// Don't cache feeds list since it needs to update immediately after deletions/additions
 	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.JSON(http.StatusOK, feeds)
@@ -61,7 +60,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 	if err := fh.subscriptionService.CanUserAddFeed(user.ID); err != nil {
 		if errors.Is(err, services.ErrFeedLimitReached) {
 			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error": "You've reached the limit of 20 feeds for free users. Upgrade to Pro for unlimited feeds.",
+				"error":         "You've reached the limit of 20 feeds for free users. Upgrade to Pro for unlimited feeds.",
 				"limit_reached": true,
 				"current_limit": services.FreeTrialFeedLimit,
 			})
@@ -69,7 +68,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrTrialExpired) {
 			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error": "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
+				"error":         "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
 				"trial_expired": true,
 			})
 			return
@@ -109,7 +108,6 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 		return
 	}
 
-	
 	if err := fh.feedService.UnsubscribeUserFromFeed(user.ID, id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -162,7 +160,6 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
 
 	c.JSON(http.StatusOK, articles)
 }
@@ -233,7 +230,7 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 	} else {
 		log.Printf("Manual feed refresh started at %v", time.Now())
 	}
-	
+
 	if err := fh.feedService.RefreshFeeds(); err != nil {
 		log.Printf("Feed refresh failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -289,15 +286,15 @@ func (fh *FeedHandler) DebugFeed(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"user_id":              user.ID,
-		"feed_id":              id,
-		"is_subscribed":        isSubscribed,
-		"user_feeds_count":     len(userFeeds),
-		"all_articles_count":   len(allArticles),
-		"user_articles_count":  len(userArticles),
-		"user_feeds":           userFeeds,
-		"all_articles":         allArticles,
-		"user_articles":        userArticles,
+		"user_id":             user.ID,
+		"feed_id":             id,
+		"is_subscribed":       isSubscribed,
+		"user_feeds_count":    len(userFeeds),
+		"all_articles_count":  len(allArticles),
+		"user_articles_count": len(userArticles),
+		"user_feeds":          userFeeds,
+		"all_articles":        allArticles,
+		"user_articles":       userArticles,
 	})
 }
 
@@ -353,16 +350,16 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, services.ErrFeedLimitReached) {
 			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error": "Import would exceed your feed limit of 20 feeds. Upgrade to Pro for unlimited feeds.",
-				"limit_reached": true,
-				"current_limit": services.FreeTrialFeedLimit,
+				"error":          "Import would exceed your feed limit of 20 feeds. Upgrade to Pro for unlimited feeds.",
+				"limit_reached":  true,
+				"current_limit":  services.FreeTrialFeedLimit,
 				"imported_count": importedCount,
 			})
 			return
 		}
 		if errors.Is(err, services.ErrTrialExpired) {
 			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error": "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
+				"error":         "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
 				"trial_expired": true,
 			})
 			return
@@ -372,7 +369,7 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "OPML imported successfully",
+		"message":        "OPML imported successfully",
 		"imported_count": importedCount,
 	})
 }
@@ -411,14 +408,14 @@ func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 	totalArticles := 0
 	totalUnread := 0
 	activeFeeds := 0
-	
+
 	for _, feed := range feeds {
 		articles, err := fh.feedService.GetUserFeedArticles(user.ID, feed.ID)
 		if err != nil {
 			continue // Skip failed feeds in stats
 		}
 		totalArticles += len(articles)
-		
+
 		unreadCount := 0
 		for _, article := range articles {
 			if !article.IsRead {
@@ -440,7 +437,7 @@ func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 		"total_unread":      totalUnread,
 		"active_feeds":      activeFeeds,
 		"subscription_info": subscriptionInfo,
-		"feeds":            feeds,
+		"feeds":             feeds,
 	}
 
 	c.JSON(http.StatusOK, stats)

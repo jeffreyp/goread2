@@ -10,23 +10,23 @@ import (
 type Config struct {
 	// Feature flags
 	SubscriptionEnabled bool
-	
+
 	// Database
 	DatabasePath string
-	
+
 	// OAuth
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
-	
+
 	// Stripe (only used if subscription is enabled)
 	StripeSecretKey      string
 	StripePublishableKey string
 	StripeWebhookSecret  string
-	
+
 	// Admin initialization
 	InitialAdminEmails []string
-	
+
 	// Server
 	Port string
 }
@@ -43,31 +43,31 @@ func Load() *Config {
 	if globalConfig != nil {
 		return globalConfig
 	}
-	
+
 	globalConfig = &Config{
 		// Feature flags - default to disabled for safety
 		SubscriptionEnabled: parseBool(os.Getenv("SUBSCRIPTION_ENABLED"), false),
-		
+
 		// Database
 		DatabasePath: getEnvOrDefault("DATABASE_PATH", "./goread2.db"),
-		
+
 		// OAuth
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
-		
+
 		// Stripe
 		StripeSecretKey:      os.Getenv("STRIPE_SECRET_KEY"),
 		StripePublishableKey: os.Getenv("STRIPE_PUBLISHABLE_KEY"),
 		StripeWebhookSecret:  os.Getenv("STRIPE_WEBHOOK_SECRET"),
-		
+
 		// Admin initialization
 		InitialAdminEmails: parseEmailList(os.Getenv("INITIAL_ADMIN_EMAILS")),
-		
+
 		// Server
 		Port: getEnvOrDefault("PORT", "8080"),
 	}
-	
+
 	return globalConfig
 }
 
@@ -97,7 +97,7 @@ func parseBool(value string, defaultValue bool) bool {
 	if value == "" {
 		return defaultValue
 	}
-	
+
 	// Handle common boolean representations
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
@@ -119,16 +119,16 @@ func parseEmailList(value string) []string {
 	if value == "" {
 		return nil
 	}
-	
+
 	emails := strings.Split(value, ",")
 	var result []string
-	
+
 	for _, email := range emails {
 		email = strings.TrimSpace(email)
 		if email != "" {
 			result = append(result, email)
 		}
 	}
-	
+
 	return result
 }

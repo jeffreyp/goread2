@@ -179,9 +179,9 @@ func TestAPIWithFeatureFlag(t *testing.T) {
 
 		// Add feeds up to the limit
 		for i := 0; i < services.FreeTrialFeedLimit; i++ {
-			feed := helpers.CreateTestFeed(t, db, 
+			feed := helpers.CreateTestFeed(t, db,
 				"Test Feed "+string(rune(i+48)), // Simple way to create unique titles
-				"http://test"+string(rune(i+48))+".com", 
+				"http://test"+string(rune(i+48))+".com",
 				"Test description")
 			err := db.SubscribeUserToFeed(user.ID, feed.ID)
 			if err != nil {

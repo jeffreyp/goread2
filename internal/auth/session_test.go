@@ -12,36 +12,36 @@ import (
 // mockDB implements database.Database interface for testing
 type mockDB struct{}
 
-func (m *mockDB) Close() error { return nil }
-func (m *mockDB) CreateUser(*database.User) error { return nil }
-func (m *mockDB) GetUserByGoogleID(string) (*database.User, error) { return nil, nil }
-func (m *mockDB) GetUserByID(int) (*database.User, error) { return nil, nil }
-func (m *mockDB) UpdateUserSubscription(int, string, string, time.Time) error { return nil }
-func (m *mockDB) IsUserSubscriptionActive(int) (bool, error) { return false, nil }
-func (m *mockDB) GetUserFeedCount(int) (int, error) { return 0, nil }
-func (m *mockDB) SetUserAdmin(int, bool) error { return nil }
-func (m *mockDB) GrantFreeMonths(int, int) error { return nil }
-func (m *mockDB) GetUserByEmail(string) (*database.User, error) { return nil, nil }
-func (m *mockDB) AddFeed(*database.Feed) error { return nil }
-func (m *mockDB) GetFeeds() ([]database.Feed, error) { return nil, nil }
-func (m *mockDB) GetUserFeeds(int) ([]database.Feed, error) { return nil, nil }
-func (m *mockDB) GetAllUserFeeds() ([]database.Feed, error) { return nil, nil }
-func (m *mockDB) DeleteFeed(int) error { return nil }
-func (m *mockDB) SubscribeUserToFeed(int, int) error { return nil }
-func (m *mockDB) UnsubscribeUserFromFeed(int, int) error { return nil }
-func (m *mockDB) AddArticle(*database.Article) error { return nil }
-func (m *mockDB) GetArticles(int) ([]database.Article, error) { return nil, nil }
-func (m *mockDB) GetUserArticles(int) ([]database.Article, error) { return nil, nil }
-func (m *mockDB) GetUserArticlesPaginated(int, int, int) ([]database.Article, error) { return nil, nil }
-func (m *mockDB) GetUserFeedArticles(int, int) ([]database.Article, error) { return nil, nil }
-func (m *mockDB) GetUserArticleStatus(int, int) (*database.UserArticle, error) { return nil, nil }
-func (m *mockDB) SetUserArticleStatus(int, int, bool, bool) error { return nil }
+func (m *mockDB) Close() error                                                        { return nil }
+func (m *mockDB) CreateUser(*database.User) error                                     { return nil }
+func (m *mockDB) GetUserByGoogleID(string) (*database.User, error)                    { return nil, nil }
+func (m *mockDB) GetUserByID(int) (*database.User, error)                             { return nil, nil }
+func (m *mockDB) UpdateUserSubscription(int, string, string, time.Time) error         { return nil }
+func (m *mockDB) IsUserSubscriptionActive(int) (bool, error)                          { return false, nil }
+func (m *mockDB) GetUserFeedCount(int) (int, error)                                   { return 0, nil }
+func (m *mockDB) SetUserAdmin(int, bool) error                                        { return nil }
+func (m *mockDB) GrantFreeMonths(int, int) error                                      { return nil }
+func (m *mockDB) GetUserByEmail(string) (*database.User, error)                       { return nil, nil }
+func (m *mockDB) AddFeed(*database.Feed) error                                        { return nil }
+func (m *mockDB) GetFeeds() ([]database.Feed, error)                                  { return nil, nil }
+func (m *mockDB) GetUserFeeds(int) ([]database.Feed, error)                           { return nil, nil }
+func (m *mockDB) GetAllUserFeeds() ([]database.Feed, error)                           { return nil, nil }
+func (m *mockDB) DeleteFeed(int) error                                                { return nil }
+func (m *mockDB) SubscribeUserToFeed(int, int) error                                  { return nil }
+func (m *mockDB) UnsubscribeUserFromFeed(int, int) error                              { return nil }
+func (m *mockDB) AddArticle(*database.Article) error                                  { return nil }
+func (m *mockDB) GetArticles(int) ([]database.Article, error)                         { return nil, nil }
+func (m *mockDB) GetUserArticles(int) ([]database.Article, error)                     { return nil, nil }
+func (m *mockDB) GetUserArticlesPaginated(int, int, int) ([]database.Article, error)  { return nil, nil }
+func (m *mockDB) GetUserFeedArticles(int, int) ([]database.Article, error)            { return nil, nil }
+func (m *mockDB) GetUserArticleStatus(int, int) (*database.UserArticle, error)        { return nil, nil }
+func (m *mockDB) SetUserArticleStatus(int, int, bool, bool) error                     { return nil }
 func (m *mockDB) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error { return nil }
-func (m *mockDB) MarkUserArticleRead(int, int, bool) error { return nil }
-func (m *mockDB) ToggleUserArticleStar(int, int) error { return nil }
-func (m *mockDB) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
-func (m *mockDB) GetAllArticles() ([]database.Article, error) { return nil, nil }
-func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error { return nil }
+func (m *mockDB) MarkUserArticleRead(int, int, bool) error                            { return nil }
+func (m *mockDB) ToggleUserArticleStar(int, int) error                                { return nil }
+func (m *mockDB) GetUserUnreadCounts(int) (map[int]int, error)                        { return nil, nil }
+func (m *mockDB) GetAllArticles() ([]database.Article, error)                         { return nil, nil }
+func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error                            { return nil }
 
 func TestNewSessionManager(t *testing.T) {
 	db := &mockDB{}
@@ -66,7 +66,7 @@ func TestCreateSession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	sm := NewSessionManager(db)
-	
+
 	user := &database.User{
 		ID:       1,
 		GoogleID: "test123",
@@ -115,7 +115,7 @@ func TestGetSession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	sm := NewSessionManager(db)
-	
+
 	user := &database.User{
 		ID:       1,
 		GoogleID: "test123",
@@ -157,7 +157,7 @@ func TestDeleteSession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	sm := NewSessionManager(db)
-	
+
 	user := &database.User{
 		ID:       1,
 		GoogleID: "test123",
@@ -220,7 +220,7 @@ func TestSessionExpiration(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	sm := NewSessionManager(db)
-	
+
 	user := &database.User{
 		ID:       1,
 		GoogleID: "test123",
@@ -263,7 +263,7 @@ func TestSetSessionCookie(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	sm := NewSessionManager(db)
-	
+
 	user := &database.User{
 		ID:       1,
 		GoogleID: "test123",
@@ -281,7 +281,7 @@ func TestSetSessionCookie(t *testing.T) {
 
 	response := w.Result()
 	cookies := response.Cookies()
-	
+
 	if len(cookies) != 1 {
 		t.Errorf("Expected 1 cookie, got %d", len(cookies))
 		return
@@ -316,7 +316,7 @@ func TestClearSessionCookie(t *testing.T) {
 
 	response := w.Result()
 	cookies := response.Cookies()
-	
+
 	if len(cookies) != 1 {
 		t.Errorf("Expected 1 cookie, got %d", len(cookies))
 		return
@@ -345,7 +345,7 @@ func TestGetSessionFromRequest(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	sm := NewSessionManager(db)
-	
+
 	user := &database.User{
 		ID:       1,
 		GoogleID: "test123",

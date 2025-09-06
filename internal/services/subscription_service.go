@@ -161,15 +161,15 @@ func (ss *SubscriptionService) GetUserByEmail(email string) (*database.User, err
 
 // SubscriptionInfo contains all subscription-related information for a user
 type SubscriptionInfo struct {
-	Status               string    `json:"status"`
-	SubscriptionID       string    `json:"subscription_id"`
-	TrialEndsAt          time.Time `json:"trial_ends_at"`
-	LastPaymentDate      time.Time `json:"last_payment_date"`
-	CurrentFeeds         int       `json:"current_feeds"`
-	FeedLimit            int       `json:"feed_limit"` // -1 for unlimited
-	CanAddFeeds          bool      `json:"can_add_feeds"`
-	IsActive             bool      `json:"is_active"`
-	TrialDaysRemaining   int       `json:"trial_days_remaining,omitempty"`
+	Status             string    `json:"status"`
+	SubscriptionID     string    `json:"subscription_id"`
+	TrialEndsAt        time.Time `json:"trial_ends_at"`
+	LastPaymentDate    time.Time `json:"last_payment_date"`
+	CurrentFeeds       int       `json:"current_feeds"`
+	FeedLimit          int       `json:"feed_limit"` // -1 for unlimited
+	CanAddFeeds        bool      `json:"can_add_feeds"`
+	IsActive           bool      `json:"is_active"`
+	TrialDaysRemaining int       `json:"trial_days_remaining,omitempty"`
 }
 
 // AdminToken represents a secure admin authentication token
@@ -189,15 +189,15 @@ func (ss *SubscriptionService) GenerateAdminToken(description string) (string, e
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", fmt.Errorf("failed to generate random token: %w", err)
 	}
-	
+
 	// Convert to hex string (64 characters)
 	token := hex.EncodeToString(tokenBytes)
-	
+
 	// Hash the token for database storage
 	hash := sha256.Sum256([]byte(token))
 	tokenHash := hex.EncodeToString(hash[:])
 	now := time.Now()
-	
+
 	// Store the hashed token in the database
 	if sqliteDB, ok := ss.db.(*database.DB); ok {
 		query := `INSERT INTO admin_tokens (token_hash, description, created_at, last_used_at, is_active) 
@@ -215,7 +215,7 @@ func (ss *SubscriptionService) GenerateAdminToken(description string) (string, e
 			LastUsedAt:  now,
 			IsActive:    true,
 		}
-		
+
 		key := datastore.IncompleteKey("AdminToken", nil)
 		_, err := datastoreDB.GetClient().Put(ctx, key, entity)
 		if err != nil {
@@ -224,7 +224,7 @@ func (ss *SubscriptionService) GenerateAdminToken(description string) (string, e
 	} else {
 		return "", errors.New("admin token storage not supported for this database type")
 	}
-	
+
 	// Return the plain token (this is the only time it's visible)
 	return token, nil
 }
@@ -234,17 +234,17 @@ func (ss *SubscriptionService) ValidateAdminToken(token string) (bool, error) {
 	if len(token) != 64 { // 32 bytes as hex = 64 characters
 		return false, nil
 	}
-	
+
 	// Hash the provided token
 	hash := sha256.Sum256([]byte(token))
 	tokenHash := hex.EncodeToString(hash[:])
-	
+
 	// Check if token exists and is active
 	if sqliteDB, ok := ss.db.(*database.DB); ok {
 		var adminToken AdminToken
 		query := `SELECT id, token_hash, created_at, last_used_at, description, is_active 
 				  FROM admin_tokens WHERE token_hash = ? AND is_active = 1`
-		
+
 		err := sqliteDB.QueryRow(query, tokenHash).Scan(
 			&adminToken.ID,
 			&adminToken.TokenHash,
@@ -253,11 +253,11 @@ func (ss *SubscriptionService) ValidateAdminToken(token string) (bool, error) {
 			&adminToken.Description,
 			&adminToken.IsActive,
 		)
-		
+
 		if err != nil {
 			return false, nil // Token not found or invalid
 		}
-		
+
 		// Update last used timestamp
 		updateQuery := `UPDATE admin_tokens SET last_used_at = ? WHERE id = ?`
 		_, err = sqliteDB.Exec(updateQuery, time.Now(), adminToken.ID)
@@ -265,40 +265,40 @@ func (ss *SubscriptionService) ValidateAdminToken(token string) (bool, error) {
 			// Log error but don't fail validation
 			fmt.Printf("Warning: Failed to update last_used_at for admin token: %v\n", err)
 		}
-		
+
 		return true, nil
 	} else if datastoreDB, ok := ss.db.(*database.DatastoreDB); ok {
 		ctx := context.Background()
-		
+
 		// Query for active token with matching hash
 		query := datastore.NewQuery("AdminToken").
-			Filter("token_hash =", tokenHash).
-			Filter("is_active =", true).
+			FilterField("token_hash", "=", tokenHash).
+			FilterField("is_active", "=", true).
 			Limit(1)
-		
+
 		var entities []*database.AdminTokenEntity
 		keys, err := datastoreDB.GetClient().GetAll(ctx, query, &entities)
 		if err != nil {
 			return false, fmt.Errorf("failed to query admin token: %w", err)
 		}
-		
+
 		if len(entities) == 0 {
 			return false, nil // Token not found or inactive
 		}
-		
+
 		// Update last used timestamp
 		entity := entities[0]
 		entity.LastUsedAt = time.Now()
-		
+
 		_, err = datastoreDB.GetClient().Put(ctx, keys[0], entity)
 		if err != nil {
 			// Log error but don't fail validation
 			fmt.Printf("Warning: Failed to update last_used_at for admin token: %v\n", err)
 		}
-		
+
 		return true, nil
 	}
-	
+
 	return false, errors.New("admin token validation not supported for this database type")
 }
 
@@ -307,13 +307,13 @@ func (ss *SubscriptionService) ListAdminTokens() ([]AdminToken, error) {
 	if sqliteDB, ok := ss.db.(*database.DB); ok {
 		query := `SELECT id, token_hash, created_at, last_used_at, description, is_active 
 				  FROM admin_tokens ORDER BY created_at DESC`
-		
+
 		rows, err := sqliteDB.Query(query)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query admin tokens: %w", err)
 		}
 		defer func() { _ = rows.Close() }()
-		
+
 		var tokens []AdminToken
 		for rows.Next() {
 			var token AdminToken
@@ -330,18 +330,18 @@ func (ss *SubscriptionService) ListAdminTokens() ([]AdminToken, error) {
 			}
 			tokens = append(tokens, token)
 		}
-		
+
 		return tokens, nil
 	} else if datastoreDB, ok := ss.db.(*database.DatastoreDB); ok {
 		ctx := context.Background()
-		
+
 		query := datastore.NewQuery("AdminToken").Order("-created_at")
 		var entities []*database.AdminTokenEntity
 		keys, err := datastoreDB.GetClient().GetAll(ctx, query, &entities)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query admin tokens: %w", err)
 		}
-		
+
 		var tokens []AdminToken
 		for i, entity := range entities {
 			tokens = append(tokens, AdminToken{
@@ -353,39 +353,39 @@ func (ss *SubscriptionService) ListAdminTokens() ([]AdminToken, error) {
 				IsActive:    entity.IsActive,
 			})
 		}
-		
+
 		return tokens, nil
 	}
-	
+
 	return nil, errors.New("admin token listing not supported for this database type")
 }
 
 // RevokeAdminToken deactivates an admin token
 func (ss *SubscriptionService) RevokeAdminToken(tokenID int) error {
 	if sqliteDB, ok := ss.db.(*database.DB); ok {
-		query := `UPDATE admin_tokens SET is_active = 0 WHERE id = ?`
+		query := `UPDATE admin_tokens SET is_active = 0 WHERE id = ? AND is_active = 1`
 		result, err := sqliteDB.Exec(query, tokenID)
 		if err != nil {
 			return fmt.Errorf("failed to revoke admin token: %w", err)
 		}
-		
+
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
 			return fmt.Errorf("failed to check revoke result: %w", err)
 		}
-		
+
 		if rowsAffected == 0 {
 			return errors.New("admin token not found")
 		}
-		
+
 		return nil
 	} else if datastoreDB, ok := ss.db.(*database.DatastoreDB); ok {
 		ctx := context.Background()
-		
+
 		// Get the token by ID
 		key := datastore.IDKey("AdminToken", int64(tokenID), nil)
 		var entity database.AdminTokenEntity
-		
+
 		err := datastoreDB.GetClient().Get(ctx, key, &entity)
 		if err != nil {
 			if err == datastore.ErrNoSuchEntity {
@@ -393,18 +393,23 @@ func (ss *SubscriptionService) RevokeAdminToken(tokenID int) error {
 			}
 			return fmt.Errorf("failed to get admin token: %w", err)
 		}
-		
+
+		// Check if already inactive
+		if !entity.IsActive {
+			return errors.New("admin token not found")
+		}
+
 		// Set as inactive
 		entity.IsActive = false
-		
+
 		_, err = datastoreDB.GetClient().Put(ctx, key, &entity)
 		if err != nil {
 			return fmt.Errorf("failed to revoke admin token: %w", err)
 		}
-		
+
 		return nil
 	}
-	
+
 	return errors.New("admin token revocation not supported for this database type")
 }
 
@@ -420,18 +425,18 @@ func (ss *SubscriptionService) HasAdminTokens() (bool, error) {
 		return count > 0, nil
 	} else if datastoreDB, ok := ss.db.(*database.DatastoreDB); ok {
 		ctx := context.Background()
-		
+
 		query := datastore.NewQuery("AdminToken").
-			Filter("is_active =", true).
+			FilterField("is_active", "=", true).
 			Limit(1)
-		
+
 		count, err := datastoreDB.GetClient().Count(ctx, query)
 		if err != nil {
 			return false, fmt.Errorf("failed to count admin tokens: %w", err)
 		}
-		
+
 		return count > 0, nil
 	}
-	
+
 	return false, errors.New("admin token check not supported for this database type")
 }

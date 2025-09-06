@@ -24,9 +24,9 @@ type RSS struct {
 }
 
 type RDF struct {
-	XMLName xml.Name `xml:"RDF"`
+	XMLName xml.Name   `xml:"RDF"`
 	Channel RDFChannel `xml:"channel"`
-	Items   []RDFItem `xml:"item"`
+	Items   []RDFItem  `xml:"item"`
 }
 
 type RDFChannel struct {
@@ -172,17 +172,17 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 	// Add overall timeout to prevent infinite hangs - reduced for better UX
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	
+
 	// Use a channel to handle timeout
 	done := make(chan struct{})
 	var result *database.Feed
 	var resultErr error
-	
+
 	go func() {
 		defer close(done)
 		result, resultErr = fs.addFeedForUserInternal(userID, inputURL)
 	}()
-	
+
 	select {
 	case <-ctx.Done():
 		return nil, fmt.Errorf("feed discovery timed out after 15 seconds for %s", inputURL)
@@ -193,14 +193,14 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 
 func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*database.Feed, error) {
 	var feedURL string
-	
+
 	// Normalize the input URL first
 	discovery := NewFeedDiscovery()
 	normalizedURL, err := discovery.NormalizeURL(inputURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
-	
+
 	// Check for known sites first
 	if strings.Contains(normalizedURL, "slashdot.org") {
 		feedURL = "https://rss.slashdot.org/Slashdot/slashdotMain"
@@ -348,7 +348,7 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
-	
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -492,12 +492,12 @@ func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) erro
 			PublishedAt: articleData.PublishedAt,
 			CreatedAt:   time.Now(),
 		}
-		
+
 		if err := fs.db.AddArticle(article); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -516,12 +516,12 @@ func (fs *FeedService) RefreshFeeds() error {
 
 	// Combine and deduplicate feeds by URL
 	feedMap := make(map[string]database.Feed)
-	
+
 	// Add global feeds
 	for _, feed := range globalFeeds {
 		feedMap[feed.URL] = feed
 	}
-	
+
 	// Add user feeds (will overwrite if same URL)
 	for _, feed := range allUserFeeds {
 		feedMap[feed.URL] = feed
@@ -548,25 +548,25 @@ func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {
 	if err := xml.Unmarshal(opmlData, &opml); err != nil {
 		return 0, fmt.Errorf("failed to parse OPML: %w", err)
 	}
-	
+
 	importedCount := 0
 	feeds := fs.extractFeedsFromOutlines(opml.Body.Outlines)
-	
+
 	for _, feedURL := range feeds {
 		if feedURL == "" {
 			continue
 		}
-		
+
 		_, err := fs.AddFeedForUser(userID, feedURL)
 		if err != nil {
 			// Log error but continue with other feeds
 			log.Printf("Failed to import feed %s: %v", feedURL, err)
 			continue
 		}
-		
+
 		importedCount++
 	}
-	
+
 	return importedCount, nil
 }
 
@@ -576,73 +576,73 @@ func (fs *FeedService) ImportOPMLWithLimits(userID int, opmlData []byte, subscri
 	if err := xml.Unmarshal(opmlData, &opml); err != nil {
 		return 0, fmt.Errorf("failed to parse OPML: %w", err)
 	}
-	
+
 	feeds := fs.extractFeedsFromOutlines(opml.Body.Outlines)
 	importedCount := 0
-	
+
 	for _, feedURL := range feeds {
 		if feedURL == "" {
 			continue
 		}
-		
+
 		// Check if user can add more feeds before each import
 		if err := subscriptionService.CanUserAddFeed(userID); err != nil {
 			// Return partial import count and the error
 			return importedCount, err
 		}
-		
+
 		_, err := fs.AddFeedForUser(userID, feedURL)
 		if err != nil {
 			// Log error but continue with other feeds
 			log.Printf("Failed to import feed %s: %v", feedURL, err)
 			continue
 		}
-		
+
 		importedCount++
 	}
-	
+
 	return importedCount, nil
 }
 
 func (fs *FeedService) extractFeedsFromOutlines(outlines []OPMLOutline) []string {
 	var feeds []string
-	
+
 	for _, outline := range outlines {
 		// If this outline has a feed URL, add it
 		if outline.XMLURL != "" {
 			feeds = append(feeds, outline.XMLURL)
 		}
-		
+
 		// Recursively process nested outlines (folders)
 		if len(outline.Outline) > 0 {
 			nestedFeeds := fs.extractFeedsFromOutlines(outline.Outline)
 			feeds = append(feeds, nestedFeeds...)
 		}
 	}
-	
+
 	return feeds
 }
 
 func (fs *FeedService) cleanDuplicateTitle(title string) string {
 	title = strings.TrimSpace(title)
-	
+
 	// Split title into words
 	words := strings.Fields(title)
 	if len(words) <= 1 {
 		return title
 	}
-	
+
 	// Check if the title is a simple duplication (first half == second half)
 	halfLength := len(words) / 2
 	if len(words)%2 == 0 && halfLength > 0 {
 		firstHalf := strings.Join(words[:halfLength], " ")
 		secondHalf := strings.Join(words[halfLength:], " ")
-		
+
 		if firstHalf == secondHalf {
 			return firstHalf
 		}
 	}
-	
+
 	return title
 }
 
@@ -656,15 +656,15 @@ func (fs *FeedService) convertToUTF8(body []byte) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert ISO-8859-1 to UTF-8: %w", err)
 		}
-		
+
 		// Replace the encoding declaration in the XML
 		utf8String := string(utf8Content)
 		utf8String = strings.Replace(utf8String, "encoding=\"ISO-8859-1\"", "encoding=\"UTF-8\"", 1)
 		utf8String = strings.Replace(utf8String, "encoding='ISO-8859-1'", "encoding='UTF-8'", 1)
-		
+
 		return []byte(utf8String), nil
 	}
-	
+
 	// If no special encoding, return as-is
 	return body, nil
 }

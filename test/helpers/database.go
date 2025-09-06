@@ -165,14 +165,14 @@ func CleanupTestEnv(t *testing.T) {
 // This requires the Datastore emulator to be running
 func CreateTestDatastoreDB(t *testing.T) database.Database {
 	projectID := "test-project-" + fmt.Sprintf("%d", time.Now().UnixNano())
-	
+
 	// Set environment variable to use emulator
 	originalHost := os.Getenv("DATASTORE_EMULATOR_HOST")
 	if originalHost == "" {
 		// Default emulator host
 		_ = os.Setenv("DATASTORE_EMULATOR_HOST", "localhost:8081")
 	}
-	
+
 	// Clean up environment after test
 	t.Cleanup(func() {
 		if originalHost == "" {

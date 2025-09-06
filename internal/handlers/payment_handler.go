@@ -172,7 +172,7 @@ func (ph *PaymentHandler) CreateCustomerPortal(c *gin.Context) {
 // SubscriptionSuccess handles successful subscription redirect
 func (ph *PaymentHandler) SubscriptionSuccess(c *gin.Context) {
 	sessionID := c.Query("session_id")
-	
+
 	c.HTML(http.StatusOK, "subscription_success.html", gin.H{
 		"title":      "Subscription Successful - GoRead2",
 		"session_id": sessionID,

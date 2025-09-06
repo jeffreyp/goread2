@@ -30,11 +30,15 @@ internal/
 │   ├── feed_handler_test.go     # Feed handler constructor tests
 │   └── payment_handler_test.go  # Payment handler constructor tests (1.0% coverage)
 ├── services/
-│   ├── feed_discovery_test.go       # Feed discovery and URL normalization tests
-│   └── subscription_service_test.go # Subscription service logic tests (14.3% coverage)
+│   ├── admin_token_test.go               # SQLite admin token tests (comprehensive)
+│   ├── admin_token_datastore_test.go     # Datastore admin token tests 
+│   ├── feed_discovery_test.go            # Feed discovery and URL normalization tests
+│   └── subscription_service_test.go      # Subscription service logic tests (20.1% coverage)
 test/
-├── integration/         # Backend integration tests
-│   └── api_test.go      # End-to-end API testing
+├── integration/                    # Backend integration tests
+│   ├── admin_integration_test.go   # Admin command integration tests
+│   ├── admin_security_test.go      # Admin security and bootstrap tests
+│   └── api_test.go                 # End-to-end API testing
 └── fixtures/            # Test data and sample feeds
     └── sample_feeds.go  # Sample data for tests
 web/tests/               # Frontend tests
@@ -156,7 +160,7 @@ func TestMiddleware(t *testing.T) {
 
 #### Services Package (`internal/services/`)
 
-Tests service layer logic with 14.3% coverage:
+Tests service layer logic with 20.1% coverage:
 
 ```go
 func TestSubscriptionService(t *testing.T) {
@@ -166,9 +170,40 @@ func TestSubscriptionService(t *testing.T) {
 func TestFeedDiscovery(t *testing.T) {
     // Test URL normalization and validation
 }
+
+func TestGenerateAdminToken(t *testing.T) {
+    // Test cryptographic token generation
+}
+
+func TestValidateAdminToken(t *testing.T) {
+    // Test database-based token validation
+}
+
+func TestListAdminTokens(t *testing.T) {
+    // Test token listing and metadata
+}
+
+func TestRevokeAdminToken(t *testing.T) {
+    // Test token revocation and lifecycle
+}
+
+func TestHasAdminTokens(t *testing.T) {
+    // Test active token detection
+}
+
+func TestDatastoreAdminTokens(t *testing.T) {
+    // Test Google Datastore compatibility
+}
 ```
 
 **Coverage includes:**
+- **Admin Token Security System**: Comprehensive testing of the new secure admin authentication
+  - Cryptographic token generation (64-char hex, SHA-256 hashing)
+  - Database-based token validation (SQLite + Google Datastore)
+  - Token lifecycle management (create, validate, list, revoke)
+  - Bootstrap security protection requiring existing admin users
+  - Token uniqueness and format validation
+  - Last-used timestamp tracking and proper error handling
 - Feed limit enforcement for trial users
 - Subscription status validation
 - Admin privilege checking
@@ -293,14 +328,19 @@ func setupTestServer(t *testing.T) *httptest.Server {
 Current test coverage status and targets:
 
 ### ✅ Achieved Coverage
-- **Overall project**: 8.0% total coverage across all packages
+- **Overall project**: Coverage across all packages with significant improvements
 - **Config package**: 96.7% coverage (comprehensive unit tests)  
 - **Auth package**: 59.7% coverage (session, middleware, OAuth service)
-- **Services package**: 14.3% coverage (subscription logic, feed discovery)
+- **Services package**: 20.1% coverage (subscription logic, feed discovery, **comprehensive admin token security**)
 - **Handlers package**: 1.0% coverage (constructor functions)
-- **Integration tests**: Full end-to-end API validation with user isolation testing
+- **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
 - **Frontend**: 26 tests covering core functionality
-- **Overall system**: All tests passing successfully
+- **Admin Token System**: Comprehensive test coverage for the new secure authentication system
+  - 6 SQLite backend test suites with 20+ individual test cases
+  - 6 Datastore backend test suites (skip when emulator unavailable)
+  - Security integration tests for bootstrap protection and token lifecycle
+  - Edge case and error handling tests
+- **Overall system**: All core tests passing successfully
 
 ### 🎯 Future Coverage Targets
 - **Database operations**: Target 80%+ coverage (requires complex mocking)
@@ -378,7 +418,7 @@ RSS and Atom feed examples for parser testing:
 
 ## Security Testing
 
-Critical tests for multi-user security:
+Critical tests for multi-user security and admin authentication:
 
 ### User Data Isolation
 
@@ -419,6 +459,83 @@ func TestAPIRequiresAuthentication(t *testing.T) {
     }
 }
 ```
+
+### Admin Token Security Testing
+
+Critical tests for the new secure admin authentication system:
+
+```go
+func TestAdminTokenGeneration(t *testing.T) {
+    // Test cryptographically secure token generation
+    service := NewSubscriptionService(db)
+    token, err := service.GenerateAdminToken("Test token")
+    
+    // Verify 64-character hex format
+    assert.Len(t, token, 64)
+    assert.Regexp(t, `^[0-9a-fA-F]{64}$`, token)
+}
+
+func TestAdminTokenValidation(t *testing.T) {
+    // Test database-based token validation
+    service := NewSubscriptionService(db)
+    token, _ := service.GenerateAdminToken("Test token")
+    
+    // Valid token should pass
+    valid, err := service.ValidateAdminToken(token)
+    assert.NoError(t, err)
+    assert.True(t, valid)
+    
+    // Invalid token should fail
+    valid, err = service.ValidateAdminToken("invalid")
+    assert.NoError(t, err)
+    assert.False(t, valid)
+}
+
+func TestBootstrapProtection(t *testing.T) {
+    // Test bootstrap security requiring existing admin users
+    cleanDB := setupEmptyTestDB(t)
+    
+    // Should fail without admin users
+    cmd := exec.Command("go", "run", "cmd/admin/main.go", "create-token", "test")
+    cmd.Env = append(os.Environ(), "ADMIN_TOKEN=bootstrap")
+    output, err := cmd.CombinedOutput()
+    
+    assert.Error(t, err)
+    assert.Contains(t, string(output), "No admin users found in database")
+}
+
+func TestTokenLifecycle(t *testing.T) {
+    // Test complete token lifecycle (create, validate, revoke)
+    service := NewSubscriptionService(db)
+    
+    // Create token
+    token, err := service.GenerateAdminToken("Lifecycle test")
+    assert.NoError(t, err)
+    
+    // Validate token works
+    valid, err := service.ValidateAdminToken(token)
+    assert.True(t, valid)
+    
+    // Get token ID and revoke
+    tokens, _ := service.ListAdminTokens()
+    tokenID := tokens[0].ID
+    err = service.RevokeAdminToken(tokenID)
+    assert.NoError(t, err)
+    
+    // Token should no longer work
+    valid, err = service.ValidateAdminToken(token)
+    assert.False(t, valid)
+}
+```
+
+**Admin Security Test Coverage:**
+- **Cryptographic Security**: 64-character hex tokens with SHA-256 hashing
+- **Bootstrap Protection**: Prevents unauthorized token creation without existing admin users  
+- **Database Validation**: All tokens validated against database, not environment variables
+- **Dual Database Support**: Tests work with both SQLite (local) and Google Datastore (GAE)
+- **Token Lifecycle**: Complete create → validate → list → revoke → invalidate cycle
+- **Edge Cases**: Invalid formats, non-existent tokens, already-revoked tokens
+- **Security Warnings**: Prompts when creating additional tokens
 
 ## CI/CD Integration
 

@@ -49,7 +49,7 @@ func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, er
 		if secretName == "" {
 			secretName = "google-client-id"
 		}
-		
+
 		clientID, err = GetSecret(ctx, secretName)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get client ID secret: %w", err)
@@ -61,7 +61,7 @@ func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, er
 		if secretName == "" {
 			secretName = "google-client-secret"
 		}
-		
+
 		clientSecret, err = GetSecret(ctx, secretName)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get client secret: %w", err)

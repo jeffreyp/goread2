@@ -29,7 +29,7 @@ type GoogleUserInfo struct {
 
 func NewAuthService(db database.Database) *AuthService {
 	ctx := context.Background()
-	
+
 	// Get OAuth credentials from secrets or environment
 	clientID, clientSecret, err := secrets.GetOAuthCredentials(ctx)
 	if err != nil {
@@ -37,7 +37,7 @@ func NewAuthService(db database.Database) *AuthService {
 		clientID = os.Getenv("GOOGLE_CLIENT_ID")
 		clientSecret = os.Getenv("GOOGLE_CLIENT_SECRET")
 	}
-	
+
 	config := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -118,34 +118,34 @@ func (a *AuthService) ValidateConfig() error {
 // This should be called on application startup to ensure initial admin access
 func (a *AuthService) InitializeAdminUsers() error {
 	cfg := config.Get()
-	
+
 	if len(cfg.InitialAdminEmails) == 0 {
 		log.Println("No initial admin emails configured (INITIAL_ADMIN_EMAILS)")
 		return nil
 	}
-	
+
 	log.Printf("Initializing admin privileges for %d users", len(cfg.InitialAdminEmails))
-	
+
 	for _, email := range cfg.InitialAdminEmails {
 		user, err := a.db.GetUserByEmail(email)
 		if err != nil {
 			log.Printf("Warning: Initial admin user not found: %s (user must sign in first)", email)
 			continue
 		}
-		
+
 		if user.IsAdmin {
 			log.Printf("User %s already has admin privileges", email)
 			continue
 		}
-		
+
 		err = a.db.SetUserAdmin(user.ID, true)
 		if err != nil {
 			log.Printf("Error granting admin privileges to %s: %v", email, err)
 			continue
 		}
-		
+
 		log.Printf("✅ Granted admin privileges to user: %s (%s)", user.Name, user.Email)
 	}
-	
+
 	return nil
 }
