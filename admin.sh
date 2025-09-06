@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # GoRead2 Admin Management Script
-# SECURITY: This script requires ADMIN_TOKEN environment variable
+# SECURITY: This script requires a valid 64-character ADMIN_TOKEN from the database
+# Generate tokens with: ./admin.sh create-token "description"
 # Usage: ./admin.sh <command> [args]
 
 # Colors for output
@@ -14,11 +15,13 @@ NC='\033[0m' # No Color
 if [ -z "$ADMIN_TOKEN" ]; then
     echo -e "${RED}🔒 SECURITY ERROR: ADMIN_TOKEN environment variable is required${NC}"
     echo ""
-    echo "This is a security requirement to prevent unauthorized admin access."
-    echo "Set ADMIN_TOKEN to a secure random value:"
+    echo "This must be a valid 64-character admin token from the database."
     echo ""
-    echo "  export ADMIN_TOKEN=\"\$(openssl rand -hex 32)\""
-    echo "  $0 $@"
+    echo "To get started:"
+    echo "  1. Create user account through web interface"
+    echo "  2. Set as admin: sqlite3 goread2.db \"UPDATE users SET is_admin = 1 WHERE email = 'your@email.com'\""
+    echo "  3. Generate token: ADMIN_TOKEN=\"bootstrap\" $0 create-token \"Initial setup\""
+    echo "  4. Use the generated 64-character token"
     echo ""
     exit 1
 fi
@@ -35,13 +38,20 @@ show_usage() {
     echo ""
     echo "Usage: $0 <command> [args]"
     echo ""
-    echo "Commands:"
+    echo "Token Management:"
+    echo "  create-token <description>    - Generate new admin token"
+    echo "  list-tokens                   - List all admin tokens"
+    echo "  revoke-token <id>             - Revoke admin token"
+    echo ""
+    echo "User Management:"
     echo "  list                          - List all users"
     echo "  admin <email> <on|off>        - Grant/revoke admin access"
     echo "  grant <email> <months>        - Grant free months"
     echo "  info <email>                  - Show user information"
     echo ""
     echo "Examples:"
+    echo "  $0 create-token \"Production server\""
+    echo "  $0 list-tokens"
     echo "  $0 list"
     echo "  $0 admin your-email@gmail.com on"
     echo "  $0 grant user@example.com 6"
@@ -58,6 +68,38 @@ fi
 COMMAND=$1
 
 case $COMMAND in
+    "create-token")
+        if [ $# -ne 2 ]; then
+            echo -e "${RED}Error: Usage: $0 create-token <description>${NC}"
+            exit 1
+        fi
+        
+        DESCRIPTION=$2
+        echo -e "${YELLOW}🔑 Creating new admin token: $DESCRIPTION${NC}"
+        go run cmd/admin/main.go create-token "$DESCRIPTION"
+        ;;
+    
+    "list-tokens")
+        echo -e "${YELLOW}🔑 Listing all admin tokens...${NC}"
+        go run cmd/admin/main.go list-tokens
+        ;;
+    
+    "revoke-token")
+        if [ $# -ne 2 ]; then
+            echo -e "${RED}Error: Usage: $0 revoke-token <token-id>${NC}"
+            exit 1
+        fi
+        
+        TOKEN_ID=$2
+        if ! [[ "$TOKEN_ID" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Error: Token ID must be a number${NC}"
+            exit 1
+        fi
+        
+        echo -e "${YELLOW}🚫 Revoking admin token ID: $TOKEN_ID${NC}"
+        go run cmd/admin/main.go revoke-token "$TOKEN_ID"
+        ;;
+
     "list")
         echo -e "${YELLOW}📋 Listing all users...${NC}"
         go run cmd/admin/main.go list-users
@@ -87,8 +129,6 @@ case $COMMAND in
                 ;;
         esac
         
-        # SECURITY: Set ADMIN_TOKEN_VERIFY for sensitive operations
-        export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
         go run cmd/admin/main.go set-admin "$EMAIL" "$BOOL_STATUS"
         ;;
     
@@ -108,8 +148,6 @@ case $COMMAND in
         fi
         
         echo -e "${YELLOW}🎁 Granting $MONTHS free months to $EMAIL...${NC}"
-        # SECURITY: Set ADMIN_TOKEN_VERIFY for sensitive operations
-        export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
         go run cmd/admin/main.go grant-months "$EMAIL" "$MONTHS"
         ;;
     
