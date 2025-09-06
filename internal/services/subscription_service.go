@@ -1,7 +1,11 @@
 package services
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"goread2/internal/config"
@@ -164,4 +168,163 @@ type SubscriptionInfo struct {
 	CanAddFeeds          bool      `json:"can_add_feeds"`
 	IsActive             bool      `json:"is_active"`
 	TrialDaysRemaining   int       `json:"trial_days_remaining,omitempty"`
+}
+
+// AdminToken represents a secure admin authentication token
+type AdminToken struct {
+	ID          int       `db:"id" json:"id"`
+	TokenHash   string    `db:"token_hash" json:"-"` // Never expose in JSON
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	LastUsedAt  time.Time `db:"last_used_at" json:"last_used_at"`
+	Description string    `db:"description" json:"description"`
+	IsActive    bool      `db:"is_active" json:"is_active"`
+}
+
+// GenerateAdminToken creates a new cryptographically secure admin token
+func (ss *SubscriptionService) GenerateAdminToken(description string) (string, error) {
+	// Generate 32 bytes of random data for the token
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return "", fmt.Errorf("failed to generate random token: %w", err)
+	}
+	
+	// Convert to hex string (64 characters)
+	token := hex.EncodeToString(tokenBytes)
+	
+	// Hash the token for database storage
+	hash := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(hash[:])
+	
+	// Store the hashed token in the database
+	if sqliteDB, ok := ss.db.(*database.DB); ok {
+		query := `INSERT INTO admin_tokens (token_hash, description, created_at, last_used_at, is_active) 
+				  VALUES (?, ?, ?, ?, ?)`
+		now := time.Now()
+		_, err := sqliteDB.Exec(query, tokenHash, description, now, now, true)
+		if err != nil {
+			return "", fmt.Errorf("failed to store admin token: %w", err)
+		}
+	} else {
+		return "", errors.New("admin token storage only supports SQLite database")
+	}
+	
+	// Return the plain token (this is the only time it's visible)
+	return token, nil
+}
+
+// ValidateAdminToken checks if a token is valid and updates last_used_at
+func (ss *SubscriptionService) ValidateAdminToken(token string) (bool, error) {
+	if len(token) != 64 { // 32 bytes as hex = 64 characters
+		return false, nil
+	}
+	
+	// Hash the provided token
+	hash := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(hash[:])
+	
+	// Check if token exists and is active
+	if sqliteDB, ok := ss.db.(*database.DB); ok {
+		var adminToken AdminToken
+		query := `SELECT id, token_hash, created_at, last_used_at, description, is_active 
+				  FROM admin_tokens WHERE token_hash = ? AND is_active = 1`
+		
+		err := sqliteDB.QueryRow(query, tokenHash).Scan(
+			&adminToken.ID,
+			&adminToken.TokenHash,
+			&adminToken.CreatedAt,
+			&adminToken.LastUsedAt,
+			&adminToken.Description,
+			&adminToken.IsActive,
+		)
+		
+		if err != nil {
+			return false, nil // Token not found or invalid
+		}
+		
+		// Update last used timestamp
+		updateQuery := `UPDATE admin_tokens SET last_used_at = ? WHERE id = ?`
+		_, err = sqliteDB.Exec(updateQuery, time.Now(), adminToken.ID)
+		if err != nil {
+			// Log error but don't fail validation
+			fmt.Printf("Warning: Failed to update last_used_at for admin token: %v\n", err)
+		}
+		
+		return true, nil
+	}
+	
+	return false, errors.New("admin token validation only supports SQLite database")
+}
+
+// ListAdminTokens returns all admin tokens (without the actual token values)
+func (ss *SubscriptionService) ListAdminTokens() ([]AdminToken, error) {
+	if sqliteDB, ok := ss.db.(*database.DB); ok {
+		query := `SELECT id, token_hash, created_at, last_used_at, description, is_active 
+				  FROM admin_tokens ORDER BY created_at DESC`
+		
+		rows, err := sqliteDB.Query(query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query admin tokens: %w", err)
+		}
+		defer func() { _ = rows.Close() }()
+		
+		var tokens []AdminToken
+		for rows.Next() {
+			var token AdminToken
+			err := rows.Scan(
+				&token.ID,
+				&token.TokenHash,
+				&token.CreatedAt,
+				&token.LastUsedAt,
+				&token.Description,
+				&token.IsActive,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to scan admin token: %w", err)
+			}
+			tokens = append(tokens, token)
+		}
+		
+		return tokens, nil
+	}
+	
+	return nil, errors.New("admin token listing only supports SQLite database")
+}
+
+// RevokeAdminToken deactivates an admin token
+func (ss *SubscriptionService) RevokeAdminToken(tokenID int) error {
+	if sqliteDB, ok := ss.db.(*database.DB); ok {
+		query := `UPDATE admin_tokens SET is_active = 0 WHERE id = ?`
+		result, err := sqliteDB.Exec(query, tokenID)
+		if err != nil {
+			return fmt.Errorf("failed to revoke admin token: %w", err)
+		}
+		
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("failed to check revoke result: %w", err)
+		}
+		
+		if rowsAffected == 0 {
+			return errors.New("admin token not found")
+		}
+		
+		return nil
+	}
+	
+	return errors.New("admin token revocation only supports SQLite database")
+}
+
+// HasAdminTokens checks if any active admin tokens exist
+func (ss *SubscriptionService) HasAdminTokens() (bool, error) {
+	if sqliteDB, ok := ss.db.(*database.DB); ok {
+		var count int
+		query := `SELECT COUNT(*) FROM admin_tokens WHERE is_active = 1`
+		err := sqliteDB.QueryRow(query).Scan(&count)
+		if err != nil {
+			return false, fmt.Errorf("failed to count admin tokens: %w", err)
+		}
+		return count > 0, nil
+	}
+	
+	return false, errors.New("admin token check only supports SQLite database")
 }

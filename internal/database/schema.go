@@ -198,7 +198,17 @@ func (db *DB) createTables() error {
 		FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
 	);`
 
-	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable}
+	adminTokensTable := `
+	CREATE TABLE IF NOT EXISTS admin_tokens (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		token_hash TEXT UNIQUE NOT NULL,
+		description TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		is_active BOOLEAN DEFAULT 1
+	);`
+
+	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable}
 
 	for _, table := range tables {
 		if _, err := db.Exec(table); err != nil {
@@ -235,6 +245,10 @@ func (db *DB) createIndexes() error {
 		// Users table indexes for authentication
 		`CREATE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)`,
+		
+		// Admin tokens table indexes for authentication
+		`CREATE INDEX IF NOT EXISTS idx_admin_tokens_hash ON admin_tokens (token_hash)`,
+		`CREATE INDEX IF NOT EXISTS idx_admin_tokens_active ON admin_tokens (is_active)`,
 	}
 
 	for _, index := range indexes {
