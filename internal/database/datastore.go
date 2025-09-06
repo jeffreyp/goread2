@@ -41,6 +41,15 @@ type UserArticleEntity struct {
 	IsStarred bool  `datastore:"is_starred"`
 }
 
+type AdminTokenEntity struct {
+	ID          int64     `datastore:"-"`
+	TokenHash   string    `datastore:"token_hash"`
+	Description string    `datastore:"description"`
+	CreatedAt   time.Time `datastore:"created_at"`
+	LastUsedAt  time.Time `datastore:"last_used_at"`
+	IsActive    bool      `datastore:"is_active"`
+}
+
 type FeedEntity struct {
 	ID          int64     `datastore:"-"`
 	Title       string    `datastore:"title"`
@@ -76,6 +85,11 @@ func NewDatastoreDB(projectID string) (*DatastoreDB, error) {
 		client:    client,
 		projectID: projectID,
 	}, nil
+}
+
+// GetClient returns the underlying datastore client for direct access
+func (db *DatastoreDB) GetClient() *datastore.Client {
+	return db.client
 }
 
 func (db *DatastoreDB) Close() error {

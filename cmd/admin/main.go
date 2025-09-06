@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 
+	"cloud.google.com/go/datastore"
 	"goread2/internal/config"
 	"goread2/internal/database"
 	"goread2/internal/services"
@@ -409,12 +411,6 @@ func hasAdminUsers(subscriptionService *services.SubscriptionService) bool {
 	// We need to check the database directly since SubscriptionService doesn't have this method
 	// This is a security check to prevent unauthorized bootstrap
 	
-	// Get the database from the service (we'll need to add this functionality)
-	// For now, we'll implement a basic check by trying to query the database
-	
-	// Note: This would be better implemented as a method on SubscriptionService
-	// But for immediate security fix, we'll use direct database access
-	
 	db, err := database.InitDB()
 	if err != nil {
 		fmt.Printf("ERROR: Cannot connect to database: %v\n", err)
@@ -432,10 +428,22 @@ func hasAdminUsers(subscriptionService *services.SubscriptionService) bool {
 			return false
 		}
 		return count > 0
+	} else if datastoreDB, ok := db.(*database.DatastoreDB); ok {
+		ctx := context.Background()
+		
+		query := datastore.NewQuery("User").
+			Filter("is_admin =", true).
+			Limit(1)
+		
+		count, err := datastoreDB.GetClient().Count(ctx, query)
+		if err != nil {
+			fmt.Printf("ERROR: Failed to check admin users in datastore: %v\n", err)
+			return false
+		}
+		return count > 0
 	}
 	
-	// For non-SQLite databases, we can't easily check
-	// In production, this should be implemented properly
+	// For unknown database types, assume no admin users for security
 	fmt.Println("WARNING: Cannot verify admin users for this database type")
 	return false
 }

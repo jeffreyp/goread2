@@ -30,22 +30,60 @@ The GoRead2 admin system uses a secure database-based token authentication syste
 - **Security**: Validated against database on every use
 - **Usage**: Required for all admin commands except initial bootstrap
 
+## Deployment Architecture
+
+### Database Compatibility
+The admin token system works with both database backends:
+
+**SQLite (Local Development)**:
+- Admin tokens stored in `admin_tokens` table
+- Direct SQL queries for validation and management
+- File-based database persistence
+
+**Google Datastore (Production/GAE)**:
+- Admin tokens stored as `AdminToken` entities
+- Datastore queries with filters for validation
+- Cloud-native scaling and persistence
+- Automatic detection via `GOOGLE_CLOUD_PROJECT` environment variable
+
 ## Initial Setup (Bootstrap)
 
-### Step 1: Create First User and Admin
+### Local Development (SQLite)
+
+#### Step 1: Create First User and Admin
 1. **Start the web application** and create your first user account through the normal signup process
 2. **Set the user as admin** by directly updating the database:
    ```bash
    sqlite3 goread2.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"
    ```
 
-### Step 2: Create First Admin Token
+#### Step 2: Create First Admin Token
 ```bash
 # Bootstrap requires an existing admin user in database
 ADMIN_TOKEN="bootstrap" go run cmd/admin/main.go create-token "Initial setup"
 ```
 
-**Security Validation**: The system will verify an admin user exists before allowing token creation.
+### Google App Engine Deployment (Datastore)
+
+#### Step 1: Create First User and Admin
+1. **Deploy the application** to Google App Engine
+2. **Create your first user account** through the web interface
+3. **Set the user as admin** using Google Cloud Console:
+   ```bash
+   # Using gcloud CLI to update Datastore entity
+   gcloud datastore entities update --kind=User --key-id=USER_ID --set-property=is_admin:boolean=true
+   ```
+   
+   Or use the Google Cloud Console Datastore interface to manually set `is_admin = true`
+
+#### Step 2: Create First Admin Token
+```bash
+# Set environment for GAE deployment
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+ADMIN_TOKEN="bootstrap" go run cmd/admin/main.go create-token "GAE Initial setup"
+```
+
+**Security Validation**: The system will verify an admin user exists in Datastore before allowing token creation.
 
 This will output a secure token like:
 ```
