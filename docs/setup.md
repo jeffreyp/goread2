@@ -4,7 +4,7 @@ Complete installation and configuration guide for GoRead2.
 
 ## Prerequisites
 
-- **Go 1.21 or later**
+- **Go 1.23 or later**
 - **Google Cloud Project** (for OAuth authentication)
 - **SQLite3** (automatically included with go-sqlite3)
 - **Stripe Account** (optional, for subscription features)

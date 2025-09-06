@@ -52,7 +52,7 @@ All deployment methods require:
 ### app.yaml Configuration
 
 ```yaml
-runtime: go121
+runtime: go123
 
 env_variables:
   GIN_MODE: release
@@ -137,7 +137,7 @@ cron:
 ### Dockerfile
 
 ```dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -254,9 +254,9 @@ http {
 ### Prerequisites
 
 ```bash
-# Install Go 1.21+
-wget https://golang.org/dl/go1.21.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.21.linux-amd64.tar.gz
+# Install Go 1.23+
+wget https://golang.org/dl/go1.23.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.23.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # Install dependencies

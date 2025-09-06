@@ -18,7 +18,7 @@ A modern, multi-user RSS reader inspired by Google Reader, built with Go and fea
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Go 1.21+
+- Go 1.23+
 - Google Cloud Project (for OAuth)
 - Stripe Account (optional, for subscriptions)
 

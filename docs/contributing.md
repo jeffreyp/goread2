@@ -6,7 +6,7 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 
 ### Prerequisites
 
-- **Go 1.21+** for backend development
+- **Go 1.23+** for backend development
 - **Node.js 16+** for frontend testing
 - **Git** for version control
 - **Google Cloud Project** for OAuth setup (development)
