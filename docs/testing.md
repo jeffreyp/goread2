@@ -9,7 +9,7 @@ Testing guide for GoRead2's multi-user RSS reader application.
 ## Overview
 
 GoRead2's testing infrastructure includes:
-- **Package-level unit tests** (currently config package with 66.7% coverage)
+- **Package-level unit tests** with 8.0% overall coverage across multiple packages
 - **Integration tests** for end-to-end API validation
 - **Frontend tests** with Jest and jsdom (26 tests)
 - **CI/CD integration** with GitHub Actions
@@ -18,8 +18,20 @@ GoRead2's testing infrastructure includes:
 
 ```
 internal/
+├── auth/
+│   ├── auth_test.go         # Authentication service tests
+│   ├── middleware_test.go   # Authentication middleware tests
+│   └── session_test.go      # Session management tests (59.7% coverage)
 ├── config/
-│   └── config_test.go   # Config package unit tests (66.7% coverage)
+│   └── config_test.go       # Configuration management tests (96.7% coverage)
+├── handlers/
+│   ├── admin_handler_test.go    # Admin handler constructor tests
+│   ├── auth_handler_test.go     # Auth handler constructor tests  
+│   ├── feed_handler_test.go     # Feed handler constructor tests
+│   └── payment_handler_test.go  # Payment handler constructor tests (1.0% coverage)
+├── services/
+│   ├── feed_discovery_test.go       # Feed discovery and URL normalization tests
+│   └── subscription_service_test.go # Subscription service logic tests (14.3% coverage)
 test/
 ├── integration/         # Backend integration tests
 │   └── api_test.go      # End-to-end API testing
@@ -51,8 +63,14 @@ The test script runs:
 ### Backend Tests Only
 
 ```bash
-# Package-level unit tests (currently config package)
-go test ./internal/config/...
+# All package-level unit tests
+go test ./internal/...
+
+# Specific package tests
+go test ./internal/config/        # Configuration tests
+go test ./internal/auth/          # Authentication tests  
+go test ./internal/services/      # Service layer tests
+go test ./internal/handlers/      # Handler constructor tests
 
 # Integration tests
 go test ./test/integration/...
@@ -61,12 +79,8 @@ go test ./test/integration/...
 go test -coverprofile=coverage.out ./internal/...
 go tool cover -html=coverage.out -o coverage.html
 
-# Verbose output
-go test -v ./internal/... ./test/integration/...
-
-# Specific test package
-go test ./internal/config/
-go test ./test/integration/
+# Verbose output with race detection
+go test -v -race ./internal/... ./test/integration/...
 ```
 
 ### Frontend Tests Only
@@ -91,28 +105,94 @@ npm test -- app-core.test.js
 
 #### Config Package (`internal/config/config_test.go`)
 
-Tests configuration management with 66.7% coverage:
+Tests configuration management with 96.7% coverage:
 
 ```go
-func TestLoadConfig(t *testing.T) {
-    // Test configuration loading from environment
+func TestConfigLoad(t *testing.T) {
+    // Test configuration loading with different environment scenarios
 }
 
-func TestConfigValidation(t *testing.T) {
-    // Test configuration parameter validation
+func TestConfigParseBool(t *testing.T) {
+    // Test boolean parsing with various string formats
 }
 
-func TestDatabaseConfig(t *testing.T) {
-    // Test database connection configuration
+func TestParseEmailList(t *testing.T) {
+    // Test email list parsing and validation
 }
 ```
 
 **Coverage includes:**
-- Environment variable loading
-- Configuration validation
-- Database connection strings
-- OAuth configuration parameters
-- Default value handling
+- Environment variable loading and defaults
+- Boolean parsing (true/false, 1/0, yes/no, etc.)
+- Email list parsing from comma-separated strings
+- Configuration singleton behavior
+- Input validation and sanitization
+
+#### Auth Package (`internal/auth/`) 
+
+Tests authentication system with 59.7% coverage:
+
+```go
+func TestNewAuthService(t *testing.T) {
+    // Test OAuth service initialization
+}
+
+func TestSessionManager(t *testing.T) {
+    // Test session creation, retrieval, and cleanup
+}
+
+func TestMiddleware(t *testing.T) {
+    // Test authentication middleware functions
+}
+```
+
+**Coverage includes:**
+- OAuth service configuration and validation
+- Session management (create, get, delete, expiration)
+- Cookie handling and HTTP request/response
+- Context user extraction for Gin and standard contexts
+- Admin user initialization from environment
+- Session cleanup and security
+
+#### Services Package (`internal/services/`)
+
+Tests service layer logic with 14.3% coverage:
+
+```go
+func TestSubscriptionService(t *testing.T) {
+    // Test feed limits, trial logic, admin privileges
+}
+
+func TestFeedDiscovery(t *testing.T) {
+    // Test URL normalization and validation
+}
+```
+
+**Coverage includes:**
+- Feed limit enforcement for trial users
+- Subscription status validation
+- Admin privilege checking
+- URL normalization (protocol addition, validation)
+- Service constructors and dependencies
+
+#### Handlers Package (`internal/handlers/`)
+
+Tests handler constructors with 1.0% coverage:
+
+```go
+func TestNewAdminHandler(t *testing.T) {
+    // Test admin handler initialization
+}
+
+func TestNewFeedHandler(t *testing.T) {
+    // Test feed handler initialization
+}
+```
+
+**Coverage includes:**
+- Handler constructor functions
+- Service dependency injection
+- Basic handler structure validation
 
 ### 2. Backend Integration Tests
 
@@ -213,30 +293,42 @@ func setupTestServer(t *testing.T) *httptest.Server {
 Current test coverage status and targets:
 
 ### ✅ Achieved Coverage
-- **Config package**: 66.7% coverage (package-level unit tests)
+- **Overall project**: 8.0% total coverage across all packages
+- **Config package**: 96.7% coverage (comprehensive unit tests)  
+- **Auth package**: 59.7% coverage (session, middleware, OAuth service)
+- **Services package**: 14.3% coverage (subscription logic, feed discovery)
+- **Handlers package**: 1.0% coverage (constructor functions)
 - **Integration tests**: Full end-to-end API validation with user isolation testing
 - **Frontend**: 26 tests covering core functionality
 - **Overall system**: All tests passing successfully
-- **User isolation**: Verified through comprehensive integration tests
 
 ### 🎯 Future Coverage Targets
-- **Database operations**: 90%+ coverage goal (interfaces are now compatible)
-- **Authentication logic**: 85%+ coverage goal  
-- **Additional packages**: 80%+ coverage goal
+- **Database operations**: Target 80%+ coverage (requires complex mocking)
+- **Feed service operations**: Target 60%+ coverage (HTTP dependency mocking needed)
+- **Handler HTTP logic**: Target 50%+ coverage (requires Gin test setup)  
+- **Payment service**: Target 40%+ coverage (Stripe API mocking needed)
+- **Overall project**: Target 80%+ coverage (significant infrastructure needed)
 
 ### Viewing Coverage
 
 ```bash
-# Generate package-level coverage
+# Generate overall coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out | tail -1  # See total percentage
+
+# Generate package-specific coverage
 go test -coverprofile=coverage.out ./internal/...
 go tool cover -html=coverage.out -o coverage.html
+
+# View detailed function-level coverage
+go tool cover -func=coverage.out
 
 # Generate frontend coverage
 npm run test:coverage
 
 # View coverage in browser
-open coverage.html                    # Backend
-open web/coverage/index.html          # Frontend
+open coverage.html                    # Backend HTML report
+open web/coverage/index.html          # Frontend coverage
 ```
 
 ## Test Data and Fixtures

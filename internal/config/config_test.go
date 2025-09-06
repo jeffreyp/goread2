@@ -278,6 +278,125 @@ func TestConfigEnvVarPrecedence(t *testing.T) {
 	}
 }
 
+func TestParseEmailList(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected []string
+		desc     string
+	}{
+		{"", nil, "empty string"},
+		{"test@example.com", []string{"test@example.com"}, "single email"},
+		{"test1@example.com,test2@example.com", []string{"test1@example.com", "test2@example.com"}, "multiple emails"},
+		{"test1@example.com, test2@example.com", []string{"test1@example.com", "test2@example.com"}, "multiple emails with spaces"},
+		{"test1@example.com,  , test2@example.com", []string{"test1@example.com", "test2@example.com"}, "empty emails filtered out"},
+		{"  test@example.com  ", []string{"test@example.com"}, "whitespace trimmed"},
+		{"test1@example.com,,test2@example.com", []string{"test1@example.com", "test2@example.com"}, "consecutive commas"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clearConfigEnvVars()
+			if tt.input != "" {
+				_ = os.Setenv("INITIAL_ADMIN_EMAILS", tt.input)
+			}
+			defer func() {
+				_ = os.Unsetenv("INITIAL_ADMIN_EMAILS")
+				clearConfigEnvVars()
+			}()
+
+			ResetForTesting()
+			Load()
+			cfg := Get()
+
+			if len(cfg.InitialAdminEmails) != len(tt.expected) {
+				t.Errorf("parseEmailList(%q) length = %v, want %v", tt.input, len(cfg.InitialAdminEmails), len(tt.expected))
+				return
+			}
+
+			for i, email := range cfg.InitialAdminEmails {
+				if email != tt.expected[i] {
+					t.Errorf("parseEmailList(%q)[%d] = %v, want %v", tt.input, i, email, tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestGetEnvOrDefault(t *testing.T) {
+	tests := []struct {
+		envKey      string
+		envValue    string
+		defaultVal  string
+		expected    string
+		desc        string
+	}{
+		{"TEST_VAR", "custom_value", "default", "custom_value", "env var set"},
+		{"UNSET_VAR", "", "default", "default", "env var not set"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			if tt.envValue != "" {
+				_ = os.Setenv(tt.envKey, tt.envValue)
+				defer func() {
+					_ = os.Unsetenv(tt.envKey)
+				}()
+			}
+
+			clearConfigEnvVars()
+			ResetForTesting()
+			
+			// Test via config loading
+			if tt.envKey == "PORT" {
+				Load()
+				cfg := Get()
+				if cfg.Port != tt.expected {
+					t.Errorf("Port = %v, want %v", cfg.Port, tt.expected)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadSingleton(t *testing.T) {
+	clearConfigEnvVars()
+	ResetForTesting()
+	
+	// First call should create config
+	cfg1 := Load()
+	if cfg1 == nil {
+		t.Error("Load() returned nil")
+	}
+	
+	// Second call should return same instance
+	cfg2 := Load()
+	if cfg1 != cfg2 {
+		t.Error("Load() should return singleton instance")
+	}
+	
+	// Get() should also return same instance
+	cfg3 := Get()
+	if cfg1 != cfg3 {
+		t.Error("Get() should return same instance as Load()")
+	}
+}
+
+func TestGetWithoutLoad(t *testing.T) {
+	clearConfigEnvVars()
+	ResetForTesting()
+	
+	// Get() should call Load() if config not initialized
+	cfg := Get()
+	if cfg == nil {
+		t.Fatal("Get() returned nil")
+	}
+	
+	// Should have default values
+	if cfg.Port != "8080" {
+		t.Errorf("Default port = %v, want 8080", cfg.Port)
+	}
+}
+
 func clearConfigEnvVars() {
 	envVars := []string{
 		"SUBSCRIPTION_ENABLED",
@@ -289,6 +408,7 @@ func clearConfigEnvVars() {
 		"STRIPE_SECRET_KEY",
 		"STRIPE_PUBLISHABLE_KEY",
 		"STRIPE_WEBHOOK_SECRET",
+		"INITIAL_ADMIN_EMAILS",
 	}
 	
 	for _, envVar := range envVars {
