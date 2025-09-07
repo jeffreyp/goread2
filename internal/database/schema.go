@@ -846,9 +846,27 @@ func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
 
 // Subscription management methods
 func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error {
+	fmt.Printf("DEBUG: UpdateUserSubscription - Updating user %d: status=%s, subscriptionID=%s, lastPaymentDate=%v\n", 
+		userID, status, subscriptionID, lastPaymentDate)
+	
 	query := `UPDATE users SET subscription_status = ?, subscription_id = ?, last_payment_date = ? WHERE id = ?`
-	_, err := db.Exec(query, status, subscriptionID, lastPaymentDate, userID)
-	return err
+	result, err := db.Exec(query, status, subscriptionID, lastPaymentDate, userID)
+	if err != nil {
+		fmt.Printf("ERROR: UpdateUserSubscription - Query failed: %v\n", err)
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		fmt.Printf("WARNING: UpdateUserSubscription - Could not get rows affected: %v\n", err)
+	} else {
+		fmt.Printf("DEBUG: UpdateUserSubscription - Rows affected: %d\n", rowsAffected)
+		if rowsAffected == 0 {
+			fmt.Printf("WARNING: UpdateUserSubscription - No rows updated for user ID %d\n", userID)
+		}
+	}
+	
+	return nil
 }
 
 func (db *DB) IsUserSubscriptionActive(userID int) (bool, error) {

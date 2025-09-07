@@ -72,17 +72,29 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
+		fmt.Printf("ERROR: Webhook - Failed to read request body: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error reading request body"})
 		return
 	}
 
 	// Verify webhook signature
 	endpointSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
-	event, err := webhook.ConstructEvent(payload, c.Request.Header.Get("Stripe-Signature"), endpointSecret)
+	if endpointSecret == "" {
+		fmt.Printf("WARNING: Webhook - STRIPE_WEBHOOK_SECRET not set\n")
+	} else {
+		fmt.Printf("DEBUG: Webhook - Using secret: %s...\n", endpointSecret[:10])
+	}
+	
+	event, err := webhook.ConstructEventWithOptions(payload, c.Request.Header.Get("Stripe-Signature"), endpointSecret, webhook.ConstructEventOptions{
+		IgnoreAPIVersionMismatch: true,
+	})
 	if err != nil {
+		fmt.Printf("ERROR: Webhook - Signature verification failed: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Webhook signature verification failed: %v", err)})
 		return
 	}
+
+	fmt.Printf("INFO: Webhook - Received event: %s (ID: %s)\n", event.Type, event.ID)
 
 	// Handle the event
 	switch event.Type {
@@ -104,19 +116,30 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 		var subscription stripe.Subscription
 		err := json.Unmarshal(event.Data.Raw, &subscription)
 		if err != nil {
+			fmt.Printf("ERROR: Webhook - Failed to parse subscription JSON: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing webhook JSON"})
 			return
+		}
+
+		fmt.Printf("INFO: Webhook - Processing subscription %s (status: %s, customer: %s)\n", 
+			subscription.ID, subscription.Status, subscription.Customer.ID)
+		
+		// Log metadata for debugging
+		if userID, exists := subscription.Metadata["user_id"]; exists {
+			fmt.Printf("INFO: Webhook - Found user_id in metadata: %s\n", userID)
+		} else {
+			fmt.Printf("WARNING: Webhook - No user_id found in subscription metadata\n")
 		}
 
 		// Update subscription status in database
 		err = ph.paymentService.HandleSubscriptionUpdate(subscription.ID)
 		if err != nil {
-			fmt.Printf("Error updating subscription %s: %v\n", subscription.ID, err)
+			fmt.Printf("ERROR: Webhook - Failed to update subscription %s: %v\n", subscription.ID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating subscription"})
 			return
 		}
 
-		fmt.Printf("Successfully updated subscription: %s\n", subscription.ID)
+		fmt.Printf("SUCCESS: Webhook - Updated subscription %s in database\n", subscription.ID)
 
 	case "customer.subscription.deleted":
 		var subscription stripe.Subscription
@@ -165,7 +188,7 @@ func (ph *PaymentHandler) CreateCustomerPortal(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"url": portalURL,
+		"portal_url": portalURL,
 	})
 }
 

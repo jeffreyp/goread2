@@ -217,6 +217,13 @@ func cleanupDatabase(t *testing.T) {
 	if err != nil {
 		t.Logf("Failed to cleanup admin tokens: %v", err)
 	}
+
+	// For bootstrap security tests, also remove admin privileges from all users
+	// This ensures a clean state for security testing
+	_, err = sqliteDB.Exec("UPDATE users SET is_admin = 0")
+	if err != nil {
+		t.Logf("Failed to remove admin privileges: %v", err)
+	}
 }
 
 func TestAdminCommands(t *testing.T) {

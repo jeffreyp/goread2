@@ -77,10 +77,9 @@ func main() {
 
 	// Add caching headers middleware
 	r.Use(func(c *gin.Context) {
-		// Cache static assets for 24 hours with versioning
+		// Cache static assets - shorter cache for development
 		if strings.HasPrefix(c.Request.URL.Path, "/static/") {
-			c.Header("Cache-Control", "public, max-age=86400, immutable")
-			c.Header("ETag", "\"static-v2\"")
+			c.Header("Cache-Control", "public, max-age=60")
 			c.Header("Vary", "Accept-Encoding")
 		}
 		// Cache API responses for 60 seconds
@@ -118,6 +117,12 @@ func main() {
 	r.GET("/account", authMiddleware.RequireAuth(), func(c *gin.Context) {
 		c.HTML(http.StatusOK, "account.html", gin.H{
 			"title": "Account Management - GoRead2",
+		})
+	})
+
+	r.GET("/subscription", authMiddleware.RequireAuth(), func(c *gin.Context) {
+		c.HTML(http.StatusOK, "account.html", gin.H{
+			"title": "Subscription Management - GoRead2",
 		})
 	})
 

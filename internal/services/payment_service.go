@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stripe/stripe-go/v78"
+	billingportalsession "github.com/stripe/stripe-go/v78/billingportal/session"
 	"github.com/stripe/stripe-go/v78/checkout/session"
 	"github.com/stripe/stripe-go/v78/customer"
 	"github.com/stripe/stripe-go/v78/price"
@@ -155,22 +156,31 @@ func (ps *PaymentService) getOrCreateStripeCustomer(user *database.User) (string
 
 // HandleSubscriptionUpdate handles subscription status changes from webhooks
 func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error {
+	fmt.Printf("DEBUG: HandleSubscriptionUpdate - Processing subscription ID: %s\n", subscriptionID)
+	
 	// Get subscription from Stripe
 	sub, err := subscription.Get(subscriptionID, nil)
 	if err != nil {
+		fmt.Printf("ERROR: HandleSubscriptionUpdate - Failed to get subscription from Stripe: %v\n", err)
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
+
+	fmt.Printf("DEBUG: HandleSubscriptionUpdate - Subscription status from Stripe: %s\n", sub.Status)
 
 	// Extract user ID from metadata
 	userIDStr, exists := sub.Metadata["user_id"]
 	if !exists {
+		fmt.Printf("ERROR: HandleSubscriptionUpdate - No user_id in subscription metadata. Available metadata: %+v\n", sub.Metadata)
 		return fmt.Errorf("user_id not found in subscription metadata")
 	}
 
 	var userID int
 	if _, err := fmt.Sscanf(userIDStr, "%d", &userID); err != nil {
+		fmt.Printf("ERROR: HandleSubscriptionUpdate - Invalid user_id format '%s': %v\n", userIDStr, err)
 		return fmt.Errorf("invalid user_id in metadata: %w", err)
 	}
+
+	fmt.Printf("DEBUG: HandleSubscriptionUpdate - Processing for user ID: %d\n", userID)
 
 	// Convert Stripe status to our status
 	var status string
@@ -192,12 +202,16 @@ func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error 
 		status = "cancelled"
 	}
 
+	fmt.Printf("DEBUG: HandleSubscriptionUpdate - Mapped status: %s, payment date: %v\n", status, lastPaymentDate)
+
 	// Update user subscription in database
 	err = ps.subscriptionService.UpdateUserSubscription(userID, status, subscriptionID, lastPaymentDate)
 	if err != nil {
+		fmt.Printf("ERROR: HandleSubscriptionUpdate - Database update failed: %v\n", err)
 		return fmt.Errorf("failed to update user subscription: %w", err)
 	}
 
+	fmt.Printf("SUCCESS: HandleSubscriptionUpdate - Database updated for user %d with status '%s'\n", userID, status)
 	return nil
 }
 
@@ -257,7 +271,16 @@ func (ps *PaymentService) CreateCustomerPortalSession(userID int, returnURL stri
 		return "", fmt.Errorf("failed to get customer: %w", err)
 	}
 
-	// This would require the customer portal API
-	// For now, return a placeholder
-	return fmt.Sprintf("https://billing.stripe.com/p/session/test_%s", customerID), nil
+	// Create billing portal session
+	params := &stripe.BillingPortalSessionParams{
+		Customer:  stripe.String(customerID),
+		ReturnURL: stripe.String(returnURL),
+	}
+
+	portalSession, err := billingportalsession.New(params)
+	if err != nil {
+		return "", fmt.Errorf("failed to create customer portal session: %w", err)
+	}
+
+	return portalSession.URL, nil
 }
