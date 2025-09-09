@@ -38,6 +38,23 @@ func (m *Middleware) RequireAuth() gin.HandlerFunc {
 	}
 }
 
+// RequireAuthPage is a middleware that requires authentication for HTML pages
+// Redirects to login instead of returning JSON error
+func (m *Middleware) RequireAuthPage() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session, exists := m.sessionManager.GetSessionFromRequest(c.Request)
+		if !exists {
+			c.Redirect(http.StatusFound, "/")
+			c.Abort()
+			return
+		}
+
+		// Add user to context
+		c.Set(string(UserContextKey), session.User)
+		c.Next()
+	}
+}
+
 // OptionalAuth is a middleware that adds user to context if authenticated
 func (m *Middleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {

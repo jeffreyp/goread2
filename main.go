@@ -114,13 +114,13 @@ func main() {
 	})
 
 	// Protected pages
-	r.GET("/account", authMiddleware.RequireAuth(), func(c *gin.Context) {
+	r.GET("/account", authMiddleware.RequireAuthPage(), func(c *gin.Context) {
 		c.HTML(http.StatusOK, "account.html", gin.H{
 			"title": "Account Management - GoRead2",
 		})
 	})
 
-	r.GET("/subscription", authMiddleware.RequireAuth(), func(c *gin.Context) {
+	r.GET("/subscription", authMiddleware.RequireAuthPage(), func(c *gin.Context) {
 		c.HTML(http.StatusOK, "account.html", gin.H{
 			"title": "Subscription Management - GoRead2",
 		})

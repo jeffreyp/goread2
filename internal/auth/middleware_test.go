@@ -98,3 +98,34 @@ func TestGetUserFromStdContext(t *testing.T) {
 		t.Error("GetUserFromStdContext should return nil when value is wrong type")
 	}
 }
+
+func TestRequireAuthPage(t *testing.T) {
+	// Setup gin test mode
+	gin.SetMode(gin.TestMode)
+	
+	db := &mockDB{}
+	sessionManager := NewSessionManager(db)
+	middleware := NewMiddleware(sessionManager)
+
+	// Test case: no session - should redirect to home page
+	t.Run("no session redirects to home", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/account", nil)
+		
+		middleware.RequireAuthPage()(c)
+		
+		if w.Code != 302 {
+			t.Errorf("Expected status 302 (redirect), got %d", w.Code)
+		}
+		
+		location := w.Header().Get("Location")
+		if location != "/" {
+			t.Errorf("Expected redirect to '/', got '%s'", location)
+		}
+		
+		if !c.IsAborted() {
+			t.Error("Expected request to be aborted")
+		}
+	})
+}
