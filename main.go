@@ -19,6 +19,14 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 	log.Printf("Subscription system enabled: %v", cfg.SubscriptionEnabled)
+	
+	// Validate environment configuration
+	if err := config.ValidateEnvironmentConfig(); err != nil {
+		log.Fatalf("Configuration validation failed: %v", err)
+	}
+	
+	// Warn about potentially unhandled environment variables
+	config.WarnAboutUnhandledEnvVars()
 
 	// Initialize database
 	db, err := database.InitDB()
