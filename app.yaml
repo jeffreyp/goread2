@@ -6,7 +6,14 @@ env_variables:
   GOOGLE_CLOUD_PROJECT: "goread-467200"
   SECRET_CLIENT_ID_NAME: "google-client-id"
   SECRET_CLIENT_SECRET_NAME: "google-client-secret"
-
+  SUBSCRIPTION_ENABLED: "true"
+  ADMIN_TOKEN: "admin-token"
+  INITIAL_ADMIN_EMAILS: "initial-admin-emails"
+  STRIPE_SECRET_KEY: "stripe-secret-key"
+  STRIPE_PUBLISHABLE_KEY: "stripe-publishable-key"
+  STRIPE_WEBHOOK_SECRET: "stripe-webhook-secret"
+  STRIPE_PRICE_ID: "stripe-price-id"
+  
 beta_settings:
   cloud_sql_instances: []
 
