@@ -241,9 +241,6 @@ class AccountApp {
                     <strong>Current feeds:</strong> ${info.current_feeds} feeds
                     ${info.feed_limit > 0 ? ` (limit: ${info.feed_limit})` : ' (unlimited)'}
                 </p>
-                <p class="subscription-details-text">
-                    Debug info: ${JSON.stringify(info)}
-                </p>
             `;
             actionsHTML = info.feed_limit > 0 ? `
                 <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
