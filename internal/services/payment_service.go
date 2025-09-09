@@ -67,13 +67,9 @@ func (ps *PaymentService) CreateCheckoutSession(req CheckoutSessionRequest) (*Ch
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Check if user already has an active subscription
-	isActive, err := ps.db.IsUserSubscriptionActive(req.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check subscription status: %w", err)
-	}
-
-	if isActive && user.SubscriptionStatus == "active" {
+	// Check if user already has an active paid subscription
+	// Note: Admin users should be able to subscribe even though they have unlimited access
+	if user.SubscriptionStatus == "active" {
 		return nil, fmt.Errorf("user already has an active subscription")
 	}
 

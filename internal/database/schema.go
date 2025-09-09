@@ -870,23 +870,35 @@ func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, 
 }
 
 func (db *DB) IsUserSubscriptionActive(userID int) (bool, error) {
-	query := `SELECT subscription_status, trial_ends_at FROM users WHERE id = ?`
+	query := `SELECT subscription_status, trial_ends_at, is_admin, free_months_remaining FROM users WHERE id = ?`
 
 	var status string
 	var trialEndsAt time.Time
-	err := db.QueryRow(query, userID).Scan(&status, &trialEndsAt)
+	var isAdmin bool
+	var freeMonths int
+	err := db.QueryRow(query, userID).Scan(&status, &trialEndsAt, &isAdmin, &freeMonths)
 	if err != nil {
 		return false, err
 	}
 
 	// User is active if:
-	// 1. They have an active paid subscription, OR
-	// 2. They're on trial and trial hasn't expired
+	// 1. They're an admin user (unlimited access), OR
+	// 2. They have an active paid subscription, OR
+	// 3. They're on trial and trial hasn't expired, OR
+	// 4. They have free months remaining
+	if isAdmin {
+		return true, nil
+	}
+
 	if status == "active" {
 		return true, nil
 	}
 
 	if status == "trial" && time.Now().Before(trialEndsAt) {
+		return true, nil
+	}
+
+	if freeMonths > 0 {
 		return true, nil
 	}
 

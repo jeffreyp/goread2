@@ -114,8 +114,14 @@ func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*Subscriptio
 	}
 
 	// Set feed limit and status based on user type
-	if user.IsAdmin {
+	if user.IsAdmin && user.SubscriptionStatus == "active" {
+		// Admin with active subscription
 		info.Status = "admin"
+		info.FeedLimit = -1 // Unlimited
+		info.CanAddFeeds = true
+	} else if user.IsAdmin {
+		// Admin without subscription - use admin_trial to differentiate
+		info.Status = "admin_trial"
 		info.FeedLimit = -1 // Unlimited
 		info.CanAddFeeds = true
 	} else if user.SubscriptionStatus == "active" || user.FreeMonthsRemaining > 0 {

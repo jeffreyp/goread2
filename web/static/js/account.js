@@ -153,6 +153,26 @@ class AccountApp {
                     View Billing History
                 </button>
             `;
+        } else if (info.status === 'admin_trial') {
+            // Admin users without subscription
+            statusClass = 'admin';
+            statusText = 'Admin (Unlimited)';
+            detailsHTML = `
+                <p class="subscription-details-text">
+                    You have admin privileges with unlimited access to all features.
+                </p>
+                <p class="subscription-details-text">
+                    You can optionally subscribe to GoRead2 Pro to support the service.
+                </p>
+                <p class="subscription-details-text">
+                    <strong>Current feeds:</strong> ${info.current_feeds} feeds (unlimited)
+                </p>
+            `;
+            actionsHTML = `
+                <button class="btn btn-primary" onclick="accountApp.startSubscription()">
+                    Subscribe to GoRead2 Pro
+                </button>
+            `;
         } else if (info.status === 'active') {
             statusClass = 'pro';
             statusText = 'GoRead2 Pro';
@@ -216,7 +236,7 @@ class AccountApp {
                     <span class="status-badge-large">${statusText}</span>
                     <div class="subscription-meta">
                         <div class="status-text">
-                            ${info.status === 'active' || info.status === 'admin' ? 'Unlimited feeds' : 
+                            ${info.status === 'active' || info.status === 'admin' || info.status === 'admin_trial' ? 'Unlimited feeds' : 
                               info.status === 'unlimited' ? 'Unlimited feeds' :
                               info.status === 'trial' ? `${info.current_feeds}/${info.feed_limit} feeds` : 
                               'Subscribe to continue'}

@@ -267,7 +267,7 @@ func TestGetUserSubscriptionInfo(t *testing.T) {
 			user:                &database.User{ID: 1, IsAdmin: true},
 			feedCount:           10,
 			isActive:            true,
-			expectedStatus:      "admin",
+			expectedStatus:      "admin_trial",
 			expectedFeedLimit:   -1,
 			expectedCanAdd:      true,
 		},

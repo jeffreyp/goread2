@@ -1065,13 +1065,23 @@ func (db *DatastoreDB) IsUserSubscriptionActive(userID int) (bool, error) {
 	}
 
 	// User is active if:
-	// 1. They have an active paid subscription, OR
-	// 2. They're on trial and trial hasn't expired
+	// 1. They're an admin user (unlimited access), OR
+	// 2. They have an active paid subscription, OR
+	// 3. They're on trial and trial hasn't expired, OR
+	// 4. They have free months remaining
+	if entity.IsAdmin {
+		return true, nil
+	}
+
 	if entity.SubscriptionStatus == "active" {
 		return true, nil
 	}
 
 	if entity.SubscriptionStatus == "trial" && time.Now().Before(entity.TrialEndsAt) {
+		return true, nil
+	}
+
+	if entity.FreeMonthsRemaining > 0 {
 		return true, nil
 	}
 
