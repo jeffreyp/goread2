@@ -212,7 +212,8 @@ class AccountApp {
                     Upgrade to Pro ($2.99/month)
                 </button>
             `;
-        } else {
+        } else if (info.status === 'trial' && new Date(info.trial_ends_at) < new Date()) {
+            // Only show trial expired if actually on trial status and expired
             statusClass = 'expired';
             statusText = 'Trial Expired';
             detailsHTML = `
@@ -228,6 +229,27 @@ class AccountApp {
                     Subscribe to Pro ($2.99/month)
                 </button>
             `;
+        } else {
+            // Handle unknown status - don't assume expired
+            statusClass = 'unknown';
+            statusText = 'Status: ' + (info.status || 'Unknown');
+            detailsHTML = `
+                <p class="subscription-details-text">
+                    <strong>Account Status:</strong> ${info.status || 'Unknown'}
+                </p>
+                <p class="subscription-details-text">
+                    <strong>Current feeds:</strong> ${info.current_feeds} feeds
+                    ${info.feed_limit > 0 ? ` (limit: ${info.feed_limit})` : ' (unlimited)'}
+                </p>
+                <p class="subscription-details-text">
+                    Debug info: ${JSON.stringify(info)}
+                </p>
+            `;
+            actionsHTML = info.feed_limit > 0 ? `
+                <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
+                    Subscribe to Pro ($2.99/month)
+                </button>
+            ` : '';
         }
 
         subscriptionElement.innerHTML = `
