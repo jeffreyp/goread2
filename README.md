@@ -52,7 +52,7 @@ Access at [http://localhost:8080](http://localhost:8080) and sign in with Google
 | Guide | Purpose |
 |-------|---------|
 | [**Setup Guide**](docs/setup.md) | Complete installation and configuration |
-| [**Deployment Guide**](docs/deployment.md) | Production deployment options |
+| [**Deployment Guide**](docs/deployment.md) | Production deployment options (includes Google Secret Manager setup) |
 | [**Admin Guide**](docs/admin.md) | User management and admin commands |
 | [**Stripe Setup**](docs/stripe.md) | Payment processing configuration |
 | [**Testing Guide**](docs/testing.md) | Running and writing tests |

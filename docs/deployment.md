@@ -49,9 +49,79 @@ All deployment methods require:
 
 ## Google App Engine (Recommended)
 
+### Environment Variables Setup
+
+**Important**: For Google App Engine deployments, environment variables should be configured in Google Secret Manager for security, not hardcoded in `app.yaml`.
+
+#### Setting up Google Secret Manager
+
+1. **Enable the Secret Manager API:**
+   ```bash
+   gcloud services enable secretmanager.googleapis.com
+   ```
+
+2. **Create secrets for each environment variable:**
+   ```bash
+   # OAuth configuration
+   echo -n "your-oauth-client-id" | gcloud secrets create google-client-id --data-file=-
+   echo -n "your-oauth-client-secret" | gcloud secrets create google-client-secret --data-file=-
+   
+   # Stripe configuration (if using subscriptions)
+   echo -n "sk_live_your-secret-key" | gcloud secrets create stripe-secret-key --data-file=-
+   echo -n "pk_live_your-publishable-key" | gcloud secrets create stripe-publishable-key --data-file=-
+   echo -n "whsec_your-webhook-secret" | gcloud secrets create stripe-webhook-secret --data-file=-
+   echo -n "price_your-price-id" | gcloud secrets create stripe-price-id --data-file=-
+   ```
+
+3. **Grant App Engine access to secrets:**
+   ```bash
+   PROJECT_ID=$(gcloud config get-value project)
+   
+   gcloud secrets add-iam-policy-binding google-client-id \
+       --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
+       --role="roles/secretmanager.secretAccessor"
+   
+   gcloud secrets add-iam-policy-binding google-client-secret \
+       --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
+       --role="roles/secretmanager.secretAccessor"
+   
+   # Repeat for other secrets...
+   ```
+
 ### app.yaml Configuration
 
+**Option 1: Using Secret Manager References (Recommended)**
 ```yaml
+runtime: go123
+
+env_variables:
+  GIN_MODE: release
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+  GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
+  SUBSCRIPTION_ENABLED: "true"
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+  STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+  STRIPE_PRICE_ID: ${STRIPE_PRICE_ID}
+```
+
+**Option 2: Direct Secret Manager Integration**
+```yaml
+runtime: go123
+
+env_variables:
+  GIN_MODE: release
+  GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
+  SUBSCRIPTION_ENABLED: "true"
+
+# Secrets are automatically injected by App Engine from Secret Manager
+# when using the same names as environment variables
+```
+
+**Option 3: Manual Configuration (Less Secure)**
+```yaml
+# Only use this for development - not recommended for production
 runtime: go123
 
 env_variables:
@@ -106,23 +176,41 @@ cron:
    Update OAuth configuration with production URL:
    `https://your-app.appspot.com/auth/callback`
 
-2. **Initialize App Engine:**
+2. **Set up environment variables:**
+   ```bash
+   # Option A: Export variables for substitution in app.yaml
+   export GOOGLE_CLIENT_ID="your-oauth-client-id"
+   export GOOGLE_CLIENT_SECRET="your-oauth-client-secret"
+   export STRIPE_SECRET_KEY="sk_live_your-secret-key"
+   export STRIPE_PUBLISHABLE_KEY="pk_live_your-publishable-key"
+   export STRIPE_WEBHOOK_SECRET="whsec_your-webhook-secret"
+   export STRIPE_PRICE_ID="price_your-price-id"
+   
+   # Option B: Use Secret Manager (recommended for production)
+   # Secrets will be automatically accessed by App Engine if properly configured
+   ```
+
+3. **Initialize App Engine:**
    ```bash
    gcloud app create --region=us-central1
    ```
 
-3. **Deploy application:**
+4. **Deploy application:**
    ```bash
-   # Deploy main application
+   # Deploy main application (variables will be substituted if using Option A)
    gcloud app deploy app.yaml
    
    # Deploy cron jobs
    gcloud app deploy cron.yaml
    ```
 
-4. **Open application:**
+5. **Verify deployment:**
    ```bash
+   # Open application
    gcloud app browse
+   
+   # Check logs for any configuration issues
+   gcloud app logs tail -s default
    ```
 
 ### Database Configuration (App Engine)
@@ -320,10 +408,14 @@ WantedBy=multi-user.target
 
 ## Environment Variables
 
+### Security Note for Google App Engine
+
+**Important**: When deploying to Google App Engine, sensitive environment variables (like API keys and secrets) should be stored in Google Secret Manager rather than hardcoded in `app.yaml` for security. See the [Google App Engine section](#google-app-engine-recommended) for detailed setup instructions.
+
 ### Required Variables
 
 - `GOOGLE_CLIENT_ID` - OAuth 2.0 client ID from Google Console
-- `GOOGLE_CLIENT_SECRET` - OAuth 2.0 client secret from Google Console
+- `GOOGLE_CLIENT_SECRET` - OAuth 2.0 client secret from Google Console ⚠️ **Store in Secret Manager for GAE**
 - `GOOGLE_REDIRECT_URL` - OAuth callback URL (must match Google Console)
 
 ### Optional Variables
@@ -333,6 +425,15 @@ WantedBy=multi-user.target
 - `PORT` - Server port (default: 8080)
 - `SESSION_SECRET` - Custom session encryption key (auto-generated if not set)
 - `SUBSCRIPTION_ENABLED` - Enable/disable subscription system (default: false)
+
+### Stripe Variables (if using subscriptions)
+
+⚠️ **All Stripe keys should be stored in Google Secret Manager for App Engine deployments**
+
+- `STRIPE_SECRET_KEY` - Stripe secret key for API calls
+- `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key for frontend
+- `STRIPE_WEBHOOK_SECRET` - Webhook endpoint secret for signature verification
+- `STRIPE_PRICE_ID` - Stripe price ID for subscription product
 
 ## Security Considerations
 
