@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v78"
@@ -78,7 +77,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 	}
 
 	// Verify webhook signature
-	endpointSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
+	endpointSecret := ph.paymentService.GetStripeWebhookSecret()
 	if endpointSecret == "" {
 		fmt.Printf("WARNING: Webhook - STRIPE_WEBHOOK_SECRET not set\n")
 	} else {

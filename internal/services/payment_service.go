@@ -1,8 +1,8 @@
 package services
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/stripe/stripe-go/v78"
@@ -13,11 +13,16 @@ import (
 	"github.com/stripe/stripe-go/v78/product"
 	"github.com/stripe/stripe-go/v78/subscription"
 	"goread2/internal/database"
+	"goread2/internal/secrets"
 )
 
 type PaymentService struct {
 	db                  database.Database
 	subscriptionService *SubscriptionService
+	stripeSecretKey     string
+	stripePublishableKey string
+	stripeWebhookSecret string
+	stripePriceID       string
 }
 
 type CheckoutSessionRequest struct {
@@ -32,27 +37,50 @@ type CheckoutSessionResponse struct {
 }
 
 func NewPaymentService(db database.Database, subscriptionService *SubscriptionService) *PaymentService {
+	ctx := context.Background()
+	
+	// Get Stripe credentials from Secret Manager or environment
+	secretKey, publishableKey, webhookSecret, priceID, err := secrets.GetStripeCredentials(ctx)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to get Stripe credentials: %v\n", err)
+		// Fallback to empty values - this will cause validation errors later
+		secretKey, publishableKey, webhookSecret, priceID = "", "", "", ""
+	}
+
 	// Initialize Stripe with secret key
-	stripe.Key = os.Getenv("STRIPE_SECRET_KEY")
+	if secretKey == "" {
+		fmt.Printf("ERROR: Stripe secret key is empty\n")
+	} else if len(secretKey) < 10 {
+		fmt.Printf("ERROR: Stripe secret key appears to be too short: %d characters\n", len(secretKey))
+	} else {
+		// Log first and last 4 characters for debugging (safe)
+		fmt.Printf("INFO: Using Stripe key: %s...%s (%d chars total)\n", 
+			secretKey[:4], secretKey[len(secretKey)-4:], len(secretKey))
+	}
+	stripe.Key = secretKey
 
 	return &PaymentService{
-		db:                  db,
-		subscriptionService: subscriptionService,
+		db:                   db,
+		subscriptionService:  subscriptionService,
+		stripeSecretKey:      secretKey,
+		stripePublishableKey: publishableKey,
+		stripeWebhookSecret:  webhookSecret,
+		stripePriceID:        priceID,
 	}
 }
 
-// ValidateStripeConfig validates that all required Stripe environment variables are set
+// ValidateStripeConfig validates that all required Stripe credentials are set
 func (ps *PaymentService) ValidateStripeConfig() error {
 	requiredVars := map[string]string{
-		"STRIPE_SECRET_KEY":      os.Getenv("STRIPE_SECRET_KEY"),
-		"STRIPE_PUBLISHABLE_KEY": os.Getenv("STRIPE_PUBLISHABLE_KEY"),
-		"STRIPE_WEBHOOK_SECRET":  os.Getenv("STRIPE_WEBHOOK_SECRET"),
-		"STRIPE_PRICE_ID":        os.Getenv("STRIPE_PRICE_ID"),
+		"STRIPE_SECRET_KEY":      ps.stripeSecretKey,
+		"STRIPE_PUBLISHABLE_KEY": ps.stripePublishableKey,
+		"STRIPE_WEBHOOK_SECRET":  ps.stripeWebhookSecret,
+		"STRIPE_PRICE_ID":        ps.stripePriceID,
 	}
 
 	for varName, value := range requiredVars {
 		if value == "" {
-			return fmt.Errorf("required environment variable %s is not set", varName)
+			return fmt.Errorf("required Stripe credential %s is not set", varName)
 		}
 	}
 
@@ -87,7 +115,7 @@ func (ps *PaymentService) CreateCheckoutSession(req CheckoutSessionRequest) (*Ch
 		}),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
-				Price:    stripe.String(os.Getenv("STRIPE_PRICE_ID")),
+				Price:    stripe.String(ps.stripePriceID),
 				Quantity: stripe.Int64(1),
 			},
 		},
@@ -251,7 +279,12 @@ func (ps *PaymentService) CreateProductAndPrice() (*stripe.Price, error) {
 
 // GetStripePublishableKey returns the Stripe publishable key for frontend
 func (ps *PaymentService) GetStripePublishableKey() string {
-	return os.Getenv("STRIPE_PUBLISHABLE_KEY")
+	return ps.stripePublishableKey
+}
+
+// GetStripeWebhookSecret returns the Stripe webhook secret for verification
+func (ps *PaymentService) GetStripeWebhookSecret() string {
+	return ps.stripeWebhookSecret
 }
 
 // CreateCustomerPortalSession creates a session for customer to manage their subscription

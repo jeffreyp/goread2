@@ -70,3 +70,44 @@ func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, er
 
 	return clientID, clientSecret, nil
 }
+
+// GetStripeCredentials retrieves Stripe credentials from environment or secrets
+func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webhookSecret, priceID string, err error) {
+	// Get Stripe secret key
+	secretKey = os.Getenv("STRIPE_SECRET_KEY")
+	if secretKey == "" || secretKey == "stripe-secret-key" {
+		secretKey, err = GetSecret(ctx, "stripe-secret-key")
+		if err != nil {
+			return "", "", "", "", fmt.Errorf("failed to get Stripe secret key: %w", err)
+		}
+	}
+
+	// Get Stripe publishable key
+	publishableKey = os.Getenv("STRIPE_PUBLISHABLE_KEY")
+	if publishableKey == "" || publishableKey == "stripe-publishable-key" {
+		publishableKey, err = GetSecret(ctx, "stripe-publishable-key")
+		if err != nil {
+			return "", "", "", "", fmt.Errorf("failed to get Stripe publishable key: %w", err)
+		}
+	}
+
+	// Get Stripe webhook secret
+	webhookSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
+	if webhookSecret == "" || webhookSecret == "stripe-webhook-secret" {
+		webhookSecret, err = GetSecret(ctx, "stripe-webhook-secret")
+		if err != nil {
+			return "", "", "", "", fmt.Errorf("failed to get Stripe webhook secret: %w", err)
+		}
+	}
+
+	// Get Stripe price ID
+	priceID = os.Getenv("STRIPE_PRICE_ID")
+	if priceID == "" || priceID == "stripe-price-id" {
+		priceID, err = GetSecret(ctx, "stripe-price-id")
+		if err != nil {
+			return "", "", "", "", fmt.Errorf("failed to get Stripe price ID: %w", err)
+		}
+	}
+
+	return secretKey, publishableKey, webhookSecret, priceID, nil
+}
