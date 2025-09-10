@@ -1995,7 +1995,7 @@ class GoReadApp {
                     </div>
                 </div>
             `;
-        } else if (info.status === 'admin') {
+        } else if (info.status === 'admin' || info.status === 'admin_trial') {
             panelHTML = `
                 <div class="subscription-info admin">
                     <div>
