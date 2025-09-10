@@ -1905,7 +1905,7 @@ class GoReadApp {
                     <span class="status-text">Unlimited feeds</span>
                 </div>
             `;
-        } else if (info.status === 'admin') {
+        } else if (info.status === 'admin' || info.status === 'admin_trial') {
             statusClass = 'admin';
             statusHTML = `
                 <div class="subscription-status ${statusClass}">
