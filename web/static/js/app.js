@@ -667,7 +667,7 @@ class GoReadApp {
                                 data-article-id="${article.id}" title="Star article">★</button>
                     </div>
                 </div>
-                ${article.description ? `<div class="article-description">${this.sanitizeContent(article.description)}</div>` : ''}
+                ${article.description ? `<div class="article-description">${this.sanitizeContent(article.description, true)}</div>` : ''}
             `;
             
             fragment.appendChild(articleItem);
@@ -763,7 +763,7 @@ class GoReadApp {
                                 data-article-id="${article.id}" title="Star article">★</button>
                     </div>
                 </div>
-                ${article.description ? `<div class="article-description">${this.sanitizeContent(article.description)}</div>` : ''}
+                ${article.description ? `<div class="article-description">${this.sanitizeContent(article.description, true)}</div>` : ''}
             `;
             
             fragment.appendChild(articleItem);
@@ -824,24 +824,29 @@ class GoReadApp {
     }
 
 
-    sanitizeContent(content) {
+    sanitizeContent(content, stripImages = false) {
         // Use DOMPurify to sanitize HTML content, removing iframes and other potentially harmful elements
         if (typeof DOMPurify !== 'undefined') {
-            // Debug: Log what we're receiving and what we're outputting
-            if (content && content.includes('<img')) {
-                console.log('Sanitizing content with img tags:', content.substring(0, 200));
+            const forbiddenTags = ['iframe', 'object', 'embed', 'applet', 'script'];
+            
+            // Add img to forbidden tags if we want to strip images (for previews)
+            if (stripImages) {
+                forbiddenTags.push('img');
             }
+            
             const result = DOMPurify.sanitize(content, {
-                FORBID_TAGS: ['iframe', 'object', 'embed', 'applet', 'script'],
+                FORBID_TAGS: forbiddenTags,
                 FORBID_ATTR: ['onload', 'onclick', 'onerror', 'onmouseover']
             });
-            if (content && content.includes('<img') && result) {
-                console.log('Sanitized result:', result.substring(0, 200));
-            }
+            
             return result;
         }
-        // Fallback: simple iframe removal if DOMPurify is not available
-        return content.replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<p><em>[Embedded content removed]</em></p>');
+        // Fallback: remove iframes and optionally images if DOMPurify is not available
+        let result = content.replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<p><em>[Embedded content removed]</em></p>');
+        if (stripImages) {
+            result = result.replace(/<img[^>]*>/gi, '');
+        }
+        return result;
     }
 
     displayArticle(article) {
