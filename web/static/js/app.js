@@ -1834,6 +1834,9 @@ class GoReadApp {
         loginScreen.id = 'login-screen';
         loginScreen.innerHTML = `
             <div class="login-container">
+                <div class="login-logo">
+                    <img src="/static/goread2_logo.svg" alt="GoRead2 Logo" width="80" height="80">
+                </div>
                 <h1>GoRead2</h1>
                 <p>Sign in with Google to access your RSS feeds</p>
                 <button id="google-login-btn" class="btn btn-primary">Sign in with Google</button>
