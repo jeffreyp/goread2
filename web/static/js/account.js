@@ -356,6 +356,11 @@ class AccountApp {
         statsElement.innerHTML = statsHTML + feedListHTML;
     }
 
+    async startSubscription() {
+        // Alias for upgradeSubscription - used for admin accounts who want to subscribe
+        return await this.upgradeSubscription();
+    }
+
     async upgradeSubscription() {
         try {
             const response = await fetch('/api/subscription/checkout', {
