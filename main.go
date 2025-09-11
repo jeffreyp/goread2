@@ -85,14 +85,30 @@ func main() {
 
 	// Add caching headers middleware
 	r.Use(func(c *gin.Context) {
+		// SECURITY: Never cache authentication endpoints
+		if strings.HasPrefix(c.Request.URL.Path, "/auth/") {
+			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+			c.Header("Pragma", "no-cache")
+			c.Header("Expires", "0")
+		}
 		// Cache static assets - shorter cache for development
 		if strings.HasPrefix(c.Request.URL.Path, "/static/") {
 			c.Header("Cache-Control", "public, max-age=60")
 			c.Header("Vary", "Accept-Encoding")
 		}
-		// Cache API responses for 60 seconds
+		// SECURITY: Never cache sensitive API endpoints containing user data
 		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-			c.Header("Cache-Control", "private, max-age=60")
+			path := c.Request.URL.Path
+			// Never cache user-specific or sensitive endpoints
+			if strings.Contains(path, "/subscription") || strings.Contains(path, "/account") || 
+			   strings.Contains(path, "/admin") || strings.Contains(path, "unread-counts") {
+				c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+				c.Header("Pragma", "no-cache") 
+				c.Header("Expires", "0")
+			} else {
+				// Cache other API responses for 60 seconds
+				c.Header("Cache-Control", "private, max-age=60")
+			}
 		}
 		// Cache HTML pages for 5 minutes
 		if c.Request.URL.Path == "/" || strings.HasSuffix(c.Request.URL.Path, ".html") {
