@@ -667,7 +667,7 @@ class GoReadApp {
                                 data-article-id="${article.id}" title="Star article">★</button>
                     </div>
                 </div>
-                ${article.description ? `<div class="article-description">${this.escapeHtml(article.description)}</div>` : ''}
+                ${article.description ? `<div class="article-description">${this.sanitizeContent(article.description)}</div>` : ''}
             `;
             
             fragment.appendChild(articleItem);
@@ -763,7 +763,7 @@ class GoReadApp {
                                 data-article-id="${article.id}" title="Star article">★</button>
                     </div>
                 </div>
-                ${article.description ? `<div class="article-description">${this.escapeHtml(article.description)}</div>` : ''}
+                ${article.description ? `<div class="article-description">${this.sanitizeContent(article.description)}</div>` : ''}
             `;
             
             fragment.appendChild(articleItem);
