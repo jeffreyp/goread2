@@ -827,10 +827,18 @@ class GoReadApp {
     sanitizeContent(content) {
         // Use DOMPurify to sanitize HTML content, removing iframes and other potentially harmful elements
         if (typeof DOMPurify !== 'undefined') {
-            return DOMPurify.sanitize(content, {
+            // Debug: Log what we're receiving and what we're outputting
+            if (content && content.includes('<img')) {
+                console.log('Sanitizing content with img tags:', content.substring(0, 200));
+            }
+            const result = DOMPurify.sanitize(content, {
                 FORBID_TAGS: ['iframe', 'object', 'embed', 'applet', 'script'],
                 FORBID_ATTR: ['onload', 'onclick', 'onerror', 'onmouseover']
             });
+            if (content && content.includes('<img') && result) {
+                console.log('Sanitized result:', result.substring(0, 200));
+            }
+            return result;
         }
         // Fallback: simple iframe removal if DOMPurify is not available
         return content.replace(/<iframe[^>]*>.*?<\/iframe>/gi, '<p><em>[Embedded content removed]</em></p>');
