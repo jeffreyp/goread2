@@ -842,13 +842,13 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 		}
 
 		chunk := articles[i:end]
-		entities := make([]*UserArticle, len(chunk))
+		entities := make([]*UserArticleEntity, len(chunk))
 		keys := make([]*datastore.Key, len(chunk))
 
 		for j, article := range chunk {
-			entities[j] = &UserArticle{
-				UserID:    userID,
-				ArticleID: article.ID,
+			entities[j] = &UserArticleEntity{
+				UserID:    int64(userID),
+				ArticleID: int64(article.ID),
 				IsRead:    isRead,
 				IsStarred: isStarred,
 			}
@@ -913,14 +913,32 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 
 // Helper function to efficiently count unread articles for a specific feed
 func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, feedID int) (int, error) {
-	// Get all articles for this feed (keys only for efficiency)
-	articleQuery := datastore.NewQuery("Article").
-		FilterField("feed_id", "=", int64(feedID)).
-		KeysOnly()
+	// Get all articles for this feed with eventual consistency retry
+	var articleKeys []*datastore.Key
+	var err error
+	
+	// Retry logic to handle eventual consistency issues with newly added feeds
+	for attempt := 0; attempt < 3; attempt++ {
+		articleQuery := datastore.NewQuery("Article").
+			FilterField("feed_id", "=", int64(feedID)).
+			KeysOnly()
 
-	articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
-	if err != nil {
-		return 0, err
+		articleKeys, err = db.client.GetAll(ctx, articleQuery, nil)
+		if err != nil {
+			if attempt < 2 {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			return 0, err
+		}
+		
+		// If we got articles or this isn't the first attempt, use the result
+		if len(articleKeys) > 0 || attempt > 0 {
+			break
+		}
+		
+		// If no articles found on first attempt, wait and retry (might be consistency lag)
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	if len(articleKeys) == 0 {
