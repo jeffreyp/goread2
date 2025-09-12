@@ -48,6 +48,8 @@ show_usage() {
     echo "  admin <email> <on|off>        - Grant/revoke admin access"
     echo "  grant <email> <months>        - Grant free months"
     echo "  info <email>                  - Show user information"
+    echo "  fix-sub <email>               - Fix subscription status from Stripe"
+    echo "  set-sub-id <email> <sub-id>   - Update Stripe subscription ID"  
     echo ""
     echo "Examples:"
     echo "  $0 create-token \"Production server\""
@@ -160,6 +162,29 @@ case $COMMAND in
         EMAIL=$2
         echo -e "${YELLOW}ℹ️  Getting user information for $EMAIL...${NC}"
         go run cmd/admin/main.go user-info "$EMAIL"
+        ;;
+    
+    "fix-sub")
+        if [ $# -ne 2 ]; then
+            echo -e "${RED}Error: Usage: $0 fix-sub <email>${NC}"
+            exit 1
+        fi
+        
+        EMAIL=$2
+        echo -e "${YELLOW}🔧 Fixing subscription status for $EMAIL...${NC}"
+        go run cmd/admin/main.go fix-subscription "$EMAIL"
+        ;;
+    
+    "set-sub-id")
+        if [ $# -ne 3 ]; then
+            echo -e "${RED}Error: Usage: $0 set-sub-id <email> <subscription-id>${NC}"
+            exit 1
+        fi
+        
+        EMAIL=$2
+        SUB_ID=$3
+        echo -e "${YELLOW}🔄 Updating subscription ID for $EMAIL...${NC}"
+        go run cmd/admin/main.go set-subscription-id "$EMAIL" "$SUB_ID"
         ;;
     
     *)

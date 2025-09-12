@@ -49,6 +49,8 @@ func main() {
 			fmt.Println("  grant-months <email> <months>  - Grant free months to user")
 		}
 		fmt.Println("  user-info <email>             - Show user information")
+		fmt.Println("  fix-subscription <email>      - Fix subscription status from Stripe")
+		fmt.Println("  debug-users                   - Debug user lookup issues")
 		fmt.Println("")
 		fmt.Println("SECURITY NOTES:")
 		fmt.Println("  - Admin tokens are securely stored in the database as hashes")
@@ -109,7 +111,7 @@ func main() {
 		revokeAdminToken(subscriptionService, tokenID)
 
 	case "list-users":
-		listUsers(db)
+		listUsers(db, subscriptionService)
 
 	case "set-admin":
 		if len(os.Args) != 4 {
@@ -150,13 +152,30 @@ func main() {
 		email := os.Args[2]
 		showUserInfo(subscriptionService, email)
 
+	case "fix-subscription":
+		if len(os.Args) != 3 {
+			fmt.Println("Usage: go run cmd/admin/main.go fix-subscription <email>")
+			os.Exit(1)
+		}
+		email := os.Args[2]
+		fixSubscriptionStatus(subscriptionService, email)
+
+	case "set-subscription-id":
+		if len(os.Args) != 4 {
+			fmt.Println("Usage: go run cmd/admin/main.go set-subscription-id <email> <subscription-id>")
+			os.Exit(1)
+		}
+		email := os.Args[2]
+		subscriptionID := os.Args[3]
+		setSubscriptionID(subscriptionService, email, subscriptionID)
+
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		os.Exit(1)
 	}
 }
 
-func listUsers(db database.Database) {
+func listUsers(db database.Database, subscriptionService *services.SubscriptionService) {
 	// For SQLite implementation, we can access the underlying DB
 	if sqliteDB, ok := db.(*database.DB); ok {
 		// Simple query to list all users
@@ -196,8 +215,62 @@ func listUsers(db database.Database) {
 				id, truncate(email, 34), truncate(name, 24), status, adminStr, freeMonths, createdAt[:10])
 		}
 		fmt.Println()
+	} else if datastoreDB, ok := db.(*database.DatastoreDB); ok {
+		// Datastore implementation
+		ctx := context.Background()
+		
+		fmt.Println("Using Google Cloud Datastore - querying users...")
+		
+		query := datastore.NewQuery("User").Order("created_at")
+		var users []*database.UserEntity
+		keys, err := datastoreDB.GetClient().GetAll(ctx, query, &users)
+		if err != nil {
+			fmt.Printf("Error querying users from datastore: %v\n", err)
+			fmt.Println("Trying to get specific user by email instead...")
+			
+			// Fallback: try to get the specific user we know exists
+			user, err := subscriptionService.GetUserByEmail("jeffrey@jeffreypratt.org")
+			if err != nil {
+				fmt.Printf("Cannot find jeffrey@jeffreypratt.org either: %v\n", err)
+				log.Fatal("Failed to query users and fallback failed")
+			}
+			
+			fmt.Printf("\nFound user via direct lookup:\n")
+			fmt.Printf("ID: %d, Email: %s, Name: %s, Status: %s\n", 
+				user.ID, user.Email, user.Name, user.SubscriptionStatus)
+			return
+		}
+
+		fmt.Printf("Found %d users in datastore\n", len(users))
+
+		fmt.Printf("\n%-4s %-35s %-25s %-12s %-6s %-6s %-12s\n",
+			"ID", "Email", "Name", "Status", "Admin", "Free", "Joined")
+		fmt.Printf("%-4s %-35s %-25s %-12s %-6s %-6s %-12s\n",
+			"----", "-----------------------------------", "-------------------------", "------------", "------", "------", "------------")
+
+		for i, user := range users {
+			adminStr := "No"
+			if user.IsAdmin {
+				adminStr = "Yes"
+			}
+
+			status := user.SubscriptionStatus
+			if status == "" {
+				status = "trial"
+			}
+
+			fmt.Printf("%-4d %-35s %-25s %-12s %-6s %-6d %-12s\n",
+				int(keys[i].ID),
+				truncate(user.Email, 34),
+				truncate(user.Name, 24),
+				status,
+				adminStr,
+				user.FreeMonthsRemaining,
+				user.CreatedAt.Format("2006-01-02"))
+		}
+		fmt.Println()
 	} else {
-		log.Fatal("List users command only supports SQLite database")
+		log.Fatal("List users command only supports SQLite and Datastore databases")
 	}
 }
 
@@ -296,6 +369,85 @@ func showUserInfo(subscriptionService *services.SubscriptionService, email strin
 	}
 
 	fmt.Printf("└─────────────────────────────────────────────────────────────────┘\n\n")
+}
+
+func fixSubscriptionStatus(subscriptionService *services.SubscriptionService, email string) {
+	// Find user by email
+	user, err := subscriptionService.GetUserByEmail(email)
+	if err != nil {
+		log.Fatal("User not found:", err)
+	}
+
+	fmt.Printf("Checking subscription status for user: %s (%s)\n", user.Name, user.Email)
+	fmt.Printf("Current database status: %s\n", user.SubscriptionStatus)
+
+	if user.SubscriptionID == "" {
+		fmt.Println("No Stripe subscription ID found - nothing to fix.")
+		return
+	}
+
+	fmt.Printf("Found Stripe subscription ID: %s\n", user.SubscriptionID)
+	fmt.Println("Fetching current status from Stripe and updating database...")
+
+	// Create payment service to handle subscription update
+	paymentService := services.NewPaymentService(subscriptionService.GetDB(), subscriptionService)
+	
+	// This will fetch from Stripe and update the database
+	err = paymentService.HandleSubscriptionUpdate(user.SubscriptionID)
+	if err != nil {
+		log.Fatal("Failed to update subscription from Stripe:", err)
+	}
+
+	// Get updated user info
+	updatedUser, err := subscriptionService.GetUserByEmail(email)
+	if err != nil {
+		log.Fatal("Failed to get updated user info:", err)
+	}
+
+	fmt.Printf("✅ Subscription status updated successfully!\n")
+	fmt.Printf("   Previous status: %s\n", user.SubscriptionStatus)
+	fmt.Printf("   Current status:  %s\n", updatedUser.SubscriptionStatus)
+	
+	if !updatedUser.LastPaymentDate.IsZero() {
+		fmt.Printf("   Last payment:    %s\n", updatedUser.LastPaymentDate.Format("2006-01-02 15:04:05"))
+	}
+}
+
+func setSubscriptionID(subscriptionService *services.SubscriptionService, email, subscriptionID string) {
+	// Find user by email
+	user, err := subscriptionService.GetUserByEmail(email)
+	if err != nil {
+		log.Fatal("User not found:", err)
+	}
+
+	fmt.Printf("Updating subscription ID for user: %s (%s)\n", user.Name, user.Email)
+	fmt.Printf("Current subscription ID: %s\n", user.SubscriptionID)
+	fmt.Printf("New subscription ID: %s\n", subscriptionID)
+
+	// Update subscription ID directly in database
+	err = subscriptionService.UpdateUserSubscription(user.ID, user.SubscriptionStatus, subscriptionID, user.LastPaymentDate)
+	if err != nil {
+		log.Fatal("Failed to update subscription ID:", err)
+	}
+
+	fmt.Printf("✅ Subscription ID updated successfully!\n")
+	
+	// Now sync the status from Stripe using the new subscription ID
+	fmt.Println("Now syncing status from Stripe with new subscription ID...")
+	
+	paymentService := services.NewPaymentService(subscriptionService.GetDB(), subscriptionService)
+	err = paymentService.HandleSubscriptionUpdate(subscriptionID)
+	if err != nil {
+		fmt.Printf("Warning: Failed to sync status from Stripe: %v\n", err)
+	} else {
+		// Get updated user info
+		updatedUser, err := subscriptionService.GetUserByEmail(email)
+		if err != nil {
+			fmt.Printf("Warning: Failed to get updated user info: %v\n", err)
+		} else {
+			fmt.Printf("✅ Status synced from Stripe: %s\n", updatedUser.SubscriptionStatus)
+		}
+	}
 }
 
 func truncate(s string, max int) string {

@@ -193,42 +193,44 @@ class AccountApp {
                 </button>
             `;
         } else if (info.status === 'trial') {
-            statusClass = 'trial';
-            statusText = 'Free Trial';
-            const daysLeft = info.trial_days_remaining || 0;
-            detailsHTML = `
-                <p class="subscription-details-text">
-                    You're currently on a free trial with access to up to ${info.feed_limit} feeds.
-                </p>
-                <p class="subscription-details-text">
-                    <strong>Trial ends:</strong> ${this.formatDate(info.trial_ends_at)} (${daysLeft} days remaining)
-                </p>
-                <p class="subscription-details-text">
-                    <strong>Current usage:</strong> ${info.current_feeds} of ${info.feed_limit} feeds
-                </p>
-            `;
-            actionsHTML = `
-                <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
-                    Upgrade to Pro ($2.99/month)
-                </button>
-            `;
-        } else if (info.status === 'trial' && new Date(info.trial_ends_at) < new Date()) {
-            // Only show trial expired if actually on trial status and expired
-            statusClass = 'expired';
-            statusText = 'Trial Expired';
-            detailsHTML = `
-                <p class="subscription-details-text">
-                    Your free trial has expired. Subscribe to GoRead2 Pro to continue using the service.
-                </p>
-                <p class="subscription-details-text">
-                    <strong>Trial ended:</strong> ${this.formatDate(info.trial_ends_at)}
-                </p>
-            `;
-            actionsHTML = `
-                <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
-                    Subscribe to Pro ($2.99/month)
-                </button>
-            `;
+            // Check if trial is expired
+            if (new Date(info.trial_ends_at) < new Date()) {
+                statusClass = 'expired';
+                statusText = 'Trial Expired';
+                detailsHTML = `
+                    <p class="subscription-details-text">
+                        Your free trial has expired. Subscribe to GoRead2 Pro to continue using the service.
+                    </p>
+                    <p class="subscription-details-text">
+                        <strong>Trial ended:</strong> ${this.formatDate(info.trial_ends_at)}
+                    </p>
+                `;
+                actionsHTML = `
+                    <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
+                        Subscribe to Pro ($2.99/month)
+                    </button>
+                `;
+            } else {
+                statusClass = 'trial';
+                statusText = 'Free Trial';
+                const daysLeft = info.trial_days_remaining || 0;
+                detailsHTML = `
+                    <p class="subscription-details-text">
+                        You're currently on a free trial with access to up to ${info.feed_limit} feeds.
+                    </p>
+                    <p class="subscription-details-text">
+                        <strong>Trial ends:</strong> ${this.formatDate(info.trial_ends_at)} (${daysLeft} days remaining)
+                    </p>
+                    <p class="subscription-details-text">
+                        <strong>Current usage:</strong> ${info.current_feeds} of ${info.feed_limit} feeds
+                    </p>
+                `;
+                actionsHTML = `
+                    <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
+                        Upgrade to Pro ($2.99/month)
+                    </button>
+                `;
+            }
         } else {
             // Handle unknown status - don't assume expired
             statusClass = 'unknown';

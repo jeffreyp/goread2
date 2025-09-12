@@ -31,6 +31,11 @@ func NewSubscriptionService(db database.Database) *SubscriptionService {
 	return &SubscriptionService{db: db}
 }
 
+// GetDB returns the database instance (for admin commands)
+func (ss *SubscriptionService) GetDB() database.Database {
+	return ss.db
+}
+
 // CanUserAddFeed checks if a user can add another feed based on their subscription status
 func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
 	// If subscription system is disabled, allow unlimited feeds for everyone
@@ -59,7 +64,7 @@ func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
 		return nil
 	}
 
-	// Check if trial has expired
+	// Check if trial has expired (only for users actually on trial status)
 	if user.SubscriptionStatus == "trial" && time.Now().After(user.TrialEndsAt) {
 		return ErrTrialExpired
 	}
