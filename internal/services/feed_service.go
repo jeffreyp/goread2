@@ -15,7 +15,8 @@ import (
 )
 
 type FeedService struct {
-	db database.Database
+	db          database.Database
+	rateLimiter *DomainRateLimiter
 }
 
 type RSS struct {
@@ -128,9 +129,10 @@ type OPMLOutline struct {
 	Outline []OPMLOutline `xml:"outline"`
 }
 
-func NewFeedService(db database.Database) *FeedService {
+func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedService {
 	return &FeedService{
-		db: db,
+		db:          db,
+		rateLimiter: rateLimiter,
 	}
 }
 
@@ -343,6 +345,13 @@ func (fs *FeedService) markExistingArticlesAsUnreadForUser(userID, feedID int) e
 }
 
 func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
+	// Apply rate limiting if available
+	if fs.rateLimiter != nil {
+		if !fs.rateLimiter.Allow(url) {
+			return nil, fmt.Errorf("rate limited: too many requests to domain")
+		}
+	}
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err

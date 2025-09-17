@@ -34,11 +34,25 @@ func main() {
 		log.Fatal("Failed to initialize database:", err)
 	}
 
+	// Initialize rate limiter and scheduler for DDoS prevention
+	rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
+		RequestsPerMinute: cfg.RateLimitRequestsPerMinute,
+		BurstSize:         cfg.RateLimitBurstSize,
+	})
+
 	// Initialize services
-	feedService := services.NewFeedService(db)
+	feedService := services.NewFeedService(db, rateLimiter)
 	subscriptionService := services.NewSubscriptionService(db)
 	authService := auth.NewAuthService(db)
 	sessionManager := auth.NewSessionManager(db)
+
+	// Initialize feed scheduler for staggered updates
+	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{
+		UpdateWindow:    cfg.SchedulerUpdateWindow,
+		MinInterval:     cfg.SchedulerMinInterval,
+		MaxConcurrent:   cfg.SchedulerMaxConcurrent,
+		CleanupInterval: cfg.SchedulerCleanupInterval,
+	})
 
 	// Validate OAuth configuration
 	if err := authService.ValidateConfig(); err != nil {
@@ -62,7 +76,7 @@ func main() {
 	}
 
 	// Initialize handlers
-	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService)
+	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService)
 	var paymentHandler *handlers.PaymentHandler

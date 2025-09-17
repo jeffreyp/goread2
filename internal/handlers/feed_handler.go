@@ -17,12 +17,14 @@ import (
 type FeedHandler struct {
 	feedService         *services.FeedService
 	subscriptionService *services.SubscriptionService
+	feedScheduler       *services.FeedScheduler
 }
 
-func NewFeedHandler(feedService *services.FeedService, subscriptionService *services.SubscriptionService) *FeedHandler {
+func NewFeedHandler(feedService *services.FeedService, subscriptionService *services.SubscriptionService, feedScheduler *services.FeedScheduler) *FeedHandler {
 	return &FeedHandler{
 		feedService:         feedService,
 		subscriptionService: subscriptionService,
+		feedScheduler:       feedScheduler,
 	}
 }
 
@@ -231,7 +233,15 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 		log.Printf("Manual feed refresh started at %v", time.Now())
 	}
 
-	if err := fh.feedService.RefreshFeeds(); err != nil {
+	// Use staggered refresh if scheduler is available, otherwise fallback to regular refresh
+	var err error
+	if fh.feedScheduler != nil {
+		err = fh.feedScheduler.RefreshFeedsStaggered()
+	} else {
+		err = fh.feedService.RefreshFeeds()
+	}
+
+	if err != nil {
 		log.Printf("Feed refresh failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

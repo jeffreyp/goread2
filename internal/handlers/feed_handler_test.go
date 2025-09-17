@@ -10,8 +10,9 @@ func TestNewFeedHandler(t *testing.T) {
 	// Create mock services
 	mockFeedService := &services.FeedService{}
 	mockSubscriptionService := &services.SubscriptionService{}
+	mockFeedScheduler := &services.FeedScheduler{}
 
-	handler := NewFeedHandler(mockFeedService, mockSubscriptionService)
+	handler := NewFeedHandler(mockFeedService, mockSubscriptionService, mockFeedScheduler)
 
 	if handler == nil {
 		t.Fatal("NewFeedHandler returned nil")
@@ -23,5 +24,9 @@ func TestNewFeedHandler(t *testing.T) {
 
 	if handler.subscriptionService != mockSubscriptionService {
 		t.Error("FeedHandler subscription service not set correctly")
+	}
+
+	if handler.feedScheduler != mockFeedScheduler {
+		t.Error("FeedHandler feed scheduler not set correctly")
 	}
 }

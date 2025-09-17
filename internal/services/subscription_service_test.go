@@ -520,7 +520,8 @@ func TestErrorHandling(t *testing.T) {
 
 func TestNewFeedService(t *testing.T) {
 	db := newMockDBForSub()
-	service := NewFeedService(db)
+	rateLimiter := NewDomainRateLimiter(RateLimiterConfig{})
+	service := NewFeedService(db, rateLimiter)
 
 	if service == nil {
 		t.Error("NewFeedService returned nil")

@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config holds application configuration
@@ -29,6 +30,14 @@ type Config struct {
 
 	// Server
 	Port string
+
+	// Feed Rate Limiting
+	RateLimitRequestsPerMinute int           // Requests per minute per domain
+	RateLimitBurstSize         int           // Burst allowance per domain
+	SchedulerUpdateWindow      time.Duration // Time window to spread updates across
+	SchedulerMinInterval       time.Duration // Minimum time between updates for same feed
+	SchedulerMaxConcurrent     int           // Maximum concurrent feed updates
+	SchedulerCleanupInterval   time.Duration // How often to cleanup old rate limiters
 }
 
 var globalConfig *Config
@@ -66,6 +75,14 @@ func Load() *Config {
 
 		// Server
 		Port: getEnvOrDefault("PORT", "8080"),
+
+		// Feed Rate Limiting
+		RateLimitRequestsPerMinute: parseInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 6),
+		RateLimitBurstSize:         parseInt(os.Getenv("RATE_LIMIT_BURST_SIZE"), 1),
+		SchedulerUpdateWindow:      parseDuration(os.Getenv("SCHEDULER_UPDATE_WINDOW"), 6*time.Hour),
+		SchedulerMinInterval:       parseDuration(os.Getenv("SCHEDULER_MIN_INTERVAL"), 30*time.Minute),
+		SchedulerMaxConcurrent:     parseInt(os.Getenv("SCHEDULER_MAX_CONCURRENT"), 10),
+		SchedulerCleanupInterval:   parseDuration(os.Getenv("SCHEDULER_CLEANUP_INTERVAL"), 1*time.Hour),
 	}
 
 	return globalConfig
@@ -131,4 +148,28 @@ func parseEmailList(value string) []string {
 	}
 
 	return result
+}
+
+// parseInt parses an integer from string with a default value
+func parseInt(value string, defaultValue int) int {
+	if value == "" {
+		return defaultValue
+	}
+
+	if parsed, err := strconv.Atoi(value); err == nil {
+		return parsed
+	}
+	return defaultValue
+}
+
+// parseDuration parses a duration from string with a default value
+func parseDuration(value string, defaultValue time.Duration) time.Duration {
+	if value == "" {
+		return defaultValue
+	}
+
+	if parsed, err := time.ParseDuration(value); err == nil {
+		return parsed
+	}
+	return defaultValue
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"goread2/internal/auth"
@@ -29,12 +30,27 @@ func SetupTestServer(t *testing.T) *TestServer {
 	gin.SetMode(gin.TestMode)
 
 	db := CreateTestDB(t)
-	feedService := services.NewFeedService(db)
+
+	// Create rate limiter for testing
+	rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
+		RequestsPerMinute: 60, // Higher rate for tests
+		BurstSize:         10, // Allow some burst for tests
+	})
+
+	feedService := services.NewFeedService(db, rateLimiter)
 	subscriptionService := services.NewSubscriptionService(db)
 	authService := auth.NewAuthService(db)
 	sessionManager := auth.NewSessionManager(db)
 
-	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService)
+	// Create feed scheduler for testing (but don't start it)
+	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{
+		UpdateWindow:    time.Hour,    // Shorter window for tests
+		MinInterval:     time.Minute,  // Shorter interval for tests
+		MaxConcurrent:   5,            // Fewer concurrent for tests
+		CleanupInterval: 10 * time.Minute, // Less frequent cleanup for tests
+	})
+
+	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager)
 	authMiddleware := auth.NewMiddleware(sessionManager)
 
