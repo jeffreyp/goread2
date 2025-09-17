@@ -291,6 +291,7 @@ describe('Font Choice Feature', () => {
     describe('Integration with App Initialization', () => {
         test('should apply font preference on app init', () => {
             // Set up localStorage mock to return 'serif'
+            global.localStorage.store = global.localStorage.store || {};
             global.localStorage.store['fontPreference'] = 'serif';
             global.localStorage.getItem = jest.fn(key => global.localStorage.store[key] || null);
 
@@ -323,6 +324,7 @@ describe('Font Choice Feature', () => {
             expect(app.fontPreference).toBe('sans-serif');
 
             // Update localStorage store manually to simulate persistence
+            global.localStorage.store = global.localStorage.store || {};
             global.localStorage.store['fontPreference'] = 'sans-serif';
             global.localStorage.getItem = jest.fn(key => global.localStorage.store[key] || null);
 
