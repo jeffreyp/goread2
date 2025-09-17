@@ -11,7 +11,7 @@ Testing guide for GoRead2's multi-user RSS reader application.
 GoRead2's testing infrastructure includes:
 - **Package-level unit tests** with 8.0% overall coverage across multiple packages
 - **Integration tests** for end-to-end API validation
-- **Frontend tests** with Jest and jsdom (26 tests)
+- **Frontend tests** with Jest and jsdom (26+ tests)
 - **CI/CD integration** with GitHub Actions
 
 ## Current Test Structure
@@ -42,8 +42,9 @@ test/
 └── fixtures/            # Test data and sample feeds
     └── sample_feeds.go  # Sample data for tests
 web/tests/               # Frontend tests
-├── app-core.test.js     # Core frontend functionality (26 tests)
-├── utils.js             # Frontend test utilities  
+├── app-core.test.js     # Core frontend functionality (26+ tests)
+├── font-choice.test.js  # Font choice feature tests (comprehensive)
+├── utils.js             # Frontend test utilities
 ├── setup.js             # Test environment setup
 └── README.md            # Frontend testing documentation
 ```
@@ -285,6 +286,39 @@ describe('GoReadApp', () => {
 - Modal and dialog interactions
 - Keyboard navigation
 - Error handling and display
+
+#### Font Choice Feature (`web/tests/font-choice.test.js`)
+
+Tests comprehensive font choice functionality:
+
+```javascript
+describe('Font Choice Feature', () => {
+  test('toggles between sans-serif and serif fonts', () => {
+    // Test font switching functionality
+  });
+
+  test('persists font preference in localStorage', () => {
+    // Test preference storage and retrieval
+  });
+
+  test('applies CSS custom properties correctly', () => {
+    // Test CSS variable management
+  });
+});
+```
+
+**Coverage includes:**
+- CSS custom properties and font variables
+- Font preference initialization and persistence
+- Toggle button functionality and UI updates
+- Keyboard shortcut integration (f key)
+- LocalStorage integration and error handling
+- CSS class management (font-serif)
+- Accessibility features and ARIA attributes
+- Integration with existing UI components
+- Error handling for corrupted preferences
+- Visual regression prevention
+- Cross-session preference persistence
 
 ## Test Environment
 

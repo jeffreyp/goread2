@@ -153,6 +153,7 @@ beforeEach(() => {
         <button id="add-feed-btn">Add Feed</button>
         <button id="refresh-btn">Refresh</button>
         <button id="help-btn">Help</button>
+        <button id="font-toggle-btn" title="Toggle font style">Aa</button>
         <button id="import-opml-btn">Import OPML</button>
     `;
     

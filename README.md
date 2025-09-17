@@ -13,6 +13,7 @@ A modern, multi-user RSS reader inspired by Google Reader, built with Go and fea
 - **Per-user article management** (read/unread, starred status)
 - **Subscription system** with 30-day free trial and Stripe integration
 - **Keyboard shortcuts** for efficient navigation
+- **Reading optimization** with sans-serif/serif font choice
 - **Self-hosted** - runs locally or deploys to cloud platforms
 
 ## 🚀 Quick Start
@@ -51,6 +52,7 @@ Access at [http://localhost:8080](http://localhost:8080) and sign in with Google
 
 | Guide | Purpose |
 |-------|---------|
+| [**Features Guide**](docs/features.md) | Complete feature overview and usage tips |
 | [**Setup Guide**](docs/setup.md) | Complete installation and configuration |
 | [**Deployment Guide**](docs/deployment.md) | Production deployment options (includes Google Secret Manager setup) |
 | [**Admin Guide**](docs/admin.md) | User management and admin commands |
@@ -83,6 +85,7 @@ The interface features three main sections:
 - `m` - Toggle read/unread status
 - `s` - Star/unstar article
 - `r` - Refresh all feeds
+- `f` - Toggle font style (sans-serif ↔ serif)
 
 ## 🔒 Security & Privacy
 
