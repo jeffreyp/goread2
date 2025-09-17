@@ -132,7 +132,14 @@ func TestAdminSecurityBootstrap(t *testing.T) {
 		// Test without ADMIN_TOKEN environment variable
 		cmd := exec.Command("go", "run", "cmd/admin/main.go", "list-users")
 		cmd.Dir = "../.."
-		// Don't set ADMIN_TOKEN env var
+		// Explicitly clear the ADMIN_TOKEN env var
+		cmd.Env = append(os.Environ()[:0:0], os.Environ()...)
+		for i, env := range cmd.Env {
+			if strings.HasPrefix(env, "ADMIN_TOKEN=") {
+				cmd.Env = append(cmd.Env[:i], cmd.Env[i+1:]...)
+				break
+			}
+		}
 
 		output, err := cmd.CombinedOutput()
 		if err == nil {

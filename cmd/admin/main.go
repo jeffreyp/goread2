@@ -142,6 +142,9 @@ func main() {
 		if err != nil {
 			log.Fatal("Invalid months value:", err)
 		}
+		if months < 0 {
+			log.Fatal("Invalid months value: cannot grant negative months")
+		}
 		grantFreeMonths(subscriptionService, email, months)
 
 	case "user-info":
