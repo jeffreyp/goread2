@@ -225,7 +225,7 @@ func (fs *FeedScheduler) createStaggeredSchedule(feeds []database.Feed) []Schedu
 func (fs *FeedScheduler) calculateStaggeredDelay(feedID int, lastFetch time.Time) time.Duration {
 	// Use feed ID hash to distribute evenly across update window
 	hash := fnv.New32a()
-	hash.Write([]byte(fmt.Sprintf("%d", feedID)))
+	_, _ = fmt.Fprintf(hash, "%d", feedID)
 
 	// Spread across the update window
 	hashValue := hash.Sum32()

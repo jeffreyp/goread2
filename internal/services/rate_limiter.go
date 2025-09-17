@@ -103,9 +103,7 @@ func (d *DomainRateLimiter) extractDomain(feedURL string) string {
 	domain := strings.ToLower(parsedURL.Host)
 
 	// Remove www. prefix for consistency
-	if strings.HasPrefix(domain, "www.") {
-		domain = domain[4:]
-	}
+	domain = strings.TrimPrefix(domain, "www.")
 
 	return domain
 }
