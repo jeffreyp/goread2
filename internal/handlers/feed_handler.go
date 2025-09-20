@@ -308,6 +308,100 @@ func (fh *FeedHandler) DebugFeed(c *gin.Context) {
 	})
 }
 
+func (fh *FeedHandler) DebugArticleByURL(c *gin.Context) {
+	_, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	url := c.Query("url")
+	if url == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "URL parameter required"})
+		return
+	}
+
+	// Search for article by URL across all feeds
+	article, err := fh.feedService.FindArticleByURL(url)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error", "details": err.Error()})
+		return
+	}
+
+	if article == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"found": false,
+			"url":   url,
+			"message": "Article not found in database",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"found":   true,
+		"url":     url,
+		"article": article,
+	})
+}
+
+func (fh *FeedHandler) DebugAllSubscriptions(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	// Get all feeds that appear in the UI
+	userFeeds, err := fh.feedService.GetUserFeeds(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user feeds", "details": err.Error()})
+		return
+	}
+
+	type FeedStatus struct {
+		Feed            database.Feed `json:"feed"`
+		IsSubscribed    bool          `json:"is_subscribed"`
+		AllArticleCount int           `json:"all_article_count"`
+		UserArticleCount int          `json:"user_article_count"`
+		Status          string        `json:"status"`
+	}
+
+	var feedStatuses []FeedStatus
+
+	for _, feed := range userFeeds {
+		// Check subscription status
+		allArticles, err := fh.feedService.GetArticles(feed.ID)
+		if err != nil {
+			allArticles = []database.Article{}
+		}
+
+		userArticles, err := fh.feedService.GetUserFeedArticles(user.ID, feed.ID)
+		if err != nil {
+			userArticles = []database.Article{}
+		}
+
+		isSubscribed := len(userArticles) > 0 || len(allArticles) == 0
+		status := "OK"
+		if len(allArticles) > 0 && len(userArticles) == 0 {
+			isSubscribed = false
+			status = "BROKEN - Feed shows in UI but no access to articles"
+		}
+
+		feedStatuses = append(feedStatuses, FeedStatus{
+			Feed:            feed,
+			IsSubscribed:    isSubscribed,
+			AllArticleCount: len(allArticles),
+			UserArticleCount: len(userArticles),
+			Status:          status,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"total_feeds": len(userFeeds),
+		"feed_statuses": feedStatuses,
+	})
+}
+
 func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {

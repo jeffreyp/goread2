@@ -502,6 +502,9 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom, feedURL string) *FeedDa
 }
 
 func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) error {
+	var savedCount int
+	var errors []string
+
 	for _, articleData := range feedData.Articles {
 		article := &database.Article{
 			FeedID:      feedID,
@@ -515,8 +518,21 @@ func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) erro
 		}
 
 		if err := fs.db.AddArticle(article); err != nil {
-			return err
+			errors = append(errors, fmt.Sprintf("Failed to save article '%s': %v", article.Title, err))
+			continue // Continue processing other articles
 		}
+		savedCount++
+	}
+
+	log.Printf("Feed %d: Saved %d/%d articles", feedID, savedCount, len(feedData.Articles))
+
+	if len(errors) > 0 {
+		log.Printf("Feed %d: Errors saving %d articles: %v", feedID, len(errors), errors)
+	}
+
+	// Only return error if NO articles were saved
+	if savedCount == 0 && len(feedData.Articles) > 0 {
+		return fmt.Errorf("failed to save any articles from feed %d", feedID)
 	}
 
 	return nil
@@ -589,6 +605,11 @@ func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {
 	}
 
 	return importedCount, nil
+}
+
+// FindArticleByURL searches for an article by its URL across all feeds
+func (fs *FeedService) FindArticleByURL(url string) (*database.Article, error) {
+	return fs.db.FindArticleByURL(url)
 }
 
 // ImportOPMLWithLimits imports OPML feeds while respecting subscription limits

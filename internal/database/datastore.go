@@ -292,6 +292,40 @@ func (db *DatastoreDB) GetArticles(feedID int) ([]Article, error) {
 	return articles, nil
 }
 
+func (db *DatastoreDB) FindArticleByURL(url string) (*Article, error) {
+	ctx := context.Background()
+
+	query := datastore.NewQuery("Article").FilterField("url", "=", url).Limit(1)
+	var entities []ArticleEntity
+	keys, err := db.client.GetAll(ctx, query, &entities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find article by URL: %w", err)
+	}
+
+	if len(entities) == 0 {
+		return nil, nil // Article not found
+	}
+
+	entity := entities[0]
+	entity.ID = keys[0].ID
+
+	article := Article{
+		ID:          int(entity.ID),
+		FeedID:      int(entity.FeedID),
+		Title:       entity.Title,
+		URL:         entity.URL,
+		Content:     entity.Content,
+		Description: entity.Description,
+		Author:      entity.Author,
+		PublishedAt: entity.PublishedAt,
+		CreatedAt:   entity.CreatedAt,
+		IsRead:      entity.IsRead,
+		IsStarred:   entity.IsStarred,
+	}
+
+	return &article, nil
+}
+
 func (db *DatastoreDB) GetAllArticles() ([]Article, error) {
 	ctx := context.Background()
 

@@ -198,6 +198,8 @@ func main() {
 		api.DELETE("/feeds/:id", feedHandler.DeleteFeed)
 		api.GET("/feeds/:id/articles", feedHandler.GetArticles)
 		api.GET("/feeds/:id/debug", feedHandler.DebugFeed)
+		api.GET("/debug/article", feedHandler.DebugArticleByURL)
+		api.GET("/debug/subscriptions", feedHandler.DebugAllSubscriptions)
 		api.GET("/feeds/unread-counts", feedHandler.GetUnreadCounts)
 		api.GET("/subscription", feedHandler.GetSubscriptionInfo)
 		api.GET("/account/stats", feedHandler.GetAccountStats)
