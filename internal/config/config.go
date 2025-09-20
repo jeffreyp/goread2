@@ -77,8 +77,8 @@ func Load() *Config {
 		Port: getEnvOrDefault("PORT", "8080"),
 
 		// Feed Rate Limiting
-		RateLimitRequestsPerMinute: parseInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 6),
-		RateLimitBurstSize:         parseInt(os.Getenv("RATE_LIMIT_BURST_SIZE"), 1),
+		RateLimitRequestsPerMinute: parseInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 120),
+		RateLimitBurstSize:         parseInt(os.Getenv("RATE_LIMIT_BURST_SIZE"), 30),
 		SchedulerUpdateWindow:      parseDuration(os.Getenv("SCHEDULER_UPDATE_WINDOW"), 6*time.Hour),
 		SchedulerMinInterval:       parseDuration(os.Getenv("SCHEDULER_MIN_INTERVAL"), 30*time.Minute),
 		SchedulerMaxConcurrent:     parseInt(os.Getenv("SCHEDULER_MAX_CONCURRENT"), 10),
