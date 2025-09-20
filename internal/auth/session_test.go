@@ -16,7 +16,7 @@ func (m *mockDB) Close() error                                                  
 func (m *mockDB) CreateUser(*database.User) error                                     { return nil }
 func (m *mockDB) GetUserByGoogleID(string) (*database.User, error)                    { return nil, nil }
 func (m *mockDB) GetUserByID(int) (*database.User, error)                             { return nil, nil }
-func (m *mockDB) UpdateUserSubscription(int, string, string, time.Time) error         { return nil }
+func (m *mockDB) UpdateUserSubscription(int, string, string, time.Time, time.Time) error { return nil }
 func (m *mockDB) IsUserSubscriptionActive(int) (bool, error)                          { return false, nil }
 func (m *mockDB) GetUserFeedCount(int) (int, error)                                   { return 0, nil }
 func (m *mockDB) SetUserAdmin(int, bool) error                                        { return nil }

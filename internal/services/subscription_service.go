@@ -106,6 +106,7 @@ func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*Subscriptio
 		SubscriptionID:  user.SubscriptionID,
 		TrialEndsAt:     user.TrialEndsAt,
 		LastPaymentDate: user.LastPaymentDate,
+		NextBillingDate: user.NextBillingDate,
 		CurrentFeeds:    feedCount,
 		IsActive:        isActive,
 	}
@@ -154,8 +155,8 @@ func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*Subscriptio
 }
 
 // UpdateUserSubscription updates a user's subscription status
-func (ss *SubscriptionService) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error {
-	return ss.db.UpdateUserSubscription(userID, status, subscriptionID, lastPaymentDate)
+func (ss *SubscriptionService) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
+	return ss.db.UpdateUserSubscription(userID, status, subscriptionID, lastPaymentDate, nextBillingDate)
 }
 
 // Admin management methods
@@ -177,6 +178,7 @@ type SubscriptionInfo struct {
 	SubscriptionID     string    `json:"subscription_id"`
 	TrialEndsAt        time.Time `json:"trial_ends_at"`
 	LastPaymentDate    time.Time `json:"last_payment_date"`
+	NextBillingDate    time.Time `json:"next_billing_date"`
 	CurrentFeeds       int       `json:"current_feeds"`
 	FeedLimit          int       `json:"feed_limit"` // -1 for unlimited
 	CanAddFeeds        bool      `json:"can_add_feeds"`

@@ -15,7 +15,7 @@ type Database interface {
 	CreateUser(user *User) error
 	GetUserByGoogleID(googleID string) (*User, error)
 	GetUserByID(userID int) (*User, error)
-	UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error
+	UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error
 	IsUserSubscriptionActive(userID int) (bool, error)
 	GetUserFeedCount(userID int) (int, error)
 
@@ -70,6 +70,7 @@ type User struct {
 	SubscriptionID      string    `json:"subscription_id"`       // Stripe subscription ID
 	TrialEndsAt         time.Time `json:"trial_ends_at"`         // When free trial expires
 	LastPaymentDate     time.Time `json:"last_payment_date"`     // Last successful payment
+	NextBillingDate     time.Time `json:"next_billing_date"`     // Next billing date for active subscriptions
 	IsAdmin             bool      `json:"is_admin"`              // Admin users bypass subscription limits
 	FreeMonthsRemaining int       `json:"free_months_remaining"` // Additional free months granted
 }
@@ -149,6 +150,7 @@ func (db *DB) createTables() error {
 		subscription_id TEXT,
 		trial_ends_at DATETIME,
 		last_payment_date DATETIME,
+		next_billing_date DATETIME,
 		is_admin BOOLEAN DEFAULT 0,
 		free_months_remaining INTEGER DEFAULT 0
 	);`
@@ -271,6 +273,7 @@ func (db *DB) migrateDatabase() error {
 		"ALTER TABLE users ADD COLUMN subscription_id TEXT",
 		"ALTER TABLE users ADD COLUMN trial_ends_at DATETIME",
 		"ALTER TABLE users ADD COLUMN last_payment_date DATETIME",
+		"ALTER TABLE users ADD COLUMN next_billing_date DATETIME",
 		"ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
 		"ALTER TABLE users ADD COLUMN free_months_remaining INTEGER DEFAULT 0",
 	}
@@ -467,11 +470,11 @@ func (db *DB) CreateUser(user *User) error {
 		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30) // 30 days from creation
 	}
 
-	query := `INSERT INTO users (google_id, email, name, avatar, created_at, subscription_status, subscription_id, trial_ends_at, last_payment_date) 
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO users (google_id, email, name, avatar, created_at, subscription_status, subscription_id, trial_ends_at, last_payment_date, next_billing_date)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := db.Exec(query, user.GoogleID, user.Email, user.Name, user.Avatar, user.CreatedAt,
-		user.SubscriptionStatus, user.SubscriptionID, user.TrialEndsAt, user.LastPaymentDate)
+		user.SubscriptionStatus, user.SubscriptionID, user.TrialEndsAt, user.LastPaymentDate, user.NextBillingDate)
 	if err != nil {
 		return err
 	}
@@ -485,10 +488,10 @@ func (db *DB) CreateUser(user *User) error {
 }
 
 func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
-	query := `SELECT id, google_id, email, name, avatar, created_at, 
+	query := `SELECT id, google_id, email, name, avatar, created_at,
 			  COALESCE(subscription_status, 'trial') as subscription_status,
 			  COALESCE(subscription_id, '') as subscription_id,
-			  trial_ends_at, last_payment_date,
+			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
 			  COALESCE(free_months_remaining, 0) as free_months_remaining
 			  FROM users WHERE google_id = ?`
@@ -496,10 +499,11 @@ func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
 	var user User
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
+	var nextBillingDate sql.NullTime
 
 	err := db.QueryRow(query, googleID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
-		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate,
+		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate, &nextBillingDate,
 		&user.IsAdmin, &user.FreeMonthsRemaining)
 	if err != nil {
 		return nil, err
@@ -515,6 +519,10 @@ func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
 
 	if lastPaymentDate.Valid {
 		user.LastPaymentDate = lastPaymentDate.Time
+	}
+
+	if nextBillingDate.Valid {
+		user.NextBillingDate = nextBillingDate.Time
 	}
 
 	return &user, nil
@@ -524,7 +532,7 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 	query := `SELECT id, google_id, email, name, avatar, created_at,
 			  COALESCE(subscription_status, 'trial') as subscription_status,
 			  COALESCE(subscription_id, '') as subscription_id,
-			  trial_ends_at, last_payment_date,
+			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
 			  COALESCE(free_months_remaining, 0) as free_months_remaining
 			  FROM users WHERE id = ?`
@@ -532,10 +540,11 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 	var user User
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
+	var nextBillingDate sql.NullTime
 
 	err := db.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
-		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate,
+		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate, &nextBillingDate,
 		&user.IsAdmin, &user.FreeMonthsRemaining)
 	if err != nil {
 		return nil, err
@@ -551,6 +560,10 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 
 	if lastPaymentDate.Valid {
 		user.LastPaymentDate = lastPaymentDate.Time
+	}
+
+	if nextBillingDate.Valid {
+		user.NextBillingDate = nextBillingDate.Time
 	}
 
 	return &user, nil
@@ -845,12 +858,12 @@ func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
 }
 
 // Subscription management methods
-func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error {
-	fmt.Printf("DEBUG: UpdateUserSubscription - Updating user %d: status=%s, subscriptionID=%s, lastPaymentDate=%v\n", 
-		userID, status, subscriptionID, lastPaymentDate)
-	
-	query := `UPDATE users SET subscription_status = ?, subscription_id = ?, last_payment_date = ? WHERE id = ?`
-	result, err := db.Exec(query, status, subscriptionID, lastPaymentDate, userID)
+func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
+	fmt.Printf("DEBUG: UpdateUserSubscription - Updating user %d: status=%s, subscriptionID=%s, lastPaymentDate=%v, nextBillingDate=%v\n",
+		userID, status, subscriptionID, lastPaymentDate, nextBillingDate)
+
+	query := `UPDATE users SET subscription_status = ?, subscription_id = ?, last_payment_date = ?, next_billing_date = ? WHERE id = ?`
+	result, err := db.Exec(query, status, subscriptionID, lastPaymentDate, nextBillingDate, userID)
 	if err != nil {
 		fmt.Printf("ERROR: UpdateUserSubscription - Query failed: %v\n", err)
 		return err
@@ -928,10 +941,10 @@ func (db *DB) GrantFreeMonths(userID int, months int) error {
 }
 
 func (db *DB) GetUserByEmail(email string) (*User, error) {
-	query := `SELECT id, google_id, email, name, avatar, created_at, 
+	query := `SELECT id, google_id, email, name, avatar, created_at,
 			  COALESCE(subscription_status, 'trial') as subscription_status,
 			  COALESCE(subscription_id, '') as subscription_id,
-			  trial_ends_at, last_payment_date,
+			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
 			  COALESCE(free_months_remaining, 0) as free_months_remaining
 			  FROM users WHERE email = ?`
@@ -939,11 +952,12 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 	var user User
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
+	var nextBillingDate sql.NullTime
 
 	err := db.QueryRow(query, email).Scan(
 		&user.ID, &user.GoogleID, &user.Email, &user.Name, &user.Avatar,
 		&user.CreatedAt, &user.SubscriptionStatus, &user.SubscriptionID,
-		&trialEndsAt, &lastPaymentDate, &user.IsAdmin, &user.FreeMonthsRemaining,
+		&trialEndsAt, &lastPaymentDate, &nextBillingDate, &user.IsAdmin, &user.FreeMonthsRemaining,
 	)
 
 	if err != nil {
@@ -960,6 +974,10 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 
 	if lastPaymentDate.Valid {
 		user.LastPaymentDate = lastPaymentDate.Time
+	}
+
+	if nextBillingDate.Valid {
+		user.NextBillingDate = nextBillingDate.Time
 	}
 
 	return &user, nil

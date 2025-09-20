@@ -54,7 +54,7 @@ func (m *mockDBForSub) GetUserByID(userID int) (*database.User, error) {
 	}
 	return user, nil
 }
-func (m *mockDBForSub) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error {
+func (m *mockDBForSub) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
 	if m.shouldFailUpdate {
 		return errors.New("failed to update subscription")
 	}
@@ -382,7 +382,8 @@ func TestUpdateUserSubscription(t *testing.T) {
 	service := NewSubscriptionService(db)
 
 	testTime := time.Now()
-	err := service.UpdateUserSubscription(1, "active", "sub_123", testTime)
+	nextBillingTime := testTime.AddDate(0, 1, 0) // 1 month from now
+	err := service.UpdateUserSubscription(1, "active", "sub_123", testTime, nextBillingTime)
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -510,7 +511,7 @@ func TestErrorHandling(t *testing.T) {
 		db.shouldFailUpdate = true
 
 		service := NewSubscriptionService(db)
-		err := service.UpdateUserSubscription(1, "active", "sub_123", time.Now())
+		err := service.UpdateUserSubscription(1, "active", "sub_123", time.Now(), time.Now().AddDate(0, 1, 0))
 
 		if err == nil {
 			t.Error("Expected error but got none")

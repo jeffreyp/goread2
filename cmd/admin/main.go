@@ -428,7 +428,7 @@ func setSubscriptionID(subscriptionService *services.SubscriptionService, email,
 	fmt.Printf("New subscription ID: %s\n", subscriptionID)
 
 	// Update subscription ID directly in database
-	err = subscriptionService.UpdateUserSubscription(user.ID, user.SubscriptionStatus, subscriptionID, user.LastPaymentDate)
+	err = subscriptionService.UpdateUserSubscription(user.ID, user.SubscriptionStatus, subscriptionID, user.LastPaymentDate, user.NextBillingDate)
 	if err != nil {
 		log.Fatal("Failed to update subscription ID:", err)
 	}

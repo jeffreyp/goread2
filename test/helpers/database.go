@@ -41,6 +41,7 @@ func createTestTables(db *database.DB) error {
 			subscription_id TEXT,
 			trial_ends_at DATETIME,
 			last_payment_date DATETIME,
+			next_billing_date DATETIME,
 			is_admin BOOLEAN DEFAULT 0,
 			free_months_remaining INTEGER DEFAULT 0
 		)`,

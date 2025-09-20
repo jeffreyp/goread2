@@ -209,12 +209,16 @@ func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error 
 	// Convert Stripe status to our status
 	var status string
 	var lastPaymentDate time.Time
+	var nextBillingDate time.Time
 
 	switch sub.Status {
 	case stripe.SubscriptionStatusActive:
 		status = "active"
 		if sub.CurrentPeriodStart > 0 {
 			lastPaymentDate = time.Unix(sub.CurrentPeriodStart, 0)
+		}
+		if sub.CurrentPeriodEnd > 0 {
+			nextBillingDate = time.Unix(sub.CurrentPeriodEnd, 0)
 		}
 	case stripe.SubscriptionStatusCanceled:
 		status = "cancelled"
@@ -226,10 +230,10 @@ func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error 
 		status = "cancelled"
 	}
 
-	fmt.Printf("DEBUG: HandleSubscriptionUpdate - Mapped status: %s, payment date: %v\n", status, lastPaymentDate)
+	fmt.Printf("DEBUG: HandleSubscriptionUpdate - Mapped status: %s, payment date: %v, next billing: %v\n", status, lastPaymentDate, nextBillingDate)
 
 	// Update user subscription in database
-	err = ps.subscriptionService.UpdateUserSubscription(userID, status, subscriptionID, lastPaymentDate)
+	err = ps.subscriptionService.UpdateUserSubscription(userID, status, subscriptionID, lastPaymentDate, nextBillingDate)
 	if err != nil {
 		fmt.Printf("ERROR: HandleSubscriptionUpdate - Database update failed: %v\n", err)
 		return fmt.Errorf("failed to update user subscription: %w", err)

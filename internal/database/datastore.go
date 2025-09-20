@@ -25,6 +25,7 @@ type UserEntity struct {
 	SubscriptionID      string    `datastore:"subscription_id"`
 	TrialEndsAt         time.Time `datastore:"trial_ends_at"`
 	LastPaymentDate     time.Time `datastore:"last_payment_date"`
+	NextBillingDate     time.Time `datastore:"next_billing_date"`
 	IsAdmin             bool      `datastore:"is_admin"`
 	FreeMonthsRemaining int       `datastore:"free_months_remaining"`
 }
@@ -378,6 +379,7 @@ func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
 		SubscriptionID:      entity.SubscriptionID,
 		TrialEndsAt:         entity.TrialEndsAt,
 		LastPaymentDate:     entity.LastPaymentDate,
+		NextBillingDate:     entity.NextBillingDate,
 		IsAdmin:             entity.IsAdmin,
 		FreeMonthsRemaining: entity.FreeMonthsRemaining,
 	}, nil
@@ -405,6 +407,7 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 		SubscriptionID:      entity.SubscriptionID,
 		TrialEndsAt:         entity.TrialEndsAt,
 		LastPaymentDate:     entity.LastPaymentDate,
+		NextBillingDate:     entity.NextBillingDate,
 		IsAdmin:             entity.IsAdmin,
 		FreeMonthsRemaining: entity.FreeMonthsRemaining,
 	}, nil
@@ -1052,7 +1055,7 @@ func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
 }
 
 // Subscription management methods
-func (db *DatastoreDB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate time.Time) error {
+func (db *DatastoreDB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
 	ctx := context.Background()
 
 	key := datastore.IDKey("User", int64(userID), nil)
@@ -1064,6 +1067,7 @@ func (db *DatastoreDB) UpdateUserSubscription(userID int, status, subscriptionID
 	entity.SubscriptionStatus = status
 	entity.SubscriptionID = subscriptionID
 	entity.LastPaymentDate = lastPaymentDate
+	entity.NextBillingDate = nextBillingDate
 
 	_, err := db.client.Put(ctx, key, &entity)
 	if err != nil {
