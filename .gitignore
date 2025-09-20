@@ -56,3 +56,7 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Build artifacts
+web/static/js/*.min.js
+web/static/css/*.min.css
