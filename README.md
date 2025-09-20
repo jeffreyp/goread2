@@ -41,12 +41,43 @@ export GOOGLE_CLIENT_SECRET="your-client-secret"
 export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
 ```
 
-### 3. Run the Application
+### 3. Build Frontend Assets (Optional)
+For production deployments, build minified frontend assets:
+```bash
+# Install npm dependencies
+npm install
+
+# Build all frontend assets (JS + CSS)
+make build-frontend
+
+# Or build individually
+make build-js    # Build minified JavaScript
+make build-css   # Build minified CSS
+```
+
+### 4. Run the Application
 ```bash
 go run main.go
+# Or use make for development with config validation
+make dev
 ```
 
 Access at [http://localhost:8080](http://localhost:8080) and sign in with Google!
+
+## 🔧 Build System
+
+The project includes a comprehensive Makefile with the following targets:
+
+```bash
+make help              # Show all available commands
+make build             # Build the Go application binary
+make build-frontend    # Build minified JS and CSS assets
+make test              # Run all tests
+make validate-build    # Validate config + build frontend + build app
+make deploy-dev        # Deploy to development environment
+make deploy-prod       # Deploy to production environment
+make clean             # Remove all build artifacts
+```
 
 ## 📚 Documentation
 
