@@ -630,8 +630,20 @@ func (db *DB) SubscribeUserToFeed(userID, feedID int) error {
 }
 
 func (db *DB) UnsubscribeUserFromFeed(userID, feedID int) error {
+	// Remove the user-feed subscription
 	query := `DELETE FROM user_feeds WHERE user_id = ? AND feed_id = ?`
 	_, err := db.Exec(query, userID, feedID)
+	if err != nil {
+		return err
+	}
+
+	// Also remove all user-article relationships for this feed
+	// This ensures when the user re-adds the feed, articles appear as fresh/unread
+	cleanupQuery := `DELETE FROM user_articles
+					 WHERE user_id = ? AND article_id IN (
+						SELECT id FROM articles WHERE feed_id = ?
+					 )`
+	_, err = db.Exec(cleanupQuery, userID, feedID)
 	return err
 }
 

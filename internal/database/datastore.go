@@ -522,11 +522,59 @@ func (db *DatastoreDB) SubscribeUserToFeed(userID, feedID int) error {
 func (db *DatastoreDB) UnsubscribeUserFromFeed(userID, feedID int) error {
 	ctx := context.Background()
 
-	// Use the same composite key format as SubscribeUserToFeed
+	// Remove the user-feed subscription
 	key := datastore.NameKey("UserFeed", fmt.Sprintf("%d_%d", userID, feedID), nil)
 	err := db.client.Delete(ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to delete subscription: %w", err)
+	}
+
+	// Also remove all user-article relationships for this feed
+	// This ensures when the user re-adds the feed, articles appear as fresh/unread
+
+	// First, get all articles for this feed
+	articleQuery := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID)).KeysOnly()
+	articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get articles for feed cleanup: %w", err)
+	}
+
+	// Get all user-article relationships for this user and these articles
+	if len(articleKeys) > 0 {
+		// Process in chunks to avoid datastore query limits
+		chunkSize := 100
+		for i := 0; i < len(articleKeys); i += chunkSize {
+			end := i + chunkSize
+			if end > len(articleKeys) {
+				end = len(articleKeys)
+			}
+
+			chunk := articleKeys[i:end]
+			var userArticleKeys []*datastore.Key
+
+			for _, articleKey := range chunk {
+				articleID := articleKey.ID
+				// Query for user-article relationships with this user and article
+				userArticleQuery := datastore.NewQuery("UserArticle").
+					FilterField("user_id", "=", int64(userID)).
+					FilterField("article_id", "=", articleID).
+					KeysOnly()
+
+				keys, err := db.client.GetAll(ctx, userArticleQuery, nil)
+				if err != nil {
+					continue // Skip errors and continue cleanup
+				}
+				userArticleKeys = append(userArticleKeys, keys...)
+			}
+
+			// Delete the user-article relationships in batches
+			if len(userArticleKeys) > 0 {
+				if err := db.client.DeleteMulti(ctx, userArticleKeys); err != nil {
+					// Log but don't fail - partial cleanup is better than none
+					fmt.Printf("Warning: Failed to delete some user-article relationships: %v\n", err)
+				}
+			}
+		}
 	}
 
 	return nil
