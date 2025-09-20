@@ -119,6 +119,31 @@ func (db *DatastoreDB) AddFeed(feed *Feed) error {
 	return nil
 }
 
+func (db *DatastoreDB) UpdateFeed(feed *Feed) error {
+	ctx := context.Background()
+
+	// Get the existing entity to preserve fields we're not updating
+	key := datastore.IDKey("Feed", int64(feed.ID), nil)
+	var existing FeedEntity
+	err := db.client.Get(ctx, key, &existing)
+	if err != nil {
+		return fmt.Errorf("failed to get existing feed: %w", err)
+	}
+
+	// Update the fields we want to change
+	existing.Title = feed.Title
+	existing.Description = feed.Description
+	existing.UpdatedAt = time.Now()
+
+	// Save the updated entity
+	_, err = db.client.Put(ctx, key, &existing)
+	if err != nil {
+		return fmt.Errorf("failed to update feed: %w", err)
+	}
+
+	return nil
+}
+
 func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 	ctx := context.Background()
 

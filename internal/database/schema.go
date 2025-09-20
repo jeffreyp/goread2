@@ -26,6 +26,7 @@ type Database interface {
 
 	// Feed methods
 	AddFeed(feed *Feed) error
+	UpdateFeed(feed *Feed) error
 	GetFeeds() ([]Feed, error)
 	GetUserFeeds(userID int) ([]Feed, error)
 	GetAllUserFeeds() ([]Feed, error)
@@ -327,6 +328,12 @@ func (db *DB) AddFeed(feed *Feed) error {
 	}
 	feed.ID = int(id)
 	return nil
+}
+
+func (db *DB) UpdateFeed(feed *Feed) error {
+	query := `UPDATE feeds SET title = ?, description = ?, updated_at = ? WHERE id = ?`
+	_, err := db.Exec(query, feed.Title, feed.Description, time.Now(), feed.ID)
+	return err
 }
 
 func (db *DB) GetFeeds() ([]Feed, error) {

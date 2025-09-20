@@ -264,6 +264,17 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		}
 
 		existingFeed = feed
+	} else {
+		// Feed exists, but check if we should enhance the title
+		enhancedTitle := fs.enhanceFeedTitle(fs.cleanDuplicateTitle(existingFeed.Title), feedURL)
+		if enhancedTitle != existingFeed.Title {
+			// Update the feed with the enhanced title
+			existingFeed.Title = enhancedTitle
+			if err := fs.db.UpdateFeed(existingFeed); err != nil {
+				// Log error but don't fail - title enhancement is not critical
+				log.Printf("Failed to update feed title to '%s': %v", enhancedTitle, err)
+			}
+		}
 	}
 
 	// Subscribe user to the feed FIRST
