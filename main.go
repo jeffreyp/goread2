@@ -54,6 +54,11 @@ func main() {
 		CleanupInterval: cfg.SchedulerCleanupInterval,
 	})
 
+	// Start the feed scheduler for automatic staggered updates
+	if err := feedScheduler.Start(); err != nil {
+		log.Printf("Warning: Failed to start feed scheduler: %v", err)
+	}
+
 	// Validate OAuth configuration
 	if err := authService.ValidateConfig(); err != nil {
 		log.Fatal("OAuth configuration error:", err)
