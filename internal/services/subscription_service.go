@@ -101,12 +101,18 @@ func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*Subscriptio
 		return nil, err
 	}
 
+	// Only include NextBillingDate if it's not a zero time value
+	var nextBillingDate *time.Time
+	if !user.NextBillingDate.IsZero() {
+		nextBillingDate = &user.NextBillingDate
+	}
+
 	info := &SubscriptionInfo{
 		Status:          user.SubscriptionStatus,
 		SubscriptionID:  user.SubscriptionID,
 		TrialEndsAt:     user.TrialEndsAt,
 		LastPaymentDate: user.LastPaymentDate,
-		NextBillingDate: user.NextBillingDate,
+		NextBillingDate: nextBillingDate,
 		CurrentFeeds:    feedCount,
 		IsActive:        isActive,
 	}
@@ -174,16 +180,16 @@ func (ss *SubscriptionService) GetUserByEmail(email string) (*database.User, err
 
 // SubscriptionInfo contains all subscription-related information for a user
 type SubscriptionInfo struct {
-	Status             string    `json:"status"`
-	SubscriptionID     string    `json:"subscription_id"`
-	TrialEndsAt        time.Time `json:"trial_ends_at"`
-	LastPaymentDate    time.Time `json:"last_payment_date"`
-	NextBillingDate    time.Time `json:"next_billing_date"`
-	CurrentFeeds       int       `json:"current_feeds"`
-	FeedLimit          int       `json:"feed_limit"` // -1 for unlimited
-	CanAddFeeds        bool      `json:"can_add_feeds"`
-	IsActive           bool      `json:"is_active"`
-	TrialDaysRemaining int       `json:"trial_days_remaining,omitempty"`
+	Status             string     `json:"status"`
+	SubscriptionID     string     `json:"subscription_id"`
+	TrialEndsAt        time.Time  `json:"trial_ends_at"`
+	LastPaymentDate    time.Time  `json:"last_payment_date"`
+	NextBillingDate    *time.Time `json:"next_billing_date,omitempty"`
+	CurrentFeeds       int        `json:"current_feeds"`
+	FeedLimit          int        `json:"feed_limit"` // -1 for unlimited
+	CanAddFeeds        bool       `json:"can_add_feeds"`
+	IsActive           bool       `json:"is_active"`
+	TrialDaysRemaining int        `json:"trial_days_remaining,omitempty"`
 }
 
 // AdminToken represents a secure admin authentication token

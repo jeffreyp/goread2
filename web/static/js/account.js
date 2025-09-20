@@ -447,16 +447,20 @@ class AccountApp {
 
     formatDate(dateString) {
         if (!dateString) return 'N/A';
-        
+
         try {
             const date = new Date(dateString);
+            // Check if the date is invalid or a zero/very old date (before year 1900)
+            if (isNaN(date.getTime()) || date.getFullYear() < 1900) {
+                return 'N/A';
+            }
             return date.toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'
             });
         } catch (error) {
-            return 'Invalid date';
+            return 'N/A';
         }
     }
 
