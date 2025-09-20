@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -379,7 +380,7 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	// Try parsing as RSS 2.0 first
 	var rss RSS
 	if err := xml.Unmarshal(body, &rss); err == nil && rss.XMLName.Local == "rss" {
-		return fs.convertRSSToFeedData(&rss), nil
+		return fs.convertRSSToFeedData(&rss, url), nil
 	}
 
 	// Try parsing as RDF/RSS 1.0
@@ -387,20 +388,20 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	rdfErr := xml.Unmarshal(body, &rdf)
 	if rdfErr == nil {
 		if rdf.XMLName.Local == "RDF" {
-			return fs.convertRDFToFeedData(&rdf), nil
+			return fs.convertRDFToFeedData(&rdf, url), nil
 		}
 	}
 
 	// Try parsing as Atom
 	var atom Atom
 	if err := xml.Unmarshal(body, &atom); err == nil && atom.XMLName.Local == "feed" {
-		return fs.convertAtomToFeedData(&atom), nil
+		return fs.convertAtomToFeedData(&atom, url), nil
 	}
 
 	return nil, fmt.Errorf("unsupported feed format or invalid XML")
 }
 
-func (fs *FeedService) convertRSSToFeedData(rss *RSS) *FeedData {
+func (fs *FeedService) convertRSSToFeedData(rss *RSS, feedURL string) *FeedData {
 	articles := make([]ArticleData, len(rss.Channel.Items))
 	for i, item := range rss.Channel.Items {
 		publishedAt, _ := time.Parse(time.RFC1123Z, item.PubDate)
@@ -419,13 +420,13 @@ func (fs *FeedService) convertRSSToFeedData(rss *RSS) *FeedData {
 	}
 
 	return &FeedData{
-		Title:       fs.cleanDuplicateTitle(rss.Channel.Title),
+		Title:       fs.enhanceFeedTitle(fs.cleanDuplicateTitle(rss.Channel.Title), feedURL),
 		Description: rss.Channel.Description,
 		Articles:    articles,
 	}
 }
 
-func (fs *FeedService) convertRDFToFeedData(rdf *RDF) *FeedData {
+func (fs *FeedService) convertRDFToFeedData(rdf *RDF, feedURL string) *FeedData {
 	articles := make([]ArticleData, len(rdf.Items))
 	for i, item := range rdf.Items {
 		publishedAt, _ := time.Parse(time.RFC3339, item.Date)
@@ -444,13 +445,13 @@ func (fs *FeedService) convertRDFToFeedData(rdf *RDF) *FeedData {
 	}
 
 	return &FeedData{
-		Title:       fs.cleanDuplicateTitle(rdf.Channel.Title),
+		Title:       fs.enhanceFeedTitle(fs.cleanDuplicateTitle(rdf.Channel.Title), feedURL),
 		Description: rdf.Channel.Description,
 		Articles:    articles,
 	}
 }
 
-func (fs *FeedService) convertAtomToFeedData(atom *Atom) *FeedData {
+func (fs *FeedService) convertAtomToFeedData(atom *Atom, feedURL string) *FeedData {
 	articles := make([]ArticleData, len(atom.Entries))
 	for i, entry := range atom.Entries {
 		publishedAt, _ := time.Parse(time.RFC3339, entry.Published)
@@ -483,7 +484,7 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom) *FeedData {
 	}
 
 	return &FeedData{
-		Title:       fs.cleanDuplicateTitle(atom.Title),
+		Title:       fs.enhanceFeedTitle(fs.cleanDuplicateTitle(atom.Title), feedURL),
 		Description: description,
 		Articles:    articles,
 	}
@@ -650,6 +651,45 @@ func (fs *FeedService) cleanDuplicateTitle(title string) string {
 		if firstHalf == secondHalf {
 			return firstHalf
 		}
+	}
+
+	return title
+}
+
+func (fs *FeedService) enhanceFeedTitle(title, feedURL string) string {
+	title = strings.TrimSpace(title)
+
+	// Skip enhancement if title is already descriptive (more than 1 word and doesn't look generic)
+	words := strings.Fields(title)
+	if len(words) > 1 {
+		return title
+	}
+
+	// Check for generic single-word titles that could be enhanced
+	genericTitles := map[string]bool{
+		"blog":    true,
+		"feed":    true,
+		"rss":     true,
+		"news":    true,
+		"posts":   true,
+		"updates": true,
+	}
+
+	if !genericTitles[strings.ToLower(title)] {
+		return title
+	}
+
+	// Extract domain from feed URL for enhancement
+	u, err := url.Parse(feedURL)
+	if err != nil {
+		return title
+	}
+
+	domain := u.Hostname()
+	if domain != "" {
+		// Remove www. prefix for cleaner display
+		domain = strings.TrimPrefix(domain, "www.")
+		return domain
 	}
 
 	return title
