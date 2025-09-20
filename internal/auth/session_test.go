@@ -32,6 +32,7 @@ func (m *mockDB) SubscribeUserToFeed(int, int) error                            
 func (m *mockDB) UnsubscribeUserFromFeed(int, int) error                              { return nil }
 func (m *mockDB) AddArticle(*database.Article) error                                  { return nil }
 func (m *mockDB) GetArticles(int) ([]database.Article, error)                         { return nil, nil }
+func (m *mockDB) FindArticleByURL(string) (*database.Article, error)                  { return nil, nil }
 func (m *mockDB) GetUserArticles(int) ([]database.Article, error)                     { return nil, nil }
 func (m *mockDB) GetUserArticlesPaginated(int, int, int) ([]database.Article, error)  { return nil, nil }
 func (m *mockDB) GetUserFeedArticles(int, int) ([]database.Article, error)            { return nil, nil }
