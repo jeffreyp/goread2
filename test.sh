@@ -27,6 +27,12 @@ print_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
+# Save original environment variables that might interfere with tests
+ORIG_GOOGLE_CLOUD_PROJECT="$GOOGLE_CLOUD_PROJECT"
+
+# Temporarily unset GOOGLE_CLOUD_PROJECT to prevent Secret Manager access during tests
+unset GOOGLE_CLOUD_PROJECT
+
 # Set test environment variables
 export GOOGLE_CLIENT_ID="test_client_id"
 export GOOGLE_CLIENT_SECRET="test_client_secret"
@@ -129,6 +135,11 @@ fi
 
 # Clean up
 rm -f unit_coverage.out integration_coverage.out
+
+# Restore original environment variables
+if [ -n "$ORIG_GOOGLE_CLOUD_PROJECT" ]; then
+    export GOOGLE_CLOUD_PROJECT="$ORIG_GOOGLE_CLOUD_PROJECT"
+fi
 
 echo ""
 echo "🎉 All tests completed successfully!"
