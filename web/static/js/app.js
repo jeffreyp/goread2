@@ -462,16 +462,19 @@ class GoReadApp {
         if (!Array.isArray(this.feeds)) {
             return;
         }
-        
+
         const feedList = document.getElementById('feed-list');
-        
+
         // Remove existing feed items and loading indicator (not the "All" item)
         const existingFeeds = feedList.querySelectorAll('.feed-item:not(.special)');
         const loadingIndicator = feedList.querySelector('.loading');
         existingFeeds.forEach(item => item.remove());
         if (loadingIndicator) loadingIndicator.remove();
-        
-        this.feeds.forEach((feed) => {
+
+        // Sort feeds alphabetically by title
+        const sortedFeeds = [...this.feeds].sort((a, b) => a.title.localeCompare(b.title));
+
+        sortedFeeds.forEach((feed) => {
             // Create main container
             const feedItem = document.createElement('div');
             feedItem.className = 'feed-item';

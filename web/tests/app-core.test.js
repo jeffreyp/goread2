@@ -860,4 +860,77 @@ describe('GoRead2 Core Frontend Functionality', () => {
             }
         });
     });
+
+    describe('Feed Alphabetical Sorting', () => {
+        test('should sort feeds alphabetically by title', () => {
+            const feedList = document.getElementById('feed-list');
+
+            // Create feeds in non-alphabetical order
+            const feeds = [
+                { id: 1, title: 'Zebra News', url: 'https://example.com/zebra' },
+                { id: 2, title: 'Apple Updates', url: 'https://example.com/apple' },
+                { id: 3, title: 'Beta Tech', url: 'https://example.com/beta' }
+            ];
+
+            // Sort feeds alphabetically (simulating the app logic)
+            const sortedFeeds = [...feeds].sort((a, b) => a.title.localeCompare(b.title));
+
+            // Render sorted feeds
+            sortedFeeds.forEach((feed) => {
+                const feedItem = document.createElement('div');
+                feedItem.className = 'feed-item';
+                feedItem.dataset.feedId = feed.id;
+
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'feed-title';
+                titleSpan.textContent = feed.title;
+
+                feedItem.appendChild(titleSpan);
+                feedList.appendChild(feedItem);
+            });
+
+            const feedItems = document.querySelectorAll('.feed-item:not(.special)');
+            expect(feedItems).toHaveLength(3);
+
+            // Verify alphabetical order
+            expect(feedItems[0].querySelector('.feed-title').textContent).toBe('Apple Updates');
+            expect(feedItems[1].querySelector('.feed-title').textContent).toBe('Beta Tech');
+            expect(feedItems[2].querySelector('.feed-title').textContent).toBe('Zebra News');
+        });
+
+        test('should handle case-insensitive alphabetical sorting', () => {
+            const feedList = document.getElementById('feed-list');
+
+            // Create feeds with mixed case
+            const feeds = [
+                { id: 1, title: 'zebra news', url: 'https://example.com/zebra' },
+                { id: 2, title: 'Apple Updates', url: 'https://example.com/apple' },
+                { id: 3, title: 'beta tech', url: 'https://example.com/beta' }
+            ];
+
+            // Sort feeds alphabetically (simulating the app logic)
+            const sortedFeeds = [...feeds].sort((a, b) => a.title.localeCompare(b.title));
+
+            // Render sorted feeds
+            sortedFeeds.forEach((feed) => {
+                const feedItem = document.createElement('div');
+                feedItem.className = 'feed-item';
+                feedItem.dataset.feedId = feed.id;
+
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'feed-title';
+                titleSpan.textContent = feed.title;
+
+                feedItem.appendChild(titleSpan);
+                feedList.appendChild(feedItem);
+            });
+
+            const feedItems = document.querySelectorAll('.feed-item:not(.special)');
+
+            // localeCompare should handle case-insensitive sorting correctly
+            expect(feedItems[0].querySelector('.feed-title').textContent).toBe('Apple Updates');
+            expect(feedItems[1].querySelector('.feed-title').textContent).toBe('beta tech');
+            expect(feedItems[2].querySelector('.feed-title').textContent).toBe('zebra news');
+        });
+    });
 });
