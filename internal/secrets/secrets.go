@@ -44,7 +44,7 @@ func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, er
 	clientSecret = os.Getenv("GOOGLE_CLIENT_SECRET")
 
 	// If they contain secret references, or are empty, fetch from Secret Manager
-	if clientID == "" || clientID[:8] == "_secret:" {
+	if clientID == "" || (len(clientID) >= 8 && clientID[:8] == "_secret:") {
 		secretName := os.Getenv("SECRET_CLIENT_ID_NAME")
 		if secretName == "" {
 			secretName = "google-client-id"
@@ -56,7 +56,7 @@ func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, er
 		}
 	}
 
-	if clientSecret == "" || clientSecret[:8] == "_secret:" {
+	if clientSecret == "" || (len(clientSecret) >= 8 && clientSecret[:8] == "_secret:") {
 		secretName := os.Getenv("SECRET_CLIENT_SECRET_NAME")
 		if secretName == "" {
 			secretName = "google-client-secret"

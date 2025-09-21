@@ -62,6 +62,12 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 		return []string{normalizedURL}, nil
 	}
 
+	// Check for Mastodon-style feeds first (e.g., https://mastodon.social/@username.rss)
+	mastodonFeeds := fd.tryMastodonFeedPaths(normalizedURL)
+	if len(mastodonFeeds) > 0 {
+		return mastodonFeeds, nil
+	}
+
 	// Try common feed paths (faster and more reliable than checking the main URL)
 	commonFeeds := fd.tryCommonFeedPaths(normalizedURL)
 	if len(commonFeeds) > 0 {
@@ -249,6 +255,55 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 		// If we found feeds with the first scheme (HTTPS), don't try HTTP
 		if len(validFeeds) > 0 {
 			break
+		}
+	}
+
+	return validFeeds
+}
+
+// tryMastodonFeedPaths tries Mastodon-style RSS feeds (e.g., @username.rss)
+func (fd *FeedDiscovery) tryMastodonFeedPaths(baseURL string) []string {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return nil
+	}
+
+	// Check if this looks like a Mastodon user profile URL (contains @username pattern)
+	path := parsedURL.Path
+	if !strings.Contains(path, "/@") {
+		return nil
+	}
+
+	// Try adding .rss to the end of the URL for Mastodon-style feeds
+	schemes := []string{"https", "http"}
+	var validFeeds []string
+
+	for _, scheme := range schemes {
+		feedURL := scheme + "://" + parsedURL.Host + path + ".rss"
+
+		// Quick check if URL returns 200 with short timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
+		if err != nil {
+			cancel()
+			continue
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
+
+		resp, err := fd.client.Do(req)
+		cancel()
+
+		if err != nil {
+			continue
+		}
+
+		if resp != nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == 200 {
+				validFeeds = append(validFeeds, feedURL)
+				// Stop after finding the first working feed for faster discovery
+				break
+			}
 		}
 	}
 

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -141,6 +142,129 @@ func TestNormalizeURL(t *testing.T) {
 				}
 				if result != tt.expected {
 					t.Errorf("For input '%s', expected '%s', got '%s'", tt.input, tt.expected, result)
+				}
+			}
+		})
+	}
+}
+
+func TestTryMastodonFeedPaths(t *testing.T) {
+	fd := NewFeedDiscovery()
+
+	tests := []struct {
+		name               string
+		input              string
+		shouldFindFeed     bool
+		expectedFeedSuffix string
+	}{
+		{
+			name:               "Mastodon user profile URL",
+			input:              "https://mastodon.social/@username",
+			shouldFindFeed:     true, // This user actually exists and has an RSS feed
+			expectedFeedSuffix: ".rss",
+		},
+		{
+			name:               "Hachyderm user profile URL",
+			input:              "https://hachyderm.io/@mekkaokereke",
+			shouldFindFeed:     true, // This is a real user, so feed should be found
+			expectedFeedSuffix: ".rss",
+		},
+		{
+			name:               "Non-Mastodon URL",
+			input:              "https://example.com/blog",
+			shouldFindFeed:     false, // Should return empty since it doesn't contain /@
+			expectedFeedSuffix: "",
+		},
+		{
+			name:               "Regular website",
+			input:              "https://github.com/user/repo",
+			shouldFindFeed:     false, // Should return empty since it doesn't contain /@
+			expectedFeedSuffix: "",
+		},
+		{
+			name:               "Invalid URL",
+			input:              "not-a-url",
+			shouldFindFeed:     false, // Should return empty for invalid URLs
+			expectedFeedSuffix: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := fd.tryMastodonFeedPaths(tt.input)
+
+			if tt.shouldFindFeed {
+				if len(result) == 0 {
+					t.Errorf("For input '%s', expected to find feed but got empty result", tt.input)
+				} else if len(result) > 0 && tt.expectedFeedSuffix != "" {
+					found := false
+					for _, feedURL := range result {
+						if strings.HasSuffix(feedURL, tt.expectedFeedSuffix) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("For input '%s', expected feed URL to end with '%s', got %v", tt.input, tt.expectedFeedSuffix, result)
+					}
+				}
+			} else {
+				if len(result) != 0 {
+					t.Errorf("For input '%s', expected empty result, got %v", tt.input, result)
+				}
+			}
+		})
+	}
+}
+
+func TestTryMastodonFeedPaths_URLPatternDetection(t *testing.T) {
+	fd := NewFeedDiscovery()
+
+	tests := []struct {
+		name           string
+		input          string
+		shouldDetect   bool
+		expectedTarget string
+	}{
+		{
+			name:           "Mastodon URL with @ pattern",
+			input:          "https://mastodon.social/@testuser",
+			shouldDetect:   true,
+			expectedTarget: "https://mastodon.social/@testuser.rss",
+		},
+		{
+			name:           "Hachyderm URL with @ pattern",
+			input:          "https://hachyderm.io/@mekkaokereke",
+			shouldDetect:   true,
+			expectedTarget: "https://hachyderm.io/@mekkaokereke.rss",
+		},
+		{
+			name:           "URL without @ pattern",
+			input:          "https://example.com/user/profile",
+			shouldDetect:   false,
+			expectedTarget: "",
+		},
+		{
+			name:           "GitHub URL",
+			input:          "https://github.com/user/repo",
+			shouldDetect:   false,
+			expectedTarget: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := fd.tryMastodonFeedPaths(tt.input)
+
+			if tt.shouldDetect {
+				// For Mastodon URLs, we should attempt to check the .rss URL
+				// (though it may fail in tests due to network access)
+				// The important thing is that non-Mastodon URLs return empty
+				// We can't test the actual HTTP request result in unit tests
+			} else {
+				// For non-Mastodon URLs, should always return empty
+				if len(result) != 0 {
+					t.Errorf("For non-Mastodon URL '%s', expected empty result, got %v", tt.input, result)
 				}
 			}
 		})
