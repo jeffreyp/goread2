@@ -183,13 +183,33 @@ func TestValidateConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			db := newMockDBForAuth()
 
+			// Save original environment variables
+			origClientID := os.Getenv("GOOGLE_CLIENT_ID")
+			origClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+			origRedirectURL := os.Getenv("GOOGLE_REDIRECT_URL")
+
+			// Set test environment variables
 			_ = os.Setenv("GOOGLE_CLIENT_ID", tt.clientID)
 			_ = os.Setenv("GOOGLE_CLIENT_SECRET", tt.clientSecret)
 			_ = os.Setenv("GOOGLE_REDIRECT_URL", tt.redirectURL)
+
+			// Restore original environment variables after test
 			defer func() {
-				_ = os.Unsetenv("GOOGLE_CLIENT_ID")
-				_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
-				_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
+				if origClientID != "" {
+					_ = os.Setenv("GOOGLE_CLIENT_ID", origClientID)
+				} else {
+					_ = os.Unsetenv("GOOGLE_CLIENT_ID")
+				}
+				if origClientSecret != "" {
+					_ = os.Setenv("GOOGLE_CLIENT_SECRET", origClientSecret)
+				} else {
+					_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
+				}
+				if origRedirectURL != "" {
+					_ = os.Setenv("GOOGLE_REDIRECT_URL", origRedirectURL)
+				} else {
+					_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
+				}
 			}()
 
 			authService := NewAuthService(db)
