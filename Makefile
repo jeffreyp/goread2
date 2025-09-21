@@ -1,10 +1,18 @@
-.PHONY: build test validate-config deploy-dev deploy-prod clean build-js build-css build-frontend help
+.PHONY: all build test validate-config deploy-dev deploy-prod clean build-js build-css build-frontend help
+
+# Default target - build everything
+all: build-frontend build test
+	@echo "✅ Complete build finished successfully!"
+
+# Default target when just typing 'make'
+.DEFAULT_GOAL := all
 
 # Show help information
 help:
 	@echo "🛠️  GoRead2 Build System"
 	@echo ""
 	@echo "Available targets:"
+	@echo "  all                Build frontend, service, and run tests (default)"
 	@echo "  build              Build the Go application binary"
 	@echo "  build-js           Build minified JavaScript files"
 	@echo "  build-css          Build minified CSS files"
