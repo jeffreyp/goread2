@@ -9,6 +9,7 @@ A modern, multi-user RSS reader inspired by Google Reader, built with Go and fea
 - **Multi-user support** with Google OAuth authentication
 - **Three-pane layout** (feeds → articles → content) like Google Reader
 - **RSS/Atom feed support** with OPML import capability
+- **Smart article import** with configurable limits to prevent overload
 - **Real-time updates** with background polling every 30 minutes
 - **Per-user article management** (read/unread, starred status)
 - **Subscription system** with 30-day free trial and Stripe integration

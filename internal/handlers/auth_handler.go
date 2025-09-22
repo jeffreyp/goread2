@@ -98,10 +98,11 @@ func (ah *AuthHandler) Me(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":     user.ID,
-			"email":  user.Email,
-			"name":   user.Name,
-			"avatar": user.Avatar,
+			"id":                        user.ID,
+			"email":                     user.Email,
+			"name":                      user.Name,
+			"avatar":                    user.Avatar,
+			"max_articles_on_feed_add":  user.MaxArticlesOnFeedAdd,
 		},
 	})
 }

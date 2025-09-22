@@ -72,6 +72,13 @@ func (m *mockDBForAuth) SetUserAdmin(userID int, isAdmin bool) error {
 	return nil
 }
 
+func (m *mockDBForAuth) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles int) error {
+	if user, exists := m.usersByID[userID]; exists {
+		user.MaxArticlesOnFeedAdd = maxArticles
+	}
+	return nil
+}
+
 func TestNewAuthService(t *testing.T) {
 	db := newMockDBForAuth()
 

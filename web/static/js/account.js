@@ -61,6 +61,7 @@ class AccountApp {
         await Promise.all([
             this.loadProfile(),
             this.loadSubscriptionInfo(),
+            this.loadSettings(),
             this.loadUsageStats()
         ]);
     }
@@ -270,6 +271,93 @@ class AccountApp {
                 </div>
             </div>
         `;
+    }
+
+    async loadSettings() {
+        const settingsElement = document.getElementById('settings-container');
+
+        if (this.user) {
+            const maxArticles = this.user.max_articles_on_feed_add || 100;
+
+            settingsElement.innerHTML = `
+                <div class="settings-card fade-in">
+                    <div class="setting-item">
+                        <label for="max-articles-input">
+                            <strong>Maximum articles to import when adding a new feed:</strong>
+                            <div class="setting-description">
+                                Limit the number of articles imported when subscribing to a new feed.
+                                Set to 0 for unlimited. Higher numbers may slow down feed addition.
+                            </div>
+                        </label>
+                        <div class="setting-control">
+                            <input type="number"
+                                   id="max-articles-input"
+                                   value="${maxArticles}"
+                                   min="0"
+                                   max="10000"
+                                   step="1">
+                            <button id="save-max-articles" class="btn btn-primary">Save</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Bind save button event
+            const saveButton = document.getElementById('save-max-articles');
+            if (saveButton) {
+                saveButton.addEventListener('click', () => this.saveMaxArticlesSetting());
+            }
+        } else {
+            settingsElement.innerHTML = '<div class="error">Failed to load settings.</div>';
+        }
+    }
+
+    async saveMaxArticlesSetting() {
+        const input = document.getElementById('max-articles-input');
+        const saveButton = document.getElementById('save-max-articles');
+
+        if (!input || !saveButton) return;
+
+        const maxArticles = parseInt(input.value, 10);
+
+        if (isNaN(maxArticles) || maxArticles < 0 || maxArticles > 10000) {
+            alert('Please enter a valid number between 0 and 10000');
+            return;
+        }
+
+        try {
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+
+            const response = await fetch('/api/account/max-articles', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ max_articles: maxArticles })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                // Update the user object
+                this.user.max_articles_on_feed_add = maxArticles;
+
+                // Show success message
+                saveButton.textContent = 'Saved!';
+                setTimeout(() => {
+                    saveButton.textContent = 'Save';
+                    saveButton.disabled = false;
+                }, 2000);
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to save setting');
+            }
+        } catch (error) {
+            console.error('Error saving max articles setting:', error);
+            alert('Failed to save setting. Please try again.');
+            saveButton.textContent = 'Save';
+            saveButton.disabled = false;
+        }
     }
 
     async loadUsageStats() {

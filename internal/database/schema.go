@@ -18,6 +18,7 @@ type Database interface {
 	UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error
 	IsUserSubscriptionActive(userID int) (bool, error)
 	GetUserFeedCount(userID int) (int, error)
+	UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles int) error
 
 	// Admin methods
 	SetUserAdmin(userID int, isAdmin bool) error
@@ -75,6 +76,7 @@ type User struct {
 	NextBillingDate     time.Time `json:"next_billing_date"`     // Next billing date for active subscriptions
 	IsAdmin             bool      `json:"is_admin"`              // Admin users bypass subscription limits
 	FreeMonthsRemaining int       `json:"free_months_remaining"` // Additional free months granted
+	MaxArticlesOnFeedAdd int      `json:"max_articles_on_feed_add"` // Max articles to import when adding a new feed (0 = unlimited)
 }
 
 type Feed struct {
@@ -154,7 +156,8 @@ func (db *DB) createTables() error {
 		last_payment_date DATETIME,
 		next_billing_date DATETIME,
 		is_admin BOOLEAN DEFAULT 0,
-		free_months_remaining INTEGER DEFAULT 0
+		free_months_remaining INTEGER DEFAULT 0,
+		max_articles_on_feed_add INTEGER DEFAULT 100
 	);`
 
 	feedsTable := `
@@ -278,6 +281,7 @@ func (db *DB) migrateDatabase() error {
 		"ALTER TABLE users ADD COLUMN next_billing_date DATETIME",
 		"ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
 		"ALTER TABLE users ADD COLUMN free_months_remaining INTEGER DEFAULT 0",
+		"ALTER TABLE users ADD COLUMN max_articles_on_feed_add INTEGER DEFAULT 100",
 	}
 
 	for _, alterQuery := range allColumns {
@@ -499,12 +503,15 @@ func (db *DB) CreateUser(user *User) error {
 	if user.TrialEndsAt.IsZero() {
 		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30) // 30 days from creation
 	}
+	if user.MaxArticlesOnFeedAdd == 0 {
+		user.MaxArticlesOnFeedAdd = 100 // Default to 100 articles
+	}
 
-	query := `INSERT INTO users (google_id, email, name, avatar, created_at, subscription_status, subscription_id, trial_ends_at, last_payment_date, next_billing_date)
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO users (google_id, email, name, avatar, created_at, subscription_status, subscription_id, trial_ends_at, last_payment_date, next_billing_date, max_articles_on_feed_add)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := db.Exec(query, user.GoogleID, user.Email, user.Name, user.Avatar, user.CreatedAt,
-		user.SubscriptionStatus, user.SubscriptionID, user.TrialEndsAt, user.LastPaymentDate, user.NextBillingDate)
+		user.SubscriptionStatus, user.SubscriptionID, user.TrialEndsAt, user.LastPaymentDate, user.NextBillingDate, user.MaxArticlesOnFeedAdd)
 	if err != nil {
 		return err
 	}
@@ -523,7 +530,8 @@ func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
 			  COALESCE(subscription_id, '') as subscription_id,
 			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
-			  COALESCE(free_months_remaining, 0) as free_months_remaining
+			  COALESCE(free_months_remaining, 0) as free_months_remaining,
+			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add
 			  FROM users WHERE google_id = ?`
 
 	var user User
@@ -534,7 +542,7 @@ func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
 	err := db.QueryRow(query, googleID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
 		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate, &nextBillingDate,
-		&user.IsAdmin, &user.FreeMonthsRemaining)
+		&user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd)
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +572,8 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 			  COALESCE(subscription_id, '') as subscription_id,
 			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
-			  COALESCE(free_months_remaining, 0) as free_months_remaining
+			  COALESCE(free_months_remaining, 0) as free_months_remaining,
+			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add
 			  FROM users WHERE id = ?`
 
 	var user User
@@ -575,7 +584,7 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 	err := db.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
 		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate, &nextBillingDate,
-		&user.IsAdmin, &user.FreeMonthsRemaining)
+		&user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd)
 	if err != nil {
 		return nil, err
 	}
@@ -968,6 +977,12 @@ func (db *DB) GetUserFeedCount(userID int) (int, error) {
 	return count, err
 }
 
+func (db *DB) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles int) error {
+	query := `UPDATE users SET max_articles_on_feed_add = ? WHERE id = ?`
+	_, err := db.Exec(query, maxArticles, userID)
+	return err
+}
+
 // Admin management methods
 func (db *DB) SetUserAdmin(userID int, isAdmin bool) error {
 	query := `UPDATE users SET is_admin = ? WHERE id = ?`
@@ -988,7 +1003,8 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 			  COALESCE(subscription_id, '') as subscription_id,
 			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
-			  COALESCE(free_months_remaining, 0) as free_months_remaining
+			  COALESCE(free_months_remaining, 0) as free_months_remaining,
+			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add
 			  FROM users WHERE email = ?`
 
 	var user User
@@ -999,7 +1015,7 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 	err := db.QueryRow(query, email).Scan(
 		&user.ID, &user.GoogleID, &user.Email, &user.Name, &user.Avatar,
 		&user.CreatedAt, &user.SubscriptionStatus, &user.SubscriptionID,
-		&trialEndsAt, &lastPaymentDate, &nextBillingDate, &user.IsAdmin, &user.FreeMonthsRemaining,
+		&trialEndsAt, &lastPaymentDate, &nextBillingDate, &user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd,
 	)
 
 	if err != nil {

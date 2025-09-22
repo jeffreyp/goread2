@@ -203,6 +203,7 @@ func main() {
 		api.GET("/feeds/unread-counts", feedHandler.GetUnreadCounts)
 		api.GET("/subscription", feedHandler.GetSubscriptionInfo)
 		api.GET("/account/stats", feedHandler.GetAccountStats)
+		api.PUT("/account/max-articles", feedHandler.UpdateMaxArticlesOnFeedAdd)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
 		api.POST("/feeds/refresh", feedHandler.RefreshFeeds) // Keep for authenticated manual refresh

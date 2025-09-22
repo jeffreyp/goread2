@@ -28,6 +28,7 @@ type UserEntity struct {
 	NextBillingDate     time.Time `datastore:"next_billing_date"`
 	IsAdmin             bool      `datastore:"is_admin"`
 	FreeMonthsRemaining int       `datastore:"free_months_remaining"`
+	MaxArticlesOnFeedAdd int      `datastore:"max_articles_on_feed_add"`
 }
 
 type UserFeedEntity struct {
@@ -387,17 +388,24 @@ func (db *DatastoreDB) CreateUser(user *User) error {
 	if user.TrialEndsAt.IsZero() {
 		user.TrialEndsAt = user.CreatedAt.AddDate(0, 0, 30) // 30 days from creation
 	}
+	if user.MaxArticlesOnFeedAdd == 0 {
+		user.MaxArticlesOnFeedAdd = 100 // Default to 100 articles
+	}
 
 	entity := &UserEntity{
-		GoogleID:           user.GoogleID,
-		Email:              user.Email,
-		Name:               user.Name,
-		Avatar:             user.Avatar,
-		CreatedAt:          user.CreatedAt,
-		SubscriptionStatus: user.SubscriptionStatus,
-		SubscriptionID:     user.SubscriptionID,
-		TrialEndsAt:        user.TrialEndsAt,
-		LastPaymentDate:    user.LastPaymentDate,
+		GoogleID:            user.GoogleID,
+		Email:               user.Email,
+		Name:                user.Name,
+		Avatar:              user.Avatar,
+		CreatedAt:           user.CreatedAt,
+		SubscriptionStatus:  user.SubscriptionStatus,
+		SubscriptionID:      user.SubscriptionID,
+		TrialEndsAt:         user.TrialEndsAt,
+		LastPaymentDate:     user.LastPaymentDate,
+		NextBillingDate:     user.NextBillingDate,
+		IsAdmin:             user.IsAdmin,
+		FreeMonthsRemaining: user.FreeMonthsRemaining,
+		MaxArticlesOnFeedAdd: user.MaxArticlesOnFeedAdd,
 	}
 
 	key := datastore.IncompleteKey("User", nil)
@@ -427,6 +435,11 @@ func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
 	entity := entities[0]
 	entity.ID = keys[0].ID
 
+	maxArticles := entity.MaxArticlesOnFeedAdd
+	if maxArticles == 0 {
+		maxArticles = 100 // Default for existing users
+	}
+
 	return &User{
 		ID:                  int(entity.ID),
 		GoogleID:            entity.GoogleID,
@@ -441,6 +454,7 @@ func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
 		NextBillingDate:     entity.NextBillingDate,
 		IsAdmin:             entity.IsAdmin,
 		FreeMonthsRemaining: entity.FreeMonthsRemaining,
+		MaxArticlesOnFeedAdd: maxArticles,
 	}, nil
 }
 
@@ -455,6 +469,11 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 
 	entity.ID = int64(userID)
 
+	maxArticles := entity.MaxArticlesOnFeedAdd
+	if maxArticles == 0 {
+		maxArticles = 100 // Default for existing users
+	}
+
 	return &User{
 		ID:                  int(entity.ID),
 		GoogleID:            entity.GoogleID,
@@ -469,6 +488,7 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 		NextBillingDate:     entity.NextBillingDate,
 		IsAdmin:             entity.IsAdmin,
 		FreeMonthsRemaining: entity.FreeMonthsRemaining,
+		MaxArticlesOnFeedAdd: maxArticles,
 	}, nil
 }
 
@@ -1297,6 +1317,11 @@ func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 	user := users[0]
 	user.ID = keys[0].ID
 
+	maxArticles := user.MaxArticlesOnFeedAdd
+	if maxArticles == 0 {
+		maxArticles = 100 // Default for existing users
+	}
+
 	return &User{
 		ID:                  int(user.ID),
 		GoogleID:            user.GoogleID,
@@ -1308,7 +1333,9 @@ func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 		SubscriptionID:      user.SubscriptionID,
 		TrialEndsAt:         user.TrialEndsAt,
 		LastPaymentDate:     user.LastPaymentDate,
+		NextBillingDate:     user.NextBillingDate,
 		IsAdmin:             user.IsAdmin,
 		FreeMonthsRemaining: user.FreeMonthsRemaining,
+		MaxArticlesOnFeedAdd: maxArticles,
 	}, nil
 }

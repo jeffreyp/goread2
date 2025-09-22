@@ -546,3 +546,30 @@ func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, stats)
 }
+
+func (fh *FeedHandler) UpdateMaxArticlesOnFeedAdd(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	var req struct {
+		MaxArticles int `json:"max_articles" binding:"required,min=0,max=10000"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := fh.feedService.UpdateUserMaxArticlesOnFeedAdd(user.ID, req.MaxArticles); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Setting updated successfully",
+		"max_articles": req.MaxArticles,
+	})
+}

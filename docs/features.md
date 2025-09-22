@@ -48,6 +48,20 @@ On mobile devices, use the bottom navigation bar to switch between panes:
 3. GoRead2 will automatically discover the RSS feed
 4. The new feed appears in your feed list with recent articles
 
+### Article Import Limits
+When subscribing to a new feed, GoRead2 intelligently limits the number of articles imported to improve performance:
+
+- **Default**: 100 most recent articles are imported as unread
+- **Configurable**: Change this limit in Account Settings (0-10,000 articles)
+- **Setting 0**: Import unlimited articles (use carefully with large feeds)
+- **Purpose**: Prevents overwhelming your reading list with thousands of old articles
+
+To adjust your import limit:
+1. Go to `/account` or click your profile
+2. Find the "Settings" section
+3. Set your preferred "Maximum articles to import when adding a new feed"
+4. Click "Save" to apply the setting
+
 ### OPML Import
 Import feeds from other RSS readers:
 1. Click "Import OPML" in the header

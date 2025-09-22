@@ -342,6 +342,12 @@ func (fs *FeedService) GetUserUnreadCounts(userID int) (map[int]int, error) {
 }
 
 func (fs *FeedService) markExistingArticlesAsUnreadForUser(userID, feedID int) error {
+	// Get user's preference for max articles on feed addition
+	user, err := fs.db.GetUserByID(userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user %d: %w", userID, err)
+	}
+
 	// Get all articles in this feed
 	articles, err := fs.db.GetArticles(feedID)
 	if err != nil {
@@ -352,8 +358,22 @@ func (fs *FeedService) markExistingArticlesAsUnreadForUser(userID, feedID int) e
 		return nil
 	}
 
+	// Limit articles based on user preference (0 means unlimited)
+	articlesToMark := articles
+	if user.MaxArticlesOnFeedAdd > 0 && len(articles) > user.MaxArticlesOnFeedAdd {
+		// Sort by published date (most recent first) and take the limit
+		// Articles should already be sorted by published_at DESC from GetArticles
+		articlesToMark = articles[:user.MaxArticlesOnFeedAdd]
+		log.Printf("User %d: Limited to %d most recent articles out of %d total for feed %d",
+			userID, user.MaxArticlesOnFeedAdd, len(articles), feedID)
+	}
+
 	// Use batch insert for better performance
-	return fs.db.BatchSetUserArticleStatus(userID, articles, false, false) // unread, unstarred
+	return fs.db.BatchSetUserArticleStatus(userID, articlesToMark, false, false) // unread, unstarred
+}
+
+func (fs *FeedService) UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles int) error {
+	return fs.db.UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles)
 }
 
 func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {

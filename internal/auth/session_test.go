@@ -44,6 +44,7 @@ func (m *mockDB) ToggleUserArticleStar(int, int) error                          
 func (m *mockDB) GetUserUnreadCounts(int) (map[int]int, error)                        { return nil, nil }
 func (m *mockDB) GetAllArticles() ([]database.Article, error)                         { return nil, nil }
 func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error                            { return nil }
+func (m *mockDB) UpdateUserMaxArticlesOnFeedAdd(int, int) error                       { return nil }
 
 func TestNewSessionManager(t *testing.T) {
 	db := &mockDB{}

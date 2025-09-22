@@ -131,6 +131,7 @@ func (m *mockDBForSub) ToggleUserArticleStar(int, int) error         { return ni
 func (m *mockDBForSub) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
 func (m *mockDBForSub) GetAllArticles() ([]database.Article, error)  { return nil, nil }
 func (m *mockDBForSub) UpdateFeedLastFetch(int, time.Time) error     { return nil }
+func (m *mockDBForSub) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
 
 func TestNewSubscriptionService(t *testing.T) {
 	db := newMockDBForSub()

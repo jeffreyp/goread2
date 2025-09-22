@@ -61,7 +61,8 @@ Get current authenticated user information.
   "avatar": "https://lh3.googleusercontent.com/...",
   "created_at": "2023-01-01T00:00:00Z",
   "subscription_status": "trial",
-  "is_admin": false
+  "is_admin": false,
+  "max_articles_on_feed_add": 100
 }
 ```
 
@@ -442,6 +443,40 @@ Get detailed account statistics.
 curl "http://localhost:8080/api/account/stats" \
   -H "Cookie: session=your-session-cookie"
 ```
+
+### `PUT /api/account/max-articles`
+Update the maximum number of articles to import when adding a new feed.
+
+**Request Body**:
+```json
+{
+  "max_articles": 100
+}
+```
+
+**Parameters**:
+- `max_articles` (integer, required) - Maximum articles to import (0-10000, where 0 = unlimited)
+
+**Response**:
+```json
+{
+  "message": "Setting updated successfully",
+  "max_articles": 100
+}
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8080/api/account/max-articles" \
+  -H "Cookie: session=your-session-cookie" \
+  -H "Content-Type: application/json" \
+  -d '{"max_articles": 250}'
+```
+
+**Error Responses**:
+- `400 Bad Request` - Invalid max_articles value (outside 0-10000 range)
+- `401 Unauthorized` - Not authenticated
+- `500 Internal Server Error` - Database error
 
 ## Webhook Endpoints
 
