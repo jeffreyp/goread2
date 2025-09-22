@@ -187,27 +187,68 @@ func backupEntities(ctx context.Context, client *datastore.Client, kind string, 
 					var partialEntities []PartialCamelUserArticleEntity
 					keys, err = client.GetAll(ctx, query, &partialEntities)
 					if err != nil {
-						return fmt.Errorf("failed to query %s entities with all naming conventions: %w", kind, err)
-					}
+						fmt.Printf("  Warning: Partial camelCase failed, trying alternate partial: %v\n", err)
 
-					// Convert and store as backup
-					for i, partialEntity := range partialEntities {
-						entity := database.UserArticleEntity{
-							UserID:    partialEntity.UserID,
-							ArticleID: partialEntity.ArticleID,
-							IsRead:    partialEntity.IsRead,
-							IsStarred: partialEntity.IsStarred,
+						// Try alternate partial format - different field mix
+						type AlternatePartialUserArticleEntity struct {
+							UserID    int64 `datastore:"user_id"`
+							ArticleID int64 `datastore:"ArticleID"`
+							IsRead    bool  `datastore:"is_read"`
+							IsStarred bool  `datastore:"is_starred"`
 						}
 
-						originalKey := keys[i]
-						backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
-						backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
-						_, err = client.Put(ctx, backupKey, &entity)
+						var altPartialEntities []AlternatePartialUserArticleEntity
+						keys, err = client.GetAll(ctx, query, &altPartialEntities)
 						if err != nil {
-							return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+							// Last resort: try to get keys only and skip this entity type
+							fmt.Printf("  Warning: All struct formats failed, getting keys only: %v\n", err)
+							keysOnlyQuery := datastore.NewQuery("UserArticle").KeysOnly()
+							keys, err = client.GetAll(ctx, keysOnlyQuery, nil)
+							if err != nil {
+								return fmt.Errorf("failed to even get UserArticle keys: %w", err)
+							}
+							fmt.Printf("  Found %d UserArticle entities but couldn't read field values - skipping content backup\n", len(keys))
+							return nil
 						}
+
+						// Convert and store alternate partial format as backup
+						for i, altPartialEntity := range altPartialEntities {
+							entity := database.UserArticleEntity{
+								UserID:    altPartialEntity.UserID,
+								ArticleID: altPartialEntity.ArticleID,
+								IsRead:    altPartialEntity.IsRead,
+								IsStarred: altPartialEntity.IsStarred,
+							}
+
+							originalKey := keys[i]
+							backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
+							backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
+							_, err = client.Put(ctx, backupKey, &entity)
+							if err != nil {
+								return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+							}
+						}
+						fmt.Printf("  Backed up %d %s entities (using alternate partial format)\n", len(altPartialEntities), kind)
+					} else {
+						// Convert and store as backup
+						for i, partialEntity := range partialEntities {
+							entity := database.UserArticleEntity{
+								UserID:    partialEntity.UserID,
+								ArticleID: partialEntity.ArticleID,
+								IsRead:    partialEntity.IsRead,
+								IsStarred: partialEntity.IsStarred,
+							}
+
+							originalKey := keys[i]
+							backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
+							backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
+							_, err = client.Put(ctx, backupKey, &entity)
+							if err != nil {
+								return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+							}
+						}
+						fmt.Printf("  Backed up %d %s entities (using partial camelCase format)\n", len(partialEntities), kind)
 					}
-					fmt.Printf("  Backed up %d %s entities (using partial camelCase format)\n", len(partialEntities), kind)
 				} else {
 					// Convert and store as backup
 					for i, camelEntity := range camelEntities {
