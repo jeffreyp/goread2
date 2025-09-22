@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"cloud.google.com/go/datastore"
 	"goread2/internal/database"
@@ -73,12 +72,10 @@ func backupEntities(ctx context.Context, client *datastore.Client, kind string, 
 
 	// Query all entities of this kind
 	query := datastore.NewQuery(kind)
-	var entities []interface{}
 
 	// Use appropriate entity type
 	switch kind {
 	case "User":
-		entities = make([]interface{}, 0)
 		var userEntities []database.UserEntity
 		keys, err := client.GetAll(ctx, query, &userEntities)
 		if err != nil {
