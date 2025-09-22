@@ -42,8 +42,8 @@ func main() {
 func setupTestDatabase() {
 	fmt.Println("🧪 Setting up test database with orphaned data...")
 
-	// Remove existing test database
-	os.Remove("test_cleanup.db")
+	// Remove existing database files
+	os.Remove("goread2.db") // InitDB creates this file
 
 	// Set environment to use SQLite for testing
 	originalProject := os.Getenv("GOOGLE_CLOUD_PROJECT")
