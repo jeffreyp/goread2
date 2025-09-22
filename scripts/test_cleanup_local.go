@@ -3,11 +3,9 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"goread2/internal/database"
@@ -47,22 +45,30 @@ func setupTestDatabase() {
 	// Remove existing test database
 	os.Remove("test_cleanup.db")
 
-	// Create new database connection
-	db, err := sql.Open("sqlite3", "test_cleanup.db")
-	if err != nil {
-		log.Fatal("Failed to open database:", err)
-	}
-	defer db.Close()
+	// Set environment to use SQLite for testing
+	originalProject := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	os.Unsetenv("GOOGLE_CLOUD_PROJECT") // This forces SQLite mode
 
-	// Create database wrapper and tables
-	dbWrapper := &database.DB{DB: db}
-	err = dbWrapper.CreateTables()
+	// Initialize database using the standard initialization
+	dbWrapper, err := database.InitDB()
 	if err != nil {
-		log.Fatal("Failed to create tables:", err)
+		log.Fatal("Failed to initialize database:", err)
+	}
+	defer dbWrapper.Close()
+
+	// Get the underlying SQL database for direct queries
+	sqlDB, ok := dbWrapper.(*database.DB)
+	if !ok {
+		log.Fatal("Expected SQLite database but got different type")
+	}
+
+	// Restore original environment
+	if originalProject != "" {
+		os.Setenv("GOOGLE_CLOUD_PROJECT", originalProject)
 	}
 
 	// Create test users
-	_, err = db.Exec(`INSERT INTO users (id, google_id, email, name, created_at) VALUES
+	_, err = sqlDB.Exec(`INSERT INTO users (id, google_id, email, name, created_at) VALUES
 		(1, 'user1_google', 'user1@test.com', 'Test User 1', datetime('now')),
 		(2, 'user2_google', 'user2@test.com', 'Test User 2', datetime('now'))`)
 	if err != nil {
@@ -70,7 +76,7 @@ func setupTestDatabase() {
 	}
 
 	// Create test feeds
-	_, err = db.Exec(`INSERT INTO feeds (id, title, url, description, created_at, updated_at, last_fetch) VALUES
+	_, err = sqlDB.Exec(`INSERT INTO feeds (id, title, url, description, created_at, updated_at, last_fetch) VALUES
 		(1, 'Test Feed 1', 'https://test1.com/feed', 'Test Description 1', datetime('now'), datetime('now'), datetime('now')),
 		(2, 'Test Feed 2', 'https://test2.com/feed', 'Test Description 2', datetime('now'), datetime('now'), datetime('now')),
 		(3, 'Orphaned Feed', 'https://orphan.com/feed', 'This feed will be orphaned', datetime('now'), datetime('now'), datetime('now'))`)
@@ -79,7 +85,7 @@ func setupTestDatabase() {
 	}
 
 	// Create valid user feeds
-	_, err = db.Exec(`INSERT INTO user_feeds (user_id, feed_id) VALUES
+	_, err = sqlDB.Exec(`INSERT INTO user_feeds (user_id, feed_id) VALUES
 		(1, 1),
 		(2, 2)`)
 	if err != nil {
@@ -87,7 +93,7 @@ func setupTestDatabase() {
 	}
 
 	// Create articles (some will be orphaned)
-	_, err = db.Exec(`INSERT INTO articles (id, feed_id, title, url, content, created_at, published_at) VALUES
+	_, err = sqlDB.Exec(`INSERT INTO articles (id, feed_id, title, url, content, created_at, published_at) VALUES
 		(1, 1, 'Article 1 in Feed 1', 'https://test1.com/article1', 'Content 1', datetime('now'), datetime('now')),
 		(2, 1, 'Article 2 in Feed 1', 'https://test1.com/article2', 'Content 2', datetime('now'), datetime('now')),
 		(3, 2, 'Article 1 in Feed 2', 'https://test2.com/article1', 'Content 3', datetime('now'), datetime('now')),
@@ -98,7 +104,7 @@ func setupTestDatabase() {
 	}
 
 	// Create user article statuses (some will be orphaned)
-	_, err = db.Exec(`INSERT INTO user_articles (user_id, article_id, is_read, is_starred) VALUES
+	_, err = sqlDB.Exec(`INSERT INTO user_articles (user_id, article_id, is_read, is_starred) VALUES
 		(1, 1, 0, 0),
 		(1, 2, 1, 0),
 		(2, 3, 0, 1),
@@ -110,7 +116,7 @@ func setupTestDatabase() {
 	}
 
 	// Create orphaned user feeds
-	_, err = db.Exec(`INSERT INTO user_feeds (user_id, feed_id) VALUES
+	_, err = sqlDB.Exec(`INSERT INTO user_feeds (user_id, feed_id) VALUES
 		(999, 1),
 		(1, 999),
 		(1, 3)`)
@@ -119,7 +125,7 @@ func setupTestDatabase() {
 	}
 
 	// Now delete feed 3 to create orphaned references
-	_, err = db.Exec(`DELETE FROM feeds WHERE id = 3`)
+	_, err = sqlDB.Exec(`DELETE FROM feeds WHERE id = 3`)
 	if err != nil {
 		log.Fatal("Failed to delete feed 3:", err)
 	}
@@ -137,11 +143,27 @@ func setupTestDatabase() {
 func runTestAudit() {
 	fmt.Println("🔍 Running audit on test database...")
 
-	db, err := sql.Open("sqlite3", "test_cleanup.db")
+	// Temporarily set environment to force SQLite
+	originalProject := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+	// Use the wrapper to open the existing test database
+	dbWrapper, err := database.InitDB()
 	if err != nil {
-		log.Fatal("Failed to open database:", err)
+		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close()
+	defer dbWrapper.Close()
+
+	// Get the underlying SQL database
+	db, ok := dbWrapper.(*database.DB)
+	if !ok {
+		log.Fatal("Expected SQLite database but got different type")
+	}
+
+	// Restore original environment
+	if originalProject != "" {
+		os.Setenv("GOOGLE_CLOUD_PROJECT", originalProject)
+	}
 
 	issues := 0
 
@@ -236,11 +258,27 @@ func runTestAudit() {
 func runTestCleanup() {
 	fmt.Println("🧹 Running cleanup on test database...")
 
-	db, err := sql.Open("sqlite3", "test_cleanup.db")
+	// Temporarily set environment to force SQLite
+	originalProject := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+	// Use the wrapper to open the existing test database
+	dbWrapper, err := database.InitDB()
 	if err != nil {
-		log.Fatal("Failed to open database:", err)
+		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close()
+	defer dbWrapper.Close()
+
+	// Get the underlying SQL database
+	db, ok := dbWrapper.(*database.DB)
+	if !ok {
+		log.Fatal("Expected SQLite database but got different type")
+	}
+
+	// Restore original environment
+	if originalProject != "" {
+		os.Setenv("GOOGLE_CLOUD_PROJECT", originalProject)
+	}
 
 	totalDeleted := 0
 
@@ -295,11 +333,27 @@ func runTestCleanup() {
 func verifyCleanup() {
 	fmt.Println("✅ Verifying cleanup results...")
 
-	db, err := sql.Open("sqlite3", "test_cleanup.db")
+	// Temporarily set environment to force SQLite
+	originalProject := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+	// Use the wrapper to open the existing test database
+	dbWrapper, err := database.InitDB()
 	if err != nil {
-		log.Fatal("Failed to open database:", err)
+		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close()
+	defer dbWrapper.Close()
+
+	// Get the underlying SQL database
+	db, ok := dbWrapper.(*database.DB)
+	if !ok {
+		log.Fatal("Expected SQLite database but got different type")
+	}
+
+	// Restore original environment
+	if originalProject != "" {
+		os.Setenv("GOOGLE_CLOUD_PROJECT", originalProject)
+	}
 
 	// Run audit again to verify no issues remain
 	runTestAudit()
