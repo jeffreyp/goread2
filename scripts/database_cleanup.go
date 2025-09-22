@@ -420,31 +420,27 @@ func findOrphanedUserArticles(ctx context.Context, client *datastore.Client) ([]
 	var userArticles []database.UserArticleEntity
 	userArticleKeys, err := client.GetAll(ctx, userArticleQuery, &userArticles)
 	if err != nil {
-		// If struct format fails, try with generic map
-		fmt.Printf("Warning: UserArticle struct query failed, trying generic approach: %v\n", err)
+		// If struct format fails, try with alternative naming
+		fmt.Printf("Warning: UserArticle struct query failed, trying alternative format: %v\n", err)
 
-		var genericEntities []map[string]interface{}
-		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &genericEntities)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query UserArticle entities with both approaches: %w", err)
+		// Define alternative struct with camelCase field names
+		type AlternativeUserArticleEntity struct {
+			UserID    int64 `datastore:"UserID"`
+			ArticleID int64 `datastore:"ArticleID"`
+			IsRead    bool  `datastore:"IsRead"`
+			IsStarred bool  `datastore:"IsStarred"`
 		}
 
-		// Process generic entities
-		var orphanedKeys []*datastore.Key
-		for i, entity := range genericEntities {
-			// Try different possible field names for ArticleID
-			var articleID int64
-			if val, ok := entity["ArticleID"]; ok {
-				if id, ok := val.(int64); ok {
-					articleID = id
-				}
-			} else if val, ok := entity["article_id"]; ok {
-				if id, ok := val.(int64); ok {
-					articleID = id
-				}
-			}
+		var altEntities []AlternativeUserArticleEntity
+		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &altEntities)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query UserArticle entities with both naming conventions: %w", err)
+		}
 
-			if articleID > 0 && !articleIDMap[articleID] {
+		// Process alternative entities
+		var orphanedKeys []*datastore.Key
+		for i, altEntity := range altEntities {
+			if !articleIDMap[altEntity.ArticleID] {
 				orphanedKeys = append(orphanedKeys, userArticleKeys[i])
 			}
 		}
@@ -479,31 +475,27 @@ func findOrphanedUserArticlesUsers(ctx context.Context, client *datastore.Client
 	var userArticles []database.UserArticleEntity
 	userArticleKeys, err := client.GetAll(ctx, userArticleQuery, &userArticles)
 	if err != nil {
-		// If struct format fails, try with generic map
-		fmt.Printf("Warning: UserArticle struct query failed, trying generic approach: %v\n", err)
+		// If struct format fails, try with alternative naming
+		fmt.Printf("Warning: UserArticle struct query failed, trying alternative format: %v\n", err)
 
-		var genericEntities []map[string]interface{}
-		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &genericEntities)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query UserArticle entities with both approaches: %w", err)
+		// Define alternative struct with camelCase field names
+		type AlternativeUserArticleEntity struct {
+			UserID    int64 `datastore:"UserID"`
+			ArticleID int64 `datastore:"ArticleID"`
+			IsRead    bool  `datastore:"IsRead"`
+			IsStarred bool  `datastore:"IsStarred"`
 		}
 
-		// Process generic entities
-		var orphanedKeys []*datastore.Key
-		for i, entity := range genericEntities {
-			// Try different possible field names for UserID
-			var userID int64
-			if val, ok := entity["UserID"]; ok {
-				if id, ok := val.(int64); ok {
-					userID = id
-				}
-			} else if val, ok := entity["user_id"]; ok {
-				if id, ok := val.(int64); ok {
-					userID = id
-				}
-			}
+		var altEntities []AlternativeUserArticleEntity
+		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &altEntities)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query UserArticle entities with both naming conventions: %w", err)
+		}
 
-			if userID > 0 && !userIDMap[userID] {
+		// Process alternative entities
+		var orphanedKeys []*datastore.Key
+		for i, altEntity := range altEntities {
+			if !userIDMap[altEntity.UserID] {
 				orphanedKeys = append(orphanedKeys, userArticleKeys[i])
 			}
 		}

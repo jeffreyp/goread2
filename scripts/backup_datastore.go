@@ -148,27 +148,42 @@ func backupEntities(ctx context.Context, client *datastore.Client, kind string, 
 		var userArticleEntities []database.UserArticleEntity
 		keys, err := client.GetAll(ctx, query, &userArticleEntities)
 		if err != nil {
-			// If it fails, try with a generic map to handle different field names
-			fmt.Printf("  Warning: Failed with current struct format, trying generic map: %v\n", err)
+			// If it fails, try with alternative field naming (camelCase)
+			fmt.Printf("  Warning: Failed with current struct format, trying alternative format: %v\n", err)
 
-			// Use a generic map to capture any field structure
-			var genericEntities []map[string]interface{}
-			keys, err = client.GetAll(ctx, query, &genericEntities)
-			if err != nil {
-				return fmt.Errorf("failed to query %s entities with both struct and map: %w", kind, err)
+			// Define alternative struct with camelCase field names
+			type AlternativeUserArticleEntity struct {
+				UserID    int64 `datastore:"UserID"`
+				ArticleID int64 `datastore:"ArticleID"`
+				IsRead    bool  `datastore:"IsRead"`
+				IsStarred bool  `datastore:"IsStarred"`
 			}
 
-			// Store as generic backup
-			for i, entity := range genericEntities {
+			var altEntities []AlternativeUserArticleEntity
+			keys, err = client.GetAll(ctx, query, &altEntities)
+			if err != nil {
+				return fmt.Errorf("failed to query %s entities with both naming conventions: %w", kind, err)
+			}
+
+			// Convert and store as backup
+			for i, altEntity := range altEntities {
+				// Convert to standard format for backup
+				entity := database.UserArticleEntity{
+					UserID:    altEntity.UserID,
+					ArticleID: altEntity.ArticleID,
+					IsRead:    altEntity.IsRead,
+					IsStarred: altEntity.IsStarred,
+				}
+
 				originalKey := keys[i]
 				backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
 				backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
-				_, err = client.Put(ctx, backupKey, entity)
+				_, err = client.Put(ctx, backupKey, &entity)
 				if err != nil {
 					return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
 				}
 			}
-			fmt.Printf("  Backed up %d %s entities (using generic format)\n", len(genericEntities), kind)
+			fmt.Printf("  Backed up %d %s entities (using alternative format)\n", len(altEntities), kind)
 		} else {
 			// Store with current struct format
 			for i, entity := range userArticleEntities {
