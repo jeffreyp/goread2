@@ -446,7 +446,30 @@ func findOrphanedUserArticles(ctx context.Context, client *datastore.Client) ([]
 			var camelEntities []FullCamelUserArticleEntity
 			userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &camelEntities)
 			if err != nil {
-				return nil, fmt.Errorf("failed to query UserArticle entities with all naming conventions: %w", err)
+				fmt.Printf("Warning: Full camelCase failed, trying partial camelCase: %v\n", err)
+
+				// Try partial camelCase format - UserID camelCase, others snake_case
+				type PartialCamelUserArticleEntity struct {
+					UserID    int64 `datastore:"UserID"`
+					ArticleID int64 `datastore:"article_id"`
+					IsRead    bool  `datastore:"is_read"`
+					IsStarred bool  `datastore:"is_starred"`
+				}
+
+				var partialEntities []PartialCamelUserArticleEntity
+				userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &partialEntities)
+				if err != nil {
+					return nil, fmt.Errorf("failed to query UserArticle entities with all naming conventions: %w", err)
+				}
+
+				// Process partial camelCase entities
+				var orphanedKeys []*datastore.Key
+				for i, partialEntity := range partialEntities {
+					if !articleIDMap[partialEntity.ArticleID] {
+						orphanedKeys = append(orphanedKeys, userArticleKeys[i])
+					}
+				}
+				return orphanedKeys, nil
 			}
 
 			// Process full camelCase entities
@@ -523,7 +546,30 @@ func findOrphanedUserArticlesUsers(ctx context.Context, client *datastore.Client
 			var camelEntities []FullCamelUserArticleEntity
 			userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &camelEntities)
 			if err != nil {
-				return nil, fmt.Errorf("failed to query UserArticle entities with all naming conventions: %w", err)
+				fmt.Printf("Warning: Full camelCase failed, trying partial camelCase: %v\n", err)
+
+				// Try partial camelCase format - UserID camelCase, others snake_case
+				type PartialCamelUserArticleEntity struct {
+					UserID    int64 `datastore:"UserID"`
+					ArticleID int64 `datastore:"article_id"`
+					IsRead    bool  `datastore:"is_read"`
+					IsStarred bool  `datastore:"is_starred"`
+				}
+
+				var partialEntities []PartialCamelUserArticleEntity
+				userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &partialEntities)
+				if err != nil {
+					return nil, fmt.Errorf("failed to query UserArticle entities with all naming conventions: %w", err)
+				}
+
+				// Process partial camelCase entities
+				var orphanedKeys []*datastore.Key
+				for i, partialEntity := range partialEntities {
+					if !userIDMap[partialEntity.UserID] {
+						orphanedKeys = append(orphanedKeys, userArticleKeys[i])
+					}
+				}
+				return orphanedKeys, nil
 			}
 
 			// Process full camelCase entities
