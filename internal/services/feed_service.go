@@ -338,7 +338,36 @@ func (fs *FeedService) ToggleUserArticleStar(userID, articleID int) error {
 }
 
 func (fs *FeedService) GetUserUnreadCounts(userID int) (map[int]int, error) {
-	return fs.db.GetUserUnreadCounts(userID)
+	unreadCounts, err := fs.db.GetUserUnreadCounts(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Safety filter: only return counts for feeds that actually exist
+	// This prevents orphaned data from corrupting the UI
+	userFeeds, err := fs.db.GetUserFeeds(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a map of valid feed IDs
+	validFeedIDs := make(map[int]bool)
+	for _, feed := range userFeeds {
+		validFeedIDs[feed.ID] = true
+	}
+
+	// Filter out orphaned counts
+	filteredCounts := make(map[int]int)
+	for feedID, count := range unreadCounts {
+		if validFeedIDs[feedID] {
+			filteredCounts[feedID] = count
+		} else {
+			// Log orphaned data for debugging
+			log.Printf("Warning: Filtered orphaned unread count for non-existent feed ID %d (%d articles)", feedID, count)
+		}
+	}
+
+	return filteredCounts, nil
 }
 
 func (fs *FeedService) markExistingArticlesAsUnreadForUser(userID, feedID int) error {
