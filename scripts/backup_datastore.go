@@ -148,42 +148,73 @@ func backupEntities(ctx context.Context, client *datastore.Client, kind string, 
 		var userArticleEntities []database.UserArticleEntity
 		keys, err := client.GetAll(ctx, query, &userArticleEntities)
 		if err != nil {
-			// If it fails, try with alternative field naming (camelCase)
-			fmt.Printf("  Warning: Failed with current struct format, trying alternative format: %v\n", err)
+			fmt.Printf("  Warning: Failed with current struct format, trying mixed format: %v\n", err)
 
-			// Define alternative struct with camelCase field names
-			type AlternativeUserArticleEntity struct {
+			// Define mixed format struct - camelCase IDs, snake_case booleans
+			type MixedUserArticleEntity struct {
 				UserID    int64 `datastore:"UserID"`
 				ArticleID int64 `datastore:"ArticleID"`
-				IsRead    bool  `datastore:"IsRead"`
-				IsStarred bool  `datastore:"IsStarred"`
+				IsRead    bool  `datastore:"is_read"`
+				IsStarred bool  `datastore:"is_starred"`
 			}
 
-			var altEntities []AlternativeUserArticleEntity
-			keys, err = client.GetAll(ctx, query, &altEntities)
+			var mixedEntities []MixedUserArticleEntity
+			keys, err = client.GetAll(ctx, query, &mixedEntities)
 			if err != nil {
-				return fmt.Errorf("failed to query %s entities with both naming conventions: %w", kind, err)
-			}
+				fmt.Printf("  Warning: Failed with mixed format, trying full camelCase: %v\n", err)
 
-			// Convert and store as backup
-			for i, altEntity := range altEntities {
-				// Convert to standard format for backup
-				entity := database.UserArticleEntity{
-					UserID:    altEntity.UserID,
-					ArticleID: altEntity.ArticleID,
-					IsRead:    altEntity.IsRead,
-					IsStarred: altEntity.IsStarred,
+				// Try full camelCase format
+				type FullCamelUserArticleEntity struct {
+					UserID    int64 `datastore:"UserID"`
+					ArticleID int64 `datastore:"ArticleID"`
+					IsRead    bool  `datastore:"IsRead"`
+					IsStarred bool  `datastore:"IsStarred"`
 				}
 
-				originalKey := keys[i]
-				backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
-				backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
-				_, err = client.Put(ctx, backupKey, &entity)
+				var camelEntities []FullCamelUserArticleEntity
+				keys, err = client.GetAll(ctx, query, &camelEntities)
 				if err != nil {
-					return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+					return fmt.Errorf("failed to query %s entities with all naming conventions: %w", kind, err)
 				}
+
+				// Convert and store as backup
+				for i, camelEntity := range camelEntities {
+					entity := database.UserArticleEntity{
+						UserID:    camelEntity.UserID,
+						ArticleID: camelEntity.ArticleID,
+						IsRead:    camelEntity.IsRead,
+						IsStarred: camelEntity.IsStarred,
+					}
+
+					originalKey := keys[i]
+					backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
+					backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
+					_, err = client.Put(ctx, backupKey, &entity)
+					if err != nil {
+						return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+					}
+				}
+				fmt.Printf("  Backed up %d %s entities (using full camelCase format)\n", len(camelEntities), kind)
+			} else {
+				// Convert and store mixed format as backup
+				for i, mixedEntity := range mixedEntities {
+					entity := database.UserArticleEntity{
+						UserID:    mixedEntity.UserID,
+						ArticleID: mixedEntity.ArticleID,
+						IsRead:    mixedEntity.IsRead,
+						IsStarred: mixedEntity.IsStarred,
+					}
+
+					originalKey := keys[i]
+					backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
+					backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
+					_, err = client.Put(ctx, backupKey, &entity)
+					if err != nil {
+						return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+					}
+				}
+				fmt.Printf("  Backed up %d %s entities (using mixed format)\n", len(mixedEntities), kind)
 			}
-			fmt.Printf("  Backed up %d %s entities (using alternative format)\n", len(altEntities), kind)
 		} else {
 			// Store with current struct format
 			for i, entity := range userArticleEntities {

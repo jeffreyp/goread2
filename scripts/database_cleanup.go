@@ -415,32 +415,54 @@ func findOrphanedUserArticles(ctx context.Context, client *datastore.Client) ([]
 		articleIDMap[key.ID] = true
 	}
 
-	// Get all user articles
+	// Get all user articles - try multiple field naming formats
 	userArticleQuery := datastore.NewQuery("UserArticle")
 	var userArticles []database.UserArticleEntity
 	userArticleKeys, err := client.GetAll(ctx, userArticleQuery, &userArticles)
 	if err != nil {
-		// If struct format fails, try with alternative naming
-		fmt.Printf("Warning: UserArticle struct query failed, trying alternative format: %v\n", err)
+		fmt.Printf("Warning: UserArticle struct query failed, trying mixed format: %v\n", err)
 
-		// Define alternative struct with camelCase field names
-		type AlternativeUserArticleEntity struct {
+		// Define mixed format struct - camelCase IDs, snake_case booleans
+		type MixedUserArticleEntity struct {
 			UserID    int64 `datastore:"UserID"`
 			ArticleID int64 `datastore:"ArticleID"`
-			IsRead    bool  `datastore:"IsRead"`
-			IsStarred bool  `datastore:"IsStarred"`
+			IsRead    bool  `datastore:"is_read"`
+			IsStarred bool  `datastore:"is_starred"`
 		}
 
-		var altEntities []AlternativeUserArticleEntity
-		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &altEntities)
+		var mixedEntities []MixedUserArticleEntity
+		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &mixedEntities)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query UserArticle entities with both naming conventions: %w", err)
+			fmt.Printf("Warning: Mixed format failed, trying full camelCase: %v\n", err)
+
+			// Try full camelCase format
+			type FullCamelUserArticleEntity struct {
+				UserID    int64 `datastore:"UserID"`
+				ArticleID int64 `datastore:"ArticleID"`
+				IsRead    bool  `datastore:"IsRead"`
+				IsStarred bool  `datastore:"IsStarred"`
+			}
+
+			var camelEntities []FullCamelUserArticleEntity
+			userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &camelEntities)
+			if err != nil {
+				return nil, fmt.Errorf("failed to query UserArticle entities with all naming conventions: %w", err)
+			}
+
+			// Process full camelCase entities
+			var orphanedKeys []*datastore.Key
+			for i, camelEntity := range camelEntities {
+				if !articleIDMap[camelEntity.ArticleID] {
+					orphanedKeys = append(orphanedKeys, userArticleKeys[i])
+				}
+			}
+			return orphanedKeys, nil
 		}
 
-		// Process alternative entities
+		// Process mixed format entities
 		var orphanedKeys []*datastore.Key
-		for i, altEntity := range altEntities {
-			if !articleIDMap[altEntity.ArticleID] {
+		for i, mixedEntity := range mixedEntities {
+			if !articleIDMap[mixedEntity.ArticleID] {
 				orphanedKeys = append(orphanedKeys, userArticleKeys[i])
 			}
 		}
@@ -470,32 +492,54 @@ func findOrphanedUserArticlesUsers(ctx context.Context, client *datastore.Client
 		userIDMap[key.ID] = true
 	}
 
-	// Get all user articles
+	// Get all user articles - try multiple field naming formats
 	userArticleQuery := datastore.NewQuery("UserArticle")
 	var userArticles []database.UserArticleEntity
 	userArticleKeys, err := client.GetAll(ctx, userArticleQuery, &userArticles)
 	if err != nil {
-		// If struct format fails, try with alternative naming
-		fmt.Printf("Warning: UserArticle struct query failed, trying alternative format: %v\n", err)
+		fmt.Printf("Warning: UserArticle struct query failed, trying mixed format: %v\n", err)
 
-		// Define alternative struct with camelCase field names
-		type AlternativeUserArticleEntity struct {
+		// Define mixed format struct - camelCase IDs, snake_case booleans
+		type MixedUserArticleEntity struct {
 			UserID    int64 `datastore:"UserID"`
 			ArticleID int64 `datastore:"ArticleID"`
-			IsRead    bool  `datastore:"IsRead"`
-			IsStarred bool  `datastore:"IsStarred"`
+			IsRead    bool  `datastore:"is_read"`
+			IsStarred bool  `datastore:"is_starred"`
 		}
 
-		var altEntities []AlternativeUserArticleEntity
-		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &altEntities)
+		var mixedEntities []MixedUserArticleEntity
+		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &mixedEntities)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query UserArticle entities with both naming conventions: %w", err)
+			fmt.Printf("Warning: Mixed format failed, trying full camelCase: %v\n", err)
+
+			// Try full camelCase format
+			type FullCamelUserArticleEntity struct {
+				UserID    int64 `datastore:"UserID"`
+				ArticleID int64 `datastore:"ArticleID"`
+				IsRead    bool  `datastore:"IsRead"`
+				IsStarred bool  `datastore:"IsStarred"`
+			}
+
+			var camelEntities []FullCamelUserArticleEntity
+			userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &camelEntities)
+			if err != nil {
+				return nil, fmt.Errorf("failed to query UserArticle entities with all naming conventions: %w", err)
+			}
+
+			// Process full camelCase entities
+			var orphanedKeys []*datastore.Key
+			for i, camelEntity := range camelEntities {
+				if !userIDMap[camelEntity.UserID] {
+					orphanedKeys = append(orphanedKeys, userArticleKeys[i])
+				}
+			}
+			return orphanedKeys, nil
 		}
 
-		// Process alternative entities
+		// Process mixed format entities
 		var orphanedKeys []*datastore.Key
-		for i, altEntity := range altEntities {
-			if !userIDMap[altEntity.UserID] {
+		for i, mixedEntity := range mixedEntities {
+			if !userIDMap[mixedEntity.UserID] {
 				orphanedKeys = append(orphanedKeys, userArticleKeys[i])
 			}
 		}
