@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -421,7 +420,35 @@ func findOrphanedUserArticles(ctx context.Context, client *datastore.Client) ([]
 	var userArticles []database.UserArticleEntity
 	userArticleKeys, err := client.GetAll(ctx, userArticleQuery, &userArticles)
 	if err != nil {
-		return nil, err
+		// If struct format fails, try with generic map
+		fmt.Printf("Warning: UserArticle struct query failed, trying generic approach: %v\n", err)
+
+		var genericEntities []map[string]interface{}
+		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &genericEntities)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query UserArticle entities with both approaches: %w", err)
+		}
+
+		// Process generic entities
+		var orphanedKeys []*datastore.Key
+		for i, entity := range genericEntities {
+			// Try different possible field names for ArticleID
+			var articleID int64
+			if val, ok := entity["ArticleID"]; ok {
+				if id, ok := val.(int64); ok {
+					articleID = id
+				}
+			} else if val, ok := entity["article_id"]; ok {
+				if id, ok := val.(int64); ok {
+					articleID = id
+				}
+			}
+
+			if articleID > 0 && !articleIDMap[articleID] {
+				orphanedKeys = append(orphanedKeys, userArticleKeys[i])
+			}
+		}
+		return orphanedKeys, nil
 	}
 
 	var orphanedKeys []*datastore.Key
@@ -452,7 +479,35 @@ func findOrphanedUserArticlesUsers(ctx context.Context, client *datastore.Client
 	var userArticles []database.UserArticleEntity
 	userArticleKeys, err := client.GetAll(ctx, userArticleQuery, &userArticles)
 	if err != nil {
-		return nil, err
+		// If struct format fails, try with generic map
+		fmt.Printf("Warning: UserArticle struct query failed, trying generic approach: %v\n", err)
+
+		var genericEntities []map[string]interface{}
+		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &genericEntities)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query UserArticle entities with both approaches: %w", err)
+		}
+
+		// Process generic entities
+		var orphanedKeys []*datastore.Key
+		for i, entity := range genericEntities {
+			// Try different possible field names for UserID
+			var userID int64
+			if val, ok := entity["UserID"]; ok {
+				if id, ok := val.(int64); ok {
+					userID = id
+				}
+			} else if val, ok := entity["user_id"]; ok {
+				if id, ok := val.(int64); ok {
+					userID = id
+				}
+			}
+
+			if userID > 0 && !userIDMap[userID] {
+				orphanedKeys = append(orphanedKeys, userArticleKeys[i])
+			}
+		}
+		return orphanedKeys, nil
 	}
 
 	var orphanedKeys []*datastore.Key

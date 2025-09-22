@@ -144,23 +144,44 @@ func backupEntities(ctx context.Context, client *datastore.Client, kind string, 
 		fmt.Printf("  Backed up %d %s entities\n", len(userFeedEntities), kind)
 
 	case "UserArticle":
+		// Try the current struct format first
 		var userArticleEntities []database.UserArticleEntity
 		keys, err := client.GetAll(ctx, query, &userArticleEntities)
 		if err != nil {
-			return fmt.Errorf("failed to query %s entities: %w", kind, err)
-		}
+			// If it fails, try with a generic map to handle different field names
+			fmt.Printf("  Warning: Failed with current struct format, trying generic map: %v\n", err)
 
-		for i, entity := range userArticleEntities {
-			// UserArticle uses name keys, so we need to create a backup with a modified name
-			originalKey := keys[i]
-			backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
-			backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
-			_, err = client.Put(ctx, backupKey, &entity)
+			// Use a generic map to capture any field structure
+			var genericEntities []map[string]interface{}
+			keys, err = client.GetAll(ctx, query, &genericEntities)
 			if err != nil {
-				return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+				return fmt.Errorf("failed to query %s entities with both struct and map: %w", kind, err)
 			}
+
+			// Store as generic backup
+			for i, entity := range genericEntities {
+				originalKey := keys[i]
+				backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
+				backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
+				_, err = client.Put(ctx, backupKey, entity)
+				if err != nil {
+					return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+				}
+			}
+			fmt.Printf("  Backed up %d %s entities (using generic format)\n", len(genericEntities), kind)
+		} else {
+			// Store with current struct format
+			for i, entity := range userArticleEntities {
+				originalKey := keys[i]
+				backupKeyName := fmt.Sprintf("%s_backup%s", originalKey.Name, suffix)
+				backupKey := datastore.NameKey(kind+"_backup", backupKeyName, nil)
+				_, err = client.Put(ctx, backupKey, &entity)
+				if err != nil {
+					return fmt.Errorf("failed to backup %s entity %s: %w", kind, originalKey.Name, err)
+				}
+			}
+			fmt.Printf("  Backed up %d %s entities\n", len(userArticleEntities), kind)
 		}
-		fmt.Printf("  Backed up %d %s entities\n", len(userArticleEntities), kind)
 	}
 
 	return nil
