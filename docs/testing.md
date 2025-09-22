@@ -54,16 +54,27 @@ web/tests/               # Frontend tests
 ### All Tests (Recommended)
 
 ```bash
+# Use the test script directly
 ./test.sh
+
+# Or use the Makefile target
+make test
 ```
 
 The test script runs:
 - Backend unit and integration tests
-- Frontend JavaScript tests  
+- Frontend JavaScript tests
 - Coverage report generation
 - Code quality checks (linting)
 - Build verification
 - Colored output for better readability
+
+### Complete Build and Test
+
+```bash
+# Run complete build with frontend assets, build, and tests
+make all
+```
 
 ### Backend Tests Only
 
@@ -86,6 +97,15 @@ go tool cover -html=coverage.out -o coverage.html
 
 # Verbose output with race detection
 go test -v -race ./internal/... ./test/integration/...
+```
+
+### Build System Commands
+
+```bash
+make build            # Build the Go application
+make build-frontend   # Build minified JS/CSS assets
+make validate-config  # Validate application configuration
+make clean           # Remove build artifacts
 ```
 
 ### Frontend Tests Only

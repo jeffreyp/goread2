@@ -244,10 +244,14 @@ GROUP BY subscription_status;
 
 ### Google Cloud Datastore (Production)
 
-Use the Google Cloud Console or `gcloud` CLI:
+Use the Google Cloud Console web interface for manual updates, or use the admin commands which work with both SQLite and Datastore:
 
 ```bash
-# Example using gcloud datastore
+# Use admin commands (works with both SQLite and Datastore)
+export ADMIN_TOKEN="your-admin-token"
+./admin.sh admin user@example.com on
+
+# Or direct gcloud CLI for advanced cases
 gcloud datastore entities update --kind=User --key=<user-key> --properties=is_admin=true
 ```
 

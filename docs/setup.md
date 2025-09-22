@@ -97,8 +97,16 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 
 4. **Build and run:**
    ```bash
+   # Build with the Makefile (recommended)
+   make build
+   ./goread2
+
+   # Or build manually
    go build -o goread2 .
    ./goread2
+
+   # For development with validation
+   make dev
    ```
 
 5. **Access the application:**

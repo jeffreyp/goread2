@@ -337,11 +337,18 @@ time curl "https://slow-feed.example.com/rss"
 
 ### App Engine Deployment Failures
 
-**Problem**: `gcloud app deploy` fails
+**Problem**: Deployment fails
 
 **Solutions**:
 ```bash
-# Check app.yaml syntax
+# Use Makefile for deployment (recommended)
+# Development deployment with validation
+make deploy-dev
+
+# Production deployment with strict validation and tests
+make deploy-prod
+
+# Manual deployment debugging
 gcloud app deploy --dry-run
 
 # Verify Go version compatibility
@@ -414,20 +421,22 @@ curl -v https://your-domain.com/
 
 ### Build Failures
 
-**Problem**: `go build` or `go run` fails
+**Problem**: Build fails
 
 **Solutions**:
 ```bash
-# Update dependencies
+# Use Makefile for complete build (recommended)
+make all
+
+# Build specific components
+make build          # Build Go application
+make build-frontend # Build JS/CSS assets
+make test          # Run test suite
+
+# Manual troubleshooting
 go mod tidy
-
-# Clean module cache
 go clean -modcache
-
-# Check Go version
 go version
-
-# Verify all required environment variables
 grep -r "os.Getenv" *.go
 ```
 
@@ -443,10 +452,11 @@ grep -r "os.Getenv" *.go
 
 **Solutions**:
 ```bash
-# Run tests with verbose output
-go test -v ./test/...
+# Use Makefile for testing (recommended)
+make test
 
-# Run specific failing test
+# Manual test troubleshooting
+go test -v ./test/...
 go test -v -run TestSpecificFunction ./test/unit/
 
 # Check test environment

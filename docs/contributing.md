@@ -70,8 +70,11 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
    ```bash
    # Quick test run
    go test ./test/...
-   
-   # Full test suite
+
+   # Full test suite using Makefile (recommended)
+   make test
+
+   # Or use the test script directly
    ./test.sh
    ```
 

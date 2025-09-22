@@ -68,13 +68,11 @@ ADMIN_TOKEN="bootstrap" go run cmd/admin/main.go create-token "Initial setup"
 #### Step 1: Create First User and Admin
 1. **Deploy the application** to Google App Engine
 2. **Create your first user account** through the web interface
-3. **Set the user as admin** using Google Cloud Console:
+3. **Set the user as admin** using Google Cloud Console web interface to manually set `is_admin = true`, or using gcloud CLI:
    ```bash
-   # Using gcloud CLI to update Datastore entity
+   # Using gcloud CLI to update Datastore entity (advanced users)
    gcloud datastore entities update --kind=User --key-id=USER_ID --set-property=is_admin:boolean=true
    ```
-   
-   Or use the Google Cloud Console Datastore interface to manually set `is_admin = true`
 
 #### Step 2: Create First Admin Token
 ```bash

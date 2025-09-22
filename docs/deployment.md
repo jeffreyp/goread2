@@ -185,7 +185,7 @@ cron:
    export STRIPE_PUBLISHABLE_KEY="pk_live_your-publishable-key"
    export STRIPE_WEBHOOK_SECRET="whsec_your-webhook-secret"
    export STRIPE_PRICE_ID="price_your-price-id"
-   
+
    # Option B: Use Secret Manager (recommended for production)
    # Secrets will be automatically accessed by App Engine if properly configured
    ```
@@ -197,10 +197,13 @@ cron:
 
 4. **Deploy application:**
    ```bash
-   # Deploy main application (variables will be substituted if using Option A)
-   gcloud app deploy app.yaml
-   
-   # Deploy cron jobs
+   # Deploy to development environment (with validation)
+   make deploy-dev
+
+   # Deploy to production environment (with strict validation and tests)
+   make deploy-prod
+
+   # Deploy cron jobs (manual step)
    gcloud app deploy cron.yaml
    ```
 
@@ -208,7 +211,7 @@ cron:
    ```bash
    # Open application
    gcloud app browse
-   
+
    # Check logs for any configuration issues
    gcloud app logs tail -s default
    ```
@@ -489,6 +492,19 @@ sudo journalctl -u goread2 -f
 4. **Cleanup**: Regular cleanup of expired sessions and old articles
 
 ## Testing in Production
+
+### Build and Test Locally
+
+```bash
+# Run complete build and test suite
+make all
+
+# Run tests only
+make test
+
+# Validate configuration
+make validate-config
+```
 
 ### Deployment Testing
 
