@@ -459,7 +459,32 @@ func findOrphanedUserArticles(ctx context.Context, client *datastore.Client) ([]
 				var partialEntities []PartialCamelUserArticleEntity
 				userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &partialEntities)
 				if err != nil {
-					return nil, fmt.Errorf("failed to query UserArticle entities with all naming conventions: %w", err)
+					fmt.Printf("Warning: Partial camelCase failed, trying alternate partial: %v\n", err)
+
+					// Try alternate partial format - different field mix
+					type AlternatePartialUserArticleEntity struct {
+						UserID    int64 `datastore:"user_id"`
+						ArticleID int64 `datastore:"ArticleID"`
+						IsRead    bool  `datastore:"is_read"`
+						IsStarred bool  `datastore:"is_starred"`
+					}
+
+					var altPartialEntities []AlternatePartialUserArticleEntity
+					userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &altPartialEntities)
+					if err != nil {
+						// Graceful failure: skip UserArticle orphan detection for articles
+						fmt.Printf("Warning: All UserArticle formats failed, skipping orphaned article detection: %v\n", err)
+						return []*datastore.Key{}, nil
+					}
+
+					// Process alternate partial format entities
+					var orphanedKeys []*datastore.Key
+					for i, altPartialEntity := range altPartialEntities {
+						if !articleIDMap[altPartialEntity.ArticleID] {
+							orphanedKeys = append(orphanedKeys, userArticleKeys[i])
+						}
+					}
+					return orphanedKeys, nil
 				}
 
 				// Process partial camelCase entities
@@ -559,7 +584,32 @@ func findOrphanedUserArticlesUsers(ctx context.Context, client *datastore.Client
 				var partialEntities []PartialCamelUserArticleEntity
 				userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &partialEntities)
 				if err != nil {
-					return nil, fmt.Errorf("failed to query UserArticle entities with all naming conventions: %w", err)
+					fmt.Printf("Warning: Partial camelCase failed, trying alternate partial: %v\n", err)
+
+					// Try alternate partial format - different field mix
+					type AlternatePartialUserArticleEntity struct {
+						UserID    int64 `datastore:"user_id"`
+						ArticleID int64 `datastore:"ArticleID"`
+						IsRead    bool  `datastore:"is_read"`
+						IsStarred bool  `datastore:"is_starred"`
+					}
+
+					var altPartialEntities []AlternatePartialUserArticleEntity
+					userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &altPartialEntities)
+					if err != nil {
+						// Graceful failure: skip UserArticle orphan detection for users
+						fmt.Printf("Warning: All UserArticle formats failed, skipping orphaned user detection: %v\n", err)
+						return []*datastore.Key{}, nil
+					}
+
+					// Process alternate partial format entities
+					var orphanedKeys []*datastore.Key
+					for i, altPartialEntity := range altPartialEntities {
+						if !userIDMap[altPartialEntity.UserID] {
+							orphanedKeys = append(orphanedKeys, userArticleKeys[i])
+						}
+					}
+					return orphanedKeys, nil
 				}
 
 				// Process partial camelCase entities
