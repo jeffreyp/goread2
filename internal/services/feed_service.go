@@ -259,7 +259,13 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 			return nil, fmt.Errorf("failed to insert feed: %w", err)
 		}
 
-		if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
+		// Get user's article limit preference for new feeds
+		user, err := fs.db.GetUserByID(userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user %d: %w", userID, err)
+		}
+
+		if err := fs.saveArticlesFromFeedWithLimit(feed.ID, feedData, user.MaxArticlesOnFeedAdd); err != nil {
 			return nil, fmt.Errorf("failed to save articles: %w", err)
 		}
 
@@ -551,10 +557,24 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom, feedURL string) *FeedDa
 }
 
 func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) error {
+	// Use unlimited (0) for backward compatibility
+	return fs.saveArticlesFromFeedWithLimit(feedID, feedData, 0)
+}
+
+func (fs *FeedService) saveArticlesFromFeedWithLimit(feedID int, feedData *FeedData, maxArticles int) error {
 	var savedCount int
 	var errors []string
 
-	for _, articleData := range feedData.Articles {
+	// Apply article limit if specified (0 means unlimited)
+	articlesToSave := feedData.Articles
+	if maxArticles > 0 && len(feedData.Articles) > maxArticles {
+		// Take the most recent articles (assuming they're already sorted by publish date)
+		articlesToSave = feedData.Articles[:maxArticles]
+		log.Printf("Feed %d: Limited to %d most recent articles out of %d total (user preference)",
+			feedID, maxArticles, len(feedData.Articles))
+	}
+
+	for _, articleData := range articlesToSave {
 		article := &database.Article{
 			FeedID:      feedID,
 			Title:       articleData.Title,
@@ -573,14 +593,19 @@ func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) erro
 		savedCount++
 	}
 
-	log.Printf("Feed %d: Saved %d/%d articles", feedID, savedCount, len(feedData.Articles))
+	if maxArticles > 0 && len(feedData.Articles) > maxArticles {
+		log.Printf("Feed %d: Saved %d/%d articles (limited by user preference to %d)",
+			feedID, savedCount, len(feedData.Articles), maxArticles)
+	} else {
+		log.Printf("Feed %d: Saved %d/%d articles", feedID, savedCount, len(feedData.Articles))
+	}
 
 	if len(errors) > 0 {
 		log.Printf("Feed %d: Errors saving %d articles: %v", feedID, len(errors), errors)
 	}
 
 	// Only return error if NO articles were saved
-	if savedCount == 0 && len(feedData.Articles) > 0 {
+	if savedCount == 0 && len(articlesToSave) > 0 {
 		return fmt.Errorf("failed to save any articles from feed %d", feedID)
 	}
 
