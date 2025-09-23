@@ -196,8 +196,6 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 }
 
 func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*database.Feed, error) {
-	log.Printf("DEBUG: addFeedForUserInternal called - userID: %d, inputURL: %s", userID, inputURL)
-
 	var feedURL string
 
 	// Normalize the input URL first
@@ -206,8 +204,6 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
 	}
-
-	log.Printf("DEBUG: Normalized URL: %s", normalizedURL)
 
 	// Check for known sites first
 	if strings.Contains(normalizedURL, "slashdot.org") {
@@ -230,8 +226,6 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		feedURL = feedURLs[0]
 	}
 
-	log.Printf("DEBUG: Final feedURL determined: %s", feedURL)
-
 	// First check if feed already exists
 	feeds, err := fs.db.GetFeeds()
 	if err != nil {
@@ -247,7 +241,6 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 	}
 
 	if existingFeed == nil {
-		log.Printf("DEBUG: Feed does not exist, creating new feed for URL: %s", feedURL)
 		// Feed doesn't exist, create it
 		feedData, err := fs.fetchFeed(feedURL)
 		if err != nil {
@@ -279,7 +272,6 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 
 		existingFeed = feed
 	} else {
-		log.Printf("DEBUG: Feed already exists (ID: %d, URL: %s), subscribing user to existing feed", existingFeed.ID, existingFeed.URL)
 		// Feed exists, but check if we should enhance the title
 		enhancedTitle := fs.enhanceFeedTitle(fs.cleanDuplicateTitle(existingFeed.Title), feedURL)
 		if enhancedTitle != existingFeed.Title {
@@ -293,14 +285,12 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 	}
 
 	// Subscribe user to the feed FIRST
-	log.Printf("DEBUG: Subscribing user %d to feed %d", userID, existingFeed.ID)
 	if err := fs.db.SubscribeUserToFeed(userID, existingFeed.ID); err != nil {
 		return nil, fmt.Errorf("failed to subscribe user to feed: %w", err)
 	}
 
 	// Mark all articles in this feed as unread for the subscriber synchronously
 	// This ensures unread counts are immediately accurate after feed addition
-	log.Printf("DEBUG: About to call markExistingArticlesAsUnreadForUser for user %d, feed %d", userID, existingFeed.ID)
 	if err := fs.markExistingArticlesAsUnreadForUser(userID, existingFeed.ID); err != nil {
 		log.Printf("Failed to mark existing articles as unread for user %d, feed %d: %v", userID, existingFeed.ID, err)
 		// Don't fail the entire operation, just log the error
@@ -413,10 +403,6 @@ func (fs *FeedService) markExistingArticlesAsUnreadForUser(userID, feedID int) e
 		log.Printf("User %d: Limited to %d most recent articles out of %d total for feed %d",
 			userID, user.MaxArticlesOnFeedAdd, len(articles), feedID)
 	}
-
-	// Debug logging to track what's being passed to BatchSetUserArticleStatus
-	log.Printf("User %d: About to mark %d articles as unread for feed %d (user limit: %d, total articles: %d)",
-		userID, len(articlesToMark), feedID, user.MaxArticlesOnFeedAdd, len(articles))
 
 	// Use batch insert for better performance
 	return fs.db.BatchSetUserArticleStatus(userID, articlesToMark, false, false) // unread, unstarred
