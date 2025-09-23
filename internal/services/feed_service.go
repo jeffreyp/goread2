@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -565,13 +566,20 @@ func (fs *FeedService) saveArticlesFromFeedWithLimit(feedID int, feedData *FeedD
 	var savedCount int
 	var errors []string
 
+	// Sort articles by published date (most recent first) before applying limit
+	articles := make([]ArticleData, len(feedData.Articles))
+	copy(articles, feedData.Articles)
+	sort.Slice(articles, func(i, j int) bool {
+		return articles[i].PublishedAt.After(articles[j].PublishedAt)
+	})
+
 	// Apply article limit if specified (0 means unlimited)
-	articlesToSave := feedData.Articles
-	if maxArticles > 0 && len(feedData.Articles) > maxArticles {
-		// Take the most recent articles (assuming they're already sorted by publish date)
-		articlesToSave = feedData.Articles[:maxArticles]
+	articlesToSave := articles
+	if maxArticles > 0 && len(articles) > maxArticles {
+		// Take the most recent articles (now properly sorted)
+		articlesToSave = articles[:maxArticles]
 		log.Printf("Feed %d: Limited to %d most recent articles out of %d total (user preference)",
-			feedID, maxArticles, len(feedData.Articles))
+			feedID, maxArticles, len(articles))
 	}
 
 	for _, articleData := range articlesToSave {
@@ -593,11 +601,11 @@ func (fs *FeedService) saveArticlesFromFeedWithLimit(feedID int, feedData *FeedD
 		savedCount++
 	}
 
-	if maxArticles > 0 && len(feedData.Articles) > maxArticles {
+	if maxArticles > 0 && len(articles) > maxArticles {
 		log.Printf("Feed %d: Saved %d/%d articles (limited by user preference to %d)",
-			feedID, savedCount, len(feedData.Articles), maxArticles)
+			feedID, savedCount, len(articles), maxArticles)
 	} else {
-		log.Printf("Feed %d: Saved %d/%d articles", feedID, savedCount, len(feedData.Articles))
+		log.Printf("Feed %d: Saved %d/%d articles", feedID, savedCount, len(articles))
 	}
 
 	if len(errors) > 0 {
