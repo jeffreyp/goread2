@@ -12,6 +12,7 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"goread2/internal/database"
+	"goread2/scripts/shared"
 )
 
 func main() {
@@ -415,116 +416,9 @@ func findOrphanedUserArticles(ctx context.Context, client *datastore.Client) ([]
 		articleIDMap[key.ID] = true
 	}
 
-	// Get all user articles - try multiple field naming formats
-	userArticleQuery := datastore.NewQuery("UserArticle")
-	var userArticles []database.UserArticleEntity
-	userArticleKeys, err := client.GetAll(ctx, userArticleQuery, &userArticles)
-	if err != nil {
-		fmt.Printf("Warning: UserArticle struct query failed, trying mixed format: %v\n", err)
-
-		// Define mixed format struct - camelCase IDs, snake_case booleans
-		type MixedUserArticleEntity struct {
-			UserID    int64 `datastore:"UserID"`
-			ArticleID int64 `datastore:"ArticleID"`
-			IsRead    bool  `datastore:"is_read"`
-			IsStarred bool  `datastore:"is_starred"`
-		}
-
-		var mixedEntities []MixedUserArticleEntity
-		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &mixedEntities)
-		if err != nil {
-			fmt.Printf("Warning: Mixed format failed, trying full camelCase: %v\n", err)
-
-			// Try full camelCase format
-			type FullCamelUserArticleEntity struct {
-				UserID    int64 `datastore:"UserID"`
-				ArticleID int64 `datastore:"ArticleID"`
-				IsRead    bool  `datastore:"IsRead"`
-				IsStarred bool  `datastore:"IsStarred"`
-			}
-
-			var camelEntities []FullCamelUserArticleEntity
-			userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &camelEntities)
-			if err != nil {
-				fmt.Printf("Warning: Full camelCase failed, trying partial camelCase: %v\n", err)
-
-				// Try partial camelCase format - UserID camelCase, others snake_case
-				type PartialCamelUserArticleEntity struct {
-					UserID    int64 `datastore:"UserID"`
-					ArticleID int64 `datastore:"article_id"`
-					IsRead    bool  `datastore:"is_read"`
-					IsStarred bool  `datastore:"is_starred"`
-				}
-
-				var partialEntities []PartialCamelUserArticleEntity
-				userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &partialEntities)
-				if err != nil {
-					fmt.Printf("Warning: Partial camelCase failed, trying alternate partial: %v\n", err)
-
-					// Try alternate partial format - different field mix
-					type AlternatePartialUserArticleEntity struct {
-						UserID    int64 `datastore:"user_id"`
-						ArticleID int64 `datastore:"ArticleID"`
-						IsRead    bool  `datastore:"is_read"`
-						IsStarred bool  `datastore:"is_starred"`
-					}
-
-					var altPartialEntities []AlternatePartialUserArticleEntity
-					userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &altPartialEntities)
-					if err != nil {
-						// Graceful failure: skip UserArticle orphan detection for articles
-						fmt.Printf("Warning: All UserArticle formats failed, skipping orphaned article detection: %v\n", err)
-						return []*datastore.Key{}, nil
-					}
-
-					// Process alternate partial format entities
-					var orphanedKeys []*datastore.Key
-					for i, altPartialEntity := range altPartialEntities {
-						if !articleIDMap[altPartialEntity.ArticleID] {
-							orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-						}
-					}
-					return orphanedKeys, nil
-				}
-
-				// Process partial camelCase entities
-				var orphanedKeys []*datastore.Key
-				for i, partialEntity := range partialEntities {
-					if !articleIDMap[partialEntity.ArticleID] {
-						orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-					}
-				}
-				return orphanedKeys, nil
-			}
-
-			// Process full camelCase entities
-			var orphanedKeys []*datastore.Key
-			for i, camelEntity := range camelEntities {
-				if !articleIDMap[camelEntity.ArticleID] {
-					orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-				}
-			}
-			return orphanedKeys, nil
-		}
-
-		// Process mixed format entities
-		var orphanedKeys []*datastore.Key
-		for i, mixedEntity := range mixedEntities {
-			if !articleIDMap[mixedEntity.ArticleID] {
-				orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-			}
-		}
-		return orphanedKeys, nil
-	}
-
-	var orphanedKeys []*datastore.Key
-	for i, userArticle := range userArticles {
-		if !articleIDMap[userArticle.ArticleID] {
-			orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-		}
-	}
-
-	return orphanedKeys, nil
+	// Use the shared compatibility library
+	compat := shared.NewUserArticleCompat(client)
+	return compat.FindOrphanedByArticles(ctx, articleIDMap)
 }
 
 func findOrphanedUserArticlesUsers(ctx context.Context, client *datastore.Client) ([]*datastore.Key, error) {
@@ -540,116 +434,9 @@ func findOrphanedUserArticlesUsers(ctx context.Context, client *datastore.Client
 		userIDMap[key.ID] = true
 	}
 
-	// Get all user articles - try multiple field naming formats
-	userArticleQuery := datastore.NewQuery("UserArticle")
-	var userArticles []database.UserArticleEntity
-	userArticleKeys, err := client.GetAll(ctx, userArticleQuery, &userArticles)
-	if err != nil {
-		fmt.Printf("Warning: UserArticle struct query failed, trying mixed format: %v\n", err)
-
-		// Define mixed format struct - camelCase IDs, snake_case booleans
-		type MixedUserArticleEntity struct {
-			UserID    int64 `datastore:"UserID"`
-			ArticleID int64 `datastore:"ArticleID"`
-			IsRead    bool  `datastore:"is_read"`
-			IsStarred bool  `datastore:"is_starred"`
-		}
-
-		var mixedEntities []MixedUserArticleEntity
-		userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &mixedEntities)
-		if err != nil {
-			fmt.Printf("Warning: Mixed format failed, trying full camelCase: %v\n", err)
-
-			// Try full camelCase format
-			type FullCamelUserArticleEntity struct {
-				UserID    int64 `datastore:"UserID"`
-				ArticleID int64 `datastore:"ArticleID"`
-				IsRead    bool  `datastore:"IsRead"`
-				IsStarred bool  `datastore:"IsStarred"`
-			}
-
-			var camelEntities []FullCamelUserArticleEntity
-			userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &camelEntities)
-			if err != nil {
-				fmt.Printf("Warning: Full camelCase failed, trying partial camelCase: %v\n", err)
-
-				// Try partial camelCase format - UserID camelCase, others snake_case
-				type PartialCamelUserArticleEntity struct {
-					UserID    int64 `datastore:"UserID"`
-					ArticleID int64 `datastore:"article_id"`
-					IsRead    bool  `datastore:"is_read"`
-					IsStarred bool  `datastore:"is_starred"`
-				}
-
-				var partialEntities []PartialCamelUserArticleEntity
-				userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &partialEntities)
-				if err != nil {
-					fmt.Printf("Warning: Partial camelCase failed, trying alternate partial: %v\n", err)
-
-					// Try alternate partial format - different field mix
-					type AlternatePartialUserArticleEntity struct {
-						UserID    int64 `datastore:"user_id"`
-						ArticleID int64 `datastore:"ArticleID"`
-						IsRead    bool  `datastore:"is_read"`
-						IsStarred bool  `datastore:"is_starred"`
-					}
-
-					var altPartialEntities []AlternatePartialUserArticleEntity
-					userArticleKeys, err = client.GetAll(ctx, userArticleQuery, &altPartialEntities)
-					if err != nil {
-						// Graceful failure: skip UserArticle orphan detection for users
-						fmt.Printf("Warning: All UserArticle formats failed, skipping orphaned user detection: %v\n", err)
-						return []*datastore.Key{}, nil
-					}
-
-					// Process alternate partial format entities
-					var orphanedKeys []*datastore.Key
-					for i, altPartialEntity := range altPartialEntities {
-						if !userIDMap[altPartialEntity.UserID] {
-							orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-						}
-					}
-					return orphanedKeys, nil
-				}
-
-				// Process partial camelCase entities
-				var orphanedKeys []*datastore.Key
-				for i, partialEntity := range partialEntities {
-					if !userIDMap[partialEntity.UserID] {
-						orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-					}
-				}
-				return orphanedKeys, nil
-			}
-
-			// Process full camelCase entities
-			var orphanedKeys []*datastore.Key
-			for i, camelEntity := range camelEntities {
-				if !userIDMap[camelEntity.UserID] {
-					orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-				}
-			}
-			return orphanedKeys, nil
-		}
-
-		// Process mixed format entities
-		var orphanedKeys []*datastore.Key
-		for i, mixedEntity := range mixedEntities {
-			if !userIDMap[mixedEntity.UserID] {
-				orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-			}
-		}
-		return orphanedKeys, nil
-	}
-
-	var orphanedKeys []*datastore.Key
-	for i, userArticle := range userArticles {
-		if !userIDMap[userArticle.UserID] {
-			orphanedKeys = append(orphanedKeys, userArticleKeys[i])
-		}
-	}
-
-	return orphanedKeys, nil
+	// Use the shared compatibility library
+	compat := shared.NewUserArticleCompat(client)
+	return compat.FindOrphanedByUsers(ctx, userIDMap)
 }
 
 func findUnusedFeeds(ctx context.Context, client *datastore.Client) ([]*datastore.Key, error) {
