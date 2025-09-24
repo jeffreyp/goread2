@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
 	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/language"
 	"goread2/internal/database"
 )
 
@@ -444,6 +446,9 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 		return nil, err
 	}
 
+	// Special handling for feeds with media namespace conflicts
+	body = fs.preprocessXMLForMediaConflicts(body)
+
 	// Try parsing as RSS 2.0 first
 	var rss RSS
 	if err := xml.Unmarshal(body, &rss); err == nil && rss.XMLName.Local == "rss" {
@@ -477,7 +482,7 @@ func (fs *FeedService) convertRSSToFeedData(rss *RSS, feedURL string) *FeedData 
 		}
 
 		articles[i] = ArticleData{
-			Title:       item.Title,
+			Title:       fs.sanitizeArticleTitle(item.Title, item.Link, item.Description),
 			Link:        item.Link,
 			Description: item.Description,
 			Content:     item.Content,
@@ -502,7 +507,7 @@ func (fs *FeedService) convertRDFToFeedData(rdf *RDF, feedURL string) *FeedData 
 		}
 
 		articles[i] = ArticleData{
-			Title:       item.Title,
+			Title:       fs.sanitizeArticleTitle(item.Title, item.Link, item.Description),
 			Link:        item.Link,
 			Description: item.Description,
 			Content:     item.Description, // RDF doesn't usually have separate content
@@ -536,7 +541,7 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom, feedURL string) *FeedDa
 		}
 
 		articles[i] = ArticleData{
-			Title:       entry.Title,
+			Title:       fs.sanitizeArticleTitle(entry.Title, entry.Link.Href, entry.Summary),
 			Link:        entry.Link.Href,
 			Description: entry.Summary,
 			Content:     content,
@@ -807,6 +812,152 @@ func (fs *FeedService) enhanceFeedTitle(title, feedURL string) string {
 	}
 
 	return title
+}
+
+func (fs *FeedService) sanitizeArticleTitle(title, link, description string) string {
+	// Remove excessive whitespace and trim
+	title = strings.TrimSpace(title)
+
+	// If title is empty, try to generate one from other sources
+	if title == "" {
+		return fs.generateFallbackTitle(link, description)
+	}
+
+	// Check if title looks like a filename, URL fragment, or other non-title content
+	if fs.isInvalidTitle(title) {
+		fallback := fs.generateFallbackTitle(link, description)
+		if fallback != "" {
+			log.Printf("Replacing invalid title '%s' with fallback: '%s'", title, fallback)
+			return fallback
+		}
+	}
+
+	// Clean up the title
+	title = fs.cleanTitle(title)
+
+	return title
+}
+
+func (fs *FeedService) isInvalidTitle(title string) bool {
+	title = strings.ToLower(strings.TrimSpace(title))
+
+	// Check for patterns that suggest this isn't a real title
+	invalidPatterns := []string{
+		// File extensions
+		".jpg", ".jpeg", ".png", ".gif", ".pdf", ".doc", ".docx",
+		// Common filename patterns
+		"-v2-", "_v2_", "(2)", "(3)", "(4)",
+		// URL-like patterns
+		"http://", "https://", "www.",
+		// Generic short codes
+		"temp", "tmp", "test", "draft",
+	}
+
+	for _, pattern := range invalidPatterns {
+		if strings.Contains(title, pattern) {
+			return true
+		}
+	}
+
+	// Check if title is suspiciously short and contains mostly non-letter characters
+	if len(title) < 15 {
+		letterCount := 0
+		for _, r := range title {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				letterCount++
+			}
+		}
+		// If less than 50% letters, it's likely not a real title
+		if float64(letterCount)/float64(len(title)) < 0.5 {
+			return true
+		}
+	}
+
+	// Check for very short titles that look like codes or fragments
+	if len(title) < 12 {
+		// Count meaningful words (more than 2 characters)
+		words := strings.Fields(title)
+		meaningfulWords := 0
+		for _, word := range words {
+			if len(word) > 2 {
+				meaningfulWords++
+			}
+		}
+		// If no meaningful words, it's probably not a real title
+		if meaningfulWords == 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (fs *FeedService) generateFallbackTitle(link, description string) string {
+	// Try to extract a meaningful title from the URL
+	if link != "" {
+		if u, err := url.Parse(link); err == nil {
+			path := strings.TrimPrefix(u.Path, "/")
+			// Remove file extensions and URL encoding
+			path = strings.TrimSuffix(path, "/")
+			if lastSlash := strings.LastIndex(path, "/"); lastSlash != -1 {
+				path = path[lastSlash+1:]
+			}
+			// Clean up the path to make it more readable
+			path = strings.ReplaceAll(path, "-", " ")
+			path = strings.ReplaceAll(path, "_", " ")
+			caser := cases.Title(language.English)
+			path = caser.String(strings.ToLower(path))
+			if len(path) > 5 && len(path) < 100 {
+				return path
+			}
+		}
+	}
+
+	// Try to use first sentence of description
+	if description != "" {
+		description = strings.TrimSpace(description)
+		if len(description) > 10 {
+			// Find first sentence or take first 80 characters
+			if dotIndex := strings.Index(description, ". "); dotIndex > 10 && dotIndex < 80 {
+				return description[:dotIndex]
+			}
+			if len(description) > 80 {
+				return description[:77] + "..."
+			}
+			return description
+		}
+	}
+
+	return "Untitled Article"
+}
+
+func (fs *FeedService) cleanTitle(title string) string {
+	// Remove HTML tags if any
+	title = strings.ReplaceAll(title, "<", "&lt;")
+	title = strings.ReplaceAll(title, ">", "&gt;")
+
+	// Normalize whitespace
+	title = strings.Join(strings.Fields(title), " ")
+
+	// Limit length to reasonable bounds
+	if len(title) > 200 {
+		title = title[:197] + "..."
+	}
+
+	return title
+}
+
+func (fs *FeedService) preprocessXMLForMediaConflicts(body []byte) []byte {
+	content := string(body)
+
+	// Replace media:title and media:description tags to prevent namespace conflicts
+	// This prevents Go's XML parser from accidentally binding to media tags instead of regular tags
+	content = strings.ReplaceAll(content, "<media:title>", "<media-title>")
+	content = strings.ReplaceAll(content, "</media:title>", "</media-title>")
+	content = strings.ReplaceAll(content, "<media:description", "<media-description")
+	content = strings.ReplaceAll(content, "</media:description>", "</media-description>")
+
+	return []byte(content)
 }
 
 func (fs *FeedService) convertToUTF8(body []byte) ([]byte, error) {
