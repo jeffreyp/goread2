@@ -130,7 +130,7 @@ The interface features three main sections:
 
 Run the comprehensive test suite:
 ```bash
-./test.sh  # Runs both backend and frontend tests
+make test  # Runs both backend and frontend tests
 ```
 
 - **Comprehensive test coverage** with significant improvements in critical areas
@@ -145,7 +145,7 @@ Run the comprehensive test suite:
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new functionality
-4. Ensure `./test.sh` passes
+4. Ensure `make test` passes
 5. Submit a pull request
 
 See [docs/contributing.md](docs/contributing.md) for detailed guidelines.
