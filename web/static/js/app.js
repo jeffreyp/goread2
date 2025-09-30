@@ -130,6 +130,9 @@ class GoReadApp {
             });
         }
 
+        // Setup touch swipe gestures for article navigation on phones
+        this.setupSwipeGestures();
+
         // Handle close buttons for all modals
         document.querySelectorAll('.close').forEach(closeBtn => {
             closeBtn.addEventListener('click', (e) => {
@@ -220,12 +223,12 @@ class GoReadApp {
         // Mobile menu toggle
         const mobileMenuBtn = document.getElementById('mobile-menu-btn');
         const headerActions = document.getElementById('header-actions');
-        
+
         if (mobileMenuBtn && headerActions) {
             mobileMenuBtn.addEventListener('click', () => {
                 headerActions.classList.toggle('show');
             });
-            
+
             // Close mobile menu when clicking outside
             document.addEventListener('click', (e) => {
                 if (!mobileMenuBtn.contains(e.target) && !headerActions.contains(e.target)) {
@@ -234,18 +237,19 @@ class GoReadApp {
             });
         }
 
-        // Mobile pane navigation
+        // Mobile pane navigation - only for phones (under 768px) in portrait mode
         const mobileNavButtons = document.querySelectorAll('.mobile-nav-btn');
         const feedPane = document.querySelector('.feed-pane');
         const articlePane = document.querySelector('.article-pane');
         const contentPane = document.querySelector('.content-pane');
 
-        // Initialize mobile navigation - show content pane by default
-        if (window.innerWidth < 1024) {
+        // Initialize mobile navigation - show content pane by default on phones in portrait only
+        const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+        if (window.innerWidth < 768 && isPortrait) {
             // Start with content pane visible
             if (feedPane) feedPane.classList.remove('active');
             if (articlePane) articlePane.classList.remove('active');
-            
+
             // Set content button as active
             const contentBtn = document.querySelector('[data-pane="content"]');
             if (contentBtn) {
@@ -259,19 +263,23 @@ class GoReadApp {
                 btn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    
+
+                    // Only handle navigation on phones (under 768px) in portrait mode
+                    const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+                    if (window.innerWidth >= 768 || !isPortrait) return;
+
                     const pane = btn.dataset.pane;
                     console.log('Mobile nav button clicked:', pane);
-                    
+
                     // Remove active class from all buttons
                     mobileNavButtons.forEach(b => b.classList.remove('active'));
                     // Add active class to clicked button
                     btn.classList.add('active');
-                    
+
                     // Hide all panes
                     if (feedPane) feedPane.classList.remove('active');
                     if (articlePane) articlePane.classList.remove('active');
-                    
+
                     // Show selected pane
                     if (pane === 'feeds' && feedPane) {
                         feedPane.classList.add('active');
@@ -289,20 +297,23 @@ class GoReadApp {
     }
 
     updateMobileNavigation(pane) {
-        // Only update on mobile/small tablet screens (exclude iPad landscape)
-        if (window.innerWidth >= 1024) return;
+        // Check if we're in portrait mode on phones (landscape uses two-pane like tablets)
+        const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+
+        // Only update on mobile screens under 768px in portrait mode
+        if (window.innerWidth >= 768 || !isPortrait) return;
 
         const mobileNavButtons = document.querySelectorAll('.mobile-nav-btn');
         const feedPane = document.querySelector('.feed-pane');
         const articlePane = document.querySelector('.article-pane');
-        
+
         // Remove active class from all buttons
         mobileNavButtons.forEach(btn => btn.classList.remove('active'));
-        
+
         // Hide all panes
         if (feedPane) feedPane.classList.remove('active');
         if (articlePane) articlePane.classList.remove('active');
-        
+
         // Show selected pane and activate corresponding button
         if (pane === 'feeds' && feedPane) {
             feedPane.classList.add('active');
@@ -317,6 +328,54 @@ class GoReadApp {
             const contentBtn = document.querySelector('[data-pane="content"]');
             if (contentBtn) contentBtn.classList.add('active');
         }
+    }
+
+    setupSwipeGestures() {
+        const contentPane = document.querySelector('.content-pane');
+        if (!contentPane) return;
+
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchEndX = 0;
+        let touchEndY = 0;
+
+        // Minimum swipe distance in pixels
+        const minSwipeDistance = 50;
+        // Maximum vertical movement allowed for horizontal swipe
+        const maxVerticalMovement = 100;
+
+        contentPane.addEventListener('touchstart', (e) => {
+            // Enable swipes on phones (under 768px) and tablets in portrait mode
+            if (window.innerWidth >= 1024) return;
+
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        contentPane.addEventListener('touchend', (e) => {
+            // Enable swipes on phones (under 768px) and tablets in portrait mode
+            if (window.innerWidth >= 1024) return;
+            if (this.currentArticle === null || this.articles.length === 0) return;
+
+            touchEndX = e.changedTouches[0].screenX;
+            touchEndY = e.changedTouches[0].screenY;
+
+            const horizontalDistance = touchEndX - touchStartX;
+            const verticalDistance = Math.abs(touchEndY - touchStartY);
+
+            // Check if this is a horizontal swipe (not vertical scroll)
+            if (Math.abs(horizontalDistance) > minSwipeDistance &&
+                verticalDistance < maxVerticalMovement) {
+
+                if (horizontalDistance < 0) {
+                    // Swipe left - next article
+                    this.selectNextArticleAndMarkCurrentAsRead();
+                } else {
+                    // Swipe right - previous article
+                    this.selectPreviousArticle();
+                }
+            }
+        }, { passive: true });
     }
 
     setupKeyboardShortcuts() {
@@ -532,20 +591,30 @@ class GoReadApp {
 
     async selectFeed(feedId) {
         this.currentFeed = feedId;
-        
+
         document.querySelectorAll('.feed-item').forEach(item => {
             item.classList.remove('active');
         });
-        
+
         document.querySelector(`[data-feed-id="${feedId}"]`).classList.add('active');
-        
+
         await this.loadArticles(feedId);
-        
+
         const feedTitle = 'Articles';
         document.getElementById('article-pane-title').textContent = feedTitle;
 
-        // Update mobile navigation to show articles pane when feed is selected
+        // Update mobile navigation to show articles pane when feed is selected (portrait phones only)
         this.updateMobileNavigation('articles');
+
+        // On tablets and phone landscape, scroll the articles pane into view within the feed pane
+        const isLandscape = window.matchMedia('(orientation: landscape)').matches;
+        if ((window.innerWidth >= 768 && window.innerWidth < 1024) ||
+            (window.innerWidth < 768 && isLandscape)) {
+            const articlePane = document.querySelector('.article-pane');
+            if (articlePane) {
+                articlePane.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
     }
 
     async loadArticles(feedId, append = false) {
@@ -823,22 +892,22 @@ class GoReadApp {
 
     async selectArticle(index) {
         // Auto-read behavior is disabled - users manually control read status with 'm' key
-        
+
         this.currentArticle = index;
-        
+
         document.querySelectorAll('.article-item').forEach(item => {
             item.classList.remove('active');
         });
-        
+
         const articleItem = document.querySelector(`[data-index="${index}"]`);
         articleItem.classList.add('active');
-        
+
         const article = this.articles[index];
         this.displayArticle(article);
-        
-        // Update mobile navigation to show content pane when article is selected
+
+        // Update mobile navigation to show content pane when article is selected (phones only)
         this.updateMobileNavigation('content');
-        
+
         articleItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
@@ -871,10 +940,10 @@ class GoReadApp {
     displayArticle(article) {
         const contentPane = document.getElementById('article-content');
         const publishedDate = new Date(article.published_at).toLocaleString();
-        
+
         // Sanitize the article content to prevent iframe and other security issues
         const sanitizedContent = this.sanitizeContent(article.content || article.description || '<p>No content available.</p>');
-        
+
         contentPane.innerHTML = `
             <h1>${this.escapeHtml(article.title)}</h1>
             <div class="meta">
@@ -886,7 +955,10 @@ class GoReadApp {
                 ${sanitizedContent}
             </div>
         `;
-        
+
+        // Scroll the content pane to the top to ensure the new article is displayed from its beginning
+        contentPane.scrollTop = 0;
+
     }
 
     async selectNextArticleAndMarkCurrentAsRead() {

@@ -45,38 +45,41 @@
         </header>
 
         <div class="main-container">
-            <!-- Left Pane: Feed List -->
-            <div class="feed-pane">
-                <div class="pane-header">
-                    <h2>Feeds</h2>
-                </div>
-                <div class="subscription-panel" id="subscription-panel">
-                    <!-- Subscription info will be populated here -->
-                </div>
-                <div class="feed-list" id="feed-list">
-                    <div class="feed-item special" data-feed-id="all">
-                        <span class="feed-title">All Articles</span>
-                        <span class="unread-count" id="all-unread-count">0</span>
+            <!-- Left side wrapper for tablet/phone landscape (feeds + articles together) -->
+            <div class="sidebar-wrapper">
+                <!-- Feed List -->
+                <div class="feed-pane">
+                    <div class="pane-header">
+                        <h2>Feeds</h2>
                     </div>
-                    <!-- Feeds will be dynamically populated here -->
+                    <div class="subscription-panel" id="subscription-panel">
+                        <!-- Subscription info will be populated here -->
+                    </div>
+                    <div class="feed-list" id="feed-list">
+                        <div class="feed-item special" data-feed-id="all">
+                            <span class="feed-title">All Articles</span>
+                            <span class="unread-count" id="all-unread-count">0</span>
+                        </div>
+                        <!-- Feeds will be dynamically populated here -->
+                    </div>
                 </div>
-            </div>
 
-            <!-- Center Pane: Article List -->
-            <div class="article-pane">
-                <div class="pane-header">
-                    <h2 id="article-pane-title">Select a feed</h2>
-                    <div class="article-filter">
-                        <label>
-                            <input type="radio" name="article-filter" value="unread" checked> Unread
-                        </label>
-                        <label>
-                            <input type="radio" name="article-filter" value="all"> All
-                        </label>
+                <!-- Article List -->
+                <div class="article-pane">
+                    <div class="pane-header">
+                        <h2 id="article-pane-title">Select a feed</h2>
+                        <div class="article-filter">
+                            <label>
+                                <input type="radio" name="article-filter" value="unread" checked> Unread
+                            </label>
+                            <label>
+                                <input type="radio" name="article-filter" value="all"> All
+                            </label>
+                        </div>
                     </div>
-                </div>
-                <div class="article-list" id="article-list">
-                    <!-- Articles will be dynamically populated here -->
+                    <div class="article-list" id="article-list">
+                        <!-- Articles will be dynamically populated here -->
+                    </div>
                 </div>
             </div>
 

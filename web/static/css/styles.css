@@ -93,6 +93,11 @@ body.app-body {
     height: calc(100vh - 60px);
 }
 
+/* Desktop: sidebar-wrapper is not used, panes are direct children */
+.sidebar-wrapper {
+    display: contents;
+}
+
 .feed-pane {
     width: 300px;
     background-color: #fff;
@@ -938,86 +943,346 @@ body.app-body {
 }
 
 /* Mobile Responsive Styles */
-/* iPad and smaller tablets in landscape */
-@media screen and (max-width: 1024px) and (min-width: 769px) {
-    .header-actions {
-        gap: 8px;
-    }
-    
-    .btn {
-        padding: 6px 12px;
-        font-size: 13px;
-    }
-    
-    .article-pane {
-        width: 320px;
-    }
-    
-    .feed-pane {
-        width: 260px;
-    }
-    
-    /* Show mobile nav but with larger touch targets for tablets */
-    .mobile-nav-btn {
-        padding: 10px 16px;
-        font-size: 13px;
-    }
-    
-    .mobile-nav-btn-icon {
-        font-size: 20px;
-    }
-}
 
-@media screen and (max-width: 1023px) {
+/* Tablet Portrait (768px - 1023px) - Two pane layout */
+@media screen and (max-width: 1023px) and (min-width: 768px) {
     .header {
         padding: 0 15px;
-        height: 50px;
+        height: 56px;
     }
-    
-    .header-content {
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-    
+
     .logo {
-        font-size: 20px;
+        font-size: 22px;
     }
-    
+
+    /* Show hamburger menu for header actions */
+    .mobile-menu-btn {
+        display: block;
+        background: none;
+        border: none;
+        font-size: 28px;
+        cursor: pointer;
+        padding: 8px;
+        color: #5f6368;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
     .header-actions {
         display: none;
         position: absolute;
-        top: 50px;
+        top: 56px;
         left: 0;
         right: 0;
         background: white;
         border-bottom: 1px solid #e1e5e9;
-        padding: 10px 15px;
+        padding: 12px 15px;
         gap: 8px;
         flex-wrap: wrap;
         z-index: 1001;
     }
-    
+
     .header-actions.show {
         display: flex;
     }
-    
+
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    .main-container {
+        height: calc(100vh - 56px);
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        grid-template-rows: 1fr;
+    }
+
+    /* Sidebar wrapper contains feeds + articles, scrolls as one unit */
+    .sidebar-wrapper {
+        display: block;
+        overflow-y: auto;
+        border-right: 2px solid #e1e5e9;
+        background-color: #fff;
+    }
+
+    /* Feed pane inside sidebar */
+    .feed-pane {
+        width: 100%;
+        border-right: none;
+        overflow-y: visible;
+    }
+
+    /* Articles pane inside sidebar, below feeds */
+    .article-pane {
+        width: 100%;
+        border-right: none;
+        border-top: 2px solid #e1e5e9;
+        overflow-y: visible;
+    }
+
+    /* Content pane on right - always visible */
+    .content-pane {
+        overflow-y: auto;
+    }
+
+    /* Hide mobile nav on tablets */
+    .mobile-nav {
+        display: none;
+    }
+
+    /* Larger touch targets for tablet */
+    .feed-item,
+    .article-item {
+        padding: 16px 20px;
+        min-height: 60px;
+    }
+
+    .feed-title,
+    .article-title {
+        font-size: 15px;
+    }
+
+    .action-btn {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 10px;
+        font-size: 18px;
+    }
+
+    .unread-count {
+        min-width: 28px;
+        padding: 4px 10px;
+        font-size: 13px;
+    }
+
+    .article-content {
+        padding: 24px;
+    }
+
+    .article-content h1 {
+        font-size: 26px;
+    }
+
+    .article-filter label {
+        padding: 8px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+
+    .article-filter input[type="radio"] {
+        min-width: 20px;
+        min-height: 20px;
+    }
+}
+
+/* Phone landscape (under 768px, landscape orientation) - Two pane layout */
+@media screen and (max-width: 767px) and (orientation: landscape) {
+    .header {
+        padding: 0 12px;
+        height: 48px;
+    }
+
+    .header-content {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .logo {
+        font-size: 18px;
+    }
+
+    .header-actions {
+        display: none;
+        position: absolute;
+        top: 48px;
+        left: 0;
+        right: 0;
+        background: white;
+        border-bottom: 1px solid #e1e5e9;
+        padding: 12px;
+        gap: 8px;
+        flex-wrap: wrap;
+        z-index: 1001;
+    }
+
+    .header-actions.show {
+        display: flex;
+    }
+
     .mobile-menu-btn {
         display: block;
         background: none;
         border: none;
         font-size: 24px;
         cursor: pointer;
-        padding: 4px;
+        padding: 6px;
         color: #5f6368;
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    
+
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 10px 14px;
+        font-size: 14px;
+    }
+
     .main-container {
-        height: calc(100vh - 50px);
+        height: calc(100vh - 48px);
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        grid-template-rows: 1fr;
+    }
+
+    /* Sidebar wrapper contains feeds + articles, scrolls as one unit */
+    .sidebar-wrapper {
+        display: block;
+        overflow-y: auto;
+        border-right: 2px solid #e1e5e9;
+        background-color: #fff;
+    }
+
+    /* Feed pane inside sidebar */
+    .feed-pane {
+        width: 100%;
+        border-right: none;
+        overflow-y: visible;
+    }
+
+    /* Articles pane inside sidebar, below feeds */
+    .article-pane {
+        width: 100%;
+        border-right: none;
+        border-top: 2px solid #e1e5e9;
+        overflow-y: visible;
+    }
+
+    /* Content pane on right - always visible */
+    .content-pane {
+        overflow-y: auto;
+    }
+
+    /* Hide mobile nav in landscape */
+    .mobile-nav {
+        display: none;
+    }
+
+    /* Compact spacing for landscape */
+    .feed-item,
+    .article-item {
+        padding: 12px 16px;
+        min-height: 52px;
+    }
+
+    .feed-title,
+    .article-title {
+        font-size: 14px;
+    }
+
+    .action-btn {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 10px;
+        font-size: 18px;
+    }
+
+    .article-content {
+        padding: 16px;
+    }
+
+    .article-content h1 {
+        font-size: 22px;
+    }
+
+    .article-content .content {
+        font-size: 15px;
+    }
+
+    .pane-header {
+        padding: 12px 16px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background-color: #f8f9fa;
+    }
+
+    .pane-header h2 {
+        font-size: 16px;
+    }
+}
+
+/* Phone portrait (under 768px, portrait orientation) - Single pane with bottom nav */
+@media screen and (max-width: 767px) and (orientation: portrait) {
+    .header {
+        padding: 0 12px;
+        height: 56px;
+    }
+
+    .header-content {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .logo {
+        font-size: 20px;
+    }
+
+    .header-actions {
+        display: none;
+        position: absolute;
+        top: 56px;
+        left: 0;
+        right: 0;
+        background: white;
+        border-bottom: 1px solid #e1e5e9;
+        padding: 12px;
+        gap: 8px;
+        flex-wrap: wrap;
+        z-index: 1001;
+    }
+
+    .header-actions.show {
+        display: flex;
+    }
+
+    .mobile-menu-btn {
+        display: block;
+        background: none;
+        border: none;
+        font-size: 28px;
+        cursor: pointer;
+        padding: 8px;
+        color: #5f6368;
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* All buttons need larger touch targets */
+    .btn {
+        min-height: 48px;
+        min-width: 48px;
+        padding: 12px 16px;
+        font-size: 15px;
+    }
+
+    .main-container {
+        height: calc(100vh - 56px - 64px);
         position: relative;
     }
-    
-    .feed-pane,
-    .article-pane {
+
+    /* Sidebar wrapper for portrait - acts as a single sliding panel */
+    .sidebar-wrapper {
         position: absolute;
         top: 0;
         left: 0;
@@ -1026,185 +1291,201 @@ body.app-body {
         transform: translateX(-100%);
         transition: transform 0.3s ease;
         z-index: 10;
+        background-color: #fff;
+        display: flex;
+        flex-direction: column;
     }
-    
+
+    /* When feeds pane is active, show the sidebar-wrapper */
     .feed-pane.active {
+        /* This is a marker class - actual sliding happens on sidebar-wrapper */
+    }
+
+    .sidebar-wrapper:has(.feed-pane.active),
+    .sidebar-wrapper:has(.article-pane.active) {
         transform: translateX(0);
     }
-    
-    .article-pane.active {
-        transform: translateX(0);
+
+    /* Sliding panels for phone portrait */
+    .feed-pane,
+    .article-pane {
+        width: 100%;
+        border-right: none;
+        overflow-y: auto;
     }
-    
+
+    .article-pane {
+        border-top: 2px solid #e1e5e9;
+    }
+
     .content-pane {
         width: 100%;
         height: 100%;
     }
-    
-    /* Mobile navigation */
+
+    /* Mobile navigation - larger touch targets */
     .mobile-nav {
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
         background: white;
-        border-top: 1px solid #e1e5e9;
+        border-top: 2px solid #e1e5e9;
         display: flex;
         justify-content: space-around;
         padding: 8px 0;
         z-index: 1000;
+        height: 64px;
     }
-    
+
     .mobile-nav-btn {
         background: none;
         border: none;
-        padding: 8px 12px;
+        padding: 8px 16px;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 13px;
         color: #5f6368;
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         gap: 4px;
-        transition: color 0.2s;
+        transition: all 0.2s;
+        min-width: 80px;
+        min-height: 48px;
+        border-radius: 8px;
     }
-    
+
+    .mobile-nav-btn:active {
+        background-color: #f1f3f4;
+    }
+
     .mobile-nav-btn.active {
         color: #1a73e8;
+        background-color: #e8f0fe;
     }
-    
+
     .mobile-nav-btn-icon {
+        font-size: 22px;
+    }
+
+    .pane-header {
+        padding: 16px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background-color: #f8f9fa;
+    }
+
+    .pane-header h2 {
         font-size: 18px;
     }
-    
-    /* Adjust main container for mobile nav */
-    .main-container {
-        height: calc(100vh - 50px - 60px);
-    }
-    
-    .pane-header {
-        padding: 15px;
-    }
-    
-    .pane-header h2 {
-        font-size: 16px;
-    }
-    
+
+    /* Larger touch targets for list items */
     .feed-item,
     .article-item {
-        padding: 12px 15px;
+        padding: 16px;
+        min-height: 72px;
     }
-    
+
     .feed-title,
     .article-title {
-        font-size: 14px;
+        font-size: 16px;
+        line-height: 1.5;
     }
-    
+
     .article-meta {
-        font-size: 11px;
+        font-size: 13px;
     }
-    
+
+    /* Bigger star button for touch */
+    .action-btn {
+        min-width: 48px;
+        min-height: 48px;
+        padding: 12px;
+        font-size: 20px;
+    }
+
+    .unread-count {
+        min-width: 24px;
+        padding: 4px 8px;
+        font-size: 13px;
+    }
+
     .article-content {
-        padding: 15px;
+        padding: 20px 16px;
     }
-    
+
     .article-content h1 {
         font-size: 24px;
+        line-height: 1.3;
     }
-    
+
+    .article-content .content {
+        font-size: 16px;
+        line-height: 1.7;
+    }
+
+    /* Filter radio buttons need larger touch targets */
+    .article-filter {
+        gap: 12px;
+    }
+
+    .article-filter label {
+        padding: 8px 12px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+    }
+
+    .article-filter label:active {
+        background-color: #f1f3f4;
+    }
+
+    .article-filter input[type="radio"] {
+        min-width: 20px;
+        min-height: 20px;
+        margin: 0;
+    }
+
     /* Modal adjustments */
     .modal-content {
         width: 95%;
-        padding: 20px;
+        padding: 24px;
         margin: 20px auto;
     }
-    
+
+    .form-group input {
+        padding: 14px;
+        font-size: 16px;
+        min-height: 48px;
+    }
+
     .login-container {
-        padding: 40px 20px;
+        padding: 40px 24px;
         width: 95%;
     }
-    
-    .privacy-container {
-        padding: 20px 15px;
-    }
-}
 
-@media screen and (max-width: 480px) {
-    .header {
-        padding: 0 10px;
-        height: 45px;
+    .privacy-container {
+        padding: 24px 16px;
     }
-    
-    .logo {
-        font-size: 18px;
+
+    .subscription-panel {
+        padding: 12px 16px;
     }
-    
-    .main-container {
-        height: calc(100vh - 45px - 55px);
+
+    .subscription-info {
+        font-size: 13px;
     }
-    
-    .mobile-nav {
-        padding: 6px 0;
-    }
-    
-    .mobile-nav-btn {
-        padding: 6px 8px;
-        font-size: 10px;
-    }
-    
-    .mobile-nav-btn-icon {
-        font-size: 16px;
-    }
-    
-    .pane-header {
-        padding: 12px;
-    }
-    
-    .feed-item,
-    .article-item {
-        padding: 10px 12px;
-    }
-    
-    .article-content {
-        padding: 12px;
-    }
-    
-    .article-content h1 {
-        font-size: 20px;
-    }
-    
-    .article-content .content {
-        font-size: 15px;
-    }
-    
-    .btn {
-        padding: 8px 12px;
-        font-size: 14px;
-        min-height: 44px;
-    }
-    
-    .form-group input {
-        padding: 12px;
-        font-size: 16px;
-        min-height: 44px;
-    }
-    
-    .action-btn {
-        padding: 8px;
-        font-size: 16px;
+
+    /* Delete button needs better touch target */
+    .delete-feed {
         min-width: 44px;
         min-height: 44px;
-    }
-    
-    .subscription-panel {
-        padding: 10px 12px;
-    }
-    
-    .subscription-info {
-        font-size: 12px;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
+        padding: 10px;
+        font-size: 20px;
     }
 }
 
