@@ -20,7 +20,11 @@ deployed on Google App Engine and Google Data Store.
 
 * Debugging statements should be used as a last resort to minimize
   unnecessary production deployments.
-  
+
+# Buildig and Testing
+
+* Everything you need should be in the Makefile.
+
 # Version Control
 
 * ALWAYS build and test before committing. Builds must succeed and ALL
