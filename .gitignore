@@ -63,3 +63,4 @@ web/static/css/*.min.css
 venv/
 admin
 main
+node_modules/
