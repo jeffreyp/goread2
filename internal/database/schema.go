@@ -29,6 +29,7 @@ type Database interface {
 	AddFeed(feed *Feed) error
 	UpdateFeed(feed *Feed) error
 	GetFeeds() ([]Feed, error)
+	GetFeedByURL(url string) (*Feed, error)
 	GetUserFeeds(userID int) ([]Feed, error)
 	GetAllUserFeeds() ([]Feed, error)
 	DeleteFeed(id int) error
@@ -361,6 +362,20 @@ func (db *DB) GetFeeds() ([]Feed, error) {
 	}
 
 	return feeds, nil
+}
+
+func (db *DB) GetFeedByURL(url string) (*Feed, error) {
+	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch FROM feeds WHERE url = ?`
+	var feed Feed
+	err := db.QueryRow(query, url).Scan(&feed.ID, &feed.Title, &feed.URL, &feed.Description,
+		&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &feed, nil
 }
 
 func (db *DB) DeleteFeed(id int) error {

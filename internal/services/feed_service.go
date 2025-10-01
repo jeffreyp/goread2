@@ -229,17 +229,9 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 	}
 
 	// First check if feed already exists
-	feeds, err := fs.db.GetFeeds()
+	existingFeed, err := fs.db.GetFeedByURL(feedURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get existing feeds: %w", err)
-	}
-
-	var existingFeed *database.Feed
-	for _, feed := range feeds {
-		if feed.URL == feedURL {
-			existingFeed = &feed
-			break
-		}
+		return nil, fmt.Errorf("failed to check existing feed: %w", err)
 	}
 
 	if existingFeed == nil {

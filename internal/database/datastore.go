@@ -172,6 +172,35 @@ func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 	return feeds, nil
 }
 
+func (db *DatastoreDB) GetFeedByURL(url string) (*Feed, error) {
+	ctx := context.Background()
+
+	query := datastore.NewQuery("Feed").FilterField("url", "=", url).Limit(1)
+	var entities []FeedEntity
+	keys, err := db.client.GetAll(ctx, query, &entities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get feed by URL: %w", err)
+	}
+
+	if len(entities) == 0 {
+		return nil, nil // Feed not found
+	}
+
+	entity := entities[0]
+	entity.ID = keys[0].ID
+	feed := &Feed{
+		ID:          int(entity.ID),
+		Title:       entity.Title,
+		URL:         entity.URL,
+		Description: entity.Description,
+		CreatedAt:   entity.CreatedAt,
+		UpdatedAt:   entity.UpdatedAt,
+		LastFetch:   entity.LastFetch,
+	}
+
+	return feed, nil
+}
+
 func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
 	ctx := context.Background()
 

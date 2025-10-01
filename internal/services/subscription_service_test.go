@@ -108,6 +108,7 @@ func (m *mockDBForSub) GetUserByEmail(email string) (*database.User, error) {
 func (m *mockDBForSub) AddFeed(*database.Feed) error                    { return nil }
 func (m *mockDBForSub) UpdateFeed(*database.Feed) error                 { return nil }
 func (m *mockDBForSub) GetFeeds() ([]database.Feed, error)              { return nil, nil }
+func (m *mockDBForSub) GetFeedByURL(string) (*database.Feed, error)     { return nil, nil }
 func (m *mockDBForSub) GetUserFeeds(int) ([]database.Feed, error)       { return nil, nil }
 func (m *mockDBForSub) GetAllUserFeeds() ([]database.Feed, error)       { return nil, nil }
 func (m *mockDBForSub) DeleteFeed(int) error                            { return nil }

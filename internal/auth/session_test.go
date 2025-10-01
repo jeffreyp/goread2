@@ -25,6 +25,7 @@ func (m *mockDB) GetUserByEmail(string) (*database.User, error)                 
 func (m *mockDB) AddFeed(*database.Feed) error                                        { return nil }
 func (m *mockDB) UpdateFeed(*database.Feed) error                                     { return nil }
 func (m *mockDB) GetFeeds() ([]database.Feed, error)                                  { return nil, nil }
+func (m *mockDB) GetFeedByURL(string) (*database.Feed, error)                         { return nil, nil }
 func (m *mockDB) GetUserFeeds(int) ([]database.Feed, error)                           { return nil, nil }
 func (m *mockDB) GetAllUserFeeds() ([]database.Feed, error)                           { return nil, nil }
 func (m *mockDB) DeleteFeed(int) error                                                { return nil }
