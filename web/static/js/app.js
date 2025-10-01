@@ -86,6 +86,11 @@ class GoReadApp {
                 console.log('Subscription info loaded:', this.subscriptionInfo);
                 // Update the subscription display in header and sidebar
                 this.updateSubscriptionDisplay();
+            } else if (response.status === 401) {
+                // Handle authentication errors by redirecting to login
+                console.log('Authentication failed while loading subscription info, showing login');
+                this.authCheckFailed = true;
+                this.showLogin();
             } else {
                 console.error('Failed to load subscription info:', response.status);
             }
@@ -464,22 +469,29 @@ class GoReadApp {
             const existingLoading = feedList.querySelector('.loading');
             existingFeeds.forEach(item => item.remove());
             if (existingLoading) existingLoading.remove();
-            
+
             // Add loading indicator
             const loadingDiv = document.createElement('div');
             loadingDiv.className = 'loading';
             loadingDiv.textContent = 'Loading feeds...';
             feedList.appendChild(loadingDiv);
-            
+
             document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
-            
+
             // Batch feeds and unread counts requests
             const [feedsResponse, countsResponse] = await Promise.all([
                 fetch('/api/feeds'),
                 fetch('/api/feeds/unread-counts')
             ]);
-            
+
             if (!feedsResponse.ok) {
+                // Handle authentication errors by redirecting to login
+                if (feedsResponse.status === 401) {
+                    console.log('Authentication failed while loading feeds, showing login');
+                    this.authCheckFailed = true;
+                    this.showLogin();
+                    return;
+                }
                 throw new Error(`HTTP ${feedsResponse.status}`);
             }
             
