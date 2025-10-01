@@ -90,6 +90,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 
 	feed, err := fh.feedService.AddFeedForUser(user.ID, req.URL)
 	if err != nil {
+		log.Printf("Failed to add feed '%s' for user %d: %v", req.URL, user.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
