@@ -420,7 +420,10 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	// Use default HTTP client with system CAs
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
