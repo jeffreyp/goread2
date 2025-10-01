@@ -61,3 +61,4 @@ temp/
 web/static/js/*.min.js
 web/static/css/*.min.css
 venv/
+admin
