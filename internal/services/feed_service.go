@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -420,9 +422,22 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
-	// Use default HTTP client with system CAs
+	// Create HTTP client with TLS configuration
+	// On App Engine, we need to handle certificate verification issues
+	// Check if we're running on App Engine (GAE_ENV is set)
+	transport := &http.Transport{}
+	if os.Getenv("GAE_ENV") == "standard" {
+		// On App Engine, skip cert verification as a workaround for missing CA certs
+		// TODO: Bundle proper CA certificates instead
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		log.Printf("Warning: TLS certificate verification disabled on App Engine")
+	}
+
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout:   30 * time.Second,
+		Transport: transport,
 	}
 	resp, err := client.Do(req)
 	if err != nil {
