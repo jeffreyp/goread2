@@ -28,15 +28,22 @@ help:
 	@echo ""
 	@echo "Frontend build requirements:"
 	@echo "  - Node.js and npm must be installed"
-	@echo "  - Run 'npm install' to install dependencies"
+	@echo "  - Dependencies are installed automatically via 'npm install'"
 
 # Build the application
 build:
 	@echo "🔨 Building GoRead2..."
 	go build -o goread2 .
 
+# Install npm dependencies if needed
+node_modules: package.json package-lock.json
+	@echo "📦 Installing npm dependencies..."
+	@command -v npm >/dev/null 2>&1 || (echo "❌ npm not found. Please install Node.js" && exit 1)
+	npm install
+	@touch node_modules
+
 # Build minified JavaScript files
-build-js:
+build-js: node_modules
 	@echo "📦 Building minified JavaScript..."
 	@command -v npm >/dev/null 2>&1 || (echo "❌ npm not found. Please install Node.js" && exit 1)
 	npx terser web/static/js/app.js -o web/static/js/app.min.js --compress --mangle
@@ -44,7 +51,7 @@ build-js:
 	@echo "✅ JavaScript minification completed"
 
 # Build minified CSS files
-build-css:
+build-css: node_modules
 	@echo "🎨 Building minified CSS..."
 	@command -v npm >/dev/null 2>&1 || (echo "❌ npm not found. Please install Node.js" && exit 1)
 	npx csso web/static/css/styles.css --output web/static/css/styles.min.css
