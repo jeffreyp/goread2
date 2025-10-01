@@ -13,8 +13,8 @@ deployed on Google App Engine and Google Data Store.
 
 * Prefer `python3` to `python`.
 * "Production" refers to a deployment to Google App Engine/Google Data
-  Store. "Local" refers to a local deployment using sqlite3. ALL code
-  changes must support and be tested to confirm operable on both.
+  Store. "Local" refers to a local deployment using sqlite3.
+** ALL code changes must support and be tested to confirm operable on both.
 
 # Debugging Guidelines
 
