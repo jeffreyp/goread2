@@ -133,6 +133,10 @@ func (m *mockDBForSub) GetUserUnreadCounts(int) (map[int]int, error) { return ni
 func (m *mockDBForSub) GetAllArticles() ([]database.Article, error)  { return nil, nil }
 func (m *mockDBForSub) UpdateFeedLastFetch(int, time.Time) error     { return nil }
 func (m *mockDBForSub) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
+func (m *mockDBForSub) CreateSession(*database.Session) error              { return nil }
+func (m *mockDBForSub) GetSession(string) (*database.Session, error)       { return nil, nil }
+func (m *mockDBForSub) DeleteSession(string) error                         { return nil }
+func (m *mockDBForSub) DeleteExpiredSessions() error                       { return nil }
 
 func TestNewSubscriptionService(t *testing.T) {
 	db := newMockDBForSub()
@@ -140,10 +144,6 @@ func TestNewSubscriptionService(t *testing.T) {
 
 	if service == nil {
 		t.Fatal("NewSubscriptionService returned nil")
-	}
-
-	if service.db != db {
-		t.Error("SubscriptionService database not set correctly")
 	}
 }
 

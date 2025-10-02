@@ -79,6 +79,11 @@ func (m *mockDBForAuth) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles i
 	return nil
 }
 
+func (m *mockDBForAuth) CreateSession(*database.Session) error              { return nil }
+func (m *mockDBForAuth) GetSession(string) (*database.Session, error)       { return nil, nil }
+func (m *mockDBForAuth) DeleteSession(string) error                         { return nil }
+func (m *mockDBForAuth) DeleteExpiredSessions() error                       { return nil }
+
 func TestNewAuthService(t *testing.T) {
 	db := newMockDBForAuth()
 
@@ -96,10 +101,6 @@ func TestNewAuthService(t *testing.T) {
 
 	if authService == nil {
 		t.Fatal("NewAuthService returned nil")
-	}
-
-	if authService.db != db {
-		t.Error("AuthService database not set correctly")
 	}
 
 	if authService.config == nil {

@@ -3,17 +3,15 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	"goread2/internal/database"
 )
 
 type SessionManager struct {
-	sessions map[string]*Session
-	mu       sync.RWMutex
-	db       database.Database
+	db database.Database
 }
 
 type Session struct {
@@ -26,8 +24,7 @@ type Session struct {
 
 func NewSessionManager(db database.Database) *SessionManager {
 	sm := &SessionManager{
-		sessions: make(map[string]*Session),
-		db:       db,
+		db: db,
 	}
 
 	// Start cleanup goroutine
@@ -50,32 +47,54 @@ func (sm *SessionManager) CreateSession(user *database.User) (*Session, error) {
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 days
 	}
 
-	sm.mu.Lock()
-	sm.sessions[sessionID] = session
-	sm.mu.Unlock()
+	// Save to database
+	dbSession := &database.Session{
+		ID:        session.ID,
+		UserID:    session.UserID,
+		CreatedAt: session.CreatedAt,
+		ExpiresAt: session.ExpiresAt,
+	}
+
+	if err := sm.db.CreateSession(dbSession); err != nil {
+		return nil, err
+	}
 
 	return session, nil
 }
 
 func (sm *SessionManager) GetSession(sessionID string) (*Session, bool) {
-	sm.mu.RLock()
-	session, exists := sm.sessions[sessionID]
-	sm.mu.RUnlock()
-
-	if !exists || time.Now().After(session.ExpiresAt) {
-		if exists {
-			sm.DeleteSession(sessionID)
-		}
+	dbSession, err := sm.db.GetSession(sessionID)
+	if err != nil || dbSession == nil {
 		return nil, false
+	}
+
+	// Check if session is expired
+	if time.Now().After(dbSession.ExpiresAt) {
+		sm.DeleteSession(sessionID)
+		return nil, false
+	}
+
+	// Load user from database
+	user, err := sm.db.GetUserByID(dbSession.UserID)
+	if err != nil {
+		return nil, false
+	}
+
+	session := &Session{
+		ID:        dbSession.ID,
+		UserID:    dbSession.UserID,
+		User:      user,
+		CreatedAt: dbSession.CreatedAt,
+		ExpiresAt: dbSession.ExpiresAt,
 	}
 
 	return session, true
 }
 
 func (sm *SessionManager) DeleteSession(sessionID string) {
-	sm.mu.Lock()
-	delete(sm.sessions, sessionID)
-	sm.mu.Unlock()
+	if err := sm.db.DeleteSession(sessionID); err != nil {
+		log.Printf("Error deleting session %s: %v", sessionID, err)
+	}
 }
 
 func (sm *SessionManager) SetSessionCookie(w http.ResponseWriter, session *Session) {
@@ -118,14 +137,9 @@ func (sm *SessionManager) cleanupExpiredSessions() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		sm.mu.Lock()
-		now := time.Now()
-		for id, session := range sm.sessions {
-			if now.After(session.ExpiresAt) {
-				delete(sm.sessions, id)
-			}
+		if err := sm.db.DeleteExpiredSessions(); err != nil {
+			log.Printf("Error cleaning up expired sessions: %v", err)
 		}
-		sm.mu.Unlock()
 	}
 }
 

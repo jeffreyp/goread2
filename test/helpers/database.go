@@ -83,6 +83,13 @@ func createTestTables(db *database.DB) error {
 			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
 			FOREIGN KEY (article_id) REFERENCES articles (id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE sessions (
+			id TEXT PRIMARY KEY,
+			user_id INTEGER NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			expires_at DATETIME NOT NULL,
+			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+		)`,
 	}
 
 	for _, table := range tables {

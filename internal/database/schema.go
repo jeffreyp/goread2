@@ -52,6 +52,12 @@ type Database interface {
 	ToggleUserArticleStar(userID, articleID int) error
 	GetUserUnreadCounts(userID int) (map[int]int, error)
 
+	// Session methods
+	CreateSession(session *Session) error
+	GetSession(sessionID string) (*Session, error)
+	DeleteSession(sessionID string) error
+	DeleteExpiredSessions() error
+
 	// Legacy methods (for migration)
 	GetAllArticles() ([]Article, error)
 
@@ -114,6 +120,13 @@ type UserArticle struct {
 	ArticleID int  `json:"article_id"`
 	IsRead    bool `json:"is_read"`
 	IsStarred bool `json:"is_starred"`
+}
+
+type Session struct {
+	ID        string    `json:"id"`
+	UserID    int       `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 func InitDB() (Database, error) {
@@ -216,7 +229,16 @@ func (db *DB) createTables() error {
 		is_active BOOLEAN DEFAULT 1
 	);`
 
-	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable}
+	sessionsTable := `
+	CREATE TABLE IF NOT EXISTS sessions (
+		id TEXT PRIMARY KEY,
+		user_id INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		expires_at DATETIME NOT NULL,
+		FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+	);`
+
+	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable, sessionsTable}
 
 	for _, table := range tables {
 		if _, err := db.Exec(table); err != nil {
@@ -297,13 +319,27 @@ func (db *DB) migrateDatabase() error {
 
 	// Set trial_ends_at for existing users who don't have it set
 	updateTrialQuery := `
-		UPDATE users 
+		UPDATE users
 		SET trial_ends_at = datetime(created_at, '+30 days')
 		WHERE trial_ends_at IS NULL AND subscription_status = 'trial'
 	`
 	_, err := db.Exec(updateTrialQuery)
 	if err != nil {
 		return fmt.Errorf("failed to set trial end dates: %w", err)
+	}
+
+	// Create sessions table if it doesn't exist
+	sessionsTable := `
+	CREATE TABLE IF NOT EXISTS sessions (
+		id TEXT PRIMARY KEY,
+		user_id INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		expires_at DATETIME NOT NULL,
+		FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+	);`
+	_, err = db.Exec(sessionsTable)
+	if err != nil {
+		return fmt.Errorf("failed to create sessions table: %w", err)
 	}
 
 	// Ensure indexes are created on existing databases
@@ -1054,4 +1090,44 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 	}
 
 	return &user, nil
+}
+
+// Session methods for SQLite
+func (db *DB) CreateSession(session *Session) error {
+	query := `INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`
+	_, err := db.Exec(query, session.ID, session.UserID, session.CreatedAt, session.ExpiresAt)
+	return err
+}
+
+func (db *DB) GetSession(sessionID string) (*Session, error) {
+	query := `SELECT id, user_id, created_at, expires_at FROM sessions WHERE id = ?`
+
+	var session Session
+	err := db.QueryRow(query, sessionID).Scan(
+		&session.ID,
+		&session.UserID,
+		&session.CreatedAt,
+		&session.ExpiresAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &session, nil
+}
+
+func (db *DB) DeleteSession(sessionID string) error {
+	query := `DELETE FROM sessions WHERE id = ?`
+	_, err := db.Exec(query, sessionID)
+	return err
+}
+
+func (db *DB) DeleteExpiredSessions() error {
+	query := `DELETE FROM sessions WHERE expires_at < ?`
+	_, err := db.Exec(query, time.Now())
+	return err
 }

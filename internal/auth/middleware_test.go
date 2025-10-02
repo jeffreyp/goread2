@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewMiddleware(t *testing.T) {
-	db := &mockDB{}
+	db := newMockDB()
 	sessionManager := NewSessionManager(db)
 
 	middleware := NewMiddleware(sessionManager)
@@ -103,7 +103,7 @@ func TestRequireAuthPage(t *testing.T) {
 	// Setup gin test mode
 	gin.SetMode(gin.TestMode)
 	
-	db := &mockDB{}
+	db := newMockDB()
 	sessionManager := NewSessionManager(db)
 	middleware := NewMiddleware(sessionManager)
 

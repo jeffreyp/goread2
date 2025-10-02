@@ -52,6 +52,13 @@ type AdminTokenEntity struct {
 	IsActive    bool      `datastore:"is_active"`
 }
 
+type SessionEntity struct {
+	ID        string    `datastore:"-"` // SessionID is the key
+	UserID    int64     `datastore:"user_id"`
+	CreatedAt time.Time `datastore:"created_at"`
+	ExpiresAt time.Time `datastore:"expires_at"`
+}
+
 type FeedEntity struct {
 	ID          int64     `datastore:"-"`
 	Title       string    `datastore:"title"`
@@ -1367,4 +1374,70 @@ func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 		FreeMonthsRemaining: user.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: maxArticles,
 	}, nil
+}
+
+// Session methods for Datastore
+func (db *DatastoreDB) CreateSession(session *Session) error {
+	ctx := context.Background()
+	
+	entity := &SessionEntity{
+		ID:        session.ID,
+		UserID:    int64(session.UserID),
+		CreatedAt: session.CreatedAt,
+		ExpiresAt: session.ExpiresAt,
+	}
+	
+	key := datastore.NameKey("Session", session.ID, nil)
+	_, err := db.client.Put(ctx, key, entity)
+	return err
+}
+
+func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
+	ctx := context.Background()
+	
+	key := datastore.NameKey("Session", sessionID, nil)
+	var entity SessionEntity
+	
+	err := db.client.Get(ctx, key, &entity)
+	if err == datastore.ErrNoSuchEntity {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	
+	entity.ID = sessionID
+	
+	return &Session{
+		ID:        entity.ID,
+		UserID:    int(entity.UserID),
+		CreatedAt: entity.CreatedAt,
+		ExpiresAt: entity.ExpiresAt,
+	}, nil
+}
+
+func (db *DatastoreDB) DeleteSession(sessionID string) error {
+	ctx := context.Background()
+	
+	key := datastore.NameKey("Session", sessionID, nil)
+	return db.client.Delete(ctx, key)
+}
+
+func (db *DatastoreDB) DeleteExpiredSessions() error {
+	ctx := context.Background()
+
+	// Query for expired sessions
+	query := datastore.NewQuery("Session").FilterField("expires_at", "<", time.Now()).KeysOnly()
+
+	keys, err := db.client.GetAll(ctx, query, nil)
+	if err != nil {
+		return err
+	}
+
+	// Delete expired sessions in batches
+	if len(keys) > 0 {
+		return db.client.DeleteMulti(ctx, keys)
+	}
+
+	return nil
 }
