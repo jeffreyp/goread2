@@ -9,8 +9,8 @@
     "test:ci": "jest --ci --coverage --passWithNoTests",
     "build": "npm run build:css && npm run build:js",
     "build:css": "csso web/static/css/styles.css --output web/static/css/styles.min.css",
-    "build:js": "terser web/static/js/app.js -o web/static/js/app.min.js --compress --mangle && terser web/static/js/account.js -o web/static/js/account.min.js --compress --mangle",
-    "watch:js": "chokidar 'web/static/js/app.js' 'web/static/js/account.js' -c 'npm run build:js'"
+    "build:js": "terser web/static/js/app.js -o web/static/js/app.min.js --compress --mangle && terser web/static/js/modals.js -o web/static/js/modals.min.js --compress --mangle && terser web/static/js/account.js -o web/static/js/account.min.js --compress --mangle",
+    "watch:js": "chokidar 'web/static/js/app.js' 'web/static/js/modals.js' 'web/static/js/account.js' -c 'npm run build:js'"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",

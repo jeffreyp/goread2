@@ -47,6 +47,7 @@ build-js: node_modules
 	@echo "📦 Building minified JavaScript..."
 	@command -v npm >/dev/null 2>&1 || (echo "❌ npm not found. Please install Node.js" && exit 1)
 	npx terser web/static/js/app.js -o web/static/js/app.min.js --compress --mangle
+	npx terser web/static/js/modals.js -o web/static/js/modals.min.js --compress --mangle
 	npx terser web/static/js/account.js -o web/static/js/account.min.js --compress --mangle
 	@echo "✅ JavaScript minification completed"
 

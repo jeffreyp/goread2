@@ -176,9 +176,10 @@ class GoReadApp {
 
         const importOpmlForm = document.getElementById('import-opml-form');
         if (importOpmlForm) {
-            importOpmlForm.addEventListener('submit', (e) => {
+            importOpmlForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                this.importOpml();
+                const manager = await this.loadModalManager();
+                manager.importOpml();
             });
         }
 
@@ -1432,52 +1433,50 @@ class GoReadApp {
         }, 5 * 60 * 1000); // 5 minutes
     }
 
-    showAddFeedModal() {
-        document.getElementById('add-feed-modal').style.display = 'block';
-        document.getElementById('feed-url').focus();
+    // Lazy-load modal manager on first use
+    async loadModalManager() {
+        if (this.modalManager) return this.modalManager;
+
+        console.log('Loading modal module...');
+        const module = await import('./modals.js');
+        this.modalManager = new module.ModalManager(this);
+        this.modalManager.init();
+        console.log('Modal module loaded');
+
+        return this.modalManager;
+    }
+
+    async showAddFeedModal() {
+        const manager = await this.loadModalManager();
+        manager.showAddFeedModal();
     }
 
     hideAddFeedModal() {
-        const modal = document.getElementById('add-feed-modal');
-        const form = document.getElementById('add-feed-form');
-        const submitButton = form.querySelector('button[type="submit"]');
-        const cancelButton = document.getElementById('cancel-add-feed');
-        const inputField = document.getElementById('feed-url');
-        
-        // Reset all form controls if they were in loading state
-        const spinnerOverlay = submitButton.querySelector('.button-spinner-overlay');
-        if (spinnerOverlay) {
-            if (spinnerOverlay.stopAnimation) {
-                spinnerOverlay.stopAnimation();
-            }
-            spinnerOverlay.remove();
+        if (this.modalManager) {
+            this.modalManager.hideAddFeedModal();
         }
-        submitButton.style.position = '';
-        submitButton.disabled = false;
-        cancelButton.disabled = false;
-        inputField.disabled = false;
-        
-        modal.style.display = 'none';
-        form.reset();
     }
 
-    showHelpModal() {
-        document.getElementById('help-modal').style.display = 'block';
+    async showHelpModal() {
+        const manager = await this.loadModalManager();
+        manager.showHelpModal();
     }
 
     hideHelpModal() {
-        document.getElementById('help-modal').style.display = 'none';
+        if (this.modalManager) {
+            this.modalManager.hideHelpModal();
+        }
     }
 
-    showImportOpmlModal() {
-        document.getElementById('import-opml-modal').style.display = 'block';
+    async showImportOpmlModal() {
+        const manager = await this.loadModalManager();
+        manager.showImportOpmlModal();
     }
 
     hideImportOpmlModal() {
-        const modal = document.getElementById('import-opml-modal');
-        const form = document.getElementById('import-opml-form');
-        modal.style.display = 'none';
-        form.reset();
+        if (this.modalManager) {
+            this.modalManager.hideImportOpmlModal();
+        }
     }
 
     toggleFont() {
@@ -1509,87 +1508,6 @@ class GoReadApp {
         if (fontToggleBtn) {
             fontToggleBtn.textContent = this.fontPreference === 'serif' ? 'Serif' : 'Sans';
             fontToggleBtn.title = `Current: ${this.fontPreference === 'serif' ? 'Serif' : 'Sans-serif'} - Click to switch`;
-        }
-    }
-
-    async importOpml() {
-        const fileInput = document.getElementById('opml-file');
-        const submitButton = document.querySelector('#import-opml-form button[type="submit"]');
-        const cancelButton = document.getElementById('cancel-import-opml');
-        const originalText = submitButton.textContent;
-
-        if (!fileInput.files || fileInput.files.length === 0) {
-            this.showError('Please select an OPML file');
-            return;
-        }
-
-        const file = fileInput.files[0];
-
-        // Basic file validation
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
-            this.showError('File is too large (max 10MB)');
-            return;
-        }
-
-        // Show loading state
-        submitButton.disabled = true;
-        submitButton.textContent = 'Importing...';
-        cancelButton.disabled = true;
-        fileInput.disabled = true;
-
-        try {
-            const formData = new FormData();
-            formData.append('opml', file);
-
-            const response = await fetch('/api/feeds/import', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                this.hideImportOpmlModal();
-                await this.loadFeeds();
-                await this.loadSubscriptionInfo();
-                await this.updateUnreadCounts();
-                this.updateSubscriptionDisplay();
-                
-                // Show success message
-                const message = `Successfully imported ${result.imported_count} feed(s) from OPML file`;
-                this.showSuccess(message);
-            } else if (response.status === 402) { // Payment Required
-                const error = await response.json();
-                if (error.limit_reached) {
-                    // Show partial success if some feeds were imported
-                    if (error.imported_count > 0) {
-                        await this.loadFeeds();
-                        await this.updateUnreadCounts();
-                        this.showSuccess(`Imported ${error.imported_count} feed(s) before reaching your limit.`);
-                    }
-                    this.showSubscriptionLimitModal(error);
-                } else if (error.trial_expired) {
-                    this.showTrialExpiredModal(error);
-                } else {
-                    this.showError(error.error || 'Subscription required');
-                }
-            } else {
-                let errorMessage = `HTTP ${response.status}`;
-                try {
-                    const error = await response.json();
-                    errorMessage = error.error || errorMessage;
-                } catch (e) {
-                    // Use default error message
-                }
-                this.showError('Failed to import OPML: ' + errorMessage);
-            }
-        } catch (error) {
-            this.showError('Failed to import OPML: ' + error.message);
-        } finally {
-            // Always restore form controls
-            submitButton.disabled = false;
-            submitButton.textContent = originalText;
-            cancelButton.disabled = false;
-            fileInput.disabled = false;
         }
     }
 
