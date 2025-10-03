@@ -99,6 +99,7 @@ type Feed struct {
 type Article struct {
 	ID          int       `json:"id"`
 	FeedID      int       `json:"feed_id"`
+	FeedTitle   string    `json:"feed_title,omitempty"`
 	Title       string    `json:"title"`
 	URL         string    `json:"url"`
 	Content     string    `json:"content"`
@@ -744,14 +745,15 @@ func (db *DB) GetUserArticles(userID int) ([]Article, error) {
 
 // GetUserArticlesPaginated fetches user articles with pagination
 func (db *DB) GetUserArticlesPaginated(userID, limit, offset int) ([]Article, error) {
-	query := `SELECT a.id, a.feed_id, a.title, a.url, a.content, a.description, a.author, 
-			  a.published_at, a.created_at, 
-			  COALESCE(ua.is_read, 0) as is_read, 
+	query := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.content, a.description, a.author,
+			  a.published_at, a.created_at,
+			  COALESCE(ua.is_read, 0) as is_read,
 			  COALESCE(ua.is_starred, 0) as is_starred
-			  FROM articles a 
-			  JOIN user_feeds uf ON a.feed_id = uf.feed_id 
+			  FROM articles a
+			  JOIN user_feeds uf ON a.feed_id = uf.feed_id
+			  JOIN feeds f ON a.feed_id = f.id
 			  LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
-			  WHERE uf.user_id = ? 
+			  WHERE uf.user_id = ?
 			  ORDER BY a.published_at DESC
 			  LIMIT ? OFFSET ?`
 
@@ -764,7 +766,7 @@ func (db *DB) GetUserArticlesPaginated(userID, limit, offset int) ([]Article, er
 	var articles []Article
 	for rows.Next() {
 		var article Article
-		err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.URL,
+		err := rows.Scan(&article.ID, &article.FeedID, &article.FeedTitle, &article.Title, &article.URL,
 			&article.Content, &article.Description, &article.Author,
 			&article.PublishedAt, &article.CreatedAt, &article.IsRead, &article.IsStarred)
 		if err != nil {
@@ -790,13 +792,14 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 		return []Article{}, nil
 	}
 
-	query := `SELECT a.id, a.feed_id, a.title, a.url, a.content, a.description, a.author, 
-			  a.published_at, a.created_at, 
-			  COALESCE(ua.is_read, 0) as is_read, 
+	query := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.content, a.description, a.author,
+			  a.published_at, a.created_at,
+			  COALESCE(ua.is_read, 0) as is_read,
 			  COALESCE(ua.is_starred, 0) as is_starred
-			  FROM articles a 
+			  FROM articles a
+			  JOIN feeds f ON a.feed_id = f.id
 			  LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
-			  WHERE a.feed_id = ? 
+			  WHERE a.feed_id = ?
 			  ORDER BY a.published_at DESC`
 
 	rows, err := db.Query(query, userID, feedID)
@@ -808,7 +811,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 	var articles []Article
 	for rows.Next() {
 		var article Article
-		err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.URL,
+		err := rows.Scan(&article.ID, &article.FeedID, &article.FeedTitle, &article.Title, &article.URL,
 			&article.Content, &article.Description, &article.Author,
 			&article.PublishedAt, &article.CreatedAt, &article.IsRead, &article.IsStarred)
 		if err != nil {

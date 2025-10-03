@@ -958,6 +958,7 @@ class GoReadApp {
         const sanitizedContent = this.sanitizeContent(article.content || article.description || '<p>No content available.</p>');
 
         contentPane.innerHTML = `
+            ${article.feed_title ? `<div class="feed-label">${this.escapeHtml(article.feed_title)}</div>` : ''}
             <h1>${this.escapeHtml(article.title)}</h1>
             <div class="meta">
                 <span>${publishedDate}</span>

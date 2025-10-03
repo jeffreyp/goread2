@@ -395,6 +395,20 @@ body.app-body {
     font-family: var(--font-reading);
 }
 
+.feed-label {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 500;
+    color: #5f6368;
+    background-color: #f1f3f4;
+    padding: 4px 12px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: var(--font-ui);
+}
+
 .article-content .meta {
     display: flex;
     align-items: center;

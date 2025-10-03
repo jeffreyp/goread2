@@ -712,10 +712,12 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 		return []Article{}, nil
 	}
 
-	// Extract feed IDs for efficient querying
+	// Create a map of feed IDs to feed titles for efficient lookup
+	feedTitleMap := make(map[int]string)
 	feedIDs := make([]int64, len(feeds))
 	for i, feed := range feeds {
 		feedIDs[i] = int64(feed.ID)
+		feedTitleMap[feed.ID] = feed.Title
 	}
 
 	// Get articles more efficiently by running fewer, larger queries
@@ -754,9 +756,11 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 				articles := make([]Article, len(feedArticles))
 				for j, entity := range feedArticles {
 					entity.ID = keys[j].ID
+					feedID := int(entity.FeedID)
 					articles[j] = Article{
 						ID:          int(entity.ID),
-						FeedID:      int(entity.FeedID),
+						FeedID:      feedID,
+						FeedTitle:   feedTitleMap[feedID],
 						Title:       entity.Title,
 						URL:         entity.URL,
 						Content:     entity.Content,
@@ -851,6 +855,12 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 		return []Article{}, nil
 	}
 
+	// Get the feed to retrieve its title
+	feed, err := db.GetFeedByID(feedID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get feed: %w", err)
+	}
+
 	// Get articles for the feed
 	query := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID)).Order("-published_at")
 	var articleEntities []ArticleEntity
@@ -911,6 +921,7 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 		articles[i] = Article{
 			ID:          int(entity.ID),
 			FeedID:      int(entity.FeedID),
+			FeedTitle:   feed.Title,
 			Title:       entity.Title,
 			URL:         entity.URL,
 			Content:     entity.Content,
