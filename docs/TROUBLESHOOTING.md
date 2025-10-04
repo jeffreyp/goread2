@@ -552,10 +552,10 @@ curl -v "https://example.com/feed.xml"
 ## Getting Help
 
 ### Check Documentation
-- [Setup Guide](setup.md) - Installation and configuration
-- [Deployment Guide](deployment.md) - Production deployment
-- [Admin Guide](admin.md) - User management
-- [API Reference](api.md) - API documentation
+- [Setup Guide](SETUP.md) - Installation and configuration
+- [Deployment Guide](DEPLOYMENT.md) - Production deployment
+- [Admin Guide](ADMIN.md) - User management
+- [API Reference](API.md) - API documentation
 
 ### Collect Debug Information
 

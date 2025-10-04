@@ -64,7 +64,7 @@ export STRIPE_PRICE_ID="price_your-price-id"
 go run cmd/setup-stripe/main.go create-product
 ```
 
-For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
+For detailed Stripe setup, see [Stripe Setup Guide](STRIPE.md).
 
 ## Installation
 
@@ -160,7 +160,7 @@ When disabled:
 - **No billing** or payment processing
 - **Simplified UI** without upgrade prompts
 
-See [Feature Flags Guide](feature-flags.md) for complete details.
+See [Feature Flags Guide](FEATURE-FLAGS.md) for complete details.
 
 ## First Run
 
@@ -259,7 +259,7 @@ See [Admin Guide](admin.md) for complete user management.
 
 ## Next Steps
 
-- Read the [Deployment Guide](deployment.md) for production setup
-- Configure [Stripe payments](stripe.md) for subscriptions
-- Set up [admin access](admin.md) for user management
-- Review the [API documentation](api.md) for integration
+- Read the [Deployment Guide](DEPLOYMENT.md) for production setup
+- Configure [Stripe payments](STRIPE.md) for subscriptions
+- Set up [admin access](ADMIN.md) for user management
+- Review the [API documentation](API.md) for integration

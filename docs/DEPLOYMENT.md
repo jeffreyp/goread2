@@ -580,7 +580,7 @@ artillery quick --count 10 --num 50 https://your-domain.com
 
 ## Next Steps
 
-- Configure [Stripe payments](stripe.md) for subscription features
+- Configure [Stripe payments](STRIPE.md) for subscription features
 - Set up [monitoring and logging](monitoring.md) for production
 - Review [security best practices](security.md)
 - Plan [backup and recovery](backup.md) procedures
