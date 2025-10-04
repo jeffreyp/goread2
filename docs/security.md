@@ -123,7 +123,9 @@ All state-changing API operations (POST, PUT, DELETE) require a valid CSRF token
 - **Token expiration** - Tokens expire after 24 hours
 - **Automatic cleanup** - Expired tokens are removed hourly
 
-**Client implementation:**
+**✅ The official JavaScript files (`app.js`, `account.js`, `modals.js`) include built-in CSRF protection.**
+
+**Client implementation example:**
 ```javascript
 // Get CSRF token from /auth/me response
 const response = await fetch('/auth/me');
@@ -137,6 +139,31 @@ fetch('/api/feeds', {
         'Content-Type': 'application/json',
         'X-CSRF-Token': csrfToken
     },
+    body: JSON.stringify({url: feedUrl})
+});
+```
+
+The official implementation uses a helper method:
+```javascript
+// Store token from /auth/me
+this.csrfToken = data.csrf_token;
+
+// Helper method for headers
+getAuthHeaders(includeContentType = true) {
+    const headers = {};
+    if (this.csrfToken) {
+        headers['X-CSRF-Token'] = this.csrfToken;
+    }
+    if (includeContentType) {
+        headers['Content-Type'] = 'application/json';
+    }
+    return headers;
+}
+
+// Usage in API calls
+fetch('/api/feeds', {
+    method: 'POST',
+    headers: this.getAuthHeaders(),
     body: JSON.stringify({url: feedUrl})
 });
 ```

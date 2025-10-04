@@ -131,12 +131,18 @@ fetch('/api/feeds', {
 
 ## Documentation Updates
 
-### Updated Files:
+### Backend Documentation Updates:
 1. **docs/security.md** - Added comprehensive security feature documentation
 2. **docs/api.md** - Updated with CSRF requirements and rate limiting info
 3. **test/helpers/http.go** - Updated test helpers to support CSRF
 
-### New Files:
+### Frontend Implementation Updates:
+1. **web/static/js/app.js** - Added CSRF token storage and usage for main app
+2. **web/static/js/account.js** - Added CSRF token support for account page
+3. **web/static/js/modals.js** - Added CSRF token for OPML import
+4. **web/static/js/*.min.js** - Rebuilt minified versions with CSRF support
+
+### New Documentation Files:
 1. **docs/SECURITY_UPDATES.md** - This document
 
 ---
@@ -161,7 +167,11 @@ fetch('/api/feeds', {
 
 ### Client-Side Changes Required:
 
-All POST, PUT, and DELETE requests now require a CSRF token:
+All POST, PUT, and DELETE requests now require a CSRF token.
+
+**✅ The official JavaScript files (`app.js`, `account.js`, `modals.js`) have been updated with CSRF support.**
+
+If you have custom client code, update it as follows:
 
 **Before:**
 ```javascript
@@ -189,6 +199,39 @@ fetch('/api/feeds', {
 });
 ```
 
+**Implementation Details:**
+
+The official client files implement CSRF protection as follows:
+
+1. **Token Storage** - CSRF token stored on authentication:
+   ```javascript
+   // From /auth/me response
+   this.csrfToken = data.csrf_token;
+   ```
+
+2. **Helper Method** - Centralized header management:
+   ```javascript
+   getAuthHeaders(includeContentType = true) {
+       const headers = {};
+       if (this.csrfToken) {
+           headers['X-CSRF-Token'] = this.csrfToken;
+       }
+       if (includeContentType) {
+           headers['Content-Type'] = 'application/json';
+       }
+       return headers;
+   }
+   ```
+
+3. **Usage** - All state-changing requests:
+   ```javascript
+   fetch('/api/feeds', {
+       method: 'POST',
+       headers: this.getAuthHeaders(),
+       body: JSON.stringify({url: feedUrl})
+   });
+   ```
+
 ### API Endpoint Changes:
 
 **Debug endpoints moved (admin-only):**
@@ -211,13 +254,14 @@ No new environment variables required. The following are automatically detected:
 
 - ✅ All existing authenticated endpoints continue to work
 - ✅ No database schema changes required
-- ⚠️ Client-side code must be updated to include CSRF tokens
+- ✅ Official client-side code updated with CSRF token support
+- ⚠️ Custom client implementations must be updated to include CSRF tokens
 
 ---
 
 ## Security Checklist for Deployments
 
-- [ ] Update client-side JavaScript to include CSRF tokens
+- [x] Update client-side JavaScript to include CSRF tokens (✅ Complete in v2.0)
 - [ ] Verify rate limiting is working (check for 429 responses under load)
 - [ ] Confirm secure cookies are enabled in production
 - [ ] Test CSRF protection on all state-changing operations

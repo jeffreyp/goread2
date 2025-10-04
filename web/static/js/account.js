@@ -1,6 +1,7 @@
 class AccountApp {
     constructor() {
         this.user = null;
+        this.csrfToken = null; // CSRF token for API requests
         this.subscriptionInfo = null;
         this.feeds = [];
         this.init();
@@ -23,12 +24,25 @@ class AccountApp {
             if (response.ok) {
                 const data = await response.json();
                 this.user = data.user;
+                this.csrfToken = data.csrf_token; // Store CSRF token for API requests
                 return true;
             }
         } catch (error) {
             console.error('Auth check failed:', error);
         }
         return false;
+    }
+
+    // Helper method to get headers with CSRF token for state-changing requests
+    getAuthHeaders(includeContentType = true) {
+        const headers = {};
+        if (this.csrfToken) {
+            headers['X-CSRF-Token'] = this.csrfToken;
+        }
+        if (includeContentType) {
+            headers['Content-Type'] = 'application/json';
+        }
+        return headers;
     }
 
     bindEvents() {
@@ -331,9 +345,7 @@ class AccountApp {
 
             const response = await fetch('/api/account/max-articles', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({ max_articles: maxArticles })
             });
 
@@ -455,9 +467,7 @@ class AccountApp {
         try {
             const response = await fetch('/api/subscription/checkout', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     success_url: `${window.location.origin}/account?upgraded=true`,
                     cancel_url: `${window.location.origin}/account`
@@ -481,9 +491,7 @@ class AccountApp {
         try {
             const response = await fetch('/api/subscription/portal', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     return_url: `${window.location.origin}/account`
                 })

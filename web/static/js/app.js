@@ -5,6 +5,7 @@ class GoReadApp {
         this.feeds = [];
         this.articles = [];
         this.user = null;
+        this.csrfToken = null; // CSRF token for API requests
         this.articleFilter = 'unread'; // Default to showing unread articles
         this.subscriptionInfo = null;
         this.sessionStarted = true; // Track if this is a fresh session for filtering behavior
@@ -15,7 +16,7 @@ class GoReadApp {
 
         // Font preference
         this.fontPreference = localStorage.getItem('fontPreference') || 'sans-serif';
-        
+
         this.init();
     }
 
@@ -50,12 +51,13 @@ class GoReadApp {
         if (this.authCheckFailed) {
             return false;
         }
-        
+
         try {
             const response = await fetch('/auth/me');
             if (response.ok) {
                 const data = await response.json();
                 this.user = data.user;
+                this.csrfToken = data.csrf_token; // Store CSRF token for API requests
                 this.authCheckFailed = false; // Reset flag on successful auth
                 return true;
             }
@@ -75,6 +77,18 @@ class GoReadApp {
             this.authCheckFailed = true;
             return false;
         }
+    }
+
+    // Helper method to get headers with CSRF token for state-changing requests
+    getAuthHeaders(includeContentType = true) {
+        const headers = {};
+        if (this.csrfToken) {
+            headers['X-CSRF-Token'] = this.csrfToken;
+        }
+        if (includeContentType) {
+            headers['Content-Type'] = 'application/json';
+        }
+        return headers;
     }
 
     async loadSubscriptionInfo() {
@@ -1258,10 +1272,10 @@ class GoReadApp {
         try {
             const response = await fetch(`/api/articles/${articleId}/read`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({ is_read: isRead })
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -1274,9 +1288,10 @@ class GoReadApp {
     async toggleStar(articleId) {
         try {
             const response = await fetch(`/api/articles/${articleId}/star`, {
-                method: 'POST'
+                method: 'POST',
+                headers: this.getAuthHeaders()
             });
-            
+
             if (!response.ok) {
                 this.showError('Failed to toggle star');
                 return;
@@ -1579,7 +1594,7 @@ class GoReadApp {
         try {
             const response = await fetch('/api/feeds', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({ url })
             });
             
@@ -1635,7 +1650,8 @@ class GoReadApp {
         
         try {
             const response = await fetch(`/api/feeds/${feedId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: this.getAuthHeaders()
             });
             
             
@@ -1679,7 +1695,10 @@ class GoReadApp {
             }
             
             console.log('Refreshing feeds...');
-            const response = await fetch('/api/feeds/refresh', { method: 'POST' });
+            const response = await fetch('/api/feeds/refresh', {
+                method: 'POST',
+                headers: this.getAuthHeaders()
+            });
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -1848,7 +1867,7 @@ class GoReadApp {
             // Create checkout session
             const checkoutResponse = await fetch('/api/subscription/checkout', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: this.getAuthHeaders()
             });
 
             if (!checkoutResponse.ok) {
@@ -1924,8 +1943,12 @@ class GoReadApp {
 
     async logout() {
         try {
-            await fetch('/auth/logout', { method: 'POST' });
+            await fetch('/auth/logout', {
+                method: 'POST',
+                headers: this.getAuthHeaders()
+            });
             this.user = null;
+            this.csrfToken = null; // Clear CSRF token on logout
             this.showLogin();
         } catch (error) {
             this.showError('Logout failed: ' + error.message);

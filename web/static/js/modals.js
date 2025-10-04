@@ -6,6 +6,14 @@ export class ModalManager {
         this.app = app;
     }
 
+    // Helper to get auth headers from parent app
+    getAuthHeaders(includeContentType = false) {
+        if (this.app && this.app.getAuthHeaders) {
+            return this.app.getAuthHeaders(includeContentType);
+        }
+        return includeContentType ? {'Content-Type': 'multipart/form-data'} : {};
+    }
+
     init() {
         console.log('ModalManager initialized');
     }
@@ -87,8 +95,15 @@ export class ModalManager {
             const formData = new FormData();
             formData.append('opml', file);
 
+            // Get CSRF token from app and add to FormData or headers
+            const headers = {};
+            if (this.app && this.app.csrfToken) {
+                headers['X-CSRF-Token'] = this.app.csrfToken;
+            }
+
             const response = await fetch('/api/feeds/import', {
                 method: 'POST',
+                headers: headers,
                 body: formData
             });
 
