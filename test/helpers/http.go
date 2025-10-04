@@ -20,6 +20,7 @@ type TestServer struct {
 	Router         *gin.Engine
 	AuthService    *auth.AuthService
 	SessionManager *auth.SessionManager
+	CSRFManager    *auth.CSRFManager
 	FeedHandler    *handlers.FeedHandler
 	AuthHandler    *handlers.AuthHandler
 	DB             database.Database
@@ -50,8 +51,9 @@ func SetupTestServer(t *testing.T) *TestServer {
 		CleanupInterval: 10 * time.Minute, // Less frequent cleanup for tests
 	})
 
+	csrfManager := auth.NewCSRFManager()
 	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler)
-	authHandler := handlers.NewAuthHandler(authService, sessionManager)
+	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	authMiddleware := auth.NewMiddleware(sessionManager)
 
 	router := gin.New()
@@ -68,6 +70,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 	// Protected API routes
 	api := router.Group("/api")
 	api.Use(authMiddleware.RequireAuth())
+	api.Use(authMiddleware.CSRFMiddleware(csrfManager)) // Enable CSRF protection in tests
 	{
 		api.GET("/feeds", feedHandler.GetFeeds)
 		api.POST("/feeds", feedHandler.AddFeed)
@@ -82,13 +85,14 @@ func SetupTestServer(t *testing.T) *TestServer {
 		Router:         router,
 		AuthService:    authService,
 		SessionManager: sessionManager,
+		CSRFManager:    csrfManager,
 		FeedHandler:    feedHandler,
 		AuthHandler:    authHandler,
 		DB:             db,
 	}
 }
 
-// CreateAuthenticatedRequest creates an HTTP request with authentication
+// CreateAuthenticatedRequest creates an HTTP request with authentication and CSRF token
 func (ts *TestServer) CreateAuthenticatedRequest(t *testing.T, method, url string, body interface{}, user *database.User) *http.Request {
 	var req *http.Request
 	var err error
@@ -122,6 +126,15 @@ func (ts *TestServer) CreateAuthenticatedRequest(t *testing.T, method, url strin
 		Value: session.ID,
 	}
 	req.AddCookie(cookie)
+
+	// Add CSRF token for state-changing methods (POST, PUT, DELETE, PATCH)
+	if method != "GET" && method != "HEAD" && method != "OPTIONS" {
+		csrfToken, err := ts.CSRFManager.GenerateToken(session.ID)
+		if err != nil {
+			t.Fatalf("Failed to generate CSRF token: %v", err)
+		}
+		req.Header.Set("X-CSRF-Token", csrfToken)
+	}
 
 	return req
 }

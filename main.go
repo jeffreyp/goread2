@@ -45,6 +45,13 @@ func main() {
 	subscriptionService := services.NewSubscriptionService(db)
 	authService := auth.NewAuthService(db)
 	sessionManager := auth.NewSessionManager(db)
+	csrfManager := auth.NewCSRFManager()
+
+	// Initialize rate limiters for auth and API endpoints
+	// Auth: 10 requests per second with burst of 20
+	authRateLimiter := auth.NewRateLimiter(10, 20)
+	// API: 30 requests per second with burst of 50
+	apiRateLimiter := auth.NewRateLimiter(30, 50)
 
 	// Initialize feed scheduler for staggered updates
 	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{
@@ -82,7 +89,7 @@ func main() {
 
 	// Initialize handlers
 	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler)
-	authHandler := handlers.NewAuthHandler(authService, sessionManager)
+	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService)
 	var paymentHandler *handlers.PaymentHandler
 	if cfg.SubscriptionEnabled && paymentService != nil {
@@ -176,30 +183,37 @@ func main() {
 	}
 
 	// Auth routes (public)
-	auth := r.Group("/auth")
+	authRoutes := r.Group("/auth")
+	authRoutes.Use(auth.RateLimitMiddleware(authRateLimiter)) // Rate limiting for auth endpoints
 	{
-		auth.GET("/login", authHandler.Login)
-		auth.GET("/callback", authHandler.Callback)
-		auth.POST("/logout", authHandler.Logout)
-		auth.GET("/me", authMiddleware.OptionalAuth(), authHandler.Me)
+		authRoutes.GET("/login", authHandler.Login)
+		authRoutes.GET("/callback", authHandler.Callback)
+		authRoutes.POST("/logout", authHandler.Logout)
+		authRoutes.GET("/me", authMiddleware.OptionalAuth(), authHandler.Me)
 	}
 
-	// Public cron endpoint (no auth required)
-	r.GET("/cron/refresh-feeds", feedHandler.RefreshFeeds)
-	r.POST("/cron/refresh-feeds", feedHandler.RefreshFeeds)
+	// Cron endpoint - requires X-Appengine-Cron header in production or admin auth locally
+	cronRoutes := r.Group("/cron")
+	// In non-App Engine environments, require admin authentication
+	if os.Getenv("GAE_ENV") != "standard" {
+		cronRoutes.Use(authMiddleware.OptionalAuth()) // Allow admin to authenticate
+	}
+	{
+		cronRoutes.GET("/refresh-feeds", feedHandler.RefreshFeeds)
+		cronRoutes.POST("/refresh-feeds", feedHandler.RefreshFeeds)
+	}
 
 	// Protected API routes
 	api := r.Group("/api")
+	api.Use(auth.RateLimitMiddleware(apiRateLimiter)) // Rate limiting for API endpoints
 	api.Use(authMiddleware.RequireAuth())
+	api.Use(authMiddleware.CSRFMiddleware(csrfManager)) // CSRF protection for state-changing operations
 	{
 		api.GET("/feeds", feedHandler.GetFeeds)
 		api.POST("/feeds", feedHandler.AddFeed)
 		api.POST("/feeds/import", feedHandler.ImportOPML)
 		api.DELETE("/feeds/:id", feedHandler.DeleteFeed)
 		api.GET("/feeds/:id/articles", feedHandler.GetArticles)
-		api.GET("/feeds/:id/debug", feedHandler.DebugFeed)
-		api.GET("/debug/article", feedHandler.DebugArticleByURL)
-		api.GET("/debug/subscriptions", feedHandler.DebugAllSubscriptions)
 		api.GET("/feeds/unread-counts", feedHandler.GetUnreadCounts)
 		api.GET("/subscription", feedHandler.GetSubscriptionInfo)
 		api.GET("/account/stats", feedHandler.GetAccountStats)
@@ -216,9 +230,19 @@ func main() {
 		}
 	}
 
+	// Debug routes - require admin privileges
+	debug := r.Group("/api/debug")
+	debug.Use(authMiddleware.RequireAdmin())
+	{
+		debug.GET("/feeds/:id", feedHandler.DebugFeed)
+		debug.GET("/article", feedHandler.DebugArticleByURL)
+		debug.GET("/subscriptions", feedHandler.DebugAllSubscriptions)
+	}
+
 	// Admin routes - require admin privileges
 	admin := r.Group("/admin")
 	admin.Use(authMiddleware.RequireAdmin())
+	admin.Use(authMiddleware.CSRFMiddleware(csrfManager)) // CSRF protection for admin operations
 	{
 		admin.GET("/users", adminHandler.ListUsers)
 		admin.GET("/users/:email", adminHandler.GetUserInfo)

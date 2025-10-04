@@ -13,12 +13,14 @@ import (
 type AuthHandler struct {
 	authService    *auth.AuthService
 	sessionManager *auth.SessionManager
+	csrfManager    *auth.CSRFManager
 }
 
-func NewAuthHandler(authService *auth.AuthService, sessionManager *auth.SessionManager) *AuthHandler {
+func NewAuthHandler(authService *auth.AuthService, sessionManager *auth.SessionManager, csrfManager *auth.CSRFManager) *AuthHandler {
 	return &AuthHandler{
 		authService:    authService,
 		sessionManager: sessionManager,
+		csrfManager:    csrfManager,
 	}
 }
 
@@ -58,7 +60,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	user, err := ah.authService.HandleCallback(code)
 	if err != nil {
 		log.Printf("OAuth callback error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to authenticate", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to authenticate"})
 		return
 	}
 
@@ -81,6 +83,8 @@ func (ah *AuthHandler) Logout(c *gin.Context) {
 	session, exists := ah.sessionManager.GetSessionFromRequest(c.Request)
 	if exists {
 		ah.sessionManager.DeleteSession(session.ID)
+		// Delete CSRF token
+		ah.csrfManager.DeleteToken(session.ID)
 	}
 
 	// Clear session cookie
@@ -96,6 +100,16 @@ func (ah *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
+	// Generate CSRF token for the session
+	session, sessionExists := ah.sessionManager.GetSessionFromRequest(c.Request)
+	var csrfToken string
+	if sessionExists {
+		token, err := ah.csrfManager.GenerateToken(session.ID)
+		if err == nil {
+			csrfToken = token
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":                        user.ID,
@@ -104,6 +118,7 @@ func (ah *AuthHandler) Me(c *gin.Context) {
 			"avatar":                    user.Avatar,
 			"max_articles_on_feed_add":  user.MaxArticlesOnFeedAdd,
 		},
+		"csrf_token": csrfToken,
 	})
 }
 

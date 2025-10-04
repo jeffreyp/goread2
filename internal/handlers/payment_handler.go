@@ -80,8 +80,6 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 	endpointSecret := ph.paymentService.GetStripeWebhookSecret()
 	if endpointSecret == "" {
 		fmt.Printf("WARNING: Webhook - STRIPE_WEBHOOK_SECRET not set\n")
-	} else {
-		fmt.Printf("DEBUG: Webhook - Using secret: %s...\n", endpointSecret[:10])
 	}
 	
 	event, err := webhook.ConstructEventWithOptions(payload, c.Request.Header.Get("Stripe-Signature"), endpointSecret, webhook.ConstructEventOptions{

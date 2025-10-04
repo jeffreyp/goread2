@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"goread2/internal/database"
@@ -98,12 +99,15 @@ func (sm *SessionManager) DeleteSession(sessionID string) {
 }
 
 func (sm *SessionManager) SetSessionCookie(w http.ResponseWriter, session *Session) {
+	// Enable Secure flag in production environments
+	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
+
 	cookie := &http.Cookie{
 		Name:     "session_id",
 		Value:    session.ID,
 		Expires:  session.ExpiresAt,
 		HttpOnly: true,
-		Secure:   false, // Set to false for local development
+		Secure:   isProduction, // Secure cookies in production only
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}
@@ -111,12 +115,15 @@ func (sm *SessionManager) SetSessionCookie(w http.ResponseWriter, session *Sessi
 }
 
 func (sm *SessionManager) ClearSessionCookie(w http.ResponseWriter) {
+	// Enable Secure flag in production environments
+	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
+
 	cookie := &http.Cookie{
 		Name:     "session_id",
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   false, // Set to false for local development
+		Secure:   isProduction, // Secure cookies in production only
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}

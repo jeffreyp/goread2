@@ -101,21 +101,74 @@ SUBSCRIPTION_ENABLED=false  # Set to true for paid features
 ### Authentication & Authorization
 
 - **Google OAuth 2.0** - Secure authentication without password storage
-- **Session management** - HTTP-only cookies with CSRF protection
+- **Session management** - HTTP-only, secure (in production) session cookies with 7-day expiration
+- **CSRF protection** - Token-based CSRF protection for all state-changing API operations
 - **Admin middleware** - Proper privilege checks for sensitive operations
 - **User data isolation** - Complete separation of user data
+- **Rate limiting** - IP-based rate limiting to prevent brute force and DoS attacks
+
+### Session Security
+
+- **Secure cookies** - Automatically enabled in production (App Engine and ENVIRONMENT=production)
+- **HTTP-only cookies** - Prevents XSS attacks from accessing session tokens
+- **SameSite protection** - Lax mode prevents CSRF attacks via cross-site requests
+- **Automatic cleanup** - Expired sessions are cleaned up hourly
+
+### CSRF Protection
+
+All state-changing API operations (POST, PUT, DELETE) require a valid CSRF token:
+
+- **Token generation** - Cryptographically secure random tokens (32 bytes)
+- **Token validation** - Constant-time comparison prevents timing attacks
+- **Token expiration** - Tokens expire after 24 hours
+- **Automatic cleanup** - Expired tokens are removed hourly
+
+**Client implementation:**
+```javascript
+// Get CSRF token from /auth/me response
+const response = await fetch('/auth/me');
+const data = await response.json();
+const csrfToken = data.csrf_token;
+
+// Include in all POST/PUT/DELETE requests
+fetch('/api/feeds', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+    },
+    body: JSON.stringify({url: feedUrl})
+});
+```
+
+### Rate Limiting
+
+Protection against brute force and DoS attacks:
+
+- **Auth endpoints** (`/auth/*`) - 10 requests/second, burst of 20
+- **API endpoints** (`/api/*`) - 30 requests/second, burst of 50
+- **IP-based tracking** - Each client IP has independent limits
+- **Automatic cleanup** - Old IP entries cleaned up hourly
 
 ### Input Validation
 
 - **XSS protection** - All user inputs are properly escaped
-- **CSRF protection** - State parameter validation for OAuth
 - **URL validation** - Feed URLs are validated before processing
+- **Request size limits** - File uploads limited to 10MB
+- **SQL injection prevention** - All database queries use parameterized statements
+
+### Endpoint Protection
+
+- **Debug endpoints** - Restricted to admin users only (moved to `/api/debug/*`)
+- **Cron endpoints** - Protected by App Engine cron header validation (production) or admin auth (local)
+- **Admin endpoints** - Require authenticated admin session
 
 ### Audit & Monitoring
 
 - **Admin action logging** - All privilege changes are logged
 - **Failed authentication tracking** - Monitor for unauthorized access attempts
 - **Error handling** - Secure error messages that don't leak sensitive information
+- **Rate limit violations** - Logged for monitoring potential attacks
 
 ## Reporting Security Issues
 
@@ -137,11 +190,17 @@ If you discover a security vulnerability, please:
 
 ## Version History
 
+- **v2.x** - Enhanced security implementation
+  - Added CSRF protection for all state-changing operations
+  - Added rate limiting for auth and API endpoints
+  - Added secure cookie flag for production environments
+  - Restricted debug endpoints to admin-only access
+  - Enhanced cron endpoint authentication
 - **v1.x** - Initial security implementation with admin CLI protection
-- Added environment-based admin token requirements
-- Added web-based admin API with proper authentication
-- Added initial admin user configuration
-- Improved audit logging for admin actions
+  - Added environment-based admin token requirements
+  - Added web-based admin API with proper authentication
+  - Added initial admin user configuration
+  - Improved audit logging for admin actions
 
 ---
 

@@ -10,6 +10,13 @@ GoRead2 provides a RESTful API for managing feeds, articles, and user subscripti
 
 **Authentication**: Session-based authentication with HTTP-only cookies
 
+**CSRF Protection**: All state-changing operations (POST, PUT, DELETE) require a valid CSRF token in the `X-CSRF-Token` header
+
+**Rate Limiting**:
+- Auth endpoints: 10 requests/second (burst: 20)
+- API endpoints: 30 requests/second (burst: 50)
+- Returns `429 Too Many Requests` when limit exceeded
+
 ## Authentication Endpoints
 
 ### OAuth Flow
@@ -50,21 +57,23 @@ curl -X POST "http://localhost:8080/auth/logout" \
 ```
 
 #### `GET /auth/me`
-Get current authenticated user information.
+Get current authenticated user information and CSRF token.
 
 **Response**:
 ```json
 {
-  "id": 1,
-  "email": "user@example.com",
-  "name": "John Doe",
-  "avatar": "https://lh3.googleusercontent.com/...",
-  "created_at": "2023-01-01T00:00:00Z",
-  "subscription_status": "trial",
-  "is_admin": false,
-  "max_articles_on_feed_add": 100
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "name": "John Doe",
+    "avatar": "https://lh3.googleusercontent.com/...",
+    "max_articles_on_feed_add": 100
+  },
+  "csrf_token": "your-csrf-token-here"
 }
 ```
+
+**Note**: The `csrf_token` must be included in the `X-CSRF-Token` header for all POST, PUT, and DELETE requests.
 
 **Example**:
 ```bash
@@ -75,6 +84,8 @@ curl "http://localhost:8080/auth/me" \
 ## Feed Endpoints
 
 All feed endpoints are user-specific and require authentication.
+
+**Note**: All POST, PUT, and DELETE endpoints require the `X-CSRF-Token` header with a valid token obtained from `/auth/me`.
 
 ### `GET /api/feeds`
 List user's subscribed feeds.
@@ -105,6 +116,9 @@ curl "http://localhost:8080/api/feeds" \
 ### `POST /api/feeds`
 Subscribe user to a new feed.
 
+**Headers**:
+- `X-CSRF-Token` (required) - CSRF token from `/auth/me`
+
 **Request Body**:
 ```json
 {
@@ -128,6 +142,16 @@ Subscribe user to a new feed.
 **Error Responses**:
 - `400 Bad Request` - Invalid URL or missing field
 - `402 Payment Required` - Feed limit reached (trial users)
+- `403 Forbidden` - Invalid or missing CSRF token
+
+**Example**:
+```bash
+curl -X POST "http://localhost:8080/api/feeds" \
+  -H "Cookie: session=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/feed.xml"}'
+```
 - `409 Conflict` - Already subscribed to feed
 - `500 Internal Server Error` - Feed fetch failed
 
@@ -505,8 +529,12 @@ Stripe webhook endpoint for subscription events.
 
 ## Debug Endpoints
 
-### `GET /api/feeds/:id/debug`
-Debug information for feed subscription (development only).
+**⚠️ Admin Only**: All debug endpoints require admin privileges.
+
+### `GET /api/debug/feeds/:id`
+Debug information for feed subscription.
+
+**Authentication**: Requires admin user
 
 **Response**:
 ```json

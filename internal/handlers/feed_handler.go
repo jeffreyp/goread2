@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -221,13 +222,24 @@ func (fh *FeedHandler) ToggleStar(c *gin.Context) {
 }
 
 func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
-	// If this is the cron endpoint, verify it's from App Engine cron
+	// If this is the cron endpoint, verify it's authorized
 	if c.Request.URL.Path == "/cron/refresh-feeds" {
-		cronHeader := c.GetHeader("X-Appengine-Cron")
-		if cronHeader != "true" {
-			log.Printf("Unauthorized cron request from IP: %s", c.ClientIP())
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			return
+		// In App Engine, verify the X-Appengine-Cron header
+		if os.Getenv("GAE_ENV") == "standard" {
+			cronHeader := c.GetHeader("X-Appengine-Cron")
+			if cronHeader != "true" {
+				log.Printf("Unauthorized cron request from IP: %s", c.ClientIP())
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+				return
+			}
+		} else {
+			// In non-App Engine environments, require authentication with admin privileges
+			user, exists := auth.GetUserFromContext(c)
+			if !exists || !user.IsAdmin {
+				log.Printf("Unauthorized cron request - requires admin authentication")
+				c.JSON(http.StatusForbidden, gin.H{"error": "Admin authentication required"})
+				return
+			}
 		}
 		log.Printf("Cron feed refresh started at %v", time.Now())
 	} else {
