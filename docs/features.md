@@ -34,11 +34,21 @@ GoRead2 provides efficient keyboard navigation:
 | `r` | Refresh all feeds |
 | `f` | Toggle font style (sans-serif ↔ serif) |
 
-### Mobile Navigation
+### Mobile and Tablet Navigation
+
+#### Phone (Portrait Mode)
 On mobile devices, use the bottom navigation bar to switch between panes:
 - 📑 **Feeds**: View your feed subscriptions
 - 📄 **Articles**: Browse articles from selected feed
 - 📖 **Content**: Read the selected article
+
+#### Tablet (Portrait Mode)
+On tablets in portrait orientation, GoRead2 provides a reading-optimized layout:
+- **Content pane** takes the full screen width for comfortable reading
+- **Toggle button** (☰) appears in the bottom-right corner to access feeds and articles
+- Tap the toggle button to show/hide the sidebar with feeds and articles
+- Sidebar automatically hides when you select an article to maximize reading space
+- Tap the dimmed area outside the sidebar to close it
 
 ## Feed Management
 

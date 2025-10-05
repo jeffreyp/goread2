@@ -257,6 +257,35 @@ class GoReadApp {
             });
         }
 
+        // Tablet sidebar toggle (for portrait mode)
+        const tabletSidebarToggle = document.getElementById('tablet-sidebar-toggle');
+        const sidebarWrapper = document.querySelector('.sidebar-wrapper');
+        const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+
+        if (tabletSidebarToggle && sidebarWrapper && sidebarBackdrop) {
+            // Toggle sidebar when button is clicked (handle both click and touch)
+            const toggleSidebar = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                sidebarWrapper.classList.toggle('show');
+                sidebarBackdrop.classList.toggle('show');
+            };
+
+            tabletSidebarToggle.addEventListener('click', toggleSidebar);
+            tabletSidebarToggle.addEventListener('touchend', toggleSidebar);
+
+            // Close sidebar when backdrop is clicked
+            const closeSidebar = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                sidebarWrapper.classList.remove('show');
+                sidebarBackdrop.classList.remove('show');
+            };
+
+            sidebarBackdrop.addEventListener('click', closeSidebar);
+            sidebarBackdrop.addEventListener('touchend', closeSidebar);
+        }
+
         // Mobile pane navigation - only for phones (under 768px) in portrait mode
         const mobileNavButtons = document.querySelectorAll('.mobile-nav-btn');
         const feedPane = document.querySelector('.feed-pane');
@@ -651,7 +680,7 @@ class GoReadApp {
                 this.articles = [];
                 this.articleOffset = 0;
             }
-            
+
             const limit = 50;
             let url;
             if (feedId === 'all') {
@@ -659,19 +688,19 @@ class GoReadApp {
             } else {
                 url = `/api/feeds/${feedId}/articles`;
             }
-            
+
             const response = await fetch(url);
             const newArticles = await response.json();
-            
+
             if (append) {
                 this.articles.push(...newArticles);
             } else {
                 this.articles = newArticles;
             }
-            
+
             this.articleOffset = (this.articleOffset || 0) + newArticles.length;
             this.hasMoreArticles = newArticles.length === limit;
-            
+
             this.renderArticlesOptimized();
             
             // Add load more button if needed
@@ -802,13 +831,16 @@ class GoReadApp {
         } else {
             // No visible articles, clear current selection and show placeholder
             this.currentArticle = null;
-            document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
+            // Only replace placeholder if a feed has been selected
+            if (this.currentFeed) {
+                document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
+            }
         }
     }
 
     renderArticlesOptimized() {
         const articleList = document.getElementById('article-list');
-        
+
         if (this.articles.length === 0) {
             articleList.innerHTML = '<div class="placeholder">No articles found</div>';
             return;
@@ -827,34 +859,22 @@ class GoReadApp {
         const updatedArticleList = document.getElementById('article-list');
         
         // Add event delegation for star buttons and article selection
-        // Use both click and touchend for better iPad support
-        const handleArticleInteraction = (e) => {
-            console.log('Article interaction:', e.type, e.target);
-            
+        // Simple click handling - iOS Safari converts taps to clicks automatically
+        updatedArticleList.addEventListener('click', (e) => {
             // Handle star button clicks via event delegation
             if (e.target.classList.contains('star-btn')) {
                 e.stopPropagation();
                 e.preventDefault();
-                console.log('Star button clicked');
                 this.toggleStar(parseInt(e.target.dataset.articleId));
                 return;
             }
-            
+
             // Handle article selection
             const articleItem = e.target.closest('.article-item');
             if (articleItem && !e.target.classList.contains('star-btn')) {
                 const index = parseInt(articleItem.dataset.index);
-                console.log('Article selected, index:', index);
                 this.selectArticle(index);
             }
-        };
-        
-        updatedArticleList.addEventListener('click', handleArticleInteraction);
-        // Add touchend for better iPad support
-        updatedArticleList.addEventListener('touchend', (e) => {
-            // Prevent the click event from firing after touchend
-            e.preventDefault();
-            handleArticleInteraction(e);
         });
         
         articlesToRender.forEach((article, i) => {
@@ -934,6 +954,16 @@ class GoReadApp {
 
         // Update mobile navigation to show content pane when article is selected (phones only)
         this.updateMobileNavigation('content');
+
+        // Hide sidebar in tablet portrait mode after article selection
+        if (window.innerWidth >= 768 && window.innerWidth < 1024) {
+            const sidebarWrapper = document.querySelector('.sidebar-wrapper');
+            const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+            if (sidebarWrapper && sidebarBackdrop) {
+                sidebarWrapper.classList.remove('show');
+                sidebarBackdrop.classList.remove('show');
+            }
+        }
 
         articleItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }

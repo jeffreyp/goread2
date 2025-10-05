@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{.title}}</title>
     
     <!-- Favicon -->
@@ -45,6 +45,9 @@
         </header>
 
         <div class="main-container">
+            <!-- Backdrop for tablet portrait mode -->
+            <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
             <!-- Left side wrapper for tablet/phone landscape (feeds + articles together) -->
             <div class="sidebar-wrapper">
                 <!-- Feed List -->
@@ -89,9 +92,15 @@
                     <div class="placeholder">
                         <p>Welcome to GoRead2!</p>
                         <p>Select a feed from the left panel to view articles, then click on an article to read it here.</p>
+                        <p class="tablet-help-message" style="margin-top: 20px; font-size: 14px; color: #666;">
+                            <strong>On tablet?</strong> Tap the <span style="background: #1a73e8; color: white; padding: 2px 6px; border-radius: 3px;">☰</span> button in the bottom-right corner to access your feeds and articles.
+                        </p>
                     </div>
                 </div>
             </div>
+
+            <!-- Tablet sidebar toggle button -->
+            <button class="tablet-sidebar-toggle" id="tablet-sidebar-toggle" aria-label="Toggle article list">☰</button>
         </div>
 
         <!-- Mobile Navigation -->

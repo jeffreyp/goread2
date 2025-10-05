@@ -39,6 +39,7 @@ body.app-body {
     padding: 0 20px;
     height: 60px;
     z-index: 1000;
+    position: relative;
 }
 
 .header-content {
@@ -91,6 +92,7 @@ body.app-body {
 .main-container {
     display: flex;
     height: calc(100vh - 60px);
+    overflow: hidden;
 }
 
 /* Desktop: sidebar-wrapper is not used, panes are direct children */
@@ -281,6 +283,7 @@ body.app-body {
 
 .article-list {
     padding: 10px 0;
+    pointer-events: auto;
 }
 
 .article-item {
@@ -288,6 +291,8 @@ body.app-body {
     border-bottom: 1px solid #f1f3f4;
     cursor: pointer;
     transition: background-color 0.2s ease;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
 }
 
 .article-item:hover {
@@ -958,10 +963,52 @@ body.app-body {
 
 /* Mobile Responsive Styles */
 
+/* Tablet and Mobile - iOS Safari fixes and flexbox layout */
+@media screen and (max-width: 1023px) {
+    body {
+        /* iOS Safari height fix */
+        height: -webkit-fill-available;
+    }
+
+    #app {
+        /* Support for iOS safe area - apply to app container instead of body */
+        padding-top: env(safe-area-inset-top);
+        padding-top: constant(safe-area-inset-top); /* iOS 11.0 */
+        height: 100vh;
+        height: -webkit-fill-available;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .header {
+        /* Add safe area padding for notch devices */
+        padding-left: max(20px, env(safe-area-inset-left));
+        padding-right: max(20px, env(safe-area-inset-right));
+        flex-shrink: 0;
+    }
+
+    .main-container {
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* Hide tablet help message on phone */
+    .tablet-help-message {
+        display: none;
+    }
+}
+
 /* Tablet Portrait (768px - 1023px) - Two pane layout */
 @media screen and (max-width: 1023px) and (min-width: 768px) {
+    /* Show tablet help message on tablet */
+    .tablet-help-message {
+        display: block !important;
+    }
     .header {
         padding: 0 15px;
+        /* Add safe area padding for iOS */
+        padding-left: max(15px, env(safe-area-inset-left));
+        padding-right: max(15px, env(safe-area-inset-right));
         height: 56px;
     }
 
@@ -1008,38 +1055,130 @@ body.app-body {
     }
 
     .main-container {
-        height: calc(100vh - 56px);
-        display: grid;
-        grid-template-columns: 340px 1fr;
-        grid-template-rows: 1fr;
+        /* Use flex instead of fixed height for better iOS Safari support */
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        min-height: 0;
     }
 
-    /* Sidebar wrapper contains feeds + articles, scrolls as one unit */
+    /* Sidebar wrapper - hidden by default in portrait, overlays when shown */
     .sidebar-wrapper {
-        display: block;
-        overflow-y: auto;
+        position: fixed !important;
+        top: 56px;
+        left: 0;
+        width: 340px;
+        height: calc(100% - 56px);
+        transform: translate3d(-100%, 0, 0);
+        transition: transform 0.3s ease;
+        z-index: 100;
+        overflow: hidden;
         border-right: 2px solid #e1e5e9;
         background-color: #fff;
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+        display: flex !important;
+        flex-direction: column;
+        pointer-events: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Show sidebar when toggled */
+    .sidebar-wrapper.show {
+        transform: translate3d(0, 0, 0);
     }
 
     /* Feed pane inside sidebar */
     .feed-pane {
-        width: 100%;
-        border-right: none;
-        overflow-y: visible;
+        width: 100% !important;
+        border-right: none !important;
+        overflow-y: auto !important;
+        display: block !important;
+        flex-shrink: 0;
+        max-height: 40%;
+        background-color: #fff;
     }
 
     /* Articles pane inside sidebar, below feeds */
     .article-pane {
-        width: 100%;
-        border-right: none;
+        width: 100% !important;
+        border-right: none !important;
         border-top: 2px solid #e1e5e9;
-        overflow-y: visible;
+        overflow-y: auto !important;
+        display: block !important;
+        flex: 1;
+        min-height: 0;
+        background-color: #fff;
+        pointer-events: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
-    /* Content pane on right - always visible */
+    /* Content pane - full width by default, fixed positioning to match sidebar */
     .content-pane {
-        overflow-y: auto;
+        position: fixed !important;
+        top: 56px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: calc(100vh - 56px) !important;
+        overflow-y: auto !important;
+        background-color: #f5f5f5 !important;
+        z-index: 1 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    /* Article content needs white background and padding for readability */
+    .content-pane .article-content {
+        background-color: #fff !important;
+        min-height: 100% !important;
+        padding: 20px !important;
+    }
+
+    /* Backdrop when sidebar is shown - should be ABOVE content pane */
+    .sidebar-backdrop {
+        display: none !important;
+        position: fixed;
+        top: 56px;
+        left: 0;
+        width: 100%;
+        height: calc(100% - 56px);
+        background-color: rgba(0, 0, 0, 0.3);
+        z-index: 50;
+    }
+
+    .sidebar-backdrop.show {
+        display: block !important;
+    }
+
+    /* Toggle button for sidebar - must be ABOVE everything */
+    .tablet-sidebar-toggle {
+        display: block;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background-color: #1a73e8;
+        color: white;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        -webkit-tap-highlight-color: transparent;
+        transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .tablet-sidebar-toggle:hover {
+        background-color: #1765cc;
+        transform: scale(1.05);
+    }
+
+    .tablet-sidebar-toggle:active {
+        transform: scale(0.95);
     }
 
     /* Hide mobile nav on tablets */
@@ -1097,6 +1236,9 @@ body.app-body {
 @media screen and (max-width: 767px) and (orientation: landscape) {
     .header {
         padding: 0 12px;
+        /* Add safe area padding for iOS */
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
         height: 48px;
     }
 
@@ -1150,7 +1292,9 @@ body.app-body {
     }
 
     .main-container {
-        height: calc(100vh - 48px);
+        /* Use flex instead of fixed height for better iOS Safari support */
+        flex: 1;
+        min-height: 0;
         display: grid;
         grid-template-columns: 280px 1fr;
         grid-template-rows: 1fr;
@@ -1237,6 +1381,9 @@ body.app-body {
 @media screen and (max-width: 767px) and (orientation: portrait) {
     .header {
         padding: 0 12px;
+        /* Add safe area padding for iOS */
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
         height: 56px;
     }
 
@@ -1291,8 +1438,12 @@ body.app-body {
     }
 
     .main-container {
-        height: calc(100vh - 56px - 64px);
+        /* Use flex instead of fixed height for better iOS Safari support */
+        flex: 1;
         position: relative;
+        min-height: 0;
+        /* Account for mobile nav at bottom */
+        margin-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
     }
 
     /* Sidebar wrapper for portrait - acts as a single sliding panel */
@@ -1348,8 +1499,10 @@ body.app-body {
         display: flex;
         justify-content: space-around;
         padding: 8px 0;
+        /* Add safe area padding for iOS home indicator */
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
         z-index: 1000;
-        height: 64px;
+        height: calc(64px + env(safe-area-inset-bottom, 0px));
     }
 
     .mobile-nav-btn {
@@ -1512,13 +1665,36 @@ body.app-body {
     user-select: none;
 }
 
-/* Ensure mobile menu toggle is hidden on desktop */
+/* Ensure mobile menu toggle and tablet sidebar toggle are hidden on desktop */
 @media screen and (min-width: 1024px) {
     .mobile-menu-btn {
         display: none;
     }
-    
+
     .mobile-nav {
+        display: none;
+    }
+
+    .tablet-sidebar-toggle {
+        display: none;
+    }
+
+    .sidebar-backdrop {
+        display: none;
+    }
+
+    .tablet-help-message {
+        display: none;
+    }
+}
+
+/* Hide tablet sidebar toggle on phone portrait and landscape */
+@media screen and (max-width: 767px) {
+    .tablet-sidebar-toggle {
+        display: none;
+    }
+
+    .sidebar-backdrop {
         display: none;
     }
 }
