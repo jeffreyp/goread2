@@ -127,7 +127,8 @@ func main() {
 			path := c.Request.URL.Path
 			// Never cache user-specific or sensitive endpoints
 			if strings.Contains(path, "/subscription") || strings.Contains(path, "/account") || 
-			   strings.Contains(path, "/admin") || strings.Contains(path, "unread-counts") {
+			   strings.Contains(path, "/admin") || strings.Contains(path, "unread-counts") ||
+			   strings.Contains(path, "/articles") || strings.Contains(path, "/feeds") {
 				c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 				c.Header("Pragma", "no-cache") 
 				c.Header("Expires", "0")
