@@ -901,8 +901,10 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 			articleID := keys[i].ID
 			statusMap[articleID] = userArticle
 		}
+	} else {
+		// Complete failure - this is a real error, not just missing entities
+		return nil, fmt.Errorf("failed to get user article statuses: %w", err)
 	}
-	// If there's a complete failure, statusMap remains empty (all unread/unstarred)
 
 	// Build articles with user status
 	articles := make([]Article, len(articleEntities))
