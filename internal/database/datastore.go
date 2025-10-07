@@ -874,36 +874,48 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 	}
 
 	// Batch lookup user article statuses for better performance
-	userArticleKeys := make([]*datastore.Key, len(articleEntities))
-	for i, key := range keys {
-		articleID := key.ID
-		userArticleKeys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
-	}
-
-	// Use GetMulti for efficient batch read
-	userArticles := make([]UserArticleEntity, len(userArticleKeys))
-	err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
-
-	// Create status map for quick lookup
+	// Process in chunks to handle feeds with >1000 articles (Datastore GetMulti limit)
 	statusMap := make(map[int64]UserArticleEntity)
-	if multiErr, ok := err.(datastore.MultiError); ok {
-		// Handle partial results - some UserArticle entities may not exist
-		for i, singleErr := range multiErr {
-			if singleErr == nil {
-				articleID := keys[i].ID
-				statusMap[articleID] = userArticles[i]
+	chunkSize := 1000
+
+	for i := 0; i < len(articleEntities); i += chunkSize {
+		end := i + chunkSize
+		if end > len(articleEntities) {
+			end = len(articleEntities)
+		}
+
+		// Create keys for this chunk
+		chunkKeys := keys[i:end]
+		userArticleKeys := make([]*datastore.Key, len(chunkKeys))
+		for j, key := range chunkKeys {
+			articleID := key.ID
+			userArticleKeys[j] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
+		}
+
+		// Use GetMulti for efficient batch read of this chunk
+		userArticles := make([]UserArticleEntity, len(userArticleKeys))
+		err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
+
+		// Process results from this chunk
+		if multiErr, ok := err.(datastore.MultiError); ok {
+			// Handle partial results - some UserArticle entities may not exist
+			for j, singleErr := range multiErr {
+				if singleErr == nil {
+					articleID := chunkKeys[j].ID
+					statusMap[articleID] = userArticles[j]
+				}
+				// Ignore ErrNoSuchEntity and other errors - they mean unread/unstarred
 			}
-			// Ignore ErrNoSuchEntity and other errors - they mean unread/unstarred
+		} else if err == nil {
+			// All UserArticle entities exist in this chunk
+			for j, userArticle := range userArticles {
+				articleID := chunkKeys[j].ID
+				statusMap[articleID] = userArticle
+			}
+		} else {
+			// Complete failure for this chunk - this is a real error, not just missing entities
+			return nil, fmt.Errorf("failed to get user article statuses: %w", err)
 		}
-	} else if err == nil {
-		// All UserArticle entities exist
-		for i, userArticle := range userArticles {
-			articleID := keys[i].ID
-			statusMap[articleID] = userArticle
-		}
-	} else {
-		// Complete failure - this is a real error, not just missing entities
-		return nil, fmt.Errorf("failed to get user article statuses: %w", err)
 	}
 
 	// Build articles with user status
@@ -1125,42 +1137,55 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 	}
 
 	// Batch check which articles are read by this user
-	userArticleKeys := make([]*datastore.Key, len(articleKeys))
-	for i, articleKey := range articleKeys {
-		articleID := articleKey.ID
-		userArticleKeys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
-	}
-
-	// Use GetMulti for efficient batch read
-	userArticles := make([]UserArticleEntity, len(userArticleKeys))
-	err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
-
+	// Process in chunks to handle feeds with >1000 articles (Datastore GetMulti limit)
 	unreadCount := 0
-	if multiErr, ok := err.(datastore.MultiError); ok {
-		// Handle partial results - some UserArticle entities may not exist
-		for i, singleErr := range multiErr {
-			switch singleErr {
-			case datastore.ErrNoSuchEntity:
-				// No UserArticle record means unread
-				unreadCount++
-			case nil:
-				// UserArticle exists, check if it's read
-				if !userArticles[i].IsRead {
+	chunkSize := 1000
+
+	for i := 0; i < len(articleKeys); i += chunkSize {
+		end := i + chunkSize
+		if end > len(articleKeys) {
+			end = len(articleKeys)
+		}
+
+		// Create keys for this chunk
+		chunkArticleKeys := articleKeys[i:end]
+		userArticleKeys := make([]*datastore.Key, len(chunkArticleKeys))
+		for j, articleKey := range chunkArticleKeys {
+			articleID := articleKey.ID
+			userArticleKeys[j] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
+		}
+
+		// Use GetMulti for efficient batch read of this chunk
+		userArticles := make([]UserArticleEntity, len(userArticleKeys))
+		err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
+
+		// Process results from this chunk
+		if multiErr, ok := err.(datastore.MultiError); ok {
+			// Handle partial results - some UserArticle entities may not exist
+			for j, singleErr := range multiErr {
+				switch singleErr {
+				case datastore.ErrNoSuchEntity:
+					// No UserArticle record means unread
+					unreadCount++
+				case nil:
+					// UserArticle exists, check if it's read
+					if !userArticles[j].IsRead {
+						unreadCount++
+					}
+				}
+				// Other errors are ignored (treated as read to be conservative)
+			}
+		} else if err == nil {
+			// All UserArticle entities exist in this chunk, count unread ones
+			for _, userArticle := range userArticles {
+				if !userArticle.IsRead {
 					unreadCount++
 				}
 			}
-			// Other errors are ignored (treated as read to be conservative)
+		} else {
+			// Complete failure for this chunk - treat all as unread to be safe
+			unreadCount += len(chunkArticleKeys)
 		}
-	} else if err == nil {
-		// All UserArticle entities exist, count unread ones
-		for _, userArticle := range userArticles {
-			if !userArticle.IsRead {
-				unreadCount++
-			}
-		}
-	} else {
-		// Complete failure - treat all as unread to be safe
-		unreadCount = len(articleKeys)
 	}
 
 	return unreadCount, nil
