@@ -903,29 +903,13 @@ func (fs *FeedService) isInvalidTitle(title string) bool {
 }
 
 func (fs *FeedService) generateFallbackTitle(link, description string) string {
-	// Try to extract a meaningful title from the URL
-	if link != "" {
-		if u, err := url.Parse(link); err == nil {
-			path := strings.TrimPrefix(u.Path, "/")
-			// Remove file extensions and URL encoding
-			path = strings.TrimSuffix(path, "/")
-			if lastSlash := strings.LastIndex(path, "/"); lastSlash != -1 {
-				path = path[lastSlash+1:]
-			}
-			// Clean up the path to make it more readable
-			path = strings.ReplaceAll(path, "-", " ")
-			path = strings.ReplaceAll(path, "_", " ")
-			caser := cases.Title(language.English)
-			path = caser.String(strings.ToLower(path))
-			if len(path) > 5 && len(path) < 100 {
-				return path
-			}
-		}
-	}
-
-	// Try to use first sentence of description
+	// Try to use first sentence of description first (better for social media posts)
 	if description != "" {
 		description = strings.TrimSpace(description)
+		// Strip HTML tags from description for better title extraction
+		description = fs.stripHTMLTags(description)
+		description = strings.TrimSpace(description)
+
 		if len(description) > 10 {
 			// Find first sentence or take first 80 characters
 			if dotIndex := strings.Index(description, ". "); dotIndex > 10 && dotIndex < 80 {
@@ -938,7 +922,68 @@ func (fs *FeedService) generateFallbackTitle(link, description string) string {
 		}
 	}
 
+	// Try to extract a meaningful title from the URL
+	if link != "" {
+		if u, err := url.Parse(link); err == nil {
+			path := strings.TrimPrefix(u.Path, "/")
+			// Remove file extensions and URL encoding
+			path = strings.TrimSuffix(path, "/")
+			if lastSlash := strings.LastIndex(path, "/"); lastSlash != -1 {
+				path = path[lastSlash+1:]
+			}
+
+			// Skip if path looks like a numeric ID (common in Mastodon, social media)
+			isNumeric := true
+			for _, r := range path {
+				if r < '0' || r > '9' {
+					isNumeric = false
+					break
+				}
+			}
+			if isNumeric {
+				return "Untitled Article"
+			}
+
+			// Clean up the path to make it more readable
+			path = strings.ReplaceAll(path, "-", " ")
+			path = strings.ReplaceAll(path, "_", " ")
+			caser := cases.Title(language.English)
+			path = caser.String(strings.ToLower(path))
+			if len(path) > 5 && len(path) < 100 {
+				return path
+			}
+		}
+	}
+
 	return "Untitled Article"
+}
+
+func (fs *FeedService) stripHTMLTags(s string) string {
+	// Simple HTML tag stripper - removes content between < and >
+	var result strings.Builder
+	inTag := false
+	for _, r := range s {
+		if r == '<' {
+			inTag = true
+			continue
+		}
+		if r == '>' {
+			inTag = false
+			continue
+		}
+		if !inTag {
+			result.WriteRune(r)
+		}
+	}
+	// Decode common HTML entities
+	text := result.String()
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&#39;", "'")
+	text = strings.ReplaceAll(text, "&apos;", "'")
+	return text
 }
 
 func (fs *FeedService) cleanTitle(title string) string {
