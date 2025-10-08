@@ -14,7 +14,7 @@ A modern, multi-user RSS reader inspired by Google Reader, built with Go and fea
 - **Per-user article management** (read/unread, starred status)
 - **Subscription system** with 30-day free trial and Stripe integration
 - **Keyboard shortcuts** for efficient navigation
-- **Reading optimization** with sans-serif/serif font choice
+- **Reading optimization** with clean, sans-serif typography
 - **Self-hosted** - runs locally or deploys to cloud platforms
 
 ## 🚀 Quick Start
@@ -117,7 +117,6 @@ The interface features three main sections:
 - `m` - Toggle read/unread status
 - `s` - Star/unstar article
 - `r` - Refresh all feeds
-- `f` - Toggle font style (sans-serif ↔ serif)
 
 ## 🔒 Security & Privacy
 

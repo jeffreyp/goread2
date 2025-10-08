@@ -4,15 +4,7 @@ Complete guide to GoRead2's features and how to use them effectively.
 
 ## Reading Experience
 
-### Font Choice
-GoRead2 offers reading-optimized typography to enhance your reading experience:
-
-- **Sans-serif mode**: Uses Inter font, optimized for screen reading with excellent legibility
-- **Serif mode**: Uses Georgia font, providing a traditional reading experience
-- **Toggle button**: Click the "Aa" button in the header or press `f` to switch between fonts
-- **Persistent preference**: Your font choice is automatically saved and restored across sessions
-
-The font setting only applies to article content, while the interface maintains consistent UI typography.
+GoRead2 uses a clean, sans-serif font (Inter) optimized for screen reading with excellent legibility. The font setting only applies to article content, while the interface maintains consistent UI typography.
 
 ## Navigation
 
@@ -32,7 +24,6 @@ GoRead2 provides efficient keyboard navigation:
 | `m` | Mark article as read/unread |
 | `s` | Star/unstar article |
 | `r` | Refresh all feeds |
-| `f` | Toggle font style (sans-serif ↔ serif) |
 
 ### Mobile and Tablet Navigation
 
@@ -147,7 +138,6 @@ Use the radio buttons in the article pane header:
 2. Use `j/k` keys to quickly scan headlines
 3. Press `Enter` to open interesting articles in new tabs
 4. Star articles you want to reference later
-5. Use font toggle (`f`) to optimize reading comfort
 
 ### Performance
 - GoRead2 automatically optimizes for performance

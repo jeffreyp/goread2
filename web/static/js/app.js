@@ -14,9 +14,6 @@ class GoReadApp {
         // Performance optimizations
         this.throttleTimeout = null;
 
-        // Font preference
-        this.fontPreference = localStorage.getItem('fontPreference') || 'sans-serif';
-
         this.init();
     }
 
@@ -28,9 +25,6 @@ class GoReadApp {
             this.bindEvents();
             this.setupKeyboardShortcuts();
 
-            // Apply saved font preference
-            this.applyFontPreference();
-            
             // Load data in parallel but don't block UI
             Promise.all([
                 this.loadSubscriptionInfo(),
@@ -132,13 +126,6 @@ class GoReadApp {
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
                 this.showHelpModal();
-            });
-        }
-
-        const fontToggleBtn = document.getElementById('font-toggle-btn');
-        if (fontToggleBtn) {
-            fontToggleBtn.addEventListener('click', () => {
-                this.toggleFont();
             });
         }
 
@@ -459,10 +446,6 @@ class GoReadApp {
                 case 'r':
                     e.preventDefault();
                     this.refreshFeeds();
-                    break;
-                case 'f':
-                    e.preventDefault();
-                    this.toggleFont();
                     break;
             }
         });
@@ -1522,38 +1505,6 @@ class GoReadApp {
     hideImportOpmlModal() {
         if (this.modalManager) {
             this.modalManager.hideImportOpmlModal();
-        }
-    }
-
-    toggleFont() {
-        // Toggle between sans-serif and serif
-        this.fontPreference = this.fontPreference === 'sans-serif' ? 'serif' : 'sans-serif';
-
-        // Apply the font preference
-        this.applyFontPreference();
-
-        // Save to localStorage
-        localStorage.setItem('fontPreference', this.fontPreference);
-
-        console.log(`Font switched to: ${this.fontPreference}`);
-    }
-
-    applyFontPreference() {
-        const body = document.body;
-
-        // Remove existing font classes
-        body.classList.remove('font-serif', 'font-sans-serif');
-
-        // Apply new font class
-        if (this.fontPreference === 'serif') {
-            body.classList.add('font-serif');
-        }
-
-        // Update button appearance to show current state
-        const fontToggleBtn = document.getElementById('font-toggle-btn');
-        if (fontToggleBtn) {
-            fontToggleBtn.textContent = this.fontPreference === 'serif' ? 'Serif' : 'Sans';
-            fontToggleBtn.title = `Current: ${this.fontPreference === 'serif' ? 'Serif' : 'Sans-serif'} - Click to switch`;
         }
     }
 
