@@ -70,7 +70,7 @@ test:
 # Validate configuration
 validate-config:
 	@echo "🔍 Validating configuration..."
-	cd scripts && go run validate-config.go
+	go run cmd/validate-config/main.go
 
 # Validate and build (recommended before deployment)
 validate-build: validate-config build-frontend build
@@ -84,7 +84,7 @@ deploy-dev: validate-config build-frontend
 # Validate configuration in strict mode (for production)
 validate-config-strict:
 	@echo "🔍 Validating configuration (strict mode)..."
-	cd scripts && VALIDATE_STRICT=true go run validate-config.go
+	VALIDATE_STRICT=true go run cmd/validate-config/main.go
 
 # Deploy to production (with strict validation and tests)
 deploy-prod: validate-config-strict test build-frontend
