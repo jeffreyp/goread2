@@ -41,7 +41,7 @@ type Database interface {
 	GetArticles(feedID int) ([]Article, error)
 	FindArticleByURL(url string) (*Article, error)
 	GetUserArticles(userID int) ([]Article, error)
-	GetUserArticlesPaginated(userID, limit, offset int) ([]Article, error)
+	GetUserArticlesPaginated(userID, limit, offset int, unreadOnly bool) ([]Article, error)
 	GetUserFeedArticles(userID, feedID int) ([]Article, error)
 
 	// User article status methods
@@ -740,12 +740,12 @@ func (db *DB) UnsubscribeUserFromFeed(userID, feedID int) error {
 
 // User article methods
 func (db *DB) GetUserArticles(userID int) ([]Article, error) {
-	return db.GetUserArticlesPaginated(userID, 50, 0) // Default: first 50 articles
+	return db.GetUserArticlesPaginated(userID, 50, 0, false) // Default: first 50 articles
 }
 
 // GetUserArticlesPaginated fetches user articles with pagination
-func (db *DB) GetUserArticlesPaginated(userID, limit, offset int) ([]Article, error) {
-	query := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.content, a.description, a.author,
+func (db *DB) GetUserArticlesPaginated(userID, limit, offset int, unreadOnly bool) ([]Article, error) {
+	baseQuery := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.content, a.description, a.author,
 			  a.published_at, a.created_at,
 			  COALESCE(ua.is_read, 0) as is_read,
 			  COALESCE(ua.is_starred, 0) as is_starred
@@ -753,11 +753,16 @@ func (db *DB) GetUserArticlesPaginated(userID, limit, offset int) ([]Article, er
 			  JOIN user_feeds uf ON a.feed_id = uf.feed_id
 			  JOIN feeds f ON a.feed_id = f.id
 			  LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
-			  WHERE uf.user_id = ?
-			  ORDER BY a.published_at DESC
-			  LIMIT ? OFFSET ?`
+			  WHERE uf.user_id = ?`
 
-	rows, err := db.Query(query, userID, userID, limit, offset)
+	// Add unread filter if requested
+	if unreadOnly {
+		baseQuery += ` AND COALESCE(ua.is_read, 0) = 0`
+	}
+
+	baseQuery += ` ORDER BY a.published_at DESC LIMIT ? OFFSET ?`
+
+	rows, err := db.Query(baseQuery, userID, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

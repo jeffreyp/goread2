@@ -131,6 +131,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 		// Parse pagination parameters
 		limit := 50 // Default limit
 		offset := 0 // Default offset
+		unreadOnly := false // Default to showing all articles
 
 		if limitStr := c.Query("limit"); limitStr != "" {
 			if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 200 {
@@ -144,7 +145,11 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 			}
 		}
 
-		articles, err := fh.feedService.GetUserArticlesPaginated(user.ID, limit, offset)
+		if unreadStr := c.Query("unread_only"); unreadStr == "true" || unreadStr == "1" {
+			unreadOnly = true
+		}
+
+		articles, err := fh.feedService.GetUserArticlesPaginated(user.ID, limit, offset, unreadOnly)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

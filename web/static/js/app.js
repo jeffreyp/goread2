@@ -667,7 +667,8 @@ class GoReadApp {
             const limit = 50;
             let url;
             if (feedId === 'all') {
-                url = `/api/feeds/all/articles?limit=${limit}&offset=${this.articleOffset || 0}`;
+                const unreadParam = this.articleFilter === 'unread' ? '&unread_only=true' : '';
+                url = `/api/feeds/all/articles?limit=${limit}&offset=${this.articleOffset || 0}${unreadParam}`;
             } else {
                 url = `/api/feeds/${feedId}/articles`;
             }
@@ -685,11 +686,6 @@ class GoReadApp {
             this.hasMoreArticles = newArticles.length === limit;
 
             this.renderArticlesOptimized();
-            
-            // Add load more button if needed
-            if (feedId === 'all' && this.hasMoreArticles && !append) {
-                this.addLoadMoreButton();
-            }
         } catch (error) {
             this.showError('Failed to load articles: ' + error.message);
         }

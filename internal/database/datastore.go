@@ -696,10 +696,10 @@ func (db *DatastoreDB) UnsubscribeUserFromFeed(userID, feedID int) error {
 }
 
 func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
-	return db.GetUserArticlesPaginated(userID, 50, 0) // Default: first 50 articles
+	return db.GetUserArticlesPaginated(userID, 50, 0, false) // Default: first 50 articles
 }
 
-func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Article, error) {
+func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unreadOnly bool) ([]Article, error) {
 	ctx := context.Background()
 
 	// Get user's subscribed feeds
@@ -788,27 +788,8 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 		return allArticles[i].PublishedAt.After(allArticles[j].PublishedAt)
 	})
 
-	// Apply pagination first to reduce user status queries
-	startIdx := offset
-	endIdx := offset + limit
-
-	if startIdx >= len(allArticles) {
-		return []Article{}, nil
-	}
-
-	if endIdx > len(allArticles) {
-		endIdx = len(allArticles)
-	}
-
-	paginatedArticles := allArticles[startIdx:endIdx]
-
-	// Now get user status for only the articles we're returning (bulk operation)
-	if len(paginatedArticles) > 0 {
-		articleIDs := make([]int64, len(paginatedArticles))
-		for i, article := range paginatedArticles {
-			articleIDs[i] = int64(article.ID)
-		}
-
+	// Get user status for ALL articles if we need to filter by unread
+	if unreadOnly || len(allArticles) > 0 {
 		// Query user article statuses in bulk
 		query := datastore.NewQuery("UserArticle").
 			FilterField("user_id", "=", int64(userID))
@@ -823,14 +804,39 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int) ([]Ar
 			}
 
 			// Update articles with user status
-			for i := range paginatedArticles {
-				if userStatus, exists := statusMap[paginatedArticles[i].ID]; exists {
-					paginatedArticles[i].IsRead = userStatus.IsRead
-					paginatedArticles[i].IsStarred = userStatus.IsStarred
+			for i := range allArticles {
+				if userStatus, exists := statusMap[allArticles[i].ID]; exists {
+					allArticles[i].IsRead = userStatus.IsRead
+					allArticles[i].IsStarred = userStatus.IsStarred
 				}
 			}
 		}
 	}
+
+	// Filter for unread articles if requested
+	if unreadOnly {
+		filteredArticles := make([]Article, 0, len(allArticles))
+		for _, article := range allArticles {
+			if !article.IsRead {
+				filteredArticles = append(filteredArticles, article)
+			}
+		}
+		allArticles = filteredArticles
+	}
+
+	// Apply pagination
+	startIdx := offset
+	endIdx := offset + limit
+
+	if startIdx >= len(allArticles) {
+		return []Article{}, nil
+	}
+
+	if endIdx > len(allArticles) {
+		endIdx = len(allArticles)
+	}
+
+	paginatedArticles := allArticles[startIdx:endIdx]
 
 	return paginatedArticles, nil
 }
