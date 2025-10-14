@@ -470,6 +470,55 @@ RSS and Atom feed examples for parser testing:
 </feed>
 ```
 
+### Generating Test Articles
+
+For testing pagination, feed loading, and article navigation, use the `generate-test-articles` utility to create test data in your local SQLite database:
+
+```bash
+# Generate test articles for a user and feed
+go run cmd/generate-test-articles/main.go <user_id> <feed_id> <num_articles>
+
+# Example: Create 150 test articles for user 91 in feed 1
+go run cmd/generate-test-articles/main.go 91 1 150
+```
+
+**What it does:**
+- Creates the specified number of test articles for a given feed
+- Automatically subscribes the user to the feed if not already subscribed
+- Marks all generated articles as unread for the specified user
+- Generates realistic article data with timestamps, titles, content, and descriptions
+- Each article has a unique URL and is timestamped 1 minute older than the previous
+
+**Limits:**
+- Minimum: 1 article
+- Maximum: 1000 articles per run
+- Only works with local SQLite database (not Datastore)
+
+**Use cases:**
+- Testing pagination with >50 articles (Load More button)
+- Testing article navigation and scrolling behavior
+- Testing unread count display and updates
+- Testing bulk mark-as-read operations
+- Verifying performance with large article lists
+
+**Example output:**
+```
+Generating 150 test articles for feed 1...
+Found user: Jeffrey Pratt (jeffreyp07@gmail.com)
+Found feed: Test Feed 1
+Created 50/150 articles...
+Created 100/150 articles...
+Created 150/150 articles...
+Successfully created 150 articles
+Ensuring articles are unread for user 91...
+
+✅ Success!
+   Created: 150 test articles
+   Feed: Test Feed 1 (ID: 1)
+   User: Jeffrey Pratt (jeffreyp07@gmail.com)
+   All articles are unread and ready for testing.
+```
+
 ## Security Testing
 
 Critical tests for multi-user security and admin authentication:
