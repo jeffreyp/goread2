@@ -98,12 +98,22 @@ func (sm *SessionManager) DeleteSession(sessionID string) {
 	}
 }
 
+// getCookieName returns an environment-specific cookie name to prevent
+// local and production authentication states from conflicting
+func (sm *SessionManager) getCookieName() string {
+	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
+	if isProduction {
+		return "session_id"
+	}
+	return "session_id_local"
+}
+
 func (sm *SessionManager) SetSessionCookie(w http.ResponseWriter, session *Session) {
 	// Enable Secure flag in production environments
 	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
 
 	cookie := &http.Cookie{
-		Name:     "session_id",
+		Name:     sm.getCookieName(),
 		Value:    session.ID,
 		Expires:  session.ExpiresAt,
 		HttpOnly: true,
@@ -119,7 +129,7 @@ func (sm *SessionManager) ClearSessionCookie(w http.ResponseWriter) {
 	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
 
 	cookie := &http.Cookie{
-		Name:     "session_id",
+		Name:     sm.getCookieName(),
 		Value:    "",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
@@ -131,7 +141,7 @@ func (sm *SessionManager) ClearSessionCookie(w http.ResponseWriter) {
 }
 
 func (sm *SessionManager) GetSessionFromRequest(r *http.Request) (*Session, bool) {
-	cookie, err := r.Cookie("session_id")
+	cookie, err := r.Cookie(sm.getCookieName())
 	if err != nil {
 		return nil, false
 	}

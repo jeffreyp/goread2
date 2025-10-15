@@ -314,8 +314,9 @@ func TestSetSessionCookie(t *testing.T) {
 	}
 
 	cookie := cookies[0]
-	if cookie.Name != "session_id" {
-		t.Errorf("Cookie name = %s, want session_id", cookie.Name)
+	expectedName := "session_id_local" // Tests run in local mode
+	if cookie.Name != expectedName {
+		t.Errorf("Cookie name = %s, want %s", cookie.Name, expectedName)
 	}
 
 	if cookie.Value != session.ID {
@@ -349,8 +350,9 @@ func TestClearSessionCookie(t *testing.T) {
 	}
 
 	cookie := cookies[0]
-	if cookie.Name != "session_id" {
-		t.Errorf("Cookie name = %s, want session_id", cookie.Name)
+	expectedName := "session_id_local" // Tests run in local mode
+	if cookie.Name != expectedName {
+		t.Errorf("Cookie name = %s, want %s", cookie.Name, expectedName)
 	}
 
 	if cookie.Value != "" {
@@ -387,7 +389,7 @@ func TestGetSessionFromRequest(t *testing.T) {
 	// Test with valid session cookie
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{
-		Name:  "session_id",
+		Name:  "session_id_local", // Tests run in local mode
 		Value: session.ID,
 	})
 
@@ -415,7 +417,7 @@ func TestGetSessionFromRequest(t *testing.T) {
 	// Test with invalid session ID in cookie
 	reqInvalidCookie := httptest.NewRequest("GET", "/", nil)
 	reqInvalidCookie.AddCookie(&http.Cookie{
-		Name:  "session_id",
+		Name:  "session_id_local", // Tests run in local mode
 		Value: "invalid_session_id",
 	})
 

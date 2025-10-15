@@ -121,8 +121,9 @@ func (ts *TestServer) CreateAuthenticatedRequest(t *testing.T, method, url strin
 	}
 
 	// Add session cookie
+	// Tests run in local mode, so use the local cookie name
 	cookie := &http.Cookie{
-		Name:  "session_id",
+		Name:  "session_id_local",
 		Value: session.ID,
 	}
 	req.AddCookie(cookie)

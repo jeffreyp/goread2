@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"goread2/internal/auth"
@@ -33,7 +34,8 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Store state in session/cookie for validation
-	c.SetCookie("oauth_state", state, 600, "/", "", false, true) // 10 minutes
+	// Use environment-specific cookie name to avoid conflicts
+	c.SetCookie(getOAuthStateCookieName(), state, 600, "/", "", false, true) // 10 minutes
 
 	authURL := ah.authService.GetAuthURL(state)
 	c.JSON(http.StatusOK, gin.H{"auth_url": authURL})
@@ -41,14 +43,14 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 
 func (ah *AuthHandler) Callback(c *gin.Context) {
 	// Verify state parameter
-	storedState, err := c.Cookie("oauth_state")
+	storedState, err := c.Cookie(getOAuthStateCookieName())
 	if err != nil || storedState != c.Query("state") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter"})
 		return
 	}
 
 	// Clear the state cookie
-	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+	c.SetCookie(getOAuthStateCookieName(), "", -1, "/", "", false, true)
 
 	code := c.Query("code")
 	if code == "" {
@@ -128,4 +130,14 @@ func generateState() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(bytes), nil
+}
+
+// getOAuthStateCookieName returns an environment-specific cookie name for OAuth state
+// to prevent local and production authentication flows from conflicting
+func getOAuthStateCookieName() string {
+	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
+	if isProduction {
+		return "oauth_state"
+	}
+	return "oauth_state_local"
 }
