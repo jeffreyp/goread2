@@ -226,6 +226,9 @@ curl "http://localhost:8080/api/feeds/unread-counts" \
 ### `POST /api/feeds/import`
 Import feeds from OPML file.
 
+**Headers**:
+- `X-CSRF-Token` (required) - CSRF token from `/auth/me`
+
 **Request**: Multipart form data with OPML file
 
 **Parameters**:
@@ -242,13 +245,51 @@ Import feeds from OPML file.
 **Error Responses**:
 - `400 Bad Request` - No file provided or file too large
 - `402 Payment Required` - Import would exceed feed limit
+- `403 Forbidden` - Invalid or missing CSRF token
 - `500 Internal Server Error` - OPML parsing failed
 
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/feeds/import" \
   -H "Cookie: session=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token" \
   -F "opml=@subscriptions.opml"
+```
+
+### `GET /api/feeds/export`
+Export user's feeds to OPML format.
+
+**Response**: OPML XML file download
+
+**Headers**:
+- `Content-Type: application/xml; charset=utf-8`
+- `Content-Disposition: attachment; filename=goread2-subscriptions.opml`
+
+**Response Body** (OPML XML):
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>GoRead2 Subscriptions</title>
+  </head>
+  <body>
+    <outline type="rss" text="Feed Title" title="Feed Title"
+             xmlUrl="https://example.com/feed.xml"
+             htmlUrl="https://example.com/feed.xml"/>
+    <!-- More feeds... -->
+  </body>
+</opml>
+```
+
+**Error Responses**:
+- `401 Unauthorized` - Not authenticated
+- `500 Internal Server Error` - Export generation failed
+
+**Example**:
+```bash
+curl "http://localhost:8080/api/feeds/export" \
+  -H "Cookie: session=your-session-cookie" \
+  -o subscriptions.opml
 ```
 
 ## Article Endpoints

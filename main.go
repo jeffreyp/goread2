@@ -213,6 +213,7 @@ func main() {
 		api.GET("/feeds", feedHandler.GetFeeds)
 		api.POST("/feeds", feedHandler.AddFeed)
 		api.POST("/feeds/import", feedHandler.ImportOPML)
+		api.GET("/feeds/export", feedHandler.ExportOPML)
 		api.DELETE("/feeds/:id", feedHandler.DeleteFeed)
 		api.GET("/feeds/:id/articles", feedHandler.GetArticles)
 		api.GET("/feeds/unread-counts", feedHandler.GetUnreadCounts)

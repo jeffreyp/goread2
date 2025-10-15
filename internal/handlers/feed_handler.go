@@ -496,6 +496,30 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 	})
 }
 
+func (fh *FeedHandler) ExportOPML(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	// Generate OPML from user's feeds
+	opmlData, err := fh.feedService.ExportOPML(user.ID)
+	if err != nil {
+		log.Printf("Failed to export OPML for user %d: %v", user.ID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate OPML export"})
+		return
+	}
+
+	// Set headers for file download
+	c.Header("Content-Type", "application/xml; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename=goread2-subscriptions.opml")
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+
+	// Return the OPML data
+	c.Data(http.StatusOK, "application/xml; charset=utf-8", opmlData)
+}
+
 func (fh *FeedHandler) GetSubscriptionInfo(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {

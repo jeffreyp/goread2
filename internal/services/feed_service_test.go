@@ -282,3 +282,154 @@ func (fs *FeedService) parseFeedFromBytes(body []byte, feedURL string) (*FeedDat
 func unmarshalXML(data []byte, v interface{}) error {
 	return xml.Unmarshal(data, v)
 }
+
+// TestExportOPML tests the OPML export functionality
+func TestExportOPML(t *testing.T) {
+	db, err := database.InitDB()
+	if err != nil {
+		t.Fatalf("Failed to initialize test database: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+
+	// Create a test user
+	testUser := &database.User{
+		GoogleID: "test-user-export-opml",
+		Email:    "test-export@example.com",
+		Name:     "Test User",
+	}
+	if err := db.CreateUser(testUser); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Add test feeds
+	feed1 := &database.Feed{
+		Title:       "Test Feed 1",
+		URL:         "https://example.com/feed1.xml",
+		Description: "First test feed",
+	}
+	if err := db.AddFeed(feed1); err != nil {
+		t.Fatalf("Failed to add feed1: %v", err)
+	}
+
+	feed2 := &database.Feed{
+		Title:       "Test Feed 2",
+		URL:         "https://example.com/feed2.xml",
+		Description: "Second test feed",
+	}
+	if err := db.AddFeed(feed2); err != nil {
+		t.Fatalf("Failed to add feed2: %v", err)
+	}
+
+	// Subscribe user to the feeds
+	if err := db.SubscribeUserToFeed(testUser.ID, feed1.ID); err != nil {
+		t.Fatalf("Failed to subscribe to feed1: %v", err)
+	}
+	if err := db.SubscribeUserToFeed(testUser.ID, feed2.ID); err != nil {
+		t.Fatalf("Failed to subscribe to feed2: %v", err)
+	}
+
+	// Export OPML
+	opmlData, err := fs.ExportOPML(testUser.ID)
+	if err != nil {
+		t.Fatalf("Failed to export OPML: %v", err)
+	}
+
+	// Verify the XML is valid
+	var opml OPML
+	if err := xml.Unmarshal(opmlData, &opml); err != nil {
+		t.Fatalf("Failed to parse exported OPML: %v", err)
+	}
+
+	// Verify the OPML structure
+	if opml.Head.Title != "GoRead2 Subscriptions" {
+		t.Errorf("Expected OPML title 'GoRead2 Subscriptions', got '%s'", opml.Head.Title)
+	}
+
+	// Verify we have the correct number of feeds
+	if len(opml.Body.Outlines) != 2 {
+		t.Fatalf("Expected 2 feeds in OPML, got %d", len(opml.Body.Outlines))
+	}
+
+	// Verify feed details
+	feedsFound := make(map[string]bool)
+	for _, outline := range opml.Body.Outlines {
+		if outline.Type != "rss" {
+			t.Errorf("Expected outline type 'rss', got '%s'", outline.Type)
+		}
+
+		// Check feed1
+		if outline.XMLURL == "https://example.com/feed1.xml" {
+			feedsFound["feed1"] = true
+			if outline.Title != "Test Feed 1" {
+				t.Errorf("Expected feed1 title 'Test Feed 1', got '%s'", outline.Title)
+			}
+			if outline.Text != "Test Feed 1" {
+				t.Errorf("Expected feed1 text 'Test Feed 1', got '%s'", outline.Text)
+			}
+		}
+
+		// Check feed2
+		if outline.XMLURL == "https://example.com/feed2.xml" {
+			feedsFound["feed2"] = true
+			if outline.Title != "Test Feed 2" {
+				t.Errorf("Expected feed2 title 'Test Feed 2', got '%s'", outline.Title)
+			}
+			if outline.Text != "Test Feed 2" {
+				t.Errorf("Expected feed2 text 'Test Feed 2', got '%s'", outline.Text)
+			}
+		}
+	}
+
+	// Verify both feeds were found
+	if !feedsFound["feed1"] {
+		t.Error("Feed1 not found in exported OPML")
+	}
+	if !feedsFound["feed2"] {
+		t.Error("Feed2 not found in exported OPML")
+	}
+
+	// Verify XML header is present
+	if len(opmlData) < 5 || string(opmlData[:5]) != "<?xml" {
+		t.Error("OPML should start with XML declaration")
+	}
+}
+
+// TestExportOPMLEmptyFeeds tests OPML export with no feeds
+func TestExportOPMLEmptyFeeds(t *testing.T) {
+	db, err := database.InitDB()
+	if err != nil {
+		t.Fatalf("Failed to initialize test database: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+
+	// Create a test user with no feeds
+	testUser := &database.User{
+		GoogleID: "test-user-empty-opml",
+		Email:    "test-empty@example.com",
+		Name:     "Test User Empty",
+	}
+	if err := db.CreateUser(testUser); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Export OPML (should work even with no feeds)
+	opmlData, err := fs.ExportOPML(testUser.ID)
+	if err != nil {
+		t.Fatalf("Failed to export OPML for user with no feeds: %v", err)
+	}
+
+	// Verify the XML is valid
+	var opml OPML
+	if err := xml.Unmarshal(opmlData, &opml); err != nil {
+		t.Fatalf("Failed to parse exported OPML: %v", err)
+	}
+
+	// Verify we have zero feeds
+	if len(opml.Body.Outlines) != 0 {
+		t.Errorf("Expected 0 feeds in OPML for user with no subscriptions, got %d", len(opml.Body.Outlines))
+	}
+}

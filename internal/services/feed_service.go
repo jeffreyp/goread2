@@ -762,6 +762,47 @@ func (fs *FeedService) extractFeedsFromOutlines(outlines []OPMLOutline) []string
 	return feeds
 }
 
+// ExportOPML generates an OPML XML document containing all of a user's feed subscriptions
+func (fs *FeedService) ExportOPML(userID int) ([]byte, error) {
+	// Get all user's feeds
+	feeds, err := fs.db.GetUserFeeds(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user feeds: %w", err)
+	}
+
+	// Build OPML structure
+	opml := OPML{
+		Head: OPMLHead{
+			Title: "GoRead2 Subscriptions",
+		},
+		Body: OPMLBody{
+			Outlines: make([]OPMLOutline, 0, len(feeds)),
+		},
+	}
+
+	// Convert each feed to an OPML outline
+	for _, feed := range feeds {
+		outline := OPMLOutline{
+			Type:    "rss",
+			Text:    feed.Title,
+			Title:   feed.Title,
+			XMLURL:  feed.URL,
+			HTMLURL: feed.URL, // Using feed URL as HTML URL since we don't store separate HTML URLs
+		}
+		opml.Body.Outlines = append(opml.Body.Outlines, outline)
+	}
+
+	// Marshal to XML with proper formatting
+	xmlData, err := xml.MarshalIndent(opml, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal OPML: %w", err)
+	}
+
+	// Add XML header
+	result := []byte(xml.Header + string(xmlData))
+	return result, nil
+}
+
 func (fs *FeedService) cleanDuplicateTitle(title string) string {
 	title = strings.TrimSpace(title)
 
