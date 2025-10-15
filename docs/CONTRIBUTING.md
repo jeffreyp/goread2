@@ -492,7 +492,7 @@ When adding user-facing features:
 
 ## Issue Tracking with Beads
 
-GoRead2 uses [Beads](https://github.com/beadslabs/beads) for issue tracking, as specified in `CLAUDE.md`. Beads provides a lightweight, command-line issue tracker that stores issues in the `.beads/` directory.
+GoRead2 uses [Beads](https://github.com/steveyegge/beads) for issue tracking, as specified in `CLAUDE.md`. Beads provides a lightweight, command-line issue tracker that stores issues in the `.beads/` directory.
 
 ### Getting Started with Beads
 
@@ -502,7 +502,7 @@ GoRead2 uses [Beads](https://github.com/beadslabs/beads) for issue tracking, as 
    pip install beads-cli
 
    # Or run from source
-   git clone https://github.com/beadslabs/beads
+   git clone https://github.com/steveyegge/beads
    cd beads && pip install -e .
    ```
 
