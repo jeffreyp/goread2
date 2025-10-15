@@ -662,13 +662,25 @@ class GoReadApp {
                 document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
                 this.articles = [];
                 this.articleOffset = 0;
+                this.loadedArticleIds = new Set(); // Track loaded article IDs to prevent duplicates
             }
 
             const limit = 50;
             let url;
             if (feedId === 'all') {
                 const unreadParam = this.articleFilter === 'unread' ? '&unread_only=true' : '';
-                url = `/api/feeds/all/articles?limit=${limit}&offset=${this.articleOffset || 0}${unreadParam}`;
+
+                // When loading more in unread mode, adjust offset to account for articles marked as read
+                let requestOffset = this.articleOffset;
+                if (append && this.articleFilter === 'unread') {
+                    // Count how many of the loaded articles are now marked as read
+                    const readCount = this.articles.filter(a => a.is_read).length;
+                    // Request from an earlier offset to ensure we get continuity
+                    // This will cause some overlap, which we'll filter out with our duplicate detection
+                    requestOffset = Math.max(0, this.articleOffset - readCount);
+                }
+
+                url = `/api/feeds/all/articles?limit=${limit}&offset=${requestOffset}${unreadParam}`;
             } else {
                 url = `/api/feeds/${feedId}/articles`;
             }
@@ -677,15 +689,30 @@ class GoReadApp {
             const newArticles = await response.json();
 
             if (append) {
-                this.articles.push(...newArticles);
+                // Filter out any articles we've already loaded (prevents duplicates)
+                const uniqueNewArticles = newArticles.filter(article => {
+                    if (this.loadedArticleIds.has(article.id)) {
+                        return false; // Skip duplicate
+                    }
+                    this.loadedArticleIds.add(article.id);
+                    return true;
+                });
+
+                this.articles.push(...uniqueNewArticles);
+
+                // Increment offset by the number of articles requested, not received
+                // This keeps pagination consistent even when articles are filtered
+                this.articleOffset += limit;
             } else {
                 this.articles = newArticles;
+                // Track all loaded article IDs
+                this.loadedArticleIds = new Set(newArticles.map(a => a.id));
+                this.articleOffset = newArticles.length;
             }
 
-            this.articleOffset = (this.articleOffset || 0) + newArticles.length;
             this.hasMoreArticles = newArticles.length === limit;
 
-            this.renderArticlesOptimized();
+            this.renderArticlesOptimized(append);
         } catch (error) {
             this.showError('Failed to load articles: ' + error.message);
         }
@@ -817,26 +844,85 @@ class GoReadApp {
         }
     }
 
-    renderArticlesOptimized() {
+    renderArticlesOptimized(append = false) {
         const articleList = document.getElementById('article-list');
 
         if (this.articles.length === 0) {
             articleList.innerHTML = '<div class="placeholder">No articles found</div>';
             return;
         }
-        
+
+        if (append) {
+            // For append mode, just add the new articles to the existing list
+            // Calculate how many articles were already rendered
+            const existingArticleItems = articleList.querySelectorAll('.article-item');
+            const startIndex = existingArticleItems.length;
+
+            // Remove the load more button before appending new articles
+            const existingButton = articleList.querySelector('.load-more-button');
+            if (existingButton) {
+                existingButton.remove();
+            }
+
+            // Create fragment for new articles only
+            const fragment = document.createDocumentFragment();
+
+            // Render only the newly loaded articles
+            for (let i = startIndex; i < this.articles.length; i++) {
+                const article = this.articles[i];
+                const articleItem = document.createElement('div');
+                articleItem.className = `article-item ${article.is_read ? 'read' : ''}`;
+                articleItem.dataset.articleId = article.id;
+                articleItem.dataset.index = i;
+
+                const publishedDate = new Date(article.published_at).toLocaleDateString();
+                articleItem.innerHTML = `
+                    <div class="article-header">
+                        <div style="flex: 1;">
+                            <div class="article-title">${this.escapeHtml(article.title)}</div>
+                            <div class="article-meta">
+                                <span>${publishedDate}</span>
+                                ${article.author ? `<span>by ${this.escapeHtml(article.author)}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="article-actions">
+                            <button class="action-btn star-btn ${article.is_starred ? 'starred' : ''}"
+                                    data-article-id="${article.id}" title="Star article">★</button>
+                        </div>
+                    </div>
+                    ${article.description ? `<div class="article-description">${this.sanitizeContent(article.description, true)}</div>` : ''}
+                `;
+
+                fragment.appendChild(articleItem);
+            }
+
+            // Append new articles to the list
+            articleList.appendChild(fragment);
+
+            // Re-add load more button if needed
+            if (this.currentFeed === 'all' && this.hasMoreArticles) {
+                this.addLoadMoreButton();
+            }
+
+            // Apply filter to new articles (but don't auto-select)
+            this.applyArticleFilter(false);
+
+            return; // Don't auto-select or reset anything when appending
+        }
+
+        // Original render logic for initial load (not append mode)
         // Render all loaded articles (pagination handles limiting on server side)
         const articlesToRender = this.articles;
-        
+
         // Use DocumentFragment for better performance
         const fragment = document.createDocumentFragment();
-        
+
         // Remove existing event listeners by cloning the element
         const newArticleList = articleList.cloneNode(false);
         articleList.parentNode.replaceChild(newArticleList, articleList);
         // Update reference
         const updatedArticleList = document.getElementById('article-list');
-        
+
         // Add event delegation for star buttons and article selection
         // Simple click handling - iOS Safari converts taps to clicks automatically
         updatedArticleList.addEventListener('click', (e) => {
@@ -855,13 +941,13 @@ class GoReadApp {
                 this.selectArticle(index);
             }
         });
-        
+
         articlesToRender.forEach((article, i) => {
             const articleItem = document.createElement('div');
             articleItem.className = `article-item ${article.is_read ? 'read' : ''}`;
             articleItem.dataset.articleId = article.id;
             articleItem.dataset.index = i;  // Use actual index from slice
-            
+
             const publishedDate = new Date(article.published_at).toLocaleDateString();
             articleItem.innerHTML = `
                 <div class="article-header">
@@ -873,33 +959,33 @@ class GoReadApp {
                         </div>
                     </div>
                     <div class="article-actions">
-                        <button class="action-btn star-btn ${article.is_starred ? 'starred' : ''}" 
+                        <button class="action-btn star-btn ${article.is_starred ? 'starred' : ''}"
                                 data-article-id="${article.id}" title="Star article">★</button>
                     </div>
                 </div>
                 ${article.description ? `<div class="article-description">${this.sanitizeContent(article.description, true)}</div>` : ''}
             `;
-            
+
             fragment.appendChild(articleItem);
         });
-        
+
         // Pagination load more button is handled separately by addLoadMoreButton method
         // No need to add it here as it's managed by the pagination system
-        
+
         // Single DOM append operation
         updatedArticleList.appendChild(fragment);
-        
+
         // Add load more button if needed (for paginated "all articles" view)
         if (this.currentFeed === 'all' && this.hasMoreArticles) {
             this.addLoadMoreButton();
         }
-        
+
         // Apply current filter after rendering
         this.applyArticleFilter();
-        
+
         // Mark session as no longer fresh after first article load
         this.sessionStarted = false;
-        
+
         // Auto-select the first visible article if any exist
         const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
         if (visibleArticles.length > 0) {
@@ -909,11 +995,6 @@ class GoReadApp {
             this.currentArticle = null;
             document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
         }
-    }
-
-    loadMoreArticles() {
-        // This can be enhanced later to load more articles incrementally
-        this.renderArticles(); // Fall back to full render for now
     }
 
     async selectArticle(index) {
@@ -1195,30 +1276,30 @@ class GoReadApp {
         }
     }
 
-    applyArticleFilter() {
+    applyArticleFilter(allowAutoSelect = true) {
         const articleItems = document.querySelectorAll('.article-item');
         const articleList = document.getElementById('article-list');
-        
+
         // Remove any existing placeholders
         const existingPlaceholder = articleList.querySelector('.article-list-placeholder');
         if (existingPlaceholder) {
             existingPlaceholder.remove();
         }
-        
+
         articleItems.forEach((item) => {
             const articleIndex = parseInt(item.dataset.index);
             const article = this.articles[articleIndex];
-            
+
             if (!article) {
                 // If article data is missing, hide the item
                 item.classList.add('filtered-out');
                 item.style.display = 'none';
                 return;
             }
-            
-            const shouldShow = this.articleFilter === 'all' || 
+
+            const shouldShow = this.articleFilter === 'all' ||
                               (this.articleFilter === 'unread' && !article.is_read);
-            
+
             if (shouldShow) {
                 item.classList.remove('filtered-out');
                 item.style.display = '';
@@ -1240,12 +1321,12 @@ class GoReadApp {
 
         // Check if any articles are visible after filtering
         const visibleArticles = document.querySelectorAll('.article-item:not(.filtered-out)');
-        
+
         if (visibleArticles.length === 0) {
             // No visible articles, clear current selection and show placeholder
             this.currentArticle = null;
             document.getElementById('article-content').innerHTML = '<div class="placeholder"><p>No articles to display.</p></div>';
-            
+
             // Show placeholder in article list
             const placeholder = document.createElement('div');
             placeholder.className = 'placeholder article-list-placeholder';
@@ -1257,8 +1338,9 @@ class GoReadApp {
             if (placeholder) {
                 placeholder.remove();
             }
-            
-            if (this.currentArticle !== null) {
+
+            // Only auto-select if allowed (disabled during append operations)
+            if (allowAutoSelect && this.currentArticle !== null) {
                 // Check if current article is still visible
                 const currentArticleItem = document.querySelector(`[data-index="${this.currentArticle}"]`);
                 if (currentArticleItem && currentArticleItem.classList.contains('filtered-out')) {
