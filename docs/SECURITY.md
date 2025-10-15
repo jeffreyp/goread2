@@ -117,6 +117,23 @@ SUBSCRIPTION_ENABLED=false  # Set to true for paid features
 - **HTTP-only cookies** - Prevents XSS attacks from accessing session tokens
 - **SameSite protection** - Lax mode prevents CSRF attacks via cross-site requests
 - **Automatic cleanup** - Expired sessions are cleaned up hourly
+- **Environment isolation** - Separate cookie names for local and production environments prevent authentication conflicts
+
+#### Environment-Specific Cookies
+
+To prevent authentication state conflicts between local development and production deployments, GoRead2 uses environment-specific cookie names:
+
+| Environment | Session Cookie | OAuth State Cookie |
+|-------------|----------------|-------------------|
+| **Local** (development) | `session_id_local` | `oauth_state_local` |
+| **Production** (GAE) | `session_id` | `oauth_state` |
+
+**Benefits:**
+- No cross-environment interference - developers can be logged into both environments simultaneously
+- Prevents accidental logout when switching between environments
+- Reduces confusion during development and testing
+
+The environment is automatically detected via `GAE_ENV` or `ENVIRONMENT` environment variables. See [AUTHENTICATION.md](AUTHENTICATION.md) for complete implementation details.
 
 ### CSRF Protection
 
