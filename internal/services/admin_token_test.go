@@ -19,17 +19,9 @@ func setupTestDB(t *testing.T) *database.DB {
 
 	dbWrapper := &database.DB{DB: db}
 
-	// Create admin_tokens table
-	_, err = dbWrapper.Exec(`CREATE TABLE admin_tokens (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		token_hash TEXT UNIQUE NOT NULL,
-		description TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		is_active BOOLEAN DEFAULT 1
-	)`)
-	if err != nil {
-		t.Fatalf("Failed to create admin_tokens table: %v", err)
+	// Create all tables using the public method
+	if err := dbWrapper.CreateTables(); err != nil {
+		t.Fatalf("Failed to create tables: %v", err)
 	}
 
 	return dbWrapper

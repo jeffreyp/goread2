@@ -145,7 +145,7 @@ func InitDB() (Database, error) {
 	}
 
 	dbWrapper := &DB{db}
-	if err := dbWrapper.createTables(); err != nil {
+	if err := dbWrapper.CreateTables(); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +156,8 @@ func InitDB() (Database, error) {
 	return dbWrapper, nil
 }
 
-func (db *DB) createTables() error {
+// CreateTables creates all necessary database tables (public for testing)
+func (db *DB) CreateTables() error {
 	usersTable := `
 	CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -248,14 +249,15 @@ func (db *DB) createTables() error {
 	}
 
 	// Create performance indexes
-	if err := db.createIndexes(); err != nil {
+	if err := db.CreateIndexes(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (db *DB) createIndexes() error {
+// CreateIndexes creates all database indexes (public for testing)
+func (db *DB) CreateIndexes() error {
 	indexes := []string{
 		// Articles table indexes for better query performance
 		`CREATE INDEX IF NOT EXISTS idx_articles_feed_id ON articles (feed_id)`,
@@ -344,7 +346,7 @@ func (db *DB) migrateDatabase() error {
 	}
 
 	// Ensure indexes are created on existing databases
-	if err := db.createIndexes(); err != nil {
+	if err := db.CreateIndexes(); err != nil {
 		return err
 	}
 

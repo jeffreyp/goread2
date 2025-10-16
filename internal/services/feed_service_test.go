@@ -46,10 +46,7 @@ const EmptyTitleRSSXML = `<?xml version="1.0" encoding="UTF-8"?>
 </rss>`
 
 func TestParseMastodonRSSFeed(t *testing.T) {
-	db, err := database.InitDB()
-	if err != nil {
-		t.Fatalf("Failed to initialize test database: %v", err)
-	}
+	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	fs := NewFeedService(db, nil)
@@ -95,10 +92,7 @@ func TestParseMastodonRSSFeed(t *testing.T) {
 }
 
 func TestParseEmptyTitleRSSFeed(t *testing.T) {
-	db, err := database.InitDB()
-	if err != nil {
-		t.Fatalf("Failed to initialize test database: %v", err)
-	}
+	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	fs := NewFeedService(db, nil)
@@ -127,10 +121,7 @@ func TestParseEmptyTitleRSSFeed(t *testing.T) {
 }
 
 func TestStripHTMLTags(t *testing.T) {
-	db, err := database.InitDB()
-	if err != nil {
-		t.Fatalf("Failed to initialize test database: %v", err)
-	}
+	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	fs := NewFeedService(db, nil)
@@ -173,10 +164,7 @@ func TestStripHTMLTags(t *testing.T) {
 }
 
 func TestGenerateFallbackTitle(t *testing.T) {
-	db, err := database.InitDB()
-	if err != nil {
-		t.Fatalf("Failed to initialize test database: %v", err)
-	}
+	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	fs := NewFeedService(db, nil)
@@ -285,10 +273,7 @@ func unmarshalXML(data []byte, v interface{}) error {
 
 // TestExportOPML tests the OPML export functionality
 func TestExportOPML(t *testing.T) {
-	db, err := database.InitDB()
-	if err != nil {
-		t.Fatalf("Failed to initialize test database: %v", err)
-	}
+	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	fs := NewFeedService(db, nil)
@@ -398,10 +383,7 @@ func TestExportOPML(t *testing.T) {
 
 // TestExportOPMLEmptyFeeds tests OPML export with no feeds
 func TestExportOPMLEmptyFeeds(t *testing.T) {
-	db, err := database.InitDB()
-	if err != nil {
-		t.Fatalf("Failed to initialize test database: %v", err)
-	}
+	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	fs := NewFeedService(db, nil)
