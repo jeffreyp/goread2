@@ -257,10 +257,6 @@ func TestGenerateSessionID(t *testing.T) {
 	}
 }
 
-// TestSessionExpiration is commented out because sessions are now stored in the database
-// and the test was relying on internal implementation details (direct access to sm.sessions map)
-// TODO: Rewrite this test to work with database-backed sessions
-/*
 func TestSessionExpiration(t *testing.T) {
 	db := newMockDB()
 	defer func() { _ = db.Close() }()
@@ -274,15 +270,128 @@ func TestSessionExpiration(t *testing.T) {
 		Name:     "Test User",
 	}
 
-	// Create a session
-	session, err := sm.CreateSession(user)
+	// Create an expired session directly in the database
+	expiredSessionID := "expired_session_123"
+	expiredSession := &database.Session{
+		ID:        expiredSessionID,
+		UserID:    user.ID,
+		CreatedAt: time.Now().Add(-8 * 24 * time.Hour), // Created 8 days ago
+		ExpiresAt: time.Now().Add(-1 * time.Hour),      // Expired 1 hour ago
+	}
+
+	err := db.CreateSession(expiredSession)
+	if err != nil {
+		t.Fatalf("Failed to create expired session: %v", err)
+	}
+
+	// Verify the expired session was created in the database
+	dbSession, err := db.GetSession(expiredSessionID)
+	if err != nil || dbSession == nil {
+		t.Fatal("Expired session should exist in database before GetSession call")
+	}
+
+	// GetSession should return nil for expired sessions
+	session, exists := sm.GetSession(expiredSessionID)
+	if exists {
+		t.Error("GetSession should return false for expired session")
+	}
+	if session != nil {
+		t.Error("GetSession should return nil for expired session")
+	}
+
+	// Verify the expired session was deleted from the database
+	dbSession, err = db.GetSession(expiredSessionID)
+	if err != nil {
+		t.Fatalf("Failed to check if session was deleted: %v", err)
+	}
+	if dbSession != nil {
+		t.Error("Expired session should be deleted from database after GetSession call")
+	}
+}
+
+func TestDeleteExpiredSessions(t *testing.T) {
+	db := newMockDB()
+	defer func() { _ = db.Close() }()
+
+	sm := NewSessionManager(db)
+
+	user := &database.User{
+		ID:       1,
+		GoogleID: "test123",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+
+	// Create a valid session
+	validSession, err := sm.CreateSession(user)
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	// TODO: Update mock to test session expiration
+	// Create multiple expired sessions directly in the database
+	expiredSession1 := &database.Session{
+		ID:        "expired_1",
+		UserID:    user.ID,
+		CreatedAt: time.Now().Add(-8 * 24 * time.Hour),
+		ExpiresAt: time.Now().Add(-1 * time.Hour),
+	}
+	expiredSession2 := &database.Session{
+		ID:        "expired_2",
+		UserID:    user.ID,
+		CreatedAt: time.Now().Add(-10 * 24 * time.Hour),
+		ExpiresAt: time.Now().Add(-3 * 24 * time.Hour),
+	}
+
+	if err := db.CreateSession(expiredSession1); err != nil {
+		t.Fatalf("Failed to create expired session 1: %v", err)
+	}
+	if err := db.CreateSession(expiredSession2); err != nil {
+		t.Fatalf("Failed to create expired session 2: %v", err)
+	}
+
+	// Verify all sessions exist
+	if s, _ := db.GetSession(validSession.ID); s == nil {
+		t.Error("Valid session should exist before cleanup")
+	}
+	if s, _ := db.GetSession("expired_1"); s == nil {
+		t.Error("Expired session 1 should exist before cleanup")
+	}
+	if s, _ := db.GetSession("expired_2"); s == nil {
+		t.Error("Expired session 2 should exist before cleanup")
+	}
+
+	// Run cleanup
+	err = db.DeleteExpiredSessions()
+	if err != nil {
+		t.Fatalf("DeleteExpiredSessions failed: %v", err)
+	}
+
+	// Verify valid session still exists
+	validDBSession, err := db.GetSession(validSession.ID)
+	if err != nil {
+		t.Fatalf("Error getting valid session: %v", err)
+	}
+	if validDBSession == nil {
+		t.Error("Valid session should still exist after cleanup")
+	}
+
+	// Verify expired sessions were deleted
+	expiredDBSession1, err := db.GetSession("expired_1")
+	if err != nil {
+		t.Fatalf("Error checking expired session 1: %v", err)
+	}
+	if expiredDBSession1 != nil {
+		t.Error("Expired session 1 should be deleted after cleanup")
+	}
+
+	expiredDBSession2, err := db.GetSession("expired_2")
+	if err != nil {
+		t.Fatalf("Error checking expired session 2: %v", err)
+	}
+	if expiredDBSession2 != nil {
+		t.Error("Expired session 2 should be deleted after cleanup")
+	}
 }
-*/
 
 func TestSetSessionCookie(t *testing.T) {
 	db := newMockDB()
