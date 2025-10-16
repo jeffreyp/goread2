@@ -40,8 +40,8 @@ func setupTestDB(t *testing.T) *DB {
 
 	// Store the temp file path for cleanup
 	t.Cleanup(func() {
-		dbWrapper.Close()
-		os.Remove(tmpFile)
+		_ = dbWrapper.Close()
+		_ = os.Remove(tmpFile)
 	})
 
 	return dbWrapper
@@ -140,7 +140,7 @@ func TestCreateIndexes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to query indexes: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	indexCount := 0
 	for rows.Next() {
@@ -346,7 +346,10 @@ func TestIsUserSubscriptionActive(t *testing.T) {
 			name: "Active subscription",
 			setupUser: func() *User {
 				user := createTestUser(t, db)
-				db.UpdateUserSubscription(user.ID, "active", "sub_123", time.Now(), time.Now().AddDate(0, 1, 0))
+				err := db.UpdateUserSubscription(user.ID, "active", "sub_123", time.Now(), time.Now().AddDate(0, 1, 0))
+				if err != nil {
+					t.Fatalf("UpdateUserSubscription failed: %v", err)
+				}
 				return user
 			},
 			expectedActive: true,
@@ -377,7 +380,10 @@ func TestIsUserSubscriptionActive(t *testing.T) {
 			name: "Admin user",
 			setupUser: func() *User {
 				user := createTestUser(t, db)
-				db.SetUserAdmin(user.ID, true)
+				err := db.SetUserAdmin(user.ID, true)
+				if err != nil {
+					t.Fatalf("SetUserAdmin failed: %v", err)
+				}
 				return user
 			},
 			expectedActive: true,
@@ -490,8 +496,12 @@ func TestGetUserFeedCount(t *testing.T) {
 	}
 
 	// Subscribe to feeds
-	db.SubscribeUserToFeed(user.ID, feed1.ID)
-	db.SubscribeUserToFeed(user.ID, feed2.ID)
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	if err := db.SubscribeUserToFeed(user.ID, feed2.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	count, err = db.GetUserFeedCount(user.ID)
 	if err != nil {
@@ -935,11 +945,15 @@ func TestUnsubscribeUserFromFeed(t *testing.T) {
 	feed := createTestFeed(t, db)
 
 	// Subscribe first
-	db.SubscribeUserToFeed(user.ID, feed.ID)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	// Create an article and mark it read
 	article := createTestArticle(t, db, feed.ID)
-	db.MarkUserArticleRead(user.ID, article.ID, true)
+	if err := db.MarkUserArticleRead(user.ID, article.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
 
 	// Unsubscribe
 	err := db.UnsubscribeUserFromFeed(user.ID, feed.ID)
@@ -971,8 +985,12 @@ func TestGetUserFeeds(t *testing.T) {
 	feed1 := createTestFeed(t, db)
 	feed2 := createTestFeed(t, db)
 
-	db.SubscribeUserToFeed(user.ID, feed1.ID)
-	db.SubscribeUserToFeed(user.ID, feed2.ID)
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	if err := db.SubscribeUserToFeed(user.ID, feed2.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	userFeeds, err := db.GetUserFeeds(user.ID)
 	if err != nil {
@@ -992,8 +1010,12 @@ func TestGetAllUserFeeds(t *testing.T) {
 	feed1 := createTestFeed(t, db)
 	feed2 := createTestFeed(t, db)
 
-	db.SubscribeUserToFeed(user1.ID, feed1.ID)
-	db.SubscribeUserToFeed(user2.ID, feed2.ID)
+	if err := db.SubscribeUserToFeed(user1.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	if err := db.SubscribeUserToFeed(user2.ID, feed2.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	allFeeds, err := db.GetAllUserFeeds()
 	if err != nil {

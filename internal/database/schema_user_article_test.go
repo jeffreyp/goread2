@@ -13,13 +13,17 @@ func TestGetUserArticles(t *testing.T) {
 
 	user := createTestUser(t, db)
 	feed := createTestFeed(t, db)
-	db.SubscribeUserToFeed(user.ID, feed.ID)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	article1 := createTestArticle(t, db, feed.ID)
 	article2 := createTestArticle(t, db, feed.ID)
 
 	// Mark one as read
-	db.MarkUserArticleRead(user.ID, article1.ID, true)
+	if err := db.MarkUserArticleRead(user.ID, article1.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
 
 	articles, err := db.GetUserArticles(user.ID)
 	if err != nil {
@@ -46,7 +50,9 @@ func TestGetUserArticlesPaginated(t *testing.T) {
 
 	user := createTestUser(t, db)
 	feed := createTestFeed(t, db)
-	db.SubscribeUserToFeed(user.ID, feed.ID)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	// Create 5 articles
 	for i := 0; i < 5; i++ {
@@ -79,7 +85,9 @@ func TestGetUserArticlesPaginatedUnreadOnly(t *testing.T) {
 
 	user := createTestUser(t, db)
 	feed := createTestFeed(t, db)
-	db.SubscribeUserToFeed(user.ID, feed.ID)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	// Create 5 articles, mark 2 as read
 	articles := make([]*Article, 5)
@@ -87,8 +95,12 @@ func TestGetUserArticlesPaginatedUnreadOnly(t *testing.T) {
 		articles[i] = createTestArticle(t, db, feed.ID)
 	}
 
-	db.MarkUserArticleRead(user.ID, articles[0].ID, true)
-	db.MarkUserArticleRead(user.ID, articles[1].ID, true)
+	if err := db.MarkUserArticleRead(user.ID, articles[0].ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
+	if err := db.MarkUserArticleRead(user.ID, articles[1].ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
 
 	// Get unread only
 	unreadArticles, err := db.GetUserArticlesPaginated(user.ID, 10, 0, true)
@@ -115,7 +127,9 @@ func TestGetUserFeedArticles(t *testing.T) {
 	feed1 := createTestFeed(t, db)
 	feed2 := createTestFeed(t, db)
 
-	db.SubscribeUserToFeed(user.ID, feed1.ID)
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	article1 := createTestArticle(t, db, feed1.ID)
 	article2 := createTestArticle(t, db, feed2.ID) // Different feed
@@ -312,8 +326,12 @@ func TestGetUserUnreadCounts(t *testing.T) {
 	feed1 := createTestFeed(t, db)
 	feed2 := createTestFeed(t, db)
 
-	db.SubscribeUserToFeed(user.ID, feed1.ID)
-	db.SubscribeUserToFeed(user.ID, feed2.ID)
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	if err := db.SubscribeUserToFeed(user.ID, feed2.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 
 	// Add articles
 	article1 := createTestArticle(t, db, feed1.ID)
@@ -321,7 +339,9 @@ func TestGetUserUnreadCounts(t *testing.T) {
 	article3 := createTestArticle(t, db, feed2.ID)
 
 	// Mark one as read
-	db.MarkUserArticleRead(user.ID, article1.ID, true)
+	if err := db.MarkUserArticleRead(user.ID, article1.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
 
 	unreadCounts, err := db.GetUserUnreadCounts(user.ID)
 	if err != nil {
@@ -626,7 +646,7 @@ func TestConcurrentAccess(t *testing.T) {
 				PublishedAt: time.Now(),
 				CreatedAt:   time.Now(),
 			}
-			db.AddArticle(article)
+			_ = db.AddArticle(article)
 			done <- true
 		}(i)
 	}
