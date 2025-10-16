@@ -497,14 +497,8 @@ GoRead2 uses [Beads](https://github.com/steveyegge/beads) for issue tracking, as
 ### Getting Started with Beads
 
 1. **Install Beads**:
-   ```bash
-   # Install via pip
-   pip install beads-cli
 
-   # Or run from source
-   git clone https://github.com/steveyegge/beads
-   cd beads && pip install -e .
-   ```
+   See the [Beads installation instructions](https://github.com/steveyegge/beads#installation) for your platform.
 
 2. **Quick start**:
    ```bash
