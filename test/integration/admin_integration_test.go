@@ -198,7 +198,7 @@ func cleanupDatabase(t *testing.T) {
 
 	// Delete test users and admin tokens
 	sqliteDB := db.(*database.DB)
-	testEmails := []string{"main@example.com", "edge@example.com", "admin@test.com", "bootstrap@test.com", "lifecycle@test.com", "warning@test.com", "tokentest@test.com", "edgetest@test.com"}
+	testEmails := []string{"main@example.com", "edge@example.com", "admin@test.com", "bootstrap@test.com", "lifecycle@test.com", "warning@test.com", "tokentest@test.com", "edgetest@test.com", "audituser@example.com", "auditadmin@test.com"}
 
 	for _, email := range testEmails {
 		result, err := sqliteDB.Exec("DELETE FROM users WHERE email = ?", email)
@@ -629,6 +629,217 @@ func TestAdminCommandEdgeCases(t *testing.T) {
 		outputStr := string(output)
 		if !strings.Contains(outputStr, "Usage:") {
 			t.Error("Expected usage message for no arguments")
+		}
+	})
+
+	// Clean up after test
+	cleanupDatabase(t)
+}
+
+func TestAuditLogging(t *testing.T) {
+	// Clean up the main database before test
+	cleanupDatabase(t)
+
+	// Set up local admin token for this test
+	localAdminToken := setupLocalAdminToken(t, "auditadmin123", "auditadmin@test.com", "Audit Test Admin")
+
+	// Create local command function using local token
+	createLocalAdminCommand := func(args ...string) *exec.Cmd {
+		cmdArgs := append([]string{"run", "cmd/admin/main.go"}, args...)
+		cmd := exec.Command("go", cmdArgs...)
+		cmd.Dir = "../.."
+		cmd.Env = append(os.Environ(), "ADMIN_TOKEN="+localAdminToken)
+		return cmd
+	}
+
+	// Set up test user in the main database
+	setupMainTestUser(t, "audit123", "audituser@example.com", "Audit Test User")
+
+	t.Run("SetAdminCreatesAuditLog", func(t *testing.T) {
+		// Grant admin access
+		cmd := createLocalAdminCommand("set-admin", "audituser@example.com", "true")
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Admin grant command failed: %v\nOutput: %s", err, output)
+		}
+
+		// Query database for audit logs
+		originalDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current directory: %v", err)
+		}
+
+		err = os.Chdir("../..")
+		if err != nil {
+			t.Fatalf("Failed to change to project root: %v", err)
+		}
+		defer func() {
+			if err := os.Chdir(originalDir); err != nil {
+				t.Logf("Failed to restore original directory: %v", err)
+			}
+		}()
+
+		db, err := database.InitDB()
+		if err != nil {
+			t.Fatalf("Failed to initialize database: %v", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		// Get audit logs
+		logs, err := db.GetAuditLogs(50, 0, map[string]interface{}{
+			"operation_type": "grant_admin",
+		})
+		if err != nil {
+			t.Fatalf("Failed to get audit logs: %v", err)
+		}
+
+		if len(logs) == 0 {
+			t.Fatal("Expected at least one audit log for grant_admin operation")
+		}
+
+		// Verify the audit log has CLI_ADMIN
+		log := logs[0]
+		if log.AdminEmail != "CLI_ADMIN" {
+			t.Errorf("Expected admin_email 'CLI_ADMIN', got '%s'", log.AdminEmail)
+		}
+		if log.AdminUserID != 0 {
+			t.Errorf("Expected admin_user_id 0, got %d", log.AdminUserID)
+		}
+		if log.OperationType != "grant_admin" {
+			t.Errorf("Expected operation_type 'grant_admin', got '%s'", log.OperationType)
+		}
+		if log.TargetUserEmail != "audituser@example.com" {
+			t.Errorf("Expected target_user_email 'audituser@example.com', got '%s'", log.TargetUserEmail)
+		}
+		if log.Result != "success" {
+			t.Errorf("Expected result 'success', got '%s'", log.Result)
+		}
+		if log.IPAddress != "CLI" {
+			t.Errorf("Expected ip_address 'CLI', got '%s'", log.IPAddress)
+		}
+	})
+
+	t.Run("GrantFreeMonthsCreatesAuditLog", func(t *testing.T) {
+		// Grant free months
+		cmd := createLocalAdminCommand("grant-months", "audituser@example.com", "6")
+		cmd.Env = append(cmd.Env, "SUBSCRIPTION_ENABLED=true")
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Grant months command failed: %v\nOutput: %s", err, output)
+		}
+
+		// Query database for audit logs
+		originalDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current directory: %v", err)
+		}
+
+		err = os.Chdir("../..")
+		if err != nil {
+			t.Fatalf("Failed to change to project root: %v", err)
+		}
+		defer func() {
+			if err := os.Chdir(originalDir); err != nil {
+				t.Logf("Failed to restore original directory: %v", err)
+			}
+		}()
+
+		db, err := database.InitDB()
+		if err != nil {
+			t.Fatalf("Failed to initialize database: %v", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		// Get audit logs
+		logs, err := db.GetAuditLogs(50, 0, map[string]interface{}{
+			"operation_type": "grant_free_months",
+		})
+		if err != nil {
+			t.Fatalf("Failed to get audit logs: %v", err)
+		}
+
+		if len(logs) == 0 {
+			t.Fatal("Expected at least one audit log for grant_free_months operation")
+		}
+
+		// Verify the audit log
+		log := logs[0]
+		if log.AdminEmail != "CLI_ADMIN" {
+			t.Errorf("Expected admin_email 'CLI_ADMIN', got '%s'", log.AdminEmail)
+		}
+		if log.OperationType != "grant_free_months" {
+			t.Errorf("Expected operation_type 'grant_free_months', got '%s'", log.OperationType)
+		}
+		if log.TargetUserEmail != "audituser@example.com" {
+			t.Errorf("Expected target_user_email 'audituser@example.com', got '%s'", log.TargetUserEmail)
+		}
+		if log.Result != "success" {
+			t.Errorf("Expected result 'success', got '%s'", log.Result)
+		}
+	})
+
+	t.Run("AuditLogsCommand", func(t *testing.T) {
+		// Test the audit-logs command
+		cmd := createLocalAdminCommand("audit-logs")
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Audit logs command failed: %v\nOutput: %s", err, output)
+		}
+
+		outputStr := string(output)
+		t.Logf("Audit logs output:\n%s", outputStr)
+
+		// Check that output contains headers
+		if !strings.Contains(outputStr, "ID") {
+			t.Error("Expected output to contain 'ID' header")
+		}
+		if !strings.Contains(outputStr, "Timestamp") {
+			t.Error("Expected output to contain 'Timestamp' header")
+		}
+		if !strings.Contains(outputStr, "Admin") {
+			t.Error("Expected output to contain 'Admin' header")
+		}
+		if !strings.Contains(outputStr, "Operation") {
+			t.Error("Expected output to contain 'Operation' header")
+		}
+
+		// Check for CLI_ADMIN in the output
+		if !strings.Contains(outputStr, "CLI_ADMIN") {
+			t.Error("Expected output to contain 'CLI_ADMIN'")
+		}
+
+		// Check for our operations
+		if !strings.Contains(outputStr, "grant_admin") {
+			t.Error("Expected output to contain 'grant_admin' operation")
+		}
+		if !strings.Contains(outputStr, "grant_free_months") {
+			t.Error("Expected output to contain 'grant_free_months' operation")
+		}
+	})
+
+	t.Run("AuditLogsFilterByOperation", func(t *testing.T) {
+		// Test audit-logs with operation filter
+		cmd := createLocalAdminCommand("audit-logs", "--operation", "grant_admin")
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Audit logs filter command failed: %v\nOutput: %s", err, output)
+		}
+
+		outputStr := string(output)
+		t.Logf("Filtered audit logs output:\n%s", outputStr)
+
+		// Should contain grant_admin operations
+		if !strings.Contains(outputStr, "grant_admin") {
+			t.Error("Expected filtered output to contain 'grant_admin' operation")
+		}
+
+		// Should NOT contain grant_free_months operations
+		if strings.Contains(outputStr, "grant_free_months") {
+			t.Error("Expected filtered output to NOT contain 'grant_free_months' operation")
 		}
 	})
 

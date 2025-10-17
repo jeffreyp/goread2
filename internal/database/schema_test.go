@@ -117,7 +117,7 @@ func TestCreateTables(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Verify tables exist by querying them
-	tables := []string{"users", "feeds", "articles", "user_feeds", "user_articles", "sessions", "admin_tokens"}
+	tables := []string{"users", "feeds", "articles", "user_feeds", "user_articles", "sessions", "admin_tokens", "audit_logs"}
 
 	for _, table := range tables {
 		query := fmt.Sprintf("SELECT name FROM sqlite_master WHERE type='table' AND name='%s'", table)
@@ -1027,4 +1027,311 @@ func TestGetAllUserFeeds(t *testing.T) {
 	}
 }
 
-// To be continued in next message...
+// Audit Log tests
+
+func TestCreateAuditLog(t *testing.T) {
+	db := setupTestDB(t)
+
+	log := &AuditLog{
+		Timestamp:        time.Now(),
+		AdminUserID:      1,
+		AdminEmail:       "admin@example.com",
+		OperationType:    "grant_admin",
+		TargetUserID:     2,
+		TargetUserEmail:  "user@example.com",
+		OperationDetails: `{"is_admin":true,"user_name":"Test User"}`,
+		IPAddress:        "192.168.1.1",
+		Result:           "success",
+		ErrorMessage:     "",
+	}
+
+	err := db.CreateAuditLog(log)
+	if err != nil {
+		t.Fatalf("CreateAuditLog failed: %v", err)
+	}
+
+	if log.ID == 0 {
+		t.Error("Audit log ID was not set after creation")
+	}
+}
+
+func TestCreateAuditLogCLI(t *testing.T) {
+	db := setupTestDB(t)
+
+	log := &AuditLog{
+		Timestamp:        time.Now(),
+		AdminUserID:      0, // CLI uses ID 0
+		AdminEmail:       "CLI_ADMIN",
+		OperationType:    "set_admin",
+		TargetUserID:     5,
+		TargetUserEmail:  "user@example.com",
+		OperationDetails: `{}`,
+		IPAddress:        "CLI",
+		Result:           "success",
+		ErrorMessage:     "",
+	}
+
+	err := db.CreateAuditLog(log)
+	if err != nil {
+		t.Fatalf("CreateAuditLog for CLI failed: %v", err)
+	}
+
+	if log.ID == 0 {
+		t.Error("CLI audit log ID was not set after creation")
+	}
+}
+
+func TestCreateAuditLogFailure(t *testing.T) {
+	db := setupTestDB(t)
+
+	log := &AuditLog{
+		Timestamp:        time.Now(),
+		AdminUserID:      1,
+		AdminEmail:       "admin@example.com",
+		OperationType:    "grant_free_months",
+		TargetUserID:     0,
+		TargetUserEmail:  "unknown@example.com",
+		OperationDetails: `{"months_granted":6}`,
+		IPAddress:        "192.168.1.1",
+		Result:           "failure",
+		ErrorMessage:     "user not found",
+	}
+
+	err := db.CreateAuditLog(log)
+	if err != nil {
+		t.Fatalf("CreateAuditLog for failure failed: %v", err)
+	}
+
+	if log.ID == 0 {
+		t.Error("Failure audit log ID was not set after creation")
+	}
+}
+
+func TestGetAuditLogs(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Create multiple test audit logs
+	logs := []AuditLog{
+		{
+			Timestamp:        time.Now().Add(-3 * time.Hour),
+			AdminUserID:      1,
+			AdminEmail:       "admin@example.com",
+			OperationType:    "grant_admin",
+			TargetUserID:     2,
+			TargetUserEmail:  "user1@example.com",
+			OperationDetails: `{}`,
+			IPAddress:        "192.168.1.1",
+			Result:           "success",
+		},
+		{
+			Timestamp:        time.Now().Add(-2 * time.Hour),
+			AdminUserID:      1,
+			AdminEmail:       "admin@example.com",
+			OperationType:    "grant_free_months",
+			TargetUserID:     3,
+			TargetUserEmail:  "user2@example.com",
+			OperationDetails: `{"months_granted":6}`,
+			IPAddress:        "192.168.1.1",
+			Result:           "success",
+		},
+		{
+			Timestamp:        time.Now().Add(-1 * time.Hour),
+			AdminUserID:      2,
+			AdminEmail:       "admin2@example.com",
+			OperationType:    "revoke_admin",
+			TargetUserID:     4,
+			TargetUserEmail:  "user3@example.com",
+			OperationDetails: `{"is_admin":false}`,
+			IPAddress:        "192.168.1.2",
+			Result:           "success",
+		},
+	}
+
+	for i := range logs {
+		if err := db.CreateAuditLog(&logs[i]); err != nil {
+			t.Fatalf("Failed to create test audit log: %v", err)
+		}
+	}
+
+	t.Run("get all logs", func(t *testing.T) {
+		retrievedLogs, err := db.GetAuditLogs(50, 0, nil)
+		if err != nil {
+			t.Fatalf("GetAuditLogs failed: %v", err)
+		}
+
+		if len(retrievedLogs) < 3 {
+			t.Errorf("Expected at least 3 logs, got %d", len(retrievedLogs))
+		}
+
+		// Verify logs are ordered by timestamp DESC (newest first)
+		for i := 0; i < len(retrievedLogs)-1; i++ {
+			if retrievedLogs[i].Timestamp.Before(retrievedLogs[i+1].Timestamp) {
+				t.Error("Logs should be ordered by timestamp DESC (newest first)")
+				break
+			}
+		}
+	})
+
+	t.Run("pagination", func(t *testing.T) {
+		// Get first 2 logs
+		page1, err := db.GetAuditLogs(2, 0, nil)
+		if err != nil {
+			t.Fatalf("GetAuditLogs page 1 failed: %v", err)
+		}
+
+		if len(page1) != 2 {
+			t.Errorf("Expected 2 logs in page 1, got %d", len(page1))
+		}
+
+		// Get next log
+		page2, err := db.GetAuditLogs(2, 2, nil)
+		if err != nil {
+			t.Fatalf("GetAuditLogs page 2 failed: %v", err)
+		}
+
+		if len(page2) < 1 {
+			t.Errorf("Expected at least 1 log in page 2, got %d", len(page2))
+		}
+
+		// Verify no overlap
+		if len(page1) > 0 && len(page2) > 0 {
+			if page1[0].ID == page2[0].ID {
+				t.Error("Pages should not overlap")
+			}
+		}
+	})
+
+	t.Run("filter by admin_user_id", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"admin_user_id": 1,
+		}
+
+		filteredLogs, err := db.GetAuditLogs(50, 0, filters)
+		if err != nil {
+			t.Fatalf("GetAuditLogs with filter failed: %v", err)
+		}
+
+		if len(filteredLogs) != 2 {
+			t.Errorf("Expected 2 logs for admin_user_id=1, got %d", len(filteredLogs))
+		}
+
+		for _, log := range filteredLogs {
+			if log.AdminUserID != 1 {
+				t.Errorf("Expected AdminUserID=1, got %d", log.AdminUserID)
+			}
+		}
+	})
+
+	t.Run("filter by target_user_id", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"target_user_id": 2,
+		}
+
+		filteredLogs, err := db.GetAuditLogs(50, 0, filters)
+		if err != nil {
+			t.Fatalf("GetAuditLogs with filter failed: %v", err)
+		}
+
+		if len(filteredLogs) != 1 {
+			t.Errorf("Expected 1 log for target_user_id=2, got %d", len(filteredLogs))
+		}
+
+		if len(filteredLogs) > 0 && filteredLogs[0].TargetUserID != 2 {
+			t.Errorf("Expected TargetUserID=2, got %d", filteredLogs[0].TargetUserID)
+		}
+	})
+
+	t.Run("filter by operation_type", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"operation_type": "grant_free_months",
+		}
+
+		filteredLogs, err := db.GetAuditLogs(50, 0, filters)
+		if err != nil {
+			t.Fatalf("GetAuditLogs with filter failed: %v", err)
+		}
+
+		if len(filteredLogs) != 1 {
+			t.Errorf("Expected 1 log for operation_type=grant_free_months, got %d", len(filteredLogs))
+		}
+
+		if len(filteredLogs) > 0 && filteredLogs[0].OperationType != "grant_free_months" {
+			t.Errorf("Expected OperationType=grant_free_months, got %s", filteredLogs[0].OperationType)
+		}
+	})
+
+	t.Run("filter with multiple criteria", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"admin_user_id":  1,
+			"operation_type": "grant_admin",
+		}
+
+		filteredLogs, err := db.GetAuditLogs(50, 0, filters)
+		if err != nil {
+			t.Fatalf("GetAuditLogs with multiple filters failed: %v", err)
+		}
+
+		if len(filteredLogs) != 1 {
+			t.Errorf("Expected 1 log with multiple filters, got %d", len(filteredLogs))
+		}
+
+		if len(filteredLogs) > 0 {
+			log := filteredLogs[0]
+			if log.AdminUserID != 1 || log.OperationType != "grant_admin" {
+				t.Error("Log doesn't match all filter criteria")
+			}
+		}
+	})
+
+	t.Run("no results for non-matching filter", func(t *testing.T) {
+		filters := map[string]interface{}{
+			"admin_user_id": 999,
+		}
+
+		filteredLogs, err := db.GetAuditLogs(50, 0, filters)
+		if err != nil {
+			t.Fatalf("GetAuditLogs with non-matching filter failed: %v", err)
+		}
+
+		if len(filteredLogs) != 0 {
+			t.Errorf("Expected 0 logs for non-matching filter, got %d", len(filteredLogs))
+		}
+	})
+}
+
+func TestAuditLogIndexes(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Verify audit log indexes exist
+	expectedIndexes := []string{
+		"idx_audit_logs_timestamp",
+		"idx_audit_logs_admin_user",
+		"idx_audit_logs_target_user",
+		"idx_audit_logs_operation",
+	}
+
+	for _, indexName := range expectedIndexes {
+		query := "SELECT name FROM sqlite_master WHERE type='index' AND name=?"
+		var name string
+		err := db.QueryRow(query, indexName).Scan(&name)
+		if err == sql.ErrNoRows {
+			t.Errorf("Expected index %s was not created", indexName)
+		} else if err != nil {
+			t.Errorf("Error checking index %s: %v", indexName, err)
+		}
+	}
+}
+
+func TestAuditLogTableExists(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Verify audit_logs table exists
+	query := "SELECT name FROM sqlite_master WHERE type='table' AND name='audit_logs'"
+	var name string
+	err := db.QueryRow(query).Scan(&name)
+	if err == sql.ErrNoRows {
+		t.Error("audit_logs table was not created")
+	} else if err != nil {
+		t.Errorf("Error checking audit_logs table: %v", err)
+	}
+}
