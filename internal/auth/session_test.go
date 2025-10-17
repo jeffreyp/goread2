@@ -540,3 +540,227 @@ func TestGetSessionFromRequest(t *testing.T) {
 		t.Error("GetSessionFromRequest should return nil for invalid session ID")
 	}
 }
+
+// TestSessionCaching verifies that sessions are cached and reused
+func TestSessionCaching(t *testing.T) {
+	db := newMockDB()
+	defer func() { _ = db.Close() }()
+
+	sm := NewSessionManager(db)
+
+	user := &database.User{
+		ID:       1,
+		GoogleID: "test123",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+
+	// Create a session
+	session, err := sm.CreateSession(user)
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+
+	// First GetSession call - cache miss (should hit database)
+	session1, exists1 := sm.GetSession(session.ID)
+	if !exists1 {
+		t.Fatal("First GetSession should find session")
+	}
+
+	// Second GetSession call - cache hit (should NOT hit database)
+	session2, exists2 := sm.GetSession(session.ID)
+	if !exists2 {
+		t.Fatal("Second GetSession should find session")
+	}
+
+	// Verify both sessions are the same object (cached)
+	if session1 != session2 {
+		t.Error("Second GetSession should return cached session (same pointer)")
+	}
+
+	// Verify cache stats
+	stats := sm.GetCacheStats()
+	if stats["total"] < 1 {
+		t.Errorf("Cache should have at least 1 entry, got %d", stats["total"])
+	}
+	if stats["active"] < 1 {
+		t.Errorf("Cache should have at least 1 active entry, got %d", stats["active"])
+	}
+}
+
+// TestCacheInvalidationOnDelete verifies cache is cleared when session is deleted
+func TestCacheInvalidationOnDelete(t *testing.T) {
+	db := newMockDB()
+	defer func() { _ = db.Close() }()
+
+	sm := NewSessionManager(db)
+
+	user := &database.User{
+		ID:       1,
+		GoogleID: "test123",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+
+	// Create and cache a session
+	session, err := sm.CreateSession(user)
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+
+	// Get session to populate cache
+	_, exists := sm.GetSession(session.ID)
+	if !exists {
+		t.Fatal("GetSession should find session")
+	}
+
+	// Verify session is in cache
+	stats := sm.GetCacheStats()
+	if stats["total"] < 1 {
+		t.Error("Cache should have entries before deletion")
+	}
+
+	// Delete session
+	sm.DeleteSession(session.ID)
+
+	// Verify session is removed from cache
+	stats = sm.GetCacheStats()
+	if stats["total"] > 0 {
+		t.Error("Cache should be empty after deletion")
+	}
+
+	// Verify GetSession returns false
+	_, exists = sm.GetSession(session.ID)
+	if exists {
+		t.Error("GetSession should return false after deletion")
+	}
+}
+
+// TestCacheExpiration verifies that expired cache entries are not returned
+func TestCacheExpiration(t *testing.T) {
+	db := newMockDB()
+	defer func() { _ = db.Close() }()
+
+	sm := NewSessionManager(db)
+	sm.cacheTTL = 100 * time.Millisecond // Short TTL for testing
+
+	user := &database.User{
+		ID:       1,
+		GoogleID: "test123",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+
+	// Create a session
+	session, err := sm.CreateSession(user)
+	if err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+
+	// Get session to populate cache
+	_, exists := sm.GetSession(session.ID)
+	if !exists {
+		t.Fatal("GetSession should find session")
+	}
+
+	// Wait for cache to expire
+	time.Sleep(150 * time.Millisecond)
+
+	// Get session again - cache should be expired, will fetch from DB
+	session2, exists2 := sm.GetSession(session.ID)
+	if !exists2 {
+		t.Fatal("GetSession should still find session in database")
+	}
+
+	// Should have fresh cache entry now
+	if session2 == nil {
+		t.Error("GetSession should return valid session")
+	}
+}
+
+// TestCacheStats verifies GetCacheStats returns accurate information
+func TestCacheStats(t *testing.T) {
+	db := newMockDB()
+	defer func() { _ = db.Close() }()
+
+	sm := NewSessionManager(db)
+
+	// Initially cache should be empty
+	stats := sm.GetCacheStats()
+	if stats["total"] != 0 {
+		t.Errorf("Initial cache total should be 0, got %d", stats["total"])
+	}
+	if stats["active"] != 0 {
+		t.Errorf("Initial cache active should be 0, got %d", stats["active"])
+	}
+	if stats["expired"] != 0 {
+		t.Errorf("Initial cache expired should be 0, got %d", stats["expired"])
+	}
+
+	// Create and cache sessions
+	user := &database.User{
+		ID:       1,
+		GoogleID: "test123",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+
+	session1, _ := sm.CreateSession(user)
+	session2, _ := sm.CreateSession(user)
+
+	// Populate cache
+	sm.GetSession(session1.ID)
+	sm.GetSession(session2.ID)
+
+	// Check stats
+	stats = sm.GetCacheStats()
+	if stats["total"] != 2 {
+		t.Errorf("Cache total should be 2, got %d", stats["total"])
+	}
+	if stats["active"] != 2 {
+		t.Errorf("Cache active should be 2, got %d", stats["active"])
+	}
+}
+
+// TestInvalidateCache verifies InvalidateCache clears all cached sessions
+func TestInvalidateCache(t *testing.T) {
+	db := newMockDB()
+	defer func() { _ = db.Close() }()
+
+	sm := NewSessionManager(db)
+
+	user := &database.User{
+		ID:       1,
+		GoogleID: "test123",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+
+	// Create and cache multiple sessions
+	session1, _ := sm.CreateSession(user)
+	session2, _ := sm.CreateSession(user)
+
+	sm.GetSession(session1.ID)
+	sm.GetSession(session2.ID)
+
+	// Verify cache has entries
+	stats := sm.GetCacheStats()
+	if stats["total"] != 2 {
+		t.Errorf("Cache should have 2 entries, got %d", stats["total"])
+	}
+
+	// Invalidate cache
+	sm.InvalidateCache()
+
+	// Verify cache is empty
+	stats = sm.GetCacheStats()
+	if stats["total"] != 0 {
+		t.Errorf("Cache should be empty after invalidation, got %d", stats["total"])
+	}
+
+	// Verify sessions can still be fetched from database
+	session, exists := sm.GetSession(session1.ID)
+	if !exists || session == nil {
+		t.Error("Sessions should still be retrievable from database after cache invalidation")
+	}
+}
