@@ -107,6 +107,13 @@ func main() {
 
 	r := gin.Default()
 
+	// Configure trusted proxies to prevent IP spoofing
+	// On App Engine, we don't set trusted proxies as we use X-Appengine-User-Ip instead
+	// On local/self-hosted, we don't trust any proxies to prevent X-Forwarded-For spoofing
+	if err := r.SetTrustedProxies(nil); err != nil {
+		log.Printf("Warning: Failed to configure trusted proxies: %v", err)
+	}
+
 	// Add gzip compression for all responses
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 

@@ -75,8 +75,8 @@ func (rl *RateLimiter) cleanupIPs() {
 // RateLimitMiddleware creates a Gin middleware for rate limiting
 func RateLimitMiddleware(limiter *RateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get client IP
-		ip := c.ClientIP()
+		// Get client IP using secure method to prevent IP spoofing
+		ip := GetSecureClientIP(c)
 
 		// Get limiter for this IP
 		ipLimiter := limiter.GetLimiter(ip)

@@ -233,7 +233,7 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 		if os.Getenv("GAE_ENV") == "standard" {
 			cronHeader := c.GetHeader("X-Appengine-Cron")
 			if cronHeader != "true" {
-				log.Printf("Unauthorized cron request from IP: %s", c.ClientIP())
+				log.Printf("Unauthorized cron request from IP: %s", auth.GetSecureClientIP(c))
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 				return
 			}

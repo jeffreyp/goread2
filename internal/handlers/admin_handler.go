@@ -82,7 +82,7 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 				"is_admin":    request.IsAdmin,
 				"user_name":   user.Name,
 			},
-			c.ClientIP(),
+			auth.GetSecureClientIP(c),
 			err.Error(),
 		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set admin status", "details": err.Error()})
@@ -100,7 +100,7 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 			"is_admin":    request.IsAdmin,
 			"user_name":   user.Name,
 		},
-		c.ClientIP(),
+		auth.GetSecureClientIP(c),
 	)
 
 	status := "removed from"
@@ -165,7 +165,7 @@ func (ah *AdminHandler) GrantFreeMonths(c *gin.Context) {
 				"months_granted": request.Months,
 				"user_name":      user.Name,
 			},
-			c.ClientIP(),
+			auth.GetSecureClientIP(c),
 			err.Error(),
 		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to grant free months", "details": err.Error()})
@@ -184,7 +184,7 @@ func (ah *AdminHandler) GrantFreeMonths(c *gin.Context) {
 			"user_name":         user.Name,
 			"total_free_months": user.FreeMonthsRemaining + request.Months,
 		},
-		c.ClientIP(),
+		auth.GetSecureClientIP(c),
 	)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -289,7 +289,7 @@ func (ah *AdminHandler) GetUserInfo(c *gin.Context) {
 		map[string]interface{}{
 			"user_name": user.Name,
 		},
-		c.ClientIP(),
+		auth.GetSecureClientIP(c),
 	)
 
 	c.JSON(http.StatusOK, gin.H{
