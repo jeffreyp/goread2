@@ -19,8 +19,9 @@ import (
 )
 
 type FeedService struct {
-	db          database.Database
-	rateLimiter *DomainRateLimiter
+	db           database.Database
+	rateLimiter  *DomainRateLimiter
+	urlValidator *URLValidator
 }
 
 type RSS struct {
@@ -135,8 +136,9 @@ type OPMLOutline struct {
 
 func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedService {
 	return &FeedService{
-		db:          db,
-		rateLimiter: rateLimiter,
+		db:           db,
+		rateLimiter:  rateLimiter,
+		urlValidator: NewURLValidator(),
 	}
 }
 
@@ -407,6 +409,11 @@ func (fs *FeedService) UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles int) e
 }
 
 func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
+	// Validate URL for SSRF protection
+	if err := fs.urlValidator.ValidateURL(url); err != nil {
+		return nil, fmt.Errorf("URL validation failed: %w", err)
+	}
+
 	// Apply rate limiting if available
 	if fs.rateLimiter != nil {
 		if !fs.rateLimiter.Allow(url) {
@@ -420,10 +427,8 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
-	// Create HTTP client with default secure transport (includes TLS certificate verification)
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	// Use secure HTTP client with SSRF protection and TLS certificate verification
+	client := fs.urlValidator.CreateSecureHTTPClient(30 * time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

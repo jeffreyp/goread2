@@ -13,41 +13,22 @@ import (
 
 // FeedDiscovery handles URL normalization and feed discovery
 type FeedDiscovery struct {
-	client *http.Client
+	client       *http.Client
+	urlValidator *URLValidator
 }
 
 func NewFeedDiscovery() *FeedDiscovery {
+	validator := NewURLValidator()
 	return &FeedDiscovery{
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		client:       validator.CreateSecureHTTPClient(30 * time.Second),
+		urlValidator: validator,
 	}
 }
 
-// NormalizeURL adds protocol if missing and validates the URL
+// NormalizeURL adds protocol if missing and validates the URL with SSRF protection
 func (fd *FeedDiscovery) NormalizeURL(rawURL string) (string, error) {
-	rawURL = strings.TrimSpace(rawURL)
-	if rawURL == "" {
-		return "", fmt.Errorf("URL cannot be empty")
-	}
-
-	// Add protocol if missing
-	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
-		// Try HTTPS first
-		rawURL = "https://" + rawURL
-	}
-
-	// Validate URL
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		return "", fmt.Errorf("invalid URL: %w", err)
-	}
-
-	if parsedURL.Host == "" {
-		return "", fmt.Errorf("URL must have a host")
-	}
-
-	return parsedURL.String(), nil
+	// Use the URL validator which includes SSRF protection
+	return fd.urlValidator.ValidateAndNormalizeURL(rawURL)
 }
 
 // DiscoverFeedURL attempts to find feed URLs from a given URL
@@ -312,6 +293,11 @@ func (fd *FeedDiscovery) tryMastodonFeedPaths(baseURL string) []string {
 
 // isValidFeed checks if a given URL is a valid RSS/Atom feed
 func (fd *FeedDiscovery) isValidFeed(feedURL string) bool {
+	// Validate URL for SSRF protection
+	if err := fd.urlValidator.ValidateURL(feedURL); err != nil {
+		return false
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -321,11 +307,8 @@ func (fd *FeedDiscovery) isValidFeed(feedURL string) bool {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
-	client := &http.Client{
-		Timeout: 3 * time.Second,
-	}
-
-	resp, err := client.Do(req)
+	// Use the secure HTTP client
+	resp, err := fd.client.Do(req)
 	if err != nil {
 		return false
 	}

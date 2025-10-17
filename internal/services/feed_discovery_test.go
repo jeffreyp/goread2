@@ -68,8 +68,8 @@ func TestNormalizeURL(t *testing.T) {
 		},
 		{
 			name:        "URL with subdomain",
-			input:       "blog.example.com",
-			expected:    "https://blog.example.com",
+			input:       "www.example.com",
+			expected:    "https://www.example.com",
 			expectError: false,
 		},
 		{
@@ -109,22 +109,22 @@ func TestNormalizeURL(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "localhost",
+			name:        "localhost (blocked by SSRF protection)",
 			input:       "localhost:3000",
-			expected:    "https://localhost:3000",
-			expectError: false,
+			expected:    "",
+			expectError: true,
 		},
 		{
-			name:        "IP address",
+			name:        "private IP address (blocked by SSRF protection)",
 			input:       "192.168.1.1",
-			expected:    "https://192.168.1.1",
-			expectError: false,
+			expected:    "",
+			expectError: true,
 		},
 		{
-			name:        "IP with port",
+			name:        "private IP with port (blocked by SSRF protection)",
 			input:       "192.168.1.1:8080",
-			expected:    "https://192.168.1.1:8080",
-			expectError: false,
+			expected:    "",
+			expectError: true,
 		},
 	}
 
