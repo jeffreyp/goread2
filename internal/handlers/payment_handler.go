@@ -79,9 +79,13 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 	// Verify webhook signature
 	endpointSecret := ph.paymentService.GetStripeWebhookSecret()
 	if endpointSecret == "" {
-		fmt.Printf("WARNING: Webhook - STRIPE_WEBHOOK_SECRET not set\n")
+		fmt.Printf("ERROR: Webhook - STRIPE_WEBHOOK_SECRET not configured\n")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Webhook endpoint is not properly configured",
+		})
+		return
 	}
-	
+
 	event, err := webhook.ConstructEventWithOptions(payload, c.Request.Header.Get("Stripe-Signature"), endpointSecret, webhook.ConstructEventOptions{
 		IgnoreAPIVersionMismatch: true,
 	})

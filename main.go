@@ -77,13 +77,14 @@ func main() {
 	if cfg.SubscriptionEnabled {
 		paymentService = services.NewPaymentService(db, subscriptionService)
 
-		// Validate Stripe configuration (optional - only if Stripe keys are provided)
-		if cfg.StripeSecretKey != "" {
-			if err := paymentService.ValidateStripeConfig(); err != nil {
-				log.Printf("Warning: Stripe configuration incomplete: %v", err)
-				log.Println("Subscription features will be disabled")
-			}
+		// Validate Stripe configuration is REQUIRED when subscriptions are enabled
+		// This prevents exposing insecure webhook endpoints without proper authentication
+		if err := paymentService.ValidateStripeConfig(); err != nil {
+			log.Fatalf("FATAL: Subscription system is enabled but Stripe configuration is incomplete: %v\n"+
+				"Either provide all Stripe credentials (STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID)\n"+
+				"or disable subscriptions by setting SUBSCRIPTION_ENABLED=false", err)
 		}
+		log.Println("Stripe configuration validated successfully")
 	} else {
 		log.Println("Subscription system is disabled")
 	}
