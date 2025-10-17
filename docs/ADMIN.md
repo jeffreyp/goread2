@@ -9,6 +9,7 @@ Complete guide for managing users, permissions, and subscriptions in GoRead2.
 - [Quick Start](#quick-start)
 - [Admin Token System](#admin-token-system)
 - [Admin Commands](#admin-commands)
+- [Audit Logging](#audit-logging)
 - [Web-Based Admin API](#web-based-admin-api)
 - [User Status Types](#user-status-types)
 - [Common Admin Tasks](#common-admin-tasks)
@@ -243,6 +244,143 @@ go run cmd/admin/main.go grant-months user@example.com 6
 ```
 
 **Security**: All commands except `create-token` (bootstrap mode) require valid database token authentication.
+
+## Audit Logging
+
+GoRead2 automatically logs all admin operations to provide a comprehensive audit trail for security and compliance.
+
+### What Gets Logged
+
+All admin operations are automatically logged with the following details:
+- **Timestamp**: When the operation occurred
+- **Admin User**: Who performed the action (ID and email)
+- **Operation Type**: What action was performed
+- **Target User**: Which user was affected (ID and email)
+- **Operation Details**: Additional context (JSON format)
+- **IP Address**: Where the request came from (for web operations)
+- **Result**: Success or failure
+- **Error Message**: Details if the operation failed
+
+### Logged Operations
+
+The following admin operations are automatically logged:
+
+**User Management:**
+- `grant_admin` - Admin privileges granted to a user
+- `revoke_admin` - Admin privileges revoked from a user
+- `grant_free_months` - Free months granted to a user
+- `view_user_info` - Admin viewed user details
+
+**CLI Operations:**
+- All CLI admin commands are logged with admin_email="CLI_ADMIN" and IP address="CLI"
+
+### Viewing Audit Logs
+
+#### CLI Command
+
+```bash
+# View recent audit logs (default: last 50)
+ADMIN_TOKEN="your_token" go run cmd/admin/main.go audit-logs
+
+# Limit number of results
+ADMIN_TOKEN="your_token" go run cmd/admin/main.go audit-logs --limit 100
+
+# Filter by operation type
+ADMIN_TOKEN="your_token" go run cmd/admin/main.go audit-logs --operation grant_admin
+```
+
+**Output Format:**
+```
+Recent Audit Logs (Last 50):
+================================================================================
+
+[2025-10-16 10:30:45] SUCCESS
+  Admin: admin@example.com (ID: 1)
+  Operation: grant_admin
+  Target: user@example.com (ID: 123)
+  IP: 192.168.1.100
+  Details:
+    - is_admin: true
+    - user_name: John Doe
+
+[2025-10-16 09:15:22] FAILURE
+  Admin: CLI_ADMIN (ID: 0)
+  Operation: grant_free_months
+  Target: unknown@example.com (ID: 0)
+  IP: CLI
+  Error: user not found
+  Details:
+    - months_granted: 6
+```
+
+#### Web API
+
+```bash
+# Get audit logs via API (requires admin session)
+curl -X GET "https://yourdomain.com/admin/audit-logs?limit=50&offset=0" \
+  -H "Cookie: session=your-admin-session"
+
+# Filter by admin user
+curl -X GET "https://yourdomain.com/admin/audit-logs?admin_user_id=1" \
+  -H "Cookie: session=your-admin-session"
+
+# Filter by target user
+curl -X GET "https://yourdomain.com/admin/audit-logs?target_user_id=123" \
+  -H "Cookie: session=your-admin-session"
+
+# Filter by operation type
+curl -X GET "https://yourdomain.com/admin/audit-logs?operation_type=grant_admin" \
+  -H "Cookie: session=your-admin-session"
+```
+
+**Response Format:**
+```json
+{
+  "logs": [
+    {
+      "id": 1,
+      "timestamp": "2025-10-16T10:30:45Z",
+      "admin_user_id": 1,
+      "admin_email": "admin@example.com",
+      "operation_type": "grant_admin",
+      "target_user_id": 123,
+      "target_user_email": "user@example.com",
+      "operation_details": "{\"is_admin\":true,\"user_name\":\"John Doe\"}",
+      "ip_address": "192.168.1.100",
+      "result": "success",
+      "error_message": ""
+    }
+  ],
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### Audit Log Retention
+
+**SQLite (Local Development):**
+- Audit logs are stored indefinitely in the `audit_logs` table
+- Consider implementing periodic cleanup for very old logs
+
+**Google Datastore (Production):**
+- Audit logs are stored as `AuditLog` entities
+- Consider implementing automatic expiration policies
+- Monitor Datastore costs for high-volume audit logging
+
+### Security and Compliance
+
+**Audit Trail Benefits:**
+- Track all administrative actions
+- Investigate security incidents
+- Demonstrate compliance with security policies
+- Monitor for unauthorized access attempts
+- Identify patterns of admin activity
+
+**Best Practices:**
+- Regularly review audit logs for suspicious activity
+- Export and archive logs for long-term compliance
+- Monitor failed operations for security issues
+- Use audit logs to track admin privilege grants/revocations
 
 ## Web-Based Admin API
 
@@ -599,6 +737,36 @@ CREATE TABLE admin_tokens (
 );
 ```
 
+### Audit Logs Table
+
+The audit logging system for tracking admin operations:
+
+```sql
+CREATE TABLE audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    admin_user_id INTEGER,              -- ID of admin who performed action (NULL for CLI)
+    admin_email TEXT NOT NULL,          -- Email of admin (or "CLI_ADMIN")
+    operation_type TEXT NOT NULL,       -- Type of operation performed
+    target_user_id INTEGER,             -- ID of user affected (NULL if not applicable)
+    target_user_email TEXT,             -- Email of user affected
+    operation_details TEXT,             -- JSON with additional context
+    ip_address TEXT,                    -- IP address of request (or "CLI")
+    result TEXT NOT NULL,               -- "success" or "failure"
+    error_message TEXT                  -- Error details if result = "failure"
+);
+
+-- Indexes for efficient querying
+CREATE INDEX idx_audit_timestamp ON audit_logs(timestamp);
+CREATE INDEX idx_audit_admin_user ON audit_logs(admin_user_id);
+CREATE INDEX idx_audit_target_user ON audit_logs(target_user_id);
+CREATE INDEX idx_audit_operation_type ON audit_logs(operation_type);
+```
+
+**Google Datastore Equivalent:**
+- Kind: `AuditLog`
+- Indexes on: `Timestamp`, `AdminUserID`, `TargetUserID`, `OperationType`
+
 ## Testing and Validation
 
 The admin token security system includes comprehensive test coverage:
@@ -662,7 +830,8 @@ Monitor admin user activity:
 - **Admin dashboard**: Web UI for user management
 - **Usage analytics**: Track admin and free user activity
 - **Bulk operations**: Import/export admin user lists
-- **Audit logging**: Track all admin actions with timestamps
+- **Audit log export**: Export audit logs to CSV/JSON for archival
+- **Audit log cleanup**: Automatic expiration of old audit logs
 - **Token expiration dates**: Automatic cleanup of expired tokens
 - **Multi-factor authentication**: For token creation
 - **Role-based permissions**: Read-only vs full admin

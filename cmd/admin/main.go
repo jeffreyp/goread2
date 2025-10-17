@@ -49,6 +49,7 @@ func main() {
 			fmt.Println("  grant-months <email> <months>  - Grant free months to user")
 		}
 		fmt.Println("  user-info <email>             - Show user information")
+		fmt.Println("  audit-logs [--limit N] [--operation TYPE] - View audit logs")
 		fmt.Println("  fix-subscription <email>      - Fix subscription status from Stripe")
 		fmt.Println("  debug-users                   - Debug user lookup issues")
 		fmt.Println("")
@@ -70,6 +71,7 @@ func main() {
 	defer func() { _ = db.Close() }()
 
 	subscriptionService := services.NewSubscriptionService(db)
+	auditService := services.NewAuditService(db)
 
 	// SECURITY: Verify admin token against database for most operations
 	// Only 'create-token' bypasses validation for bootstrap scenarios
@@ -124,7 +126,7 @@ func main() {
 		if err != nil {
 			log.Fatal("Invalid admin status, use 'true' or 'false':", err)
 		}
-		setAdminStatus(subscriptionService, email, isAdmin)
+		setAdminStatus(subscriptionService, auditService, email, isAdmin)
 
 	case "grant-months":
 		if !config.IsSubscriptionEnabled() {
@@ -145,7 +147,7 @@ func main() {
 		if months < 0 {
 			log.Fatal("Invalid months value: cannot grant negative months")
 		}
-		grantFreeMonths(subscriptionService, email, months)
+		grantFreeMonths(subscriptionService, auditService, email, months)
 
 	case "user-info":
 		if len(os.Args) != 3 {
@@ -154,6 +156,9 @@ func main() {
 		}
 		email := os.Args[2]
 		showUserInfo(subscriptionService, email)
+
+	case "audit-logs":
+		showAuditLogs(auditService, os.Args[2:])
 
 	case "fix-subscription":
 		if len(os.Args) != 3 {
@@ -277,7 +282,7 @@ func listUsers(db database.Database, subscriptionService *services.SubscriptionS
 	}
 }
 
-func setAdminStatus(subscriptionService *services.SubscriptionService, email string, isAdmin bool) {
+func setAdminStatus(subscriptionService *services.SubscriptionService, auditService *services.AuditService, email string, isAdmin bool) {
 	// Find user by email
 	user, err := subscriptionService.GetUserByEmail(email)
 	if err != nil {
@@ -287,8 +292,36 @@ func setAdminStatus(subscriptionService *services.SubscriptionService, email str
 	// Set admin status
 	err = subscriptionService.SetUserAdmin(user.ID, isAdmin)
 	if err != nil {
+		// Log failure
+		_ = auditService.LogFailure(
+			0, // CLI has no user ID
+			"CLI_ADMIN",
+			map[bool]string{true: "grant_admin", false: "revoke_admin"}[isAdmin],
+			user.ID,
+			user.Email,
+			map[string]interface{}{
+				"is_admin":  isAdmin,
+				"user_name": user.Name,
+			},
+			"CLI",
+			err.Error(),
+		)
 		log.Fatal("Failed to set admin status:", err)
 	}
+
+	// Log success
+	_ = auditService.LogSuccess(
+		0, // CLI has no user ID
+		"CLI_ADMIN",
+		map[bool]string{true: "grant_admin", false: "revoke_admin"}[isAdmin],
+		user.ID,
+		user.Email,
+		map[string]interface{}{
+			"is_admin":  isAdmin,
+			"user_name": user.Name,
+		},
+		"CLI",
+	)
 
 	status := "removed from"
 	if isAdmin {
@@ -298,7 +331,7 @@ func setAdminStatus(subscriptionService *services.SubscriptionService, email str
 	fmt.Printf("✅ Admin access %s for user: %s (%s)\n", status, user.Name, user.Email)
 }
 
-func grantFreeMonths(subscriptionService *services.SubscriptionService, email string, months int) {
+func grantFreeMonths(subscriptionService *services.SubscriptionService, auditService *services.AuditService, email string, months int) {
 	// Find user by email
 	user, err := subscriptionService.GetUserByEmail(email)
 	if err != nil {
@@ -308,8 +341,37 @@ func grantFreeMonths(subscriptionService *services.SubscriptionService, email st
 	// Grant free months
 	err = subscriptionService.GrantFreeMonths(user.ID, months)
 	if err != nil {
+		// Log failure
+		_ = auditService.LogFailure(
+			0, // CLI has no user ID
+			"CLI_ADMIN",
+			"grant_free_months",
+			user.ID,
+			user.Email,
+			map[string]interface{}{
+				"months_granted": months,
+				"user_name":      user.Name,
+			},
+			"CLI",
+			err.Error(),
+		)
 		log.Fatal("Failed to grant free months:", err)
 	}
+
+	// Log success
+	_ = auditService.LogSuccess(
+		0, // CLI has no user ID
+		"CLI_ADMIN",
+		"grant_free_months",
+		user.ID,
+		user.Email,
+		map[string]interface{}{
+			"months_granted":    months,
+			"user_name":         user.Name,
+			"total_free_months": user.FreeMonthsRemaining + months,
+		},
+		"CLI",
+	)
 
 	fmt.Printf("✅ Granted %d free months to user: %s (%s)\n", months, user.Name, user.Email)
 	fmt.Printf("   Total free months: %d\n", user.FreeMonthsRemaining+months)
@@ -558,6 +620,80 @@ func revokeAdminToken(subscriptionService *services.SubscriptionService, tokenID
 
 	fmt.Printf("✅ Admin token %d has been revoked successfully.\n", tokenID)
 	fmt.Printf("The token is now inactive and cannot be used for authentication.\n")
+}
+
+// showAuditLogs displays audit log entries
+func showAuditLogs(auditService *services.AuditService, args []string) {
+	limit := 20
+	operationType := ""
+
+	// Parse arguments
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--limit" && i+1 < len(args) {
+			if l, err := strconv.Atoi(args[i+1]); err == nil {
+				limit = l
+			}
+			i++
+		} else if args[i] == "--operation" && i+1 < len(args) {
+			operationType = args[i+1]
+			i++
+		}
+	}
+
+	filters := make(map[string]interface{})
+	if operationType != "" {
+		filters["operation_type"] = operationType
+	}
+
+	logs, err := auditService.GetAuditLogs(limit, 0, filters)
+	if err != nil {
+		log.Fatal("Failed to get audit logs:", err)
+	}
+
+	if len(logs) == 0 {
+		fmt.Println("No audit logs found.")
+		return
+	}
+
+	fmt.Printf("\n%-4s %-19s %-15s %-20s %-20s %-8s\n",
+		"ID", "Timestamp", "Admin", "Operation", "Target", "Result")
+	fmt.Printf("%-4s %-19s %-15s %-20s %-20s %-8s\n",
+		"----", "-------------------", "---------------", "--------------------", "--------------------", "--------")
+
+	for _, log := range logs {
+		timestamp := log.Timestamp.Format("2006-01-02 15:04:05")
+		admin := truncate(log.AdminEmail, 14)
+		target := truncate(log.TargetUserEmail, 19)
+
+		fmt.Printf("%-4d %-19s %-15s %-20s %-20s %-8s\n",
+			log.ID,
+			timestamp,
+			admin,
+			log.OperationType,
+			target,
+			log.Result)
+	}
+	fmt.Println()
+
+	// Show details for the most recent log
+	if len(logs) > 0 {
+		latest := logs[0]
+		fmt.Printf("\nMost recent log details:\n")
+		fmt.Printf("  ID:         %d\n", latest.ID)
+		fmt.Printf("  Timestamp:  %s\n", latest.Timestamp.Format("2006-01-02 15:04:05"))
+		fmt.Printf("  Admin:      %s\n", latest.AdminEmail)
+		fmt.Printf("  Operation:  %s\n", latest.OperationType)
+		fmt.Printf("  Target:     %s\n", latest.TargetUserEmail)
+		fmt.Printf("  IP Address: %s\n", latest.IPAddress)
+		fmt.Printf("  Result:     %s\n", latest.Result)
+		if latest.OperationDetails != "" {
+			fmt.Printf("  Details:    %s\n", latest.OperationDetails)
+		}
+		if latest.ErrorMessage != "" {
+			fmt.Printf("  Error:      %s\n", latest.ErrorMessage)
+		}
+		fmt.Println()
+	}
 }
 
 // hasAdminUsers checks if any admin users exist in the database

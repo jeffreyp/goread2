@@ -59,6 +59,20 @@ type SessionEntity struct {
 	ExpiresAt time.Time `datastore:"expires_at"`
 }
 
+type AuditLogEntity struct {
+	ID               int64     `datastore:"-"`
+	Timestamp        time.Time `datastore:"timestamp"`
+	AdminUserID      int64     `datastore:"admin_user_id"`
+	AdminEmail       string    `datastore:"admin_email"`
+	OperationType    string    `datastore:"operation_type"`
+	TargetUserID     int64     `datastore:"target_user_id"`
+	TargetUserEmail  string    `datastore:"target_user_email"`
+	OperationDetails string    `datastore:"operation_details,noindex"`
+	IPAddress        string    `datastore:"ip_address"`
+	Result           string    `datastore:"result"`
+	ErrorMessage     string    `datastore:"error_message,noindex"`
+}
+
 type FeedEntity struct {
 	ID          int64     `datastore:"-"`
 	Title       string    `datastore:"title"`
@@ -1484,4 +1498,77 @@ func (db *DatastoreDB) DeleteExpiredSessions() error {
 	}
 
 	return nil
+}
+
+// Audit log methods for Datastore
+func (db *DatastoreDB) CreateAuditLog(log *AuditLog) error {
+	ctx := context.Background()
+
+	entity := &AuditLogEntity{
+		Timestamp:        log.Timestamp,
+		AdminUserID:      int64(log.AdminUserID),
+		AdminEmail:       log.AdminEmail,
+		OperationType:    log.OperationType,
+		TargetUserID:     int64(log.TargetUserID),
+		TargetUserEmail:  log.TargetUserEmail,
+		OperationDetails: log.OperationDetails,
+		IPAddress:        log.IPAddress,
+		Result:           log.Result,
+		ErrorMessage:     log.ErrorMessage,
+	}
+
+	key := datastore.IncompleteKey("AuditLog", nil)
+	key, err := db.client.Put(ctx, key, entity)
+	if err != nil {
+		return fmt.Errorf("failed to save audit log: %w", err)
+	}
+
+	log.ID = int(key.ID)
+	return nil
+}
+
+func (db *DatastoreDB) GetAuditLogs(limit, offset int, filters map[string]interface{}) ([]AuditLog, error) {
+	ctx := context.Background()
+
+	query := datastore.NewQuery("AuditLog").Order("-timestamp")
+
+	// Apply filters
+	if userID, ok := filters["admin_user_id"]; ok {
+		query = query.FilterField("admin_user_id", "=", int64(userID.(int)))
+	}
+	if targetUserID, ok := filters["target_user_id"]; ok {
+		query = query.FilterField("target_user_id", "=", int64(targetUserID.(int)))
+	}
+	if opType, ok := filters["operation_type"]; ok {
+		query = query.FilterField("operation_type", "=", opType.(string))
+	}
+
+	// Apply limit and offset
+	query = query.Limit(limit).Offset(offset)
+
+	var entities []AuditLogEntity
+	keys, err := db.client.GetAll(ctx, query, &entities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get audit logs: %w", err)
+	}
+
+	logs := make([]AuditLog, len(entities))
+	for i, entity := range entities {
+		entity.ID = keys[i].ID
+		logs[i] = AuditLog{
+			ID:               int(entity.ID),
+			Timestamp:        entity.Timestamp,
+			AdminUserID:      int(entity.AdminUserID),
+			AdminEmail:       entity.AdminEmail,
+			OperationType:    entity.OperationType,
+			TargetUserID:     int(entity.TargetUserID),
+			TargetUserEmail:  entity.TargetUserEmail,
+			OperationDetails: entity.OperationDetails,
+			IPAddress:        entity.IPAddress,
+			Result:           entity.Result,
+			ErrorMessage:     entity.ErrorMessage,
+		}
+	}
+
+	return logs, nil
 }

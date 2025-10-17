@@ -58,6 +58,10 @@ type Database interface {
 	DeleteSession(sessionID string) error
 	DeleteExpiredSessions() error
 
+	// Audit log methods
+	CreateAuditLog(log *AuditLog) error
+	GetAuditLogs(limit, offset int, filters map[string]interface{}) ([]AuditLog, error)
+
 	// Legacy methods (for migration)
 	GetAllArticles() ([]Article, error)
 
@@ -128,6 +132,20 @@ type Session struct {
 	UserID    int       `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type AuditLog struct {
+	ID               int       `json:"id"`
+	Timestamp        time.Time `json:"timestamp"`
+	AdminUserID      int       `json:"admin_user_id"`
+	AdminEmail       string    `json:"admin_email"`
+	OperationType    string    `json:"operation_type"`
+	TargetUserID     int       `json:"target_user_id"`
+	TargetUserEmail  string    `json:"target_user_email"`
+	OperationDetails string    `json:"operation_details"` // JSON string
+	IPAddress        string    `json:"ip_address"`
+	Result           string    `json:"result"` // "success" or "failure"
+	ErrorMessage     string    `json:"error_message"`
 }
 
 func InitDB() (Database, error) {
@@ -240,7 +258,22 @@ func (db *DB) CreateTables() error {
 		FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 	);`
 
-	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable, sessionsTable}
+	auditLogsTable := `
+	CREATE TABLE IF NOT EXISTS audit_logs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+		admin_user_id INTEGER,
+		admin_email TEXT NOT NULL,
+		operation_type TEXT NOT NULL,
+		target_user_id INTEGER,
+		target_user_email TEXT,
+		operation_details TEXT,
+		ip_address TEXT,
+		result TEXT NOT NULL,
+		error_message TEXT
+	);`
+
+	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable, sessionsTable, auditLogsTable}
 
 	for _, table := range tables {
 		if _, err := db.Exec(table); err != nil {
@@ -282,6 +315,12 @@ func (db *DB) CreateIndexes() error {
 		// Admin tokens table indexes for authentication
 		`CREATE INDEX IF NOT EXISTS idx_admin_tokens_hash ON admin_tokens (token_hash)`,
 		`CREATE INDEX IF NOT EXISTS idx_admin_tokens_active ON admin_tokens (is_active)`,
+
+		// Audit logs table indexes for querying
+		`CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs (timestamp DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_user ON audit_logs (admin_user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_logs_target_user ON audit_logs (target_user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_logs_operation ON audit_logs (operation_type)`,
 	}
 
 	for _, index := range indexes {
@@ -1140,4 +1179,117 @@ func (db *DB) DeleteExpiredSessions() error {
 	query := `DELETE FROM sessions WHERE expires_at < ?`
 	_, err := db.Exec(query, time.Now())
 	return err
+}
+
+// Audit log methods for SQLite
+func (db *DB) CreateAuditLog(log *AuditLog) error {
+	query := `INSERT INTO audit_logs
+		(timestamp, admin_user_id, admin_email, operation_type, target_user_id, target_user_email,
+		 operation_details, ip_address, result, error_message)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	result, err := db.Exec(query,
+		log.Timestamp,
+		log.AdminUserID,
+		log.AdminEmail,
+		log.OperationType,
+		log.TargetUserID,
+		log.TargetUserEmail,
+		log.OperationDetails,
+		log.IPAddress,
+		log.Result,
+		log.ErrorMessage,
+	)
+	if err != nil {
+		return err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	log.ID = int(id)
+	return nil
+}
+
+func (db *DB) GetAuditLogs(limit, offset int, filters map[string]interface{}) ([]AuditLog, error) {
+	query := `SELECT id, timestamp, admin_user_id, admin_email, operation_type,
+		target_user_id, target_user_email, operation_details, ip_address, result, error_message
+		FROM audit_logs WHERE 1=1`
+
+	args := []interface{}{}
+
+	// Apply filters
+	if userID, ok := filters["admin_user_id"]; ok {
+		query += " AND admin_user_id = ?"
+		args = append(args, userID)
+	}
+	if targetUserID, ok := filters["target_user_id"]; ok {
+		query += " AND target_user_id = ?"
+		args = append(args, targetUserID)
+	}
+	if opType, ok := filters["operation_type"]; ok {
+		query += " AND operation_type = ?"
+		args = append(args, opType)
+	}
+
+	query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var logs []AuditLog
+	for rows.Next() {
+		var log AuditLog
+		var adminUserID sql.NullInt64
+		var targetUserID sql.NullInt64
+		var targetUserEmail sql.NullString
+		var operationDetails sql.NullString
+		var ipAddress sql.NullString
+		var errorMessage sql.NullString
+
+		err := rows.Scan(
+			&log.ID,
+			&log.Timestamp,
+			&adminUserID,
+			&log.AdminEmail,
+			&log.OperationType,
+			&targetUserID,
+			&targetUserEmail,
+			&operationDetails,
+			&ipAddress,
+			&log.Result,
+			&errorMessage,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if adminUserID.Valid {
+			log.AdminUserID = int(adminUserID.Int64)
+		}
+		if targetUserID.Valid {
+			log.TargetUserID = int(targetUserID.Int64)
+		}
+		if targetUserEmail.Valid {
+			log.TargetUserEmail = targetUserEmail.String
+		}
+		if operationDetails.Valid {
+			log.OperationDetails = operationDetails.String
+		}
+		if ipAddress.Valid {
+			log.IPAddress = ipAddress.String
+		}
+		if errorMessage.Valid {
+			log.ErrorMessage = errorMessage.String
+		}
+
+		logs = append(logs, log)
+	}
+
+	return logs, nil
 }

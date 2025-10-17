@@ -62,6 +62,8 @@ func (m *mockDB) GetUserUnreadCounts(int) (map[int]int, error)                  
 func (m *mockDB) GetAllArticles() ([]database.Article, error)                         { return nil, nil }
 func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error                            { return nil }
 func (m *mockDB) UpdateUserMaxArticlesOnFeedAdd(int, int) error                       { return nil }
+func (m *mockDB) CreateAuditLog(*database.AuditLog) error                             { return nil }
+func (m *mockDB) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) { return nil, nil }
 
 func (m *mockDB) CreateSession(s *database.Session) error {
 	m.sessions[s.ID] = s

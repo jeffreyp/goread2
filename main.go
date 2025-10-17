@@ -43,6 +43,7 @@ func main() {
 	// Initialize services
 	feedService := services.NewFeedService(db, rateLimiter)
 	subscriptionService := services.NewSubscriptionService(db)
+	auditService := services.NewAuditService(db)
 	authService := auth.NewAuthService(db)
 	sessionManager := auth.NewSessionManager(db)
 	csrfManager := auth.NewCSRFManager()
@@ -90,7 +91,7 @@ func main() {
 	// Initialize handlers
 	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
-	adminHandler := handlers.NewAdminHandler(subscriptionService)
+	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
 	var paymentHandler *handlers.PaymentHandler
 	if cfg.SubscriptionEnabled && paymentService != nil {
 		paymentHandler = handlers.NewPaymentHandler(paymentService)
@@ -250,6 +251,7 @@ func main() {
 		admin.GET("/users/:email", adminHandler.GetUserInfo)
 		admin.POST("/users/:email/admin", adminHandler.SetAdminStatus)
 		admin.POST("/users/:email/free-months", adminHandler.GrantFreeMonths)
+		admin.GET("/audit-logs", adminHandler.GetAuditLogs)
 	}
 
 	// Webhook routes (public - no auth required) - only if subscriptions are enabled
