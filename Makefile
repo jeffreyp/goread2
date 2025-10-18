@@ -1,4 +1,4 @@
-.PHONY: all build test validate-config deploy-dev deploy-prod clean build-js build-css build-frontend help
+.PHONY: all build lint test validate-config deploy-dev deploy-prod clean build-js build-css build-frontend help
 
 # Default target - build everything
 all: build-frontend build test
@@ -14,6 +14,7 @@ help:
 	@echo "Available targets:"
 	@echo "  all                Build frontend, service, and run tests (default)"
 	@echo "  build              Build the Go application binary"
+	@echo "  lint               Run golangci-lint to check code quality"
 	@echo "  build-js           Build minified JavaScript files"
 	@echo "  build-css          Build minified CSS files"
 	@echo "  build-frontend     Build all frontend assets (JS + CSS)"
@@ -34,6 +35,11 @@ help:
 build:
 	@echo "🔨 Building GoRead2..."
 	go build -o goread2 .
+
+# Run linter
+lint:
+	@echo "🔍 Running linter..."
+	golangci-lint run
 
 # Install npm dependencies if needed
 node_modules: package.json package-lock.json
