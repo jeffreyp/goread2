@@ -11,8 +11,10 @@ import (
 func TestGetSecureClientIP_AppEngine(t *testing.T) {
 	// Set App Engine environment
 	originalEnv := os.Getenv("GAE_ENV")
-	os.Setenv("GAE_ENV", "standard")
-	defer os.Setenv("GAE_ENV", originalEnv)
+	if err := os.Setenv("GAE_ENV", "standard"); err != nil {
+		t.Fatalf("Failed to set GAE_ENV: %v", err)
+	}
+	defer func() { _ = os.Setenv("GAE_ENV", originalEnv) }()
 
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
@@ -34,8 +36,10 @@ func TestGetSecureClientIP_AppEngine(t *testing.T) {
 func TestGetSecureClientIP_Local(t *testing.T) {
 	// Ensure we're not in App Engine mode
 	originalEnv := os.Getenv("GAE_ENV")
-	os.Setenv("GAE_ENV", "")
-	defer os.Setenv("GAE_ENV", originalEnv)
+	if err := os.Setenv("GAE_ENV", ""); err != nil {
+		t.Fatalf("Failed to set GAE_ENV: %v", err)
+	}
+	defer func() { _ = os.Setenv("GAE_ENV", originalEnv) }()
 
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
@@ -174,8 +178,10 @@ func TestSanitizeIPForLogging(t *testing.T) {
 func TestGetSecureClientIP_PreventsSpoofing(t *testing.T) {
 	// Ensure we're not in App Engine mode
 	originalEnv := os.Getenv("GAE_ENV")
-	os.Setenv("GAE_ENV", "")
-	defer os.Setenv("GAE_ENV", originalEnv)
+	if err := os.Setenv("GAE_ENV", ""); err != nil {
+		t.Fatalf("Failed to set GAE_ENV: %v", err)
+	}
+	defer func() { _ = os.Setenv("GAE_ENV", originalEnv) }()
 
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
