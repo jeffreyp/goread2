@@ -802,27 +802,55 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unrea
 		return allArticles[i].PublishedAt.After(allArticles[j].PublishedAt)
 	})
 
-	// Get user status for ALL articles if we need to filter by unread
+	// Get user status for articles using efficient batch key lookup
+	// Only fetch UserArticle entities for the articles we have, not all user's articles
 	if unreadOnly || len(allArticles) > 0 {
-		// Query user article statuses in bulk
-		query := datastore.NewQuery("UserArticle").
-			FilterField("user_id", "=", int64(userID))
+		// Build keys for only the articles we're working with
+		statusMap := make(map[int]UserArticleEntity)
+		chunkSize := 1000 // Datastore GetMulti limit
 
-		var userArticles []UserArticleEntity
-		_, err := db.client.GetAll(ctx, query, &userArticles)
-		if err == nil {
-			// Create a map for fast lookup
-			statusMap := make(map[int]UserArticleEntity)
-			for _, ua := range userArticles {
-				statusMap[int(ua.ArticleID)] = ua
+		for i := 0; i < len(allArticles); i += chunkSize {
+			end := i + chunkSize
+			if end > len(allArticles) {
+				end = len(allArticles)
 			}
 
-			// Update articles with user status
-			for i := range allArticles {
-				if userStatus, exists := statusMap[allArticles[i].ID]; exists {
-					allArticles[i].IsRead = userStatus.IsRead
-					allArticles[i].IsStarred = userStatus.IsStarred
+			// Build keys for this chunk
+			chunk := allArticles[i:end]
+			userArticleKeys := make([]*datastore.Key, len(chunk))
+			for j, article := range chunk {
+				userArticleKeys[j] = datastore.NameKey("UserArticle",
+					fmt.Sprintf("%d_%d", userID, article.ID), nil)
+			}
+
+			// Batch fetch UserArticle entities for this chunk
+			userArticles := make([]UserArticleEntity, len(userArticleKeys))
+			err := db.client.GetMulti(ctx, userArticleKeys, userArticles)
+
+			// Process results - handle missing entities gracefully
+			if multiErr, ok := err.(datastore.MultiError); ok {
+				// Some UserArticle entities may not exist (article never read/starred)
+				for j, singleErr := range multiErr {
+					if singleErr == nil {
+						// Entity exists, add to map
+						statusMap[int(userArticles[j].ArticleID)] = userArticles[j]
+					}
+					// If singleErr != nil, entity doesn't exist - skip (defaults to unread/unstarred)
 				}
+			} else if err == nil {
+				// All entities exist
+				for _, ua := range userArticles {
+					statusMap[int(ua.ArticleID)] = ua
+				}
+			}
+			// If err is a different error, skip this chunk (defaults to unread/unstarred)
+		}
+
+		// Update articles with user status from map
+		for i := range allArticles {
+			if userStatus, exists := statusMap[allArticles[i].ID]; exists {
+				allArticles[i].IsRead = userStatus.IsRead
+				allArticles[i].IsStarred = userStatus.IsStarred
 			}
 		}
 	}
