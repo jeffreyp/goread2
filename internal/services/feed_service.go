@@ -15,6 +15,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/language"
+	"goread2/internal/cache"
 	"goread2/internal/database"
 )
 
@@ -22,6 +23,7 @@ type FeedService struct {
 	db           database.Database
 	rateLimiter  *DomainRateLimiter
 	urlValidator *URLValidator
+	unreadCache  *cache.UnreadCache
 }
 
 type RSS struct {
@@ -139,6 +141,7 @@ func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedS
 		db:           db,
 		rateLimiter:  rateLimiter,
 		urlValidator: NewURLValidator(),
+		unreadCache:  cache.NewUnreadCache(90 * time.Second), // 90 second TTL
 	}
 }
 
@@ -292,6 +295,9 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		// Don't fail the entire operation, just log the error
 	}
 
+	// Invalidate cache since unread counts changed dramatically
+	fs.unreadCache.Invalidate(userID)
+
 	return existingFeed, nil
 }
 
@@ -300,7 +306,15 @@ func (fs *FeedService) DeleteFeed(id int) error {
 }
 
 func (fs *FeedService) UnsubscribeUserFromFeed(userID, feedID int) error {
-	return fs.db.UnsubscribeUserFromFeed(userID, feedID)
+	err := fs.db.UnsubscribeUserFromFeed(userID, feedID)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate cache since feed removal affects counts
+	fs.unreadCache.Invalidate(userID)
+
+	return nil
 }
 
 func (fs *FeedService) GetArticles(feedID int) ([]database.Article, error) {
@@ -333,14 +347,29 @@ func (fs *FeedService) GetUserFeedArticles(userID, feedID int) ([]database.Artic
 // }
 
 func (fs *FeedService) MarkUserArticleRead(userID, articleID int, isRead bool) error {
-	return fs.db.MarkUserArticleRead(userID, articleID, isRead)
+	err := fs.db.MarkUserArticleRead(userID, articleID, isRead)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate cache to ensure accurate counts on next request
+	fs.unreadCache.Invalidate(userID)
+
+	return nil
 }
 
 func (fs *FeedService) ToggleUserArticleStar(userID, articleID int) error {
+	// Starring doesn't affect unread counts, so no cache invalidation needed
 	return fs.db.ToggleUserArticleStar(userID, articleID)
 }
 
 func (fs *FeedService) GetUserUnreadCounts(userID int) (map[int]int, error) {
+	// Try cache first for fast response
+	if cached, hit := fs.unreadCache.Get(userID); hit {
+		return cached, nil
+	}
+
+	// Cache miss - fetch from database
 	unreadCounts, err := fs.db.GetUserUnreadCounts(userID)
 	if err != nil {
 		return nil, err
@@ -369,6 +398,9 @@ func (fs *FeedService) GetUserUnreadCounts(userID int) (map[int]int, error) {
 			log.Printf("Warning: Filtered orphaned unread count for non-existent feed ID %d (%d articles)", feedID, count)
 		}
 	}
+
+	// Store in cache for next time
+	fs.unreadCache.Set(userID, filteredCounts)
 
 	return filteredCounts, nil
 }
