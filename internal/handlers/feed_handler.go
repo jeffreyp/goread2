@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"goread2/internal/auth"
 	"goread2/internal/database"
+	"goread2/internal/middleware"
 	"goread2/internal/services"
 )
 
@@ -19,13 +20,15 @@ type FeedHandler struct {
 	feedService         *services.FeedService
 	subscriptionService *services.SubscriptionService
 	feedScheduler       *services.FeedScheduler
+	db                  database.Database
 }
 
-func NewFeedHandler(feedService *services.FeedService, subscriptionService *services.SubscriptionService, feedScheduler *services.FeedScheduler) *FeedHandler {
+func NewFeedHandler(feedService *services.FeedService, subscriptionService *services.SubscriptionService, feedScheduler *services.FeedScheduler, db database.Database) *FeedHandler {
 	return &FeedHandler{
 		feedService:         feedService,
 		subscriptionService: subscriptionService,
 		feedScheduler:       feedScheduler,
+		db:                  db,
 	}
 }
 
@@ -36,7 +39,7 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 		return
 	}
 
-	feeds, err := fh.feedService.GetUserFeeds(user.ID)
+	feeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -284,7 +287,7 @@ func (fh *FeedHandler) DebugFeed(c *gin.Context) {
 	}
 
 	// Get user feeds to verify subscription
-	userFeeds, err := fh.feedService.GetUserFeeds(user.ID)
+	userFeeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user feeds", "details": err.Error()})
 		return
@@ -370,7 +373,7 @@ func (fh *FeedHandler) DebugAllSubscriptions(c *gin.Context) {
 	}
 
 	// Get all feeds that appear in the UI
-	userFeeds, err := fh.feedService.GetUserFeeds(user.ID)
+	userFeeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user feeds", "details": err.Error()})
 		return
@@ -427,7 +430,14 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 		return
 	}
 
-	unreadCounts, err := fh.feedService.GetUserUnreadCounts(user.ID)
+	// Get cached user feeds first to avoid duplicate DB call in GetUserUnreadCounts
+	userFeeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	unreadCounts, err := fh.feedService.GetUserUnreadCounts(user.ID, userFeeds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -544,7 +554,7 @@ func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 	}
 
 	// Get user feeds
-	feeds, err := fh.feedService.GetUserFeeds(user.ID)
+	feeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

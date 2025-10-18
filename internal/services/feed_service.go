@@ -363,7 +363,7 @@ func (fs *FeedService) ToggleUserArticleStar(userID, articleID int) error {
 	return fs.db.ToggleUserArticleStar(userID, articleID)
 }
 
-func (fs *FeedService) GetUserUnreadCounts(userID int) (map[int]int, error) {
+func (fs *FeedService) GetUserUnreadCounts(userID int, userFeeds []database.Feed) (map[int]int, error) {
 	// Try cache first for fast response
 	if cached, hit := fs.unreadCache.Get(userID); hit {
 		return cached, nil
@@ -377,10 +377,7 @@ func (fs *FeedService) GetUserUnreadCounts(userID int) (map[int]int, error) {
 
 	// Safety filter: only return counts for feeds that actually exist
 	// This prevents orphaned data from corrupting the UI
-	userFeeds, err := fs.db.GetUserFeeds(userID)
-	if err != nil {
-		return nil, err
-	}
+	// userFeeds is now passed in as a parameter to avoid duplicate DB call
 
 	// Create a map of valid feed IDs
 	validFeedIDs := make(map[int]bool)

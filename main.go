@@ -12,6 +12,7 @@ import (
 	"goread2/internal/config"
 	"goread2/internal/database"
 	"goread2/internal/handlers"
+	"goread2/internal/middleware"
 	"goread2/internal/services"
 )
 
@@ -90,7 +91,7 @@ func main() {
 	}
 
 	// Initialize handlers
-	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler)
+	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler, db)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
 	var paymentHandler *handlers.PaymentHandler
@@ -217,6 +218,7 @@ func main() {
 	api := r.Group("/api")
 	api.Use(auth.RateLimitMiddleware(apiRateLimiter)) // Rate limiting for API endpoints
 	api.Use(authMiddleware.RequireAuth())
+	api.Use(middleware.RequestCacheMiddleware())       // Request-scoped cache to eliminate duplicate DB calls
 	api.Use(authMiddleware.CSRFMiddleware(csrfManager)) // CSRF protection for state-changing operations
 	{
 		api.GET("/feeds", feedHandler.GetFeeds)

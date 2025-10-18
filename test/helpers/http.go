@@ -52,7 +52,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 	})
 
 	csrfManager := auth.NewCSRFManager()
-	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler)
+	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler, db)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	authMiddleware := auth.NewMiddleware(sessionManager)
 
