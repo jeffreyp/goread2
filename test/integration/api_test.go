@@ -11,6 +11,8 @@ import (
 )
 
 func TestFeedAPI(t *testing.T) {
+	t.Parallel() // Run in parallel with other top-level tests
+
 	helpers.SetupTestEnv(t)
 	defer helpers.CleanupTestEnv(t)
 
@@ -145,6 +147,8 @@ func TestFeedAPI(t *testing.T) {
 }
 
 func TestArticleAPI(t *testing.T) {
+	t.Parallel() // Run in parallel with other top-level tests
+
 	helpers.SetupTestEnv(t)
 	defer helpers.CleanupTestEnv(t)
 
@@ -306,6 +310,8 @@ func TestArticleAPI(t *testing.T) {
 }
 
 func TestUserIsolation(t *testing.T) {
+	t.Parallel() // Run in parallel with other top-level tests
+
 	helpers.SetupTestEnv(t)
 	defer helpers.CleanupTestEnv(t)
 
@@ -362,6 +368,8 @@ func TestUserIsolation(t *testing.T) {
 }
 
 func TestAuthAPI(t *testing.T) {
+	t.Parallel() // Run in parallel with other top-level tests
+
 	helpers.SetupTestEnv(t)
 	defer helpers.CleanupTestEnv(t)
 
