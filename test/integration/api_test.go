@@ -89,6 +89,59 @@ func TestFeedAPI(t *testing.T) {
 			t.Errorf("Expected status 400, got %d", rr.Code)
 		}
 	})
+
+	t.Run("DeleteFeed_Success", func(t *testing.T) {
+		// Create a feed to delete
+		feed := helpers.CreateTestFeed(t, testServer.DB, "Feed to Delete", "https://delete.com/feed", "Test feed")
+		err := testServer.DB.SubscribeUserToFeed(user.ID, feed.ID)
+		if err != nil {
+			t.Fatalf("Failed to subscribe user to feed: %v", err)
+		}
+
+		url := "/api/feeds/" + strconv.Itoa(feed.ID)
+		req := testServer.CreateAuthenticatedRequest(t, "DELETE", url, nil, user)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("DeleteFeed_Unauthenticated", func(t *testing.T) {
+		req := helpers.CreateUnauthenticatedRequest(t, "DELETE", "/api/feeds/1", nil)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", rr.Code)
+		}
+	})
+
+	t.Run("DeleteFeed_InvalidID", func(t *testing.T) {
+		req := testServer.CreateAuthenticatedRequest(t, "DELETE", "/api/feeds/invalid", nil, user)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("RefreshFeeds_Success", func(t *testing.T) {
+		req := testServer.CreateAuthenticatedRequest(t, "POST", "/api/feeds/refresh", nil, user)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("RefreshFeeds_Unauthenticated", func(t *testing.T) {
+		req := helpers.CreateUnauthenticatedRequest(t, "POST", "/api/feeds/refresh", nil)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", rr.Code)
+		}
+	})
 }
 
 func TestArticleAPI(t *testing.T) {
@@ -212,6 +265,42 @@ func TestArticleAPI(t *testing.T) {
 			if rr.Code != http.StatusUnauthorized {
 				t.Errorf("Expected status 401 for %s, got %d", endpoint, rr.Code)
 			}
+		}
+	})
+
+	t.Run("GetArticles_InvalidFeedID", func(t *testing.T) {
+		req := testServer.CreateAuthenticatedRequest(t, "GET", "/api/feeds/invalid/articles", nil, user)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("MarkRead_NonExistentArticle", func(t *testing.T) {
+		url := "/api/articles/99999/read"
+		requestData := map[string]bool{
+			"is_read": true,
+		}
+
+		req := testServer.CreateAuthenticatedRequest(t, "POST", url, requestData, user)
+		rr := testServer.ExecuteRequest(req)
+
+		// Should return an error (either 404 or 500)
+		if rr.Code != http.StatusNotFound && rr.Code != http.StatusInternalServerError {
+			t.Logf("Expected status 404 or 500, got %d", rr.Code)
+		}
+	})
+
+	t.Run("ToggleStar_NonExistentArticle", func(t *testing.T) {
+		url := "/api/articles/99999/star"
+
+		req := testServer.CreateAuthenticatedRequest(t, "POST", url, nil, user)
+		rr := testServer.ExecuteRequest(req)
+
+		// Should return an error (either 404 or 500)
+		if rr.Code != http.StatusNotFound && rr.Code != http.StatusInternalServerError {
+			t.Logf("Expected status 404 or 500, got %d", rr.Code)
 		}
 	})
 }

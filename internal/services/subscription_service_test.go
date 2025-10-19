@@ -549,3 +549,366 @@ func TestNewPaymentService(t *testing.T) {
 		t.Error("NewPaymentService returned nil")
 	}
 }
+
+// Enhanced Error Path Tests
+
+func TestCanUserAddFeed_GetFeedCountError(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "trial",
+		TrialEndsAt:        time.Now().Add(24 * time.Hour),
+	}
+	db.addUser(user)
+	db.shouldFailGetCount = true
+
+	service := NewSubscriptionService(db)
+	err := service.CanUserAddFeed(1)
+
+	if err == nil {
+		t.Error("Expected error when GetUserFeedCount fails")
+	}
+}
+
+func TestGetUserSubscriptionInfo_GetActiveError(t *testing.T) {
+	db := newMockDBForSub()
+	user := &database.User{ID: 1}
+	db.addUser(user)
+	db.shouldFailGetActive = true
+
+	service := NewSubscriptionService(db)
+	_, err := service.GetUserSubscriptionInfo(1)
+
+	if err == nil {
+		t.Error("Expected error when IsUserSubscriptionActive fails")
+	}
+}
+
+func TestSetUserAdmin_Error(t *testing.T) {
+	db := newMockDBForSub()
+	user := &database.User{ID: 1, IsAdmin: false}
+	db.addUser(user)
+	db.shouldFailSetAdmin = true
+
+	service := NewSubscriptionService(db)
+	err := service.SetUserAdmin(1, true)
+
+	if err == nil {
+		t.Error("Expected error when SetUserAdmin fails")
+	}
+}
+
+func TestGrantFreeMonths_Error(t *testing.T) {
+	db := newMockDBForSub()
+	user := &database.User{ID: 1}
+	db.addUser(user)
+	db.shouldFailGrant = true
+
+	service := NewSubscriptionService(db)
+	err := service.GrantFreeMonths(1, 3)
+
+	if err == nil {
+		t.Error("Expected error when GrantFreeMonths fails")
+	}
+}
+
+// Edge Case Tests
+
+func TestCanUserAddFeed_TrialExactlyExpired(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+
+	// User whose trial expires exactly now (within a millisecond)
+	now := time.Now()
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "trial",
+		TrialEndsAt:        now,
+	}
+	db.addUser(user)
+	db.feedCounts[1] = 10
+
+	service := NewSubscriptionService(db)
+
+	// Small delay to ensure we're past the expiry
+	time.Sleep(2 * time.Millisecond)
+
+	err := service.CanUserAddFeed(1)
+
+	if err != ErrTrialExpired {
+		t.Errorf("Expected ErrTrialExpired, got %v", err)
+	}
+}
+
+func TestCanUserAddFeed_ExactlyAtFeedLimit(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "trial",
+		TrialEndsAt:        time.Now().Add(24 * time.Hour),
+	}
+	db.addUser(user)
+	db.feedCounts[1] = FreeTrialFeedLimit // Exactly at limit
+
+	service := NewSubscriptionService(db)
+	err := service.CanUserAddFeed(1)
+
+	if err != ErrFeedLimitReached {
+		t.Errorf("Expected ErrFeedLimitReached when at exact limit, got %v", err)
+	}
+}
+
+func TestCanUserAddFeed_JustUnderFeedLimit(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "trial",
+		TrialEndsAt:        time.Now().Add(24 * time.Hour),
+	}
+	db.addUser(user)
+	db.feedCounts[1] = FreeTrialFeedLimit - 1 // Just under limit
+
+	service := NewSubscriptionService(db)
+	err := service.CanUserAddFeed(1)
+
+	if err != nil {
+		t.Errorf("Should allow adding feed when just under limit, got error: %v", err)
+	}
+}
+
+func TestGetUserSubscriptionInfo_AdminWithActiveSubscription(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	user := &database.User{
+		ID:                 1,
+		IsAdmin:            true,
+		SubscriptionStatus: "active",
+	}
+	db.addUser(user)
+	db.feedCounts[1] = 50
+	db.subscriptionActive[1] = true
+
+	service := NewSubscriptionService(db)
+	info, err := service.GetUserSubscriptionInfo(1)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if info.Status != "admin" {
+		t.Errorf("Status = %s, want 'admin' for admin with active subscription", info.Status)
+	}
+	if info.FeedLimit != -1 {
+		t.Errorf("FeedLimit = %d, want -1 (unlimited)", info.FeedLimit)
+	}
+	if !info.CanAddFeeds {
+		t.Error("Admin should be able to add feeds")
+	}
+}
+
+func TestGetUserSubscriptionInfo_NextBillingDateZero(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "trial",
+		NextBillingDate:    time.Time{}, // Zero time
+	}
+	db.addUser(user)
+	db.feedCounts[1] = 5
+	db.subscriptionActive[1] = true
+
+	service := NewSubscriptionService(db)
+	info, err := service.GetUserSubscriptionInfo(1)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if info.NextBillingDate != nil {
+		t.Error("NextBillingDate should be nil for zero time value")
+	}
+}
+
+func TestGetUserSubscriptionInfo_NextBillingDateNonZero(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	nextBilling := time.Now().AddDate(0, 1, 0)
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "active",
+		NextBillingDate:    nextBilling,
+	}
+	db.addUser(user)
+	db.feedCounts[1] = 5
+	db.subscriptionActive[1] = true
+
+	service := NewSubscriptionService(db)
+	info, err := service.GetUserSubscriptionInfo(1)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if info.NextBillingDate == nil {
+		t.Fatal("NextBillingDate should not be nil for non-zero time value")
+	}
+	if !info.NextBillingDate.Equal(nextBilling) {
+		t.Errorf("NextBillingDate = %v, want %v", info.NextBillingDate, nextBilling)
+	}
+}
+
+func TestGetUserSubscriptionInfo_TrialDaysRemainingNegative(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	// Trial ended 5 days ago
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "trial",
+		TrialEndsAt:        time.Now().Add(-5 * 24 * time.Hour),
+	}
+	db.addUser(user)
+	db.feedCounts[1] = 5
+	db.subscriptionActive[1] = false
+
+	service := NewSubscriptionService(db)
+	info, err := service.GetUserSubscriptionInfo(1)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if info.TrialDaysRemaining != 0 {
+		t.Errorf("TrialDaysRemaining = %d, want 0 for expired trial", info.TrialDaysRemaining)
+	}
+}
+
+func TestGetUserSubscriptionInfo_TrialDaysRemainingExactlyZero(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	// Trial ends in less than 24 hours
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "trial",
+		TrialEndsAt:        time.Now().Add(12 * time.Hour),
+	}
+	db.addUser(user)
+	db.feedCounts[1] = 5
+	db.subscriptionActive[1] = true
+
+	service := NewSubscriptionService(db)
+	info, err := service.GetUserSubscriptionInfo(1)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should be 0 days remaining (12 hours / 24 = 0)
+	if info.TrialDaysRemaining != 0 {
+		t.Errorf("TrialDaysRemaining = %d, want 0 for less than 24 hours remaining", info.TrialDaysRemaining)
+	}
+}
+
+func TestCanUserAddFeed_NonTrialNonActiveStatus(t *testing.T) {
+	config.ResetForTesting()
+	_ = os.Setenv("SUBSCRIPTION_ENABLED", "true")
+	defer func() {
+		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")
+		config.ResetForTesting()
+	}()
+	config.Load()
+
+	db := newMockDBForSub()
+	// User with a status that's neither "trial" nor "active" (e.g., "canceled")
+	user := &database.User{
+		ID:                 1,
+		SubscriptionStatus: "canceled",
+	}
+	db.addUser(user)
+	db.feedCounts[1] = 5
+
+	service := NewSubscriptionService(db)
+	err := service.CanUserAddFeed(1)
+
+	// Should allow since the user is not on trial and doesn't have active subscription
+	// The current logic only checks trial expiry and feed limit for trial users
+	if err != nil {
+		t.Errorf("Should allow for non-trial/non-active users, got error: %v", err)
+	}
+}
+
+func TestGetUserByEmail_NotFound(t *testing.T) {
+	db := newMockDBForSub()
+	service := NewSubscriptionService(db)
+
+	_, err := service.GetUserByEmail("nonexistent@example.com")
+	if err == nil {
+		t.Error("Expected error when user not found by email")
+	}
+}
