@@ -13,6 +13,10 @@ import (
 )
 
 func TestAPIWithFeatureFlag(t *testing.T) {
+	// Clean up test users at start and end
+	helpers.CleanupTestUsers(t)
+	defer helpers.CleanupTestUsers(t)
+
 	// Clean up environment at the end
 	defer func() {
 		_ = os.Unsetenv("SUBSCRIPTION_ENABLED")

@@ -170,6 +170,90 @@ func CleanupTestEnv(t *testing.T) {
 	_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
 }
 
+// CleanupTestUsers removes all test users from the main database
+// This should be called at the start and end of integration tests to ensure clean state
+func CleanupTestUsers(t *testing.T) {
+	t.Helper()
+
+	// Change to project root directory to ensure we use the same database
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Logf("Failed to get current directory for cleanup: %v", err)
+		return
+	}
+
+	// Determine how many levels up to go based on current path
+	projectRoot := "../.."
+	if _, err := os.Stat(projectRoot + "/go.mod"); err != nil {
+		// We might already be in test/integration or test/helpers
+		// Try different path
+		projectRoot = ".."
+		if _, err := os.Stat(projectRoot + "/go.mod"); err != nil {
+			// Try current directory
+			projectRoot = "."
+		}
+	}
+
+	err = os.Chdir(projectRoot)
+	if err != nil {
+		t.Logf("Failed to change to project root for cleanup: %v", err)
+		return
+	}
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to restore original directory: %v", err)
+		}
+	}()
+
+	db, err := database.InitDB()
+	if err != nil {
+		t.Logf("Failed to initialize database for cleanup: %v", err)
+		return
+	}
+	defer func() { _ = db.Close() }()
+
+	// Delete test users and admin tokens
+	sqliteDB := db.(*database.DB)
+	testEmails := []string{
+		// Admin integration test users
+		"main@example.com", "edge@example.com", "admin@test.com",
+		"bootstrap@test.com", "lifecycle@test.com", "warning@test.com",
+		"tokentest@test.com", "edgetest@test.com", "audituser@example.com",
+		"auditadmin@test.com",
+		// API test users (from api_test.go)
+		"test@example.com", "test2@example.com", "test3@example.com",
+		"user1@example.com", "user2@example.com",
+		// Feature flag test users (from feature_flag_test.go)
+		"api@example.com", "api2@example.com",
+		"limit@example.com", "limit2@example.com",
+	}
+
+	for _, email := range testEmails {
+		result, err := sqliteDB.Exec("DELETE FROM users WHERE email = ?", email)
+		if err != nil {
+			t.Logf("Failed to cleanup user %s: %v", email, err)
+		} else {
+			rowsAffected, _ := result.RowsAffected()
+			if rowsAffected > 0 {
+				t.Logf("Cleaned up user %s (rows affected: %d)", email, rowsAffected)
+			}
+		}
+	}
+
+	// Clean up admin tokens
+	_, err = sqliteDB.Exec("DELETE FROM admin_tokens")
+	if err != nil {
+		t.Logf("Failed to cleanup admin tokens: %v", err)
+	}
+
+	// For bootstrap security tests, also remove admin privileges from all users
+	// This ensures a clean state for security testing
+	_, err = sqliteDB.Exec("UPDATE users SET is_admin = 0")
+	if err != nil {
+		t.Logf("Failed to remove admin privileges: %v", err)
+	}
+}
+
 // CreateTestDatastoreDB creates a Datastore database for testing
 // This requires the Datastore emulator to be running
 func CreateTestDatastoreDB(t *testing.T) database.Database {
