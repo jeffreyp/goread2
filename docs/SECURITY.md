@@ -77,6 +77,11 @@ GOOGLE_REDIRECT_URL="https://yourdomain.com/auth/callback"
 ADMIN_TOKEN="your-64-char-token"
 INITIAL_ADMIN_EMAILS="your-admin-email@example.com"
 
+# CSRF Protection (recommended for production)
+# Generate with: openssl rand -base64 32
+# Ensures CSRF tokens survive application restarts
+CSRF_SECRET="your-base64-encoded-32-byte-secret"
+
 # Optional features
 SUBSCRIPTION_ENABLED=false  # Set to true for paid features
 ```
@@ -139,10 +144,10 @@ The environment is automatically detected via `GAE_ENV` or `ENVIRONMENT` environ
 
 All state-changing API operations (POST, PUT, DELETE) require a valid CSRF token:
 
-- **Token generation** - Cryptographically secure random tokens (32 bytes)
+- **Stateless HMAC-based tokens** - Tokens derived from session IDs using HMAC-SHA256
+- **No server-side storage** - Tokens survive application restarts (when CSRF_SECRET is configured)
 - **Token validation** - Constant-time comparison prevents timing attacks
-- **Token expiration** - Tokens expire after 24 hours
-- **Automatic cleanup** - Expired tokens are removed hourly
+- **Session-bound expiration** - Tokens remain valid as long as the session is active
 
 **✅ The official JavaScript files (`app.js`, `account.js`, `modals.js`) include built-in CSRF protection.**
 
@@ -238,6 +243,36 @@ If you discover a security vulnerability, please:
 
 ## Version History
 
+### v2.1 - Stateless CSRF Tokens (2025-10-18)
+
+This release improves CSRF token resilience by implementing stateless HMAC-based token generation.
+
+#### Changes
+
+**CSRF Token Implementation Updated:**
+- Changed from in-memory random tokens to HMAC-SHA256 derived tokens
+- Tokens now survive application restarts (when CSRF_SECRET is configured)
+- No server-side storage required - truly stateless implementation
+- Tokens remain valid as long as the session is active
+
+**Files Modified:**
+- `internal/auth/csrf.go` - Rewrote to use HMAC-based generation
+- `internal/auth/csrf_test.go` - Updated tests for stateless behavior
+- `.env.example` - Added CSRF_SECRET configuration
+
+**Benefits:**
+- **Zero-downtime deployments** - Users don't experience CSRF errors after restarts
+- **Better multi-instance support** - Works across multiple app instances when CSRF_SECRET is shared
+- **Reduced memory usage** - No in-memory token storage
+- **Simplified architecture** - No cleanup goroutines needed
+
+**Migration Notes:**
+- Existing deployments continue to work without changes
+- For production: Set `CSRF_SECRET` environment variable (generate with `openssl rand -base64 32`)
+- If `CSRF_SECRET` not set, a random secret is generated on startup (tokens won't survive restart)
+
+**Testing:** All CSRF tests pass ✓
+
 ### v2.0 - Security Hardening Release (2025-10-04)
 
 This release addressed five critical security vulnerabilities and implemented comprehensive security improvements.
@@ -273,12 +308,14 @@ This release addressed five critical security vulnerabilities and implemented co
 - `main.go` - Applied CSRF middleware to API and admin routes
 - `test/helpers/http.go` - Test helper updated to include CSRF tokens
 
-**Features:**
+**Features (Original Implementation):**
 - Cryptographically secure 32-byte random tokens
 - Constant-time comparison prevents timing attacks
 - 24-hour token expiration
 - Automatic cleanup of expired tokens
 - Tokens tied to session ID
+
+**Note:** In v2.1, this was updated to use stateless HMAC-based tokens that survive restarts.
 
 **Testing:** 8 new CSRF tests, all passing ✓
 
@@ -430,7 +467,7 @@ No new environment variables required. The following are automatically detected:
 
 ---
 
-**Last Updated:** 2025-10-04
+**Last Updated:** 2025-10-18
 **Status:** Production ready ✓
 
 **Remember:** Security is a shared responsibility. Follow these guidelines and keep your deployment secure.
