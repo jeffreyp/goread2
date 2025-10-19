@@ -3,7 +3,6 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -15,10 +14,9 @@ import (
 func setupTestDB(t *testing.T) *DB {
 	t.Helper()
 
-	// Create temporary database file
-	tmpFile := fmt.Sprintf("/tmp/goread2_test_%d.db", time.Now().UnixNano())
-
-	db, err := sql.Open("sqlite3", tmpFile)
+	// Create in-memory database with shared cache for concurrent access
+	// The ?cache=shared parameter allows multiple connections to access the same in-memory database
+	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
@@ -38,10 +36,9 @@ func setupTestDB(t *testing.T) *DB {
 		t.Fatalf("Failed to create tables: %v", err)
 	}
 
-	// Store the temp file path for cleanup
+	// Cleanup database connection after test
 	t.Cleanup(func() {
 		_ = dbWrapper.Close()
-		_ = os.Remove(tmpFile)
 	})
 
 	return dbWrapper

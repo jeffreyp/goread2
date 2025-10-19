@@ -192,3 +192,63 @@ func AssertJSONResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedSta
 		}
 	}
 }
+
+// NewMockFeedServer creates a mock HTTP server that serves RSS/Atom feed content
+// Returns the server and its URL. The caller must call server.Close() when done.
+func NewMockFeedServer(t *testing.T, feedXML string) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(feedXML))
+	}))
+}
+
+// NewMockFeedServerWithStatus creates a mock HTTP server that returns a specific status code
+func NewMockFeedServerWithStatus(t *testing.T, statusCode int, body string) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+		if body != "" {
+			_, _ = w.Write([]byte(body))
+		}
+	}))
+}
+
+// NewMockMultiFeedServer creates a mock HTTP server that can serve different feeds based on the path
+func NewMockMultiFeedServer(t *testing.T, feeds map[string]string) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		feedXML, exists := feeds[r.URL.Path]
+		if !exists {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(feedXML))
+	}))
+}
+
+// MockHTTPClient wraps an httptest.Server to provide an HTTP client
+// that redirects all requests to the mock server
+type MockHTTPClient struct {
+	Server *httptest.Server
+}
+
+// Do implements the HTTPClient interface by executing the request
+func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	// Use the server's client to make the request
+	return m.Server.Client().Do(req)
+}
+
+// NewMockHTTPClient creates a mock HTTP client from an httptest.Server
+func NewMockHTTPClient(server *httptest.Server) *MockHTTPClient {
+	return &MockHTTPClient{
+		Server: server,
+	}
+}

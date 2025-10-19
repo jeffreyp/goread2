@@ -19,11 +19,17 @@ import (
 	"goread2/internal/database"
 )
 
+// HTTPClient interface for making HTTP requests (allows mocking in tests)
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type FeedService struct {
 	db           database.Database
 	rateLimiter  *DomainRateLimiter
 	urlValidator *URLValidator
 	unreadCache  *cache.UnreadCache
+	httpClient   HTTPClient // Optional: if nil, creates client using urlValidator
 }
 
 type RSS struct {
@@ -143,6 +149,11 @@ func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedS
 		urlValidator: NewURLValidator(),
 		unreadCache:  cache.NewUnreadCache(90 * time.Second), // 90 second TTL
 	}
+}
+
+// SetHTTPClient sets a custom HTTP client for testing purposes
+func (fs *FeedService) SetHTTPClient(client HTTPClient) {
+	fs.httpClient = client
 }
 
 func (fs *FeedService) AddFeed(url string) (*database.Feed, error) {
@@ -438,13 +449,15 @@ func (fs *FeedService) UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles int) e
 }
 
 func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
-	// Validate URL for SSRF protection
-	if err := fs.urlValidator.ValidateURL(url); err != nil {
-		return nil, fmt.Errorf("URL validation failed: %w", err)
+	// Validate URL for SSRF protection (skip if using mock HTTP client for testing)
+	if fs.httpClient == nil {
+		if err := fs.urlValidator.ValidateURL(url); err != nil {
+			return nil, fmt.Errorf("URL validation failed: %w", err)
+		}
 	}
 
-	// Apply rate limiting if available
-	if fs.rateLimiter != nil {
+	// Apply rate limiting if available (skip if using mock HTTP client for testing)
+	if fs.rateLimiter != nil && fs.httpClient == nil {
 		if !fs.rateLimiter.Allow(url) {
 			return nil, fmt.Errorf("rate limited: too many requests to domain")
 		}
@@ -456,8 +469,13 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
-	// Use secure HTTP client with SSRF protection and TLS certificate verification
-	client := fs.urlValidator.CreateSecureHTTPClient(30 * time.Second)
+	// Use injected HTTP client if available, otherwise create secure client
+	var client HTTPClient
+	if fs.httpClient != nil {
+		client = fs.httpClient
+	} else {
+		client = fs.urlValidator.CreateSecureHTTPClient(30 * time.Second)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

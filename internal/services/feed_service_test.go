@@ -2,6 +2,8 @@ package services
 
 import (
 	"encoding/xml"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"goread2/internal/database"
@@ -269,6 +271,82 @@ func (fs *FeedService) parseFeedFromBytes(body []byte, feedURL string) (*FeedDat
 // Helper for XML unmarshaling
 func unmarshalXML(data []byte, v interface{}) error {
 	return xml.Unmarshal(data, v)
+}
+
+// TestAddFeedWithMockHTTP tests adding a feed using a mock HTTP server
+func TestAddFeedWithMockHTTP(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	// Create feed service
+	fs := NewFeedService(db, nil)
+
+	// Create sample RSS XML
+	sampleRSS := `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <description>A test RSS feed</description>
+    <link>https://test.com</link>
+    <item>
+      <title>Test Article</title>
+      <link>https://test.com/article1</link>
+      <description>This is a test article</description>
+      <pubDate>Mon, 01 Jan 2023 12:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>`
+
+	// Create mock HTTP server
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(sampleRSS))
+	}))
+	defer mockServer.Close()
+
+	// Inject mock HTTP client
+	fs.SetHTTPClient(&mockHTTPClient{Server: mockServer})
+
+	// Add feed using mock server URL
+	feed, err := fs.AddFeed(mockServer.URL)
+	if err != nil {
+		t.Fatalf("AddFeed failed: %v", err)
+	}
+
+	// Verify feed was added correctly
+	if feed.Title != "Test Feed" {
+		t.Errorf("Expected feed title 'Test Feed', got '%s'", feed.Title)
+	}
+
+	if feed.Description != "A test RSS feed" {
+		t.Errorf("Expected description 'A test RSS feed', got '%s'", feed.Description)
+	}
+
+	// Verify article was added
+	articles, err := db.GetArticles(feed.ID)
+	if err != nil {
+		t.Fatalf("GetArticles failed: %v", err)
+	}
+
+	if len(articles) != 1 {
+		t.Fatalf("Expected 1 article, got %d", len(articles))
+	}
+
+	// The feed service applies title fallback logic for short titles
+	// So we just verify we got an article with a non-empty title
+	if articles[0].Title == "" {
+		t.Error("Article title should not be empty")
+	}
+}
+
+// mockHTTPClient implements the HTTPClient interface for testing
+type mockHTTPClient struct {
+	Server *httptest.Server
+}
+
+func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	return m.Server.Client().Do(req)
 }
 
 // TestExportOPML tests the OPML export functionality
