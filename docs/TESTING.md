@@ -29,9 +29,11 @@ internal/
 │   ├── auth_handler_test.go     # Auth handler constructor tests  
 │   ├── feed_handler_test.go     # Feed handler constructor tests
 │   └── payment_handler_test.go  # Payment handler constructor tests (1.0% coverage)
+├── secrets/
+│   └── secrets_test.go          # Secrets manager tests (80.4% coverage)
 ├── services/
 │   ├── admin_token_test.go               # SQLite admin token tests (comprehensive)
-│   ├── admin_token_datastore_test.go     # Datastore admin token tests 
+│   ├── admin_token_datastore_test.go     # Datastore admin token tests
 │   ├── feed_discovery_test.go            # Feed discovery and URL normalization tests
 │   └── subscription_service_test.go      # Subscription service logic tests (20.1% coverage)
 test/
@@ -220,6 +222,44 @@ func TestRateLimiterConcurrentAccess(t *testing.T) {
   - Independent limits per IP address
   - Concurrent access safety
   - Cleanup mechanism verification
+
+#### Secrets Package (`internal/secrets/`)
+
+Tests secrets management system with 80.4% coverage:
+
+```go
+func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
+    // Test OAuth credential retrieval from environment variables
+}
+
+func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
+    // Test Stripe credential retrieval from environment variables
+}
+
+func TestGetSecret_MissingProjectID(t *testing.T) {
+    // Test error handling when GOOGLE_CLOUD_PROJECT is missing
+}
+```
+
+**Coverage includes:**
+- **GetOAuthCredentials** (100% coverage):
+  - Retrieval from environment variables
+  - Secret reference detection (`_secret:` prefix)
+  - Empty credential handling
+  - GOOGLE_CLOUD_PROJECT validation
+  - Custom secret name support
+- **GetStripeCredentials** (100% coverage):
+  - All four Stripe credentials (secret key, publishable key, webhook secret, price ID)
+  - Placeholder value detection
+  - Fallback to Secret Manager when needed
+  - Environment variable priority
+- **GetSecret** (23.1% coverage):
+  - GOOGLE_CLOUD_PROJECT requirement validation
+  - Error handling (requires Secret Manager API mocking for full coverage)
+- **Security validation**:
+  - Missing credential detection
+  - Invalid configuration error messages
+  - Environment-based fallback logic
 
 #### Services Package (`internal/services/`)
 
@@ -466,6 +506,10 @@ Current test coverage status and targets:
   - **Middleware**: 100% coverage for RequireAuth, OptionalAuth, RequireAdmin
   - **CSRF Manager**: 100% coverage for CSRFMiddleware, concurrent token generation
   - **Rate Limiter**: 100% coverage for RateLimitMiddleware, concurrent access, cleanup
+- **Secrets package**: 80.4% coverage (OAuth and Stripe credential management)
+  - **GetOAuthCredentials**: 100% coverage for environment variable handling
+  - **GetStripeCredentials**: 100% coverage for all Stripe credentials
+  - **GetSecret**: 23.1% coverage (environment validation, requires Secret Manager API mocking for full coverage)
 - **Services package**: 20.1% coverage (subscription logic, feed discovery, **comprehensive admin token security**)
 - **Handlers package**: 1.0% coverage (constructor functions)
 - **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
