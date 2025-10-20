@@ -75,6 +75,8 @@ func SetupTestServer(t *testing.T) *TestServer {
 		api.GET("/feeds", feedHandler.GetFeeds)
 		api.POST("/feeds", feedHandler.AddFeed)
 		api.DELETE("/feeds/:id", feedHandler.DeleteFeed)
+		api.POST("/feeds/import", feedHandler.ImportOPML)
+		api.GET("/feeds/export", feedHandler.ExportOPML)
 		api.GET("/feeds/:id/articles", feedHandler.GetArticles)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
