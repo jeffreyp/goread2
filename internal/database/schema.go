@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -1010,26 +1011,26 @@ func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
 
 // Subscription management methods
 func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
-	fmt.Printf("DEBUG: UpdateUserSubscription - Updating user %d: status=%s, subscriptionID=%s, lastPaymentDate=%v, nextBillingDate=%v\n",
+	log.Printf("UpdateUserSubscription - Updating user %d: status=%s, subscriptionID=%s, lastPaymentDate=%v, nextBillingDate=%v",
 		userID, status, subscriptionID, lastPaymentDate, nextBillingDate)
 
 	query := `UPDATE users SET subscription_status = ?, subscription_id = ?, last_payment_date = ?, next_billing_date = ? WHERE id = ?`
 	result, err := db.Exec(query, status, subscriptionID, lastPaymentDate, nextBillingDate, userID)
 	if err != nil {
-		fmt.Printf("ERROR: UpdateUserSubscription - Query failed: %v\n", err)
+		log.Printf("ERROR: UpdateUserSubscription - Query failed: %v", err)
 		return err
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		fmt.Printf("WARNING: UpdateUserSubscription - Could not get rows affected: %v\n", err)
+		log.Printf("WARNING: UpdateUserSubscription - Could not get rows affected: %v", err)
 	} else {
-		fmt.Printf("DEBUG: UpdateUserSubscription - Rows affected: %d\n", rowsAffected)
+		log.Printf("UpdateUserSubscription - Rows affected: %d", rowsAffected)
 		if rowsAffected == 0 {
-			fmt.Printf("WARNING: UpdateUserSubscription - No rows updated for user ID %d\n", userID)
+			log.Printf("WARNING: UpdateUserSubscription - No rows updated for user ID %d", userID)
 		}
 	}
-	
+
 	return nil
 }
 
