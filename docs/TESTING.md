@@ -153,9 +153,9 @@ func TestParseEmailList(t *testing.T) {
 - Configuration singleton behavior
 - Input validation and sanitization
 
-#### Auth Package (`internal/auth/`) 
+#### Auth Package (`internal/auth/`)
 
-Tests authentication system with 59.7% coverage:
+Tests authentication system with 81.9% coverage:
 
 ```go
 func TestNewAuthService(t *testing.T) {
@@ -166,8 +166,32 @@ func TestSessionManager(t *testing.T) {
     // Test session creation, retrieval, and cleanup
 }
 
-func TestMiddleware(t *testing.T) {
-    // Test authentication middleware functions
+func TestRequireAuth(t *testing.T) {
+    // Test authentication middleware (JSON API endpoints)
+}
+
+func TestOptionalAuth(t *testing.T) {
+    // Test optional authentication middleware
+}
+
+func TestRequireAdmin(t *testing.T) {
+    // Test admin privilege enforcement
+}
+
+func TestCSRFMiddleware(t *testing.T) {
+    // Test CSRF protection middleware
+}
+
+func TestRateLimitMiddleware(t *testing.T) {
+    // Test rate limiting middleware
+}
+
+func TestCSRFConcurrentGeneration(t *testing.T) {
+    // Test concurrent CSRF token generation
+}
+
+func TestRateLimiterConcurrentAccess(t *testing.T) {
+    // Test concurrent rate limiter access
 }
 ```
 
@@ -178,6 +202,24 @@ func TestMiddleware(t *testing.T) {
 - Context user extraction for Gin and standard contexts
 - Admin user initialization from environment
 - Session cleanup and security
+- **Middleware error paths** (100% coverage):
+  - RequireAuth with no session (JSON error)
+  - RequireAuth with valid session
+  - OptionalAuth with and without session
+  - RequireAdmin with no session, non-admin user, and admin user
+- **CSRF protection** (100% middleware coverage):
+  - Safe methods bypass (GET, HEAD, OPTIONS)
+  - POST without session returns unauthorized
+  - POST without CSRF token returns forbidden
+  - POST with invalid CSRF token returns forbidden
+  - POST with valid CSRF token succeeds
+  - Concurrent token generation safety
+- **Rate limiting** (100% middleware coverage):
+  - Requests within limit allowed
+  - Requests exceeding limit blocked (429 status)
+  - Independent limits per IP address
+  - Concurrent access safety
+  - Cleanup mechanism verification
 
 #### Services Package (`internal/services/`)
 
@@ -419,8 +461,11 @@ Current test coverage status and targets:
 
 ### ✅ Achieved Coverage
 - **Overall project**: Coverage across all packages with significant improvements
-- **Config package**: 96.7% coverage (comprehensive unit tests)  
-- **Auth package**: 59.7% coverage (session, middleware, OAuth service)
+- **Config package**: 96.7% coverage (comprehensive unit tests)
+- **Auth package**: 81.9% coverage (session, middleware, CSRF, rate limiting, OAuth service)
+  - **Middleware**: 100% coverage for RequireAuth, OptionalAuth, RequireAdmin
+  - **CSRF Manager**: 100% coverage for CSRFMiddleware, concurrent token generation
+  - **Rate Limiter**: 100% coverage for RateLimitMiddleware, concurrent access, cleanup
 - **Services package**: 20.1% coverage (subscription logic, feed discovery, **comprehensive admin token security**)
 - **Handlers package**: 1.0% coverage (constructor functions)
 - **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing

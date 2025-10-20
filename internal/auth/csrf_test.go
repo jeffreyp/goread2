@@ -1,7 +1,13 @@
 package auth
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
+
+	"github.com/gin-gonic/gin"
+	"goread2/internal/database"
 )
 
 func TestCSRFManager(t *testing.T) {
@@ -159,4 +165,189 @@ func TestCSRFManager(t *testing.T) {
 // Helper function to generate unique session IDs for testing
 func generateTestSessionID(i int) string {
 	return "test-session-" + string(rune('a'+i%26)) + string(rune('a'+(i/26)%26))
+}
+
+func TestCSRFConcurrentGeneration(t *testing.T) {
+	cm := NewCSRFManager()
+	sessionID := "test-session-concurrent"
+
+	// Generate tokens concurrently
+	const numGoroutines = 100
+	tokens := make([]string, numGoroutines)
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(index int) {
+			defer wg.Done()
+			token, err := cm.GenerateToken(sessionID)
+			if err != nil {
+				t.Errorf("Failed to generate token in goroutine %d: %v", index, err)
+				return
+			}
+			tokens[index] = token
+		}(i)
+	}
+
+	wg.Wait()
+
+	// All tokens should be identical (deterministic)
+	firstToken := tokens[0]
+	for i, token := range tokens {
+		if token != firstToken {
+			t.Errorf("Token %d differs: got %s, want %s", i, token, firstToken)
+		}
+	}
+
+	// Validate all tokens
+	for i, token := range tokens {
+		if !cm.ValidateToken(sessionID, token) {
+			t.Errorf("Token %d failed validation", i)
+		}
+	}
+}
+
+func TestCSRFMiddleware(t *testing.T) {
+	// Setup gin test mode
+	gin.SetMode(gin.TestMode)
+
+	db := newMockDB()
+	sessionManager := NewSessionManager(db)
+	middleware := NewMiddleware(sessionManager)
+	csrfManager := NewCSRFManager()
+
+	t.Run("safe methods bypass CSRF check", func(t *testing.T) {
+		safeMethods := []string{"GET", "HEAD", "OPTIONS"}
+
+		for _, method := range safeMethods {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(method, "/api/test", nil)
+
+			middleware.CSRFMiddleware(csrfManager)(c)
+
+			if c.IsAborted() {
+				t.Errorf("%s request should not be aborted", method)
+			}
+		}
+	})
+
+	t.Run("POST without session returns unauthorized", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/test", nil)
+
+		middleware.CSRFMiddleware(csrfManager)(c)
+
+		if w.Code != 401 {
+			t.Errorf("Expected status 401, got %d", w.Code)
+		}
+
+		if !c.IsAborted() {
+			t.Error("Expected request to be aborted")
+		}
+	})
+
+	t.Run("POST without CSRF token returns forbidden", func(t *testing.T) {
+		user := &database.User{
+			ID:       1,
+			Email:    "test@example.com",
+			Name:     "Test User",
+			GoogleID: "google-123",
+		}
+
+		// Create a valid session
+		session, err := sessionManager.CreateSession(user)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/test", nil)
+		c.Request.AddCookie(&http.Cookie{
+			Name:  "session_id_local",
+			Value: session.ID,
+		})
+
+		middleware.CSRFMiddleware(csrfManager)(c)
+
+		if w.Code != 403 {
+			t.Errorf("Expected status 403, got %d", w.Code)
+		}
+
+		if !c.IsAborted() {
+			t.Error("Expected request to be aborted")
+		}
+	})
+
+	t.Run("POST with invalid CSRF token returns forbidden", func(t *testing.T) {
+		user := &database.User{
+			ID:       1,
+			Email:    "test@example.com",
+			Name:     "Test User",
+			GoogleID: "google-123",
+		}
+
+		// Create a valid session
+		session, err := sessionManager.CreateSession(user)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/test", nil)
+		c.Request.AddCookie(&http.Cookie{
+			Name:  "session_id_local",
+			Value: session.ID,
+		})
+		c.Request.Header.Set("X-CSRF-Token", "invalid-token")
+
+		middleware.CSRFMiddleware(csrfManager)(c)
+
+		if w.Code != 403 {
+			t.Errorf("Expected status 403, got %d", w.Code)
+		}
+
+		if !c.IsAborted() {
+			t.Error("Expected request to be aborted")
+		}
+	})
+
+	t.Run("POST with valid CSRF token succeeds", func(t *testing.T) {
+		user := &database.User{
+			ID:       1,
+			Email:    "test@example.com",
+			Name:     "Test User",
+			GoogleID: "google-123",
+		}
+
+		// Create a valid session
+		session, err := sessionManager.CreateSession(user)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		// Generate valid CSRF token
+		csrfToken, err := csrfManager.GenerateToken(session.ID)
+		if err != nil {
+			t.Fatalf("Failed to generate CSRF token: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/test", nil)
+		c.Request.AddCookie(&http.Cookie{
+			Name:  "session_id_local",
+			Value: session.ID,
+		})
+		c.Request.Header.Set("X-CSRF-Token", csrfToken)
+
+		middleware.CSRFMiddleware(csrfManager)(c)
+
+		if c.IsAborted() {
+			t.Error("Expected request not to be aborted")
+		}
+	})
 }

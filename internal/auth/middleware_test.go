@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -99,10 +100,72 @@ func TestGetUserFromStdContext(t *testing.T) {
 	}
 }
 
+func TestRequireAuth(t *testing.T) {
+	// Setup gin test mode
+	gin.SetMode(gin.TestMode)
+
+	db := newMockDB()
+	sessionManager := NewSessionManager(db)
+	middleware := NewMiddleware(sessionManager)
+
+	t.Run("no session returns JSON error", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds", nil)
+
+		middleware.RequireAuth()(c)
+
+		if w.Code != 401 {
+			t.Errorf("Expected status 401 (unauthorized), got %d", w.Code)
+		}
+
+		if !c.IsAborted() {
+			t.Error("Expected request to be aborted")
+		}
+	})
+
+	t.Run("valid session adds user to context", func(t *testing.T) {
+		user := &database.User{
+			ID:       1,
+			Email:    "test@example.com",
+			Name:     "Test User",
+			GoogleID: "google-123",
+		}
+
+		// Create a valid session
+		session, err := sessionManager.CreateSession(user)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds", nil)
+		c.Request.AddCookie(&http.Cookie{
+			Name:  "session_id_local",
+			Value: session.ID,
+		})
+
+		middleware.RequireAuth()(c)
+
+		if c.IsAborted() {
+			t.Error("Expected request not to be aborted")
+		}
+
+		retrievedUser, exists := GetUserFromContext(c)
+		if !exists {
+			t.Error("User not found in context")
+		}
+		if retrievedUser.ID != user.ID {
+			t.Errorf("Wrong user in context: got %d, want %d", retrievedUser.ID, user.ID)
+		}
+	})
+}
+
 func TestRequireAuthPage(t *testing.T) {
 	// Setup gin test mode
 	gin.SetMode(gin.TestMode)
-	
+
 	db := newMockDB()
 	sessionManager := NewSessionManager(db)
 	middleware := NewMiddleware(sessionManager)
@@ -112,20 +175,189 @@ func TestRequireAuthPage(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/account", nil)
-		
+
 		middleware.RequireAuthPage()(c)
-		
+
 		if w.Code != 302 {
 			t.Errorf("Expected status 302 (redirect), got %d", w.Code)
 		}
-		
+
 		location := w.Header().Get("Location")
 		if location != "/" {
 			t.Errorf("Expected redirect to '/', got '%s'", location)
 		}
-		
+
 		if !c.IsAborted() {
 			t.Error("Expected request to be aborted")
+		}
+	})
+}
+
+func TestOptionalAuth(t *testing.T) {
+	// Setup gin test mode
+	gin.SetMode(gin.TestMode)
+
+	db := newMockDB()
+	sessionManager := NewSessionManager(db)
+	middleware := NewMiddleware(sessionManager)
+
+	t.Run("no session continues without user", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/", nil)
+
+		middleware.OptionalAuth()(c)
+
+		if c.IsAborted() {
+			t.Error("Expected request not to be aborted")
+		}
+
+		_, exists := GetUserFromContext(c)
+		if exists {
+			t.Error("User should not be in context when no session")
+		}
+	})
+
+	t.Run("valid session adds user to context", func(t *testing.T) {
+		user := &database.User{
+			ID:       1,
+			Email:    "test@example.com",
+			Name:     "Test User",
+			GoogleID: "google-123",
+		}
+
+		// Create a valid session
+		session, err := sessionManager.CreateSession(user)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/", nil)
+		c.Request.AddCookie(&http.Cookie{
+			Name:  "session_id_local",
+			Value: session.ID,
+		})
+
+		middleware.OptionalAuth()(c)
+
+		if c.IsAborted() {
+			t.Error("Expected request not to be aborted")
+		}
+
+		retrievedUser, exists := GetUserFromContext(c)
+		if !exists {
+			t.Error("User not found in context")
+		}
+		if retrievedUser.ID != user.ID {
+			t.Errorf("Wrong user in context: got %d, want %d", retrievedUser.ID, user.ID)
+		}
+	})
+}
+
+func TestRequireAdmin(t *testing.T) {
+	// Setup gin test mode
+	gin.SetMode(gin.TestMode)
+
+	db := newMockDB()
+	sessionManager := NewSessionManager(db)
+	middleware := NewMiddleware(sessionManager)
+
+	t.Run("no session returns unauthorized", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/admin/users", nil)
+
+		middleware.RequireAdmin()(c)
+
+		if w.Code != 401 {
+			t.Errorf("Expected status 401 (unauthorized), got %d", w.Code)
+		}
+
+		if !c.IsAborted() {
+			t.Error("Expected request to be aborted")
+		}
+	})
+
+	t.Run("non-admin user returns forbidden", func(t *testing.T) {
+		user := &database.User{
+			ID:       2,
+			Email:    "test@example.com",
+			Name:     "Test User",
+			GoogleID: "google-123",
+			IsAdmin:  false,
+		}
+
+		// Add user to mock DB so it can be retrieved
+		db.users[user.ID] = user
+
+		// Create a valid session
+		session, err := sessionManager.CreateSession(user)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/admin/users", nil)
+		c.Request.AddCookie(&http.Cookie{
+			Name:  "session_id_local",
+			Value: session.ID,
+		})
+
+		middleware.RequireAdmin()(c)
+
+		if w.Code != 403 {
+			t.Errorf("Expected status 403 (forbidden), got %d", w.Code)
+		}
+
+		if !c.IsAborted() {
+			t.Error("Expected request to be aborted")
+		}
+	})
+
+	t.Run("admin user adds user to context", func(t *testing.T) {
+		user := &database.User{
+			ID:       1,
+			Email:    "admin@example.com",
+			Name:     "Admin User",
+			GoogleID: "google-456",
+			IsAdmin:  true,
+		}
+
+		// Add user to mock DB so it can be retrieved
+		db.users[user.ID] = user
+
+		// Create a valid session
+		session, err := sessionManager.CreateSession(user)
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/admin/users", nil)
+		c.Request.AddCookie(&http.Cookie{
+			Name:  "session_id_local",
+			Value: session.ID,
+		})
+
+		middleware.RequireAdmin()(c)
+
+		if c.IsAborted() {
+			t.Error("Expected request not to be aborted")
+		}
+
+		retrievedUser, exists := GetUserFromContext(c)
+		if !exists {
+			t.Error("User not found in context")
+		}
+		if retrievedUser.ID != user.ID {
+			t.Errorf("Wrong user in context: got %d, want %d", retrievedUser.ID, user.ID)
+		}
+		if !retrievedUser.IsAdmin {
+			t.Error("User should be admin")
 		}
 	})
 }
