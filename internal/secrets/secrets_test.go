@@ -11,10 +11,14 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("both credentials from environment", func(t *testing.T) {
 		// Setup
-		os.Setenv("GOOGLE_CLIENT_ID", "test-client-id-123")
-		os.Setenv("GOOGLE_CLIENT_SECRET", "test-client-secret-456")
-		defer os.Unsetenv("GOOGLE_CLIENT_ID")
-		defer os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		if err := os.Setenv("GOOGLE_CLIENT_ID", "test-client-id-123"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
+		}
+		if err := os.Setenv("GOOGLE_CLIENT_SECRET", "test-client-secret-456"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_SECRET: %v", err)
+		}
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_SECRET") }()
 
 		// Execute
 		clientID, clientSecret, err := GetOAuthCredentials(ctx)
@@ -33,11 +37,15 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("missing GOOGLE_CLOUD_PROJECT for secret reference", func(t *testing.T) {
 		// Setup - set credentials to trigger Secret Manager lookup
-		os.Setenv("GOOGLE_CLIENT_ID", "_secret:google-client-id")
-		os.Setenv("GOOGLE_CLIENT_SECRET", "test-secret")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("GOOGLE_CLIENT_ID")
-		defer os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		if err := os.Setenv("GOOGLE_CLIENT_ID", "_secret:google-client-id"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
+		}
+		if err := os.Setenv("GOOGLE_CLIENT_SECRET", "test-secret"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_SECRET: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_SECRET") }()
 
 		// Execute
 		_, _, err := GetOAuthCredentials(ctx)
@@ -53,10 +61,12 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("empty client ID triggers secret lookup", func(t *testing.T) {
 		// Setup
-		os.Unsetenv("GOOGLE_CLIENT_ID")
-		os.Setenv("GOOGLE_CLIENT_SECRET", "test-secret")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		_ = os.Unsetenv("GOOGLE_CLIENT_ID")
+		if err := os.Setenv("GOOGLE_CLIENT_SECRET", "test-secret"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_SECRET: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_SECRET") }()
 
 		// Execute
 		_, _, err := GetOAuthCredentials(ctx)
@@ -69,11 +79,15 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("secret reference prefix triggers secret lookup", func(t *testing.T) {
 		// Setup
-		os.Setenv("GOOGLE_CLIENT_ID", "_secret:my-client-id")
-		os.Setenv("GOOGLE_CLIENT_SECRET", "test-secret")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("GOOGLE_CLIENT_ID")
-		defer os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		if err := os.Setenv("GOOGLE_CLIENT_ID", "_secret:my-client-id"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
+		}
+		if err := os.Setenv("GOOGLE_CLIENT_SECRET", "test-secret"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_SECRET: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_SECRET") }()
 
 		// Execute
 		_, _, err := GetOAuthCredentials(ctx)
@@ -86,11 +100,15 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("client secret with secret reference", func(t *testing.T) {
 		// Setup
-		os.Setenv("GOOGLE_CLIENT_ID", "test-client-id")
-		os.Setenv("GOOGLE_CLIENT_SECRET", "_secret:my-secret")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("GOOGLE_CLIENT_ID")
-		defer os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		if err := os.Setenv("GOOGLE_CLIENT_ID", "test-client-id"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
+		}
+		if err := os.Setenv("GOOGLE_CLIENT_SECRET", "_secret:my-secret"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_SECRET: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_SECRET") }()
 
 		// Execute
 		_, _, err := GetOAuthCredentials(ctx)
@@ -107,14 +125,22 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("all credentials from environment", func(t *testing.T) {
 		// Setup
-		os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456")
-		os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012")
-		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678")
-		os.Setenv("STRIPE_PRICE_ID", "price_test_901234")
-		defer os.Unsetenv("STRIPE_SECRET_KEY")
-		defer os.Unsetenv("STRIPE_PUBLISHABLE_KEY")
-		defer os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		defer os.Unsetenv("STRIPE_PRICE_ID")
+		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
+			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PUBLISHABLE_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678"); err != nil {
+			t.Fatalf("Failed to set STRIPE_WEBHOOK_SECRET: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PRICE_ID", "price_test_901234"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PRICE_ID: %v", err)
+		}
+		defer func() { _ = os.Unsetenv("STRIPE_SECRET_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PUBLISHABLE_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_WEBHOOK_SECRET") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PRICE_ID") }()
 
 		// Execute
 		secretKey, publishableKey, webhookSecret, priceID, err := GetStripeCredentials(ctx)
@@ -139,14 +165,20 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("missing secret key triggers secret lookup", func(t *testing.T) {
 		// Setup
-		os.Unsetenv("STRIPE_SECRET_KEY")
-		os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012")
-		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678")
-		os.Setenv("STRIPE_PRICE_ID", "price_test_901234")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("STRIPE_PUBLISHABLE_KEY")
-		defer os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		defer os.Unsetenv("STRIPE_PRICE_ID")
+		_ = os.Unsetenv("STRIPE_SECRET_KEY")
+		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PUBLISHABLE_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678"); err != nil {
+			t.Fatalf("Failed to set STRIPE_WEBHOOK_SECRET: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PRICE_ID", "price_test_901234"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PRICE_ID: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("STRIPE_PUBLISHABLE_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_WEBHOOK_SECRET") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PRICE_ID") }()
 
 		// Execute
 		_, _, _, _, err := GetStripeCredentials(ctx)
@@ -159,15 +191,23 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("placeholder value triggers secret lookup", func(t *testing.T) {
 		// Setup - "stripe-secret-key" is treated as a placeholder
-		os.Setenv("STRIPE_SECRET_KEY", "stripe-secret-key")
-		os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012")
-		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678")
-		os.Setenv("STRIPE_PRICE_ID", "price_test_901234")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("STRIPE_SECRET_KEY")
-		defer os.Unsetenv("STRIPE_PUBLISHABLE_KEY")
-		defer os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		defer os.Unsetenv("STRIPE_PRICE_ID")
+		if err := os.Setenv("STRIPE_SECRET_KEY", "stripe-secret-key"); err != nil {
+			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PUBLISHABLE_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678"); err != nil {
+			t.Fatalf("Failed to set STRIPE_WEBHOOK_SECRET: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PRICE_ID", "price_test_901234"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PRICE_ID: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("STRIPE_SECRET_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PUBLISHABLE_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_WEBHOOK_SECRET") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PRICE_ID") }()
 
 		// Execute
 		_, _, _, _, err := GetStripeCredentials(ctx)
@@ -180,15 +220,23 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("publishable key placeholder triggers secret lookup", func(t *testing.T) {
 		// Setup
-		os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456")
-		os.Setenv("STRIPE_PUBLISHABLE_KEY", "stripe-publishable-key")
-		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678")
-		os.Setenv("STRIPE_PRICE_ID", "price_test_901234")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("STRIPE_SECRET_KEY")
-		defer os.Unsetenv("STRIPE_PUBLISHABLE_KEY")
-		defer os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		defer os.Unsetenv("STRIPE_PRICE_ID")
+		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
+			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "stripe-publishable-key"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PUBLISHABLE_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678"); err != nil {
+			t.Fatalf("Failed to set STRIPE_WEBHOOK_SECRET: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PRICE_ID", "price_test_901234"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PRICE_ID: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("STRIPE_SECRET_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PUBLISHABLE_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_WEBHOOK_SECRET") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PRICE_ID") }()
 
 		// Execute
 		_, _, _, _, err := GetStripeCredentials(ctx)
@@ -201,15 +249,23 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("webhook secret placeholder triggers secret lookup", func(t *testing.T) {
 		// Setup
-		os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456")
-		os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012")
-		os.Setenv("STRIPE_WEBHOOK_SECRET", "stripe-webhook-secret")
-		os.Setenv("STRIPE_PRICE_ID", "price_test_901234")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("STRIPE_SECRET_KEY")
-		defer os.Unsetenv("STRIPE_PUBLISHABLE_KEY")
-		defer os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		defer os.Unsetenv("STRIPE_PRICE_ID")
+		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
+			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PUBLISHABLE_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "stripe-webhook-secret"); err != nil {
+			t.Fatalf("Failed to set STRIPE_WEBHOOK_SECRET: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PRICE_ID", "price_test_901234"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PRICE_ID: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("STRIPE_SECRET_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PUBLISHABLE_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_WEBHOOK_SECRET") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PRICE_ID") }()
 
 		// Execute
 		_, _, _, _, err := GetStripeCredentials(ctx)
@@ -222,15 +278,23 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 	t.Run("price ID placeholder triggers secret lookup", func(t *testing.T) {
 		// Setup
-		os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456")
-		os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012")
-		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678")
-		os.Setenv("STRIPE_PRICE_ID", "stripe-price-id")
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
-		defer os.Unsetenv("STRIPE_SECRET_KEY")
-		defer os.Unsetenv("STRIPE_PUBLISHABLE_KEY")
-		defer os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		defer os.Unsetenv("STRIPE_PRICE_ID")
+		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
+			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PUBLISHABLE_KEY: %v", err)
+		}
+		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678"); err != nil {
+			t.Fatalf("Failed to set STRIPE_WEBHOOK_SECRET: %v", err)
+		}
+		if err := os.Setenv("STRIPE_PRICE_ID", "stripe-price-id"); err != nil {
+			t.Fatalf("Failed to set STRIPE_PRICE_ID: %v", err)
+		}
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		defer func() { _ = os.Unsetenv("STRIPE_SECRET_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PUBLISHABLE_KEY") }()
+		defer func() { _ = os.Unsetenv("STRIPE_WEBHOOK_SECRET") }()
+		defer func() { _ = os.Unsetenv("STRIPE_PRICE_ID") }()
 
 		// Execute
 		_, _, _, _, err := GetStripeCredentials(ctx)
@@ -247,7 +311,7 @@ func TestGetSecret_MissingProjectID(t *testing.T) {
 
 	t.Run("missing GOOGLE_CLOUD_PROJECT", func(t *testing.T) {
 		// Setup
-		os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
 
 		// Execute
 		_, err := GetSecret(ctx, "test-secret")
@@ -270,14 +334,22 @@ func TestGetOAuthCredentials_CustomSecretNames(t *testing.T) {
 
 	t.Run("custom secret names via environment", func(t *testing.T) {
 		// Setup - Use environment variables to avoid Secret Manager
-		os.Setenv("GOOGLE_CLIENT_ID", "test-client-id")
-		os.Setenv("GOOGLE_CLIENT_SECRET", "test-client-secret")
-		os.Setenv("SECRET_CLIENT_ID_NAME", "custom-client-id")
-		os.Setenv("SECRET_CLIENT_SECRET_NAME", "custom-client-secret")
-		defer os.Unsetenv("GOOGLE_CLIENT_ID")
-		defer os.Unsetenv("GOOGLE_CLIENT_SECRET")
-		defer os.Unsetenv("SECRET_CLIENT_ID_NAME")
-		defer os.Unsetenv("SECRET_CLIENT_SECRET_NAME")
+		if err := os.Setenv("GOOGLE_CLIENT_ID", "test-client-id"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
+		}
+		if err := os.Setenv("GOOGLE_CLIENT_SECRET", "test-client-secret"); err != nil {
+			t.Fatalf("Failed to set GOOGLE_CLIENT_SECRET: %v", err)
+		}
+		if err := os.Setenv("SECRET_CLIENT_ID_NAME", "custom-client-id"); err != nil {
+			t.Fatalf("Failed to set SECRET_CLIENT_ID_NAME: %v", err)
+		}
+		if err := os.Setenv("SECRET_CLIENT_SECRET_NAME", "custom-client-secret"); err != nil {
+			t.Fatalf("Failed to set SECRET_CLIENT_SECRET_NAME: %v", err)
+		}
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_SECRET") }()
+		defer func() { _ = os.Unsetenv("SECRET_CLIENT_ID_NAME") }()
+		defer func() { _ = os.Unsetenv("SECRET_CLIENT_SECRET_NAME") }()
 
 		// Execute - should use env vars and not need secret names
 		clientID, clientSecret, err := GetOAuthCredentials(ctx)
