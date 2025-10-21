@@ -566,8 +566,31 @@ class GoReadApp {
         // Remove existing feed items and loading indicator (not the "All" item)
         const existingFeeds = feedList.querySelectorAll('.feed-item:not(.special)');
         const loadingIndicator = feedList.querySelector('.loading');
+        const existingEmptyState = feedList.querySelector('.empty-state');
         existingFeeds.forEach(item => item.remove());
         if (loadingIndicator) loadingIndicator.remove();
+        if (existingEmptyState) existingEmptyState.remove();
+
+        // Show empty state if no feeds
+        if (this.feeds.length === 0) {
+            const actionButton = '<button class="btn btn-primary" id="empty-add-feed-btn">Add Your First Feed</button>';
+            const emptyState = this.createEmptyState(
+                '/static/images/empty-feeds.svg',
+                'Welcome to GoRead2!',
+                'Get started by adding your first RSS feed. You can add feeds from your favorite blogs, news sites, and more.',
+                actionButton
+            );
+            feedList.appendChild(emptyState);
+
+            // Add click handler for the button
+            setTimeout(() => {
+                const btn = document.getElementById('empty-add-feed-btn');
+                if (btn) {
+                    btn.addEventListener('click', () => this.showAddFeedModal());
+                }
+            }, 0);
+            return;
+        }
 
         // Sort feeds alphabetically by title
         const sortedFeeds = [...this.feeds].sort((a, b) => a.title.localeCompare(b.title));
@@ -848,7 +871,26 @@ class GoReadApp {
         const articleList = document.getElementById('article-list');
 
         if (this.articles.length === 0) {
-            articleList.innerHTML = '<div class="placeholder">No articles found</div>';
+            // Determine which empty state to show
+            if (this.articleFilter === 'unread') {
+                // All caught up - no unread articles
+                const emptyState = this.createEmptyState(
+                    '/static/images/all-caught-up.svg',
+                    'All Caught Up!',
+                    "You've read all your articles. Great job! New articles will appear here as they're published."
+                );
+                articleList.innerHTML = '';
+                articleList.appendChild(emptyState);
+            } else {
+                // Feed has no articles at all
+                const emptyState = this.createEmptyState(
+                    '/static/images/empty-articles.svg',
+                    'No Articles Yet',
+                    'This feed doesn\'t have any articles yet. Check back later for new content.'
+                );
+                articleList.innerHTML = '';
+                articleList.appendChild(emptyState);
+            }
             return;
         }
 
@@ -1828,6 +1870,24 @@ class GoReadApp {
         return div.innerHTML;
     }
 
+    // Empty state helper
+    createEmptyState(iconSrc, title, message, actionButton = null) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
+
+        let html = `
+            <img src="${iconSrc}" alt="${title}" class="empty-state-icon">
+            <div class="empty-state-title">${title}</div>
+            <div class="empty-state-message">${message}</div>
+        `;
+
+        if (actionButton) {
+            html += `<div class="empty-state-action">${actionButton}</div>`;
+        }
+
+        emptyState.innerHTML = html;
+        return emptyState;
+    }
 
     // Subscription management methods
     showSubscriptionLimitModal(error) {

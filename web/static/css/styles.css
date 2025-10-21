@@ -488,6 +488,70 @@ body.app-body {
     font-size: 16px;
 }
 
+/* Empty State Styles */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 40px;
+    text-align: center;
+    color: #5f6368;
+    min-height: 400px;
+}
+
+.empty-state-icon {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 24px;
+}
+
+.empty-state-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #3c4043;
+    margin-bottom: 12px;
+    font-family: var(--font-ui);
+}
+
+.empty-state-message {
+    font-size: 16px;
+    line-height: 1.5;
+    color: #5f6368;
+    margin-bottom: 24px;
+    max-width: 400px;
+}
+
+.empty-state-action {
+    margin-top: 8px;
+}
+
+.empty-state .btn {
+    padding: 12px 24px;
+    font-size: 16px;
+}
+
+/* Responsive adjustments for empty states */
+@media screen and (max-width: 767px) {
+    .empty-state {
+        padding: 60px 20px;
+        min-height: 300px;
+    }
+
+    .empty-state-icon {
+        width: 100px;
+        height: 100px;
+    }
+
+    .empty-state-title {
+        font-size: 20px;
+    }
+
+    .empty-state-message {
+        font-size: 15px;
+    }
+}
+
 .modal {
     display: none;
     position: fixed;

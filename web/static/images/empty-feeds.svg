@@ -1,0 +1,7 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- RSS Feed Icon - Empty State -->
+  <circle cx="60" cy="60" r="55" fill="#f8f9fa" stroke="#e1e5e9" stroke-width="2"/>
+  <circle cx="35" cy="85" r="8" fill="#5f6368"/>
+  <path d="M 35 65 Q 35 55, 45 55 Q 55 55, 55 65 Q 55 75, 65 75 Q 75 75, 75 85" stroke="#5f6368" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 35 45 Q 35 30, 50 30 Q 65 30, 65 45 Q 65 60, 80 60 Q 95 60, 95 75" stroke="#5f6368" stroke-width="6" fill="none" stroke-linecap="round"/>
+</svg>

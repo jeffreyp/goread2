@@ -1,0 +1,5 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Checkmark Circle - All Caught Up -->
+  <circle cx="60" cy="60" r="55" fill="#e6f4ea" stroke="#34a853" stroke-width="2"/>
+  <path d="M 35 60 L 50 75 L 85 40" stroke="#34a853" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
