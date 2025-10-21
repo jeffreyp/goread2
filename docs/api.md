@@ -389,6 +389,37 @@ curl -X POST "http://localhost:8080/api/articles/1/star" \
   -H "Cookie: session=your-session-cookie"
 ```
 
+### `POST /api/articles/mark-all-read`
+Mark all articles as read for the current user.
+
+**Headers**:
+- `X-CSRF-Token` (required) - CSRF token from `/auth/me`
+
+**Response**:
+```json
+{
+  "message": "All articles marked as read",
+  "articles_count": 42
+}
+```
+
+**Description**:
+This endpoint marks all articles across all subscribed feeds as read for the authenticated user. The response includes the total count of articles that were marked as read.
+
+**Error Responses**:
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Invalid or missing CSRF token
+- `500 Internal Server Error` - Database error
+
+**Example**:
+```bash
+curl -X POST "http://localhost:8080/api/articles/mark-all-read" \
+  -H "Cookie: session=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token"
+```
+
+**Note**: This is an API-only endpoint with no corresponding UI button. It's useful for automation scripts or third-party integrations.
+
 ## Subscription Endpoints
 
 These endpoints are only available when `SUBSCRIPTION_ENABLED=true`.
