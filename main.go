@@ -211,6 +211,7 @@ func main() {
 		api.PUT("/account/max-articles", feedHandler.UpdateMaxArticlesOnFeedAdd)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
+		api.POST("/articles/mark-all-read", feedHandler.MarkAllRead)
 		api.POST("/feeds/refresh", feedHandler.RefreshFeeds) // Keep for authenticated manual refresh
 
 		// Payment/subscription routes - only if subscriptions are enabled

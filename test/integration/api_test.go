@@ -315,6 +315,99 @@ func TestArticleAPI(t *testing.T) {
 			t.Logf("Expected status 404 or 500, got %d", rr.Code)
 		}
 	})
+
+	t.Run("MarkAllRead_Success", func(t *testing.T) {
+		// Create multiple test articles for this user
+		article2 := helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Test Article 2", "https://test.com/article2")
+		article3 := helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Test Article 3", "https://test.com/article3")
+
+		// Mark user articles as unread first
+		err := testServer.DB.SetUserArticleStatus(user.ID, article.ID, false, false)
+		if err != nil {
+			t.Fatalf("Failed to set article status: %v", err)
+		}
+		err = testServer.DB.SetUserArticleStatus(user.ID, article2.ID, false, false)
+		if err != nil {
+			t.Fatalf("Failed to set article2 status: %v", err)
+		}
+		err = testServer.DB.SetUserArticleStatus(user.ID, article3.ID, false, false)
+		if err != nil {
+			t.Fatalf("Failed to set article3 status: %v", err)
+		}
+
+		// Call mark all as read endpoint
+		req := testServer.CreateAuthenticatedRequest(t, "POST", "/api/articles/mark-all-read", nil, user)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+		}
+
+		// Verify response
+		var response map[string]interface{}
+		err = json.Unmarshal(rr.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Check that articles_count is returned
+		articlesCount, ok := response["articles_count"].(float64)
+		if !ok {
+			t.Error("Expected articles_count in response")
+		}
+		if articlesCount != 3 {
+			t.Errorf("Expected 3 articles marked as read, got %v", articlesCount)
+		}
+
+		// Verify all articles are marked as read
+		articles, err := testServer.DB.GetUserArticles(user.ID)
+		if err != nil {
+			t.Fatalf("Failed to get user articles: %v", err)
+		}
+
+		for _, a := range articles {
+			if !a.IsRead {
+				t.Errorf("Expected all articles to be marked as read, but article %d is not", a.ID)
+			}
+		}
+	})
+
+	t.Run("MarkAllRead_EmptyArticles", func(t *testing.T) {
+		// Create a new user with no articles
+		emptyUser := helpers.CreateTestUser(t, testServer.DB, "google999", "empty@example.com", "Empty User")
+
+		req := testServer.CreateAuthenticatedRequest(t, "POST", "/api/articles/mark-all-read", nil, emptyUser)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+		}
+
+		// Verify response
+		var response map[string]interface{}
+		err := json.Unmarshal(rr.Body.Bytes(), &response)
+		if err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Check that articles_count is 0
+		articlesCount, ok := response["articles_count"].(float64)
+		if !ok {
+			t.Error("Expected articles_count in response")
+		}
+		if articlesCount != 0 {
+			t.Errorf("Expected 0 articles marked as read, got %v", articlesCount)
+		}
+	})
+
+	t.Run("MarkAllRead_Unauthenticated", func(t *testing.T) {
+		req := helpers.CreateUnauthenticatedRequest(t, "POST", "/api/articles/mark-all-read", nil)
+		rr := testServer.ExecuteRequest(req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", rr.Code)
+		}
+	})
 }
 
 func TestUserIsolation(t *testing.T) {

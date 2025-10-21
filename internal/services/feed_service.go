@@ -374,6 +374,28 @@ func (fs *FeedService) ToggleUserArticleStar(userID, articleID int) error {
 	return fs.db.ToggleUserArticleStar(userID, articleID)
 }
 
+func (fs *FeedService) MarkAllArticlesRead(userID int) (int, error) {
+	// Get all user's articles
+	articles, err := fs.db.GetUserArticles(userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get user articles: %w", err)
+	}
+
+	if len(articles) == 0 {
+		return 0, nil
+	}
+
+	// Use batch operation to mark all as read
+	if err := fs.db.BatchSetUserArticleStatus(userID, articles, true, false); err != nil {
+		return 0, fmt.Errorf("failed to mark articles as read: %w", err)
+	}
+
+	// Invalidate cache since unread counts changed
+	fs.unreadCache.Invalidate(userID)
+
+	return len(articles), nil
+}
+
 func (fs *FeedService) GetUserUnreadCounts(userID int, userFeeds []database.Feed) (map[int]int, error) {
 	// Try cache first for fast response
 	if cached, hit := fs.unreadCache.Get(userID); hit {

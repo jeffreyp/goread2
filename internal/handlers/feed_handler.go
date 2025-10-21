@@ -228,6 +228,25 @@ func (fh *FeedHandler) ToggleStar(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Article starred status toggled"})
 }
 
+func (fh *FeedHandler) MarkAllRead(c *gin.Context) {
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	count, err := fh.feedService.MarkAllArticlesRead(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "All articles marked as read",
+		"articles_count": count,
+	})
+}
+
 func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 	// If this is the cron endpoint, verify it's authorized
 	if c.Request.URL.Path == "/cron/refresh-feeds" {
