@@ -50,8 +50,7 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 		feeds = []database.Feed{}
 	}
 
-	// Don't cache feeds list since it needs to update immediately after deletions/additions
-	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	// Cache headers are set by middleware for optimal performance
 	c.JSON(http.StatusOK, feeds)
 }
 
@@ -443,9 +442,7 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 		return
 	}
 
-	// Increased cache time since unread counts are now efficiently calculated
-	// and don't need to be fetched as frequently
-	c.Header("Cache-Control", "private, max-age=30")
+	// Cache headers are set by middleware for optimal performance
 	c.JSON(http.StatusOK, unreadCounts)
 }
 
