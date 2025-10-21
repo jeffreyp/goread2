@@ -96,6 +96,8 @@ validate-config-strict:
 deploy-prod: validate-config-strict test build-frontend
 	@echo "🚀 Deploying to production..."
 	gcloud app deploy app.yaml --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet
+	@echo "🧹 Cleaning up old versions..."
+	@gcloud app versions list --sort-by=LAST_DEPLOYED --format="value(id)" --filter="TRAFFIC_SPLIT=0" | head -1 | xargs -r gcloud app versions delete --quiet
 
 # Clean build artifacts
 clean:
