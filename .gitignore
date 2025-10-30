@@ -64,3 +64,8 @@ venv/
 admin
 main
 node_modules/
+
+# Beads runtime files
+.beads/*.pid
+.beads/*.db-shm
+.beads/*.db-wal
