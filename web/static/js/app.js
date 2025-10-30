@@ -2302,8 +2302,27 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('DOM loaded, initializing GoReadApp');
         window.app = new GoReadApp();
         console.log('GoReadApp initialized:', window.app);
+
+        // Hide loading screen with smooth fade-out
+        const loadingScreen = document.getElementById('app-loading-screen');
+        if (loadingScreen) {
+            // Add fade-out class to trigger CSS transition
+            loadingScreen.classList.add('fade-out');
+
+            // Remove from DOM after transition completes
+            setTimeout(() => {
+                loadingScreen.remove();
+            }, 300); // Match the CSS transition duration
+        }
     } catch (error) {
         console.error('Error initializing GoReadApp:', error);
+
+        // Hide loading screen even if there's an error
+        const loadingScreen = document.getElementById('app-loading-screen');
+        if (loadingScreen) {
+            loadingScreen.classList.add('fade-out');
+            setTimeout(() => loadingScreen.remove(), 300);
+        }
     }
 });
 
