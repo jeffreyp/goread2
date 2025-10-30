@@ -711,6 +711,9 @@ class GoReadApp {
             const response = await fetch(url);
             const newArticles = await response.json();
 
+            // Track the starting index of newly loaded articles (for auto-selection after load more)
+            const newArticlesStartIndex = append ? this.articles.length : 0;
+
             if (append) {
                 // Filter out any articles we've already loaded (prevents duplicates)
                 const uniqueNewArticles = newArticles.filter(article => {
@@ -736,30 +739,58 @@ class GoReadApp {
             this.hasMoreArticles = newArticles.length === limit;
 
             this.renderArticlesOptimized(append);
+
+            // Auto-select first unread article from newly loaded batch after "load more"
+            if (append && this.articles.length > newArticlesStartIndex) {
+                this.autoSelectFirstUnreadFromNewBatch(newArticlesStartIndex);
+            }
         } catch (error) {
             this.showError('Failed to load articles: ' + error.message);
         }
     }
 
+    autoSelectFirstUnreadFromNewBatch(startIndex) {
+        // Find the first unread article from the newly loaded batch
+        for (let i = startIndex; i < this.articles.length; i++) {
+            const article = this.articles[i];
+            // Check if article is unread and matches current filter
+            if (this.articleFilter === 'unread' && !article.is_read) {
+                this.selectArticle(i);
+                return;
+            } else if (this.articleFilter === 'all') {
+                // When showing all articles, prefer unread but select first article if none unread
+                if (!article.is_read) {
+                    this.selectArticle(i);
+                    return;
+                }
+            }
+        }
+
+        // If no unread found but we're in 'all' mode, select the first article from new batch
+        if (this.articleFilter === 'all' && startIndex < this.articles.length) {
+            this.selectArticle(startIndex);
+        }
+    }
+
     addLoadMoreButton() {
         const articleList = document.getElementById('article-list');
-        
+
         // Remove existing load more button
         const existingButton = articleList.querySelector('.load-more-button');
         if (existingButton) {
             existingButton.remove();
         }
-        
+
         if (this.hasMoreArticles) {
             const loadMoreDiv = document.createElement('div');
             loadMoreDiv.className = 'load-more-button';
             loadMoreDiv.style.cssText = 'padding: 20px; text-align: center; border-top: 1px solid #e1e5e9;';
-            
+
             const button = document.createElement('button');
             button.className = 'btn btn-secondary';
             button.textContent = 'Load More Articles';
             button.onclick = () => this.loadMoreArticles();
-            
+
             loadMoreDiv.appendChild(button);
             articleList.appendChild(loadMoreDiv);
         }
