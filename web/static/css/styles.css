@@ -1635,7 +1635,9 @@ body.app-body {
     }
 
     .mobile-nav-btn-icon {
-        font-size: 22px;
+        width: 22px;
+        height: 22px;
+        display: block;
     }
 
     .pane-header {
