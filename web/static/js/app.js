@@ -139,6 +139,9 @@ class GoReadApp {
         // Setup touch swipe gestures for article navigation on phones
         this.setupSwipeGestures();
 
+        // Setup pull-to-refresh for mobile
+        this.setupPullToRefresh();
+
         // Handle close buttons for all modals
         document.querySelectorAll('.close').forEach(closeBtn => {
             closeBtn.addEventListener('click', (e) => {
@@ -412,6 +415,29 @@ class GoReadApp {
                 }
             }
         }, { passive: true });
+    }
+
+    setupPullToRefresh() {
+        // Only enable on mobile devices (touch support)
+        if (!('ontouchstart' in window)) return;
+
+        const feedPane = document.querySelector('.feed-pane');
+        const articlePane = document.querySelector('.article-pane');
+
+        if (feedPane) {
+            new PullToRefresh(feedPane, async () => {
+                await this.refreshFeeds();
+            });
+        }
+
+        if (articlePane) {
+            new PullToRefresh(articlePane, async () => {
+                if (this.currentFeed) {
+                    await this.loadArticles(this.currentFeed);
+                    await this.updateUnreadCounts();
+                }
+            });
+        }
     }
 
     setupKeyboardShortcuts() {
@@ -2325,6 +2351,132 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+/**
+ * PullToRefresh - Handles pull-to-refresh gesture for mobile devices
+ */
+class PullToRefresh {
+    constructor(element, onRefresh) {
+        this.element = element;
+        this.onRefresh = onRefresh;
+        this.touchStartY = 0;
+        this.currentY = 0;
+        this.isDragging = false;
+        this.isRefreshing = false;
+
+        // Thresholds
+        this.threshold = 80; // Distance to pull before triggering refresh
+        this.maxPull = 150; // Maximum pull distance
+
+        // Create pull indicator
+        this.createIndicator();
+
+        // Bind events
+        this.bindEvents();
+    }
+
+    createIndicator() {
+        this.indicator = document.createElement('div');
+        this.indicator.className = 'pull-to-refresh-indicator';
+        this.indicator.innerHTML = `
+            <div class="pull-to-refresh-spinner"></div>
+            <div class="pull-to-refresh-text">Pull to refresh</div>
+        `;
+        this.element.insertBefore(this.indicator, this.element.firstChild);
+    }
+
+    bindEvents() {
+        this.element.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
+        this.element.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+        this.element.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
+    }
+
+    handleTouchStart(e) {
+        // Only activate if scrolled to the top
+        if (this.element.scrollTop === 0 && !this.isRefreshing) {
+            this.touchStartY = e.touches[0].clientY;
+            this.isDragging = true;
+        }
+    }
+
+    handleTouchMove(e) {
+        if (!this.isDragging || this.isRefreshing) return;
+
+        this.currentY = e.touches[0].clientY;
+        const pullDistance = this.currentY - this.touchStartY;
+
+        // Only handle downward pulls when at the top
+        if (pullDistance > 0 && this.element.scrollTop === 0) {
+            // Prevent default scrolling when pulling
+            e.preventDefault();
+
+            // Apply resistance curve - gets harder to pull as you go further
+            const resistance = 2.5;
+            const adjustedDistance = Math.min(pullDistance / resistance, this.maxPull);
+
+            // Update indicator position and appearance
+            this.updateIndicator(adjustedDistance);
+
+            // Update text based on pull distance
+            const textEl = this.indicator.querySelector('.pull-to-refresh-text');
+            if (adjustedDistance >= this.threshold) {
+                textEl.textContent = 'Release to refresh';
+                this.indicator.classList.add('ready');
+            } else {
+                textEl.textContent = 'Pull to refresh';
+                this.indicator.classList.remove('ready');
+            }
+        }
+    }
+
+    handleTouchEnd() {
+        if (!this.isDragging || this.isRefreshing) return;
+
+        this.isDragging = false;
+        const pullDistance = this.currentY - this.touchStartY;
+        const adjustedDistance = Math.min(pullDistance / 2.5, this.maxPull);
+
+        if (adjustedDistance >= this.threshold) {
+            // Trigger refresh
+            this.triggerRefresh();
+        } else {
+            // Reset indicator
+            this.resetIndicator();
+        }
+    }
+
+    updateIndicator(distance) {
+        this.indicator.style.transform = `translateY(${distance}px)`;
+        this.indicator.style.opacity = Math.min(distance / this.threshold, 1);
+    }
+
+    async triggerRefresh() {
+        if (this.isRefreshing) return;
+
+        this.isRefreshing = true;
+        this.indicator.classList.add('refreshing');
+        this.indicator.querySelector('.pull-to-refresh-text').textContent = 'Refreshing...';
+
+        try {
+            await this.onRefresh();
+        } catch (error) {
+            console.error('Pull-to-refresh failed:', error);
+        } finally {
+            // Wait a bit before hiding to show the refresh completed
+            setTimeout(() => {
+                this.isRefreshing = false;
+                this.resetIndicator();
+            }, 500);
+        }
+    }
+
+    resetIndicator() {
+        this.indicator.style.transform = 'translateY(0)';
+        this.indicator.style.opacity = '0';
+        this.indicator.classList.remove('ready', 'refreshing');
+        this.indicator.querySelector('.pull-to-refresh-text').textContent = 'Pull to refresh';
+    }
+}
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
