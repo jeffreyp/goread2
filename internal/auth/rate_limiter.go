@@ -9,9 +9,15 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// ipEntry stores a rate limiter and its last access time
+type ipEntry struct {
+	limiter    *rate.Limiter
+	lastAccess time.Time
+}
+
 // RateLimiter stores rate limiters for each IP address
 type RateLimiter struct {
-	ips map[string]*rate.Limiter
+	ips map[string]*ipEntry
 	mu  *sync.RWMutex
 	r   rate.Limit
 	b   int
@@ -22,7 +28,7 @@ type RateLimiter struct {
 // b is the burst size (max requests at once)
 func NewRateLimiter(r rate.Limit, b int) *RateLimiter {
 	limiter := &RateLimiter{
-		ips: make(map[string]*rate.Limiter),
+		ips: make(map[string]*ipEntry),
 		mu:  &sync.RWMutex{},
 		r:   r,
 		b:   b,
@@ -40,34 +46,51 @@ func (rl *RateLimiter) AddIP(ip string) *rate.Limiter {
 	defer rl.mu.Unlock()
 
 	limiter := rate.NewLimiter(rl.r, rl.b)
-	rl.ips[ip] = limiter
+	rl.ips[ip] = &ipEntry{
+		limiter:    limiter,
+		lastAccess: time.Now(),
+	}
 
 	return limiter
 }
 
 // GetLimiter returns the rate limiter for an IP address
 func (rl *RateLimiter) GetLimiter(ip string) *rate.Limiter {
-	rl.mu.RLock()
-	limiter, exists := rl.ips[ip]
-	rl.mu.RUnlock()
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
 
+	entry, exists := rl.ips[ip]
 	if !exists {
-		return rl.AddIP(ip)
+		// Create new entry
+		limiter := rate.NewLimiter(rl.r, rl.b)
+		rl.ips[ip] = &ipEntry{
+			limiter:    limiter,
+			lastAccess: time.Now(),
+		}
+		return limiter
 	}
 
-	return limiter
+	// Update last access time for existing entry
+	entry.lastAccess = time.Now()
+	return entry.limiter
 }
 
-// cleanupIPs removes old IP entries every hour
+// cleanupIPs removes IP entries that haven't been accessed in over 1 hour
 func (rl *RateLimiter) cleanupIPs() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		rl.mu.Lock()
-		// In a production system, you might want to track last access time
-		// For simplicity, we'll clear all entries periodically
-		rl.ips = make(map[string]*rate.Limiter)
+
+		// Remove entries inactive for more than 1 hour
+		cutoff := time.Now().Add(-1 * time.Hour)
+		for ip, entry := range rl.ips {
+			if entry.lastAccess.Before(cutoff) {
+				delete(rl.ips, ip)
+			}
+		}
+
 		rl.mu.Unlock()
 	}
 }

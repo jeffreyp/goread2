@@ -172,7 +172,7 @@ func TestRateLimiterConcurrentAccess(t *testing.T) {
 
 func TestRateLimiterCleanup(t *testing.T) {
 	// Note: The cleanup function runs on a 1-hour ticker, which is too slow for testing
-	// This test verifies the cleanup mechanism works by directly manipulating the map
+	// This test verifies the cleanup mechanism works by simulating the cleanup logic
 	rl := NewRateLimiter(10, 20)
 
 	// Add multiple IP entries
@@ -190,18 +190,46 @@ func TestRateLimiterCleanup(t *testing.T) {
 		t.Errorf("Expected 3 IPs, got %d", initialCount)
 	}
 
-	// Simulate cleanup by clearing the map (what cleanupIPs does)
+	// Simulate some IPs being old by manually setting their lastAccess time
 	rl.mu.Lock()
-	rl.ips = make(map[string]*rate.Limiter)
+	oldTime := time.Now().Add(-2 * time.Hour) // 2 hours ago (should be cleaned)
+	rl.ips["192.168.1.1"].lastAccess = oldTime
+	rl.ips["192.168.1.2"].lastAccess = oldTime
+	// 192.168.1.3 keeps current time (should NOT be cleaned)
 	rl.mu.Unlock()
 
-	// Verify cleanup worked
+	// Simulate cleanup (remove entries older than 1 hour)
+	rl.mu.Lock()
+	cutoff := time.Now().Add(-1 * time.Hour)
+	for ip, entry := range rl.ips {
+		if entry.lastAccess.Before(cutoff) {
+			delete(rl.ips, ip)
+		}
+	}
+	rl.mu.Unlock()
+
+	// Verify selective cleanup worked
 	rl.mu.RLock()
 	afterCleanup := len(rl.ips)
+	_, has1 := rl.ips["192.168.1.1"]
+	_, has2 := rl.ips["192.168.1.2"]
+	_, has3 := rl.ips["192.168.1.3"]
 	rl.mu.RUnlock()
 
-	if afterCleanup != 0 {
-		t.Errorf("Expected 0 IPs after cleanup, got %d", afterCleanup)
+	if afterCleanup != 1 {
+		t.Errorf("Expected 1 IP after cleanup, got %d", afterCleanup)
+	}
+
+	if has1 {
+		t.Error("Old IP 192.168.1.1 was not cleaned up")
+	}
+
+	if has2 {
+		t.Error("Old IP 192.168.1.2 was not cleaned up")
+	}
+
+	if !has3 {
+		t.Error("Recent IP 192.168.1.3 was incorrectly cleaned up")
 	}
 
 	// Verify new limiters can be created after cleanup
