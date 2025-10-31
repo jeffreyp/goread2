@@ -56,7 +56,7 @@ func getOrGenerateSecret() []byte {
 	// In production, warn that a persistent secret should be configured
 	if os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production" {
 		log.Printf("WARNING: CSRF_SECRET not set in production. Tokens will be invalidated on restart.")
-		log.Printf("Set CSRF_SECRET environment variable to: %s", base64.StdEncoding.EncodeToString(secret))
+		log.Printf("Generate a CSRF_SECRET with: openssl rand -base64 32")
 	}
 
 	return secret

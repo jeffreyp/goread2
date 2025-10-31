@@ -109,8 +109,13 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 
 		// Handle successful checkout
 		if session.Mode == stripe.CheckoutSessionModeSubscription {
+			// Redact session ID for security
+			redactedSessionID := "***"
+			if len(session.ID) > 8 {
+				redactedSessionID = session.ID[:8] + "***"
+			}
 			// Subscription will be handled by subscription.created event
-			fmt.Printf("Checkout session completed for subscription: %s\n", session.ID)
+			fmt.Printf("Checkout session completed for subscription: %s\n", redactedSessionID)
 		}
 
 	case "customer.subscription.created", "customer.subscription.updated":
@@ -122,9 +127,19 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 			return
 		}
 
-		fmt.Printf("INFO: Webhook - Processing subscription %s (status: %s, customer: %s)\n", 
-			subscription.ID, subscription.Status, subscription.Customer.ID)
-		
+		// Redact sensitive IDs for security
+		redactedSubID := "***"
+		if len(subscription.ID) > 8 {
+			redactedSubID = subscription.ID[:8] + "***"
+		}
+		redactedCustomerID := "***"
+		if subscription.Customer != nil && len(subscription.Customer.ID) > 8 {
+			redactedCustomerID = subscription.Customer.ID[:8] + "***"
+		}
+
+		fmt.Printf("INFO: Webhook - Processing subscription %s (status: %s, customer: %s)\n",
+			redactedSubID, subscription.Status, redactedCustomerID)
+
 		// Log metadata for debugging
 		if userID, exists := subscription.Metadata["user_id"]; exists {
 			fmt.Printf("INFO: Webhook - Found user_id in metadata: %s\n", userID)
@@ -135,12 +150,12 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 		// Update subscription status in database
 		err = ph.paymentService.HandleSubscriptionUpdate(subscription.ID)
 		if err != nil {
-			fmt.Printf("ERROR: Webhook - Failed to update subscription %s: %v\n", subscription.ID, err)
+			fmt.Printf("ERROR: Webhook - Failed to update subscription %s: %v\n", redactedSubID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating subscription"})
 			return
 		}
 
-		fmt.Printf("SUCCESS: Webhook - Updated subscription %s in database\n", subscription.ID)
+		fmt.Printf("SUCCESS: Webhook - Updated subscription %s in database\n", redactedSubID)
 
 	case "customer.subscription.deleted":
 		var subscription stripe.Subscription
@@ -150,15 +165,21 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 			return
 		}
 
+		// Redact subscription ID for security
+		redactedSubID := "***"
+		if len(subscription.ID) > 8 {
+			redactedSubID = subscription.ID[:8] + "***"
+		}
+
 		// Handle subscription cancellation
 		err = ph.paymentService.HandleSubscriptionUpdate(subscription.ID)
 		if err != nil {
-			fmt.Printf("Error handling subscription deletion %s: %v\n", subscription.ID, err)
+			fmt.Printf("Error handling subscription deletion %s: %v\n", redactedSubID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error handling subscription deletion"})
 			return
 		}
 
-		fmt.Printf("Successfully handled subscription deletion: %s\n", subscription.ID)
+		fmt.Printf("Successfully handled subscription deletion: %s\n", redactedSubID)
 
 	default:
 		fmt.Printf("Unhandled event type: %s\n", event.Type)

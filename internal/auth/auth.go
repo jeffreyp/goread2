@@ -15,6 +15,26 @@ import (
 	"goread2/internal/secrets"
 )
 
+// redactEmail redacts an email address for logging, keeping only first char and domain
+func redactEmail(email string) string {
+	if len(email) == 0 {
+		return "***"
+	}
+	// Find @ symbol
+	atIndex := -1
+	for i, c := range email {
+		if c == '@' {
+			atIndex = i
+			break
+		}
+	}
+	if atIndex <= 0 {
+		return "***"
+	}
+	// Show first char + *** + @domain
+	return string(email[0]) + "***" + email[atIndex:]
+}
+
 type AuthService struct {
 	db     database.Database
 	config *oauth2.Config
@@ -129,22 +149,22 @@ func (a *AuthService) InitializeAdminUsers() error {
 	for _, email := range cfg.InitialAdminEmails {
 		user, err := a.db.GetUserByEmail(email)
 		if err != nil {
-			log.Printf("Warning: Initial admin user not found: %s (user must sign in first)", email)
+			log.Printf("Warning: Initial admin user not found: %s (user must sign in first)", redactEmail(email))
 			continue
 		}
 
 		if user.IsAdmin {
-			log.Printf("User %s already has admin privileges", email)
+			log.Printf("User %s already has admin privileges", redactEmail(email))
 			continue
 		}
 
 		err = a.db.SetUserAdmin(user.ID, true)
 		if err != nil {
-			log.Printf("Error granting admin privileges to %s: %v", email, err)
+			log.Printf("Error granting admin privileges to %s: %v", redactEmail(email), err)
 			continue
 		}
 
-		log.Printf("✅ Granted admin privileges to user: %s (%s)", user.Name, user.Email)
+		log.Printf("✅ Granted admin privileges to user: %s (%s)", user.Name, redactEmail(user.Email))
 	}
 
 	return nil

@@ -1011,8 +1011,13 @@ func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
 
 // Subscription management methods
 func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
+	// Redact subscription ID for security - only log prefix for debugging
+	redactedSubID := "***"
+	if len(subscriptionID) > 8 {
+		redactedSubID = subscriptionID[:8] + "***"
+	}
 	log.Printf("UpdateUserSubscription - Updating user %d: status=%s, subscriptionID=%s, lastPaymentDate=%v, nextBillingDate=%v",
-		userID, status, subscriptionID, lastPaymentDate, nextBillingDate)
+		userID, status, redactedSubID, lastPaymentDate, nextBillingDate)
 
 	query := `UPDATE users SET subscription_status = ?, subscription_id = ?, last_payment_date = ?, next_billing_date = ? WHERE id = ?`
 	result, err := db.Exec(query, status, subscriptionID, lastPaymentDate, nextBillingDate, userID)
