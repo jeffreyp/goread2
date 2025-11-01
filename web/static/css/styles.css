@@ -812,6 +812,7 @@ body.app-body {
     border: 1px solid #ddd;
 }
 
+/* Legacy error/success styles for backward compatibility */
 .error {
     padding: 20px;
     background-color: #fce8e6;
@@ -828,6 +829,242 @@ body.app-body {
     border-radius: 4px;
     margin: 20px;
     font-size: 14px;
+}
+
+/* Enhanced Error Messages with Retry */
+.error-message {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 500px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 16px 20px;
+    z-index: 10000;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateX(-50%) translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+}
+
+.error-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.error-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.error-text {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+}
+
+.error-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.error-retry-btn,
+.error-dismiss-btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.error-retry-btn {
+    background-color: #1a73e8;
+    color: white;
+}
+
+.error-retry-btn:hover {
+    background-color: #1557b0;
+}
+
+.error-dismiss-btn {
+    background-color: #f1f3f4;
+    color: #5f6368;
+}
+
+.error-dismiss-btn:hover {
+    background-color: #e8eaed;
+}
+
+/* Error type specific colors */
+.error-type-network .error-content {
+    border-left: 4px solid #ea8600;
+}
+
+.error-type-auth .error-content {
+    border-left: 4px solid #d93025;
+}
+
+.error-type-validation .error-content {
+    border-left: 4px solid #f9ab00;
+}
+
+.error-type-server .error-content {
+    border-left: 4px solid #d93025;
+}
+
+.error-type-unknown .error-content {
+    border-left: 4px solid #5f6368;
+}
+
+/* Toast Notifications */
+#toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 250px;
+    max-width: 400px;
+    opacity: 0;
+    transform: translateX(400px);
+    transition: all 0.3s ease-out;
+    pointer-events: auto;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.toast-message {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #333;
+}
+
+/* Toast type specific styles */
+.toast-success {
+    border-left: 4px solid #137333;
+}
+
+.toast-success .toast-icon {
+    color: #137333;
+}
+
+.toast-error {
+    border-left: 4px solid #d93025;
+}
+
+.toast-error .toast-icon {
+    color: #d93025;
+}
+
+.toast-warning {
+    border-left: 4px solid #f9ab00;
+}
+
+.toast-warning .toast-icon {
+    color: #f9ab00;
+}
+
+.toast-info {
+    border-left: 4px solid #1a73e8;
+}
+
+.toast-info .toast-icon {
+    color: #1a73e8;
+}
+
+/* Connection Status Indicator */
+#connection-indicator {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    z-index: 9998;
+    transition: all 0.3s;
+    display: none;
+}
+
+#connection-indicator.offline {
+    display: block;
+    background-color: #fce8e6;
+    color: #d93025;
+    border: 1px solid #d93025;
+}
+
+#connection-indicator.online {
+    display: none; /* Only show when offline */
+}
+
+/* Show briefly when connection is restored */
+#connection-indicator.online.show-briefly {
+    display: block;
+    background-color: #e6f4ea;
+    color: #137333;
+    border: 1px solid #137333;
+}
+
+/* Mobile responsiveness for error messages and toasts */
+@media (max-width: 768px) {
+    .error-message {
+        max-width: calc(100vw - 40px);
+        top: 10px;
+    }
+
+    #toast-container {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+    }
+
+    .toast {
+        min-width: auto;
+        max-width: 100%;
+    }
+
+    #connection-indicator {
+        top: 5px;
+        right: 5px;
+    }
 }
 
 ::-webkit-scrollbar {

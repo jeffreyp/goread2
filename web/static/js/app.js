@@ -1,3 +1,306 @@
+// Error types for better error handling
+const ErrorType = {
+    NETWORK: 'network',
+    AUTH: 'auth',
+    VALIDATION: 'validation',
+    SERVER: 'server',
+    UNKNOWN: 'unknown'
+};
+
+// Toast notification types
+const ToastType = {
+    INFO: 'info',
+    SUCCESS: 'success',
+    WARNING: 'warning',
+    ERROR: 'error'
+};
+
+// Enhanced Error Handler with retry capabilities and toast notifications
+class ErrorHandler {
+    constructor() {
+        this.retryAttempts = new Map(); // Track retry attempts per operation
+        this.maxRetries = 3;
+        this.baseDelay = 1000; // 1 second base delay for exponential backoff
+        this.connectionStatus = 'online'; // Track connection status
+        this.setupConnectionMonitoring();
+    }
+
+    // Setup online/offline event listeners
+    setupConnectionMonitoring() {
+        window.addEventListener('online', () => {
+            this.connectionStatus = 'online';
+            this.updateConnectionIndicator(true);
+            this.showToast('Connection restored', ToastType.SUCCESS);
+        });
+
+        window.addEventListener('offline', () => {
+            this.connectionStatus = 'offline';
+            this.updateConnectionIndicator(false);
+            this.showToast('No internet connection', ToastType.WARNING);
+        });
+
+        // Initial status check
+        this.updateConnectionIndicator(navigator.onLine);
+    }
+
+    // Update connection status indicator in UI
+    updateConnectionIndicator(isOnline) {
+        let indicator = document.getElementById('connection-indicator');
+        if (!indicator) {
+            // Create indicator if it doesn't exist
+            indicator = document.createElement('div');
+            indicator.id = 'connection-indicator';
+            document.body.appendChild(indicator);
+        }
+
+        if (isOnline) {
+            indicator.className = 'connection-indicator online';
+            indicator.textContent = 'Online';
+        } else {
+            indicator.className = 'connection-indicator offline';
+            indicator.textContent = 'Offline';
+        }
+    }
+
+    // Detect error type from error object and response
+    detectErrorType(error, response = null) {
+        // Check response status codes first
+        if (response) {
+            if (response.status === 401 || response.status === 403) {
+                return ErrorType.AUTH;
+            }
+            if (response.status >= 400 && response.status < 500) {
+                return ErrorType.VALIDATION;
+            }
+            if (response.status >= 500) {
+                return ErrorType.SERVER;
+            }
+        }
+
+        // Check error types
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+            return ErrorType.NETWORK;
+        }
+        if (error.message && (error.message.includes('network') || error.message.includes('connect'))) {
+            return ErrorType.NETWORK;
+        }
+
+        return ErrorType.UNKNOWN;
+    }
+
+    // Get user-friendly error message based on error type
+    getErrorMessage(errorType, originalMessage = '') {
+        const messages = {
+            [ErrorType.NETWORK]: 'Unable to connect to the server. Please check your internet connection.',
+            [ErrorType.AUTH]: 'Your session has expired. Please log in again.',
+            [ErrorType.VALIDATION]: originalMessage || 'Invalid input. Please check your data and try again.',
+            [ErrorType.SERVER]: 'A server error occurred. Please try again later.',
+            [ErrorType.UNKNOWN]: originalMessage || 'An unexpected error occurred. Please try again.'
+        };
+
+        return messages[errorType] || messages[ErrorType.UNKNOWN];
+    }
+
+    // Show error message with optional retry button
+    showError(message, errorType = ErrorType.UNKNOWN, options = {}) {
+        const {
+            retry = null,
+            dismissible = true,
+            autoDismiss = null,
+            context = ''
+        } = options;
+
+        // Remove existing error messages
+        const existingError = document.querySelector('.error-message');
+        if (existingError) {
+            existingError.remove();
+        }
+
+        // Create error container
+        const errorDiv = document.createElement('div');
+        errorDiv.className = `error-message error-type-${errorType}`;
+
+        // Create error content
+        const errorContent = document.createElement('div');
+        errorContent.className = 'error-content';
+
+        // Add icon based on error type
+        const icon = document.createElement('span');
+        icon.className = 'error-icon';
+        icon.textContent = this.getErrorIcon(errorType);
+        errorContent.appendChild(icon);
+
+        // Add message
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'error-text';
+        messageSpan.textContent = message;
+        errorContent.appendChild(messageSpan);
+
+        errorDiv.appendChild(errorContent);
+
+        // Create button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'error-buttons';
+
+        // Add retry button if retry function provided
+        if (retry) {
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'error-retry-btn';
+            retryBtn.textContent = 'Retry';
+            retryBtn.onclick = () => {
+                errorDiv.remove();
+                retry();
+            };
+            buttonContainer.appendChild(retryBtn);
+        }
+
+        // Add dismiss button if dismissible
+        if (dismissible) {
+            const dismissBtn = document.createElement('button');
+            dismissBtn.className = 'error-dismiss-btn';
+            dismissBtn.textContent = 'Dismiss';
+            dismissBtn.onclick = () => errorDiv.remove();
+            buttonContainer.appendChild(dismissBtn);
+        }
+
+        if (buttonContainer.children.length > 0) {
+            errorDiv.appendChild(buttonContainer);
+        }
+
+        document.body.appendChild(errorDiv);
+
+        // Auto dismiss if specified
+        if (autoDismiss) {
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, autoDismiss);
+        }
+    }
+
+    // Get icon for error type
+    getErrorIcon(errorType) {
+        const icons = {
+            [ErrorType.NETWORK]: '📡',
+            [ErrorType.AUTH]: '🔒',
+            [ErrorType.VALIDATION]: '⚠️',
+            [ErrorType.SERVER]: '🔧',
+            [ErrorType.UNKNOWN]: '❌'
+        };
+        return icons[errorType] || icons[ErrorType.UNKNOWN];
+    }
+
+    // Show toast notification
+    showToast(message, type = ToastType.INFO, duration = 3000) {
+        // Create toast container if it doesn't exist
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            document.body.appendChild(toastContainer);
+        }
+
+        // Create toast
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+
+        // Add icon
+        const icon = document.createElement('span');
+        icon.className = 'toast-icon';
+        icon.textContent = this.getToastIcon(type);
+        toast.appendChild(icon);
+
+        // Add message
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'toast-message';
+        messageSpan.textContent = message;
+        toast.appendChild(messageSpan);
+
+        toastContainer.appendChild(toast);
+
+        // Trigger animation
+        setTimeout(() => toast.classList.add('show'), 10);
+
+        // Auto remove
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    // Get icon for toast type
+    getToastIcon(type) {
+        const icons = {
+            [ToastType.INFO]: 'ℹ️',
+            [ToastType.SUCCESS]: '✓',
+            [ToastType.WARNING]: '⚠️',
+            [ToastType.ERROR]: '✕'
+        };
+        return icons[type] || icons[ToastType.INFO];
+    }
+
+    // Retry wrapper with exponential backoff
+    async retryOperation(operationId, operation, maxRetries = this.maxRetries) {
+        let attempts = this.retryAttempts.get(operationId) || 0;
+
+        try {
+            const result = await operation();
+            // Reset retry counter on success
+            this.retryAttempts.delete(operationId);
+            return result;
+        } catch (error) {
+            attempts++;
+            this.retryAttempts.set(operationId, attempts);
+
+            if (attempts >= maxRetries) {
+                // Max retries reached
+                this.retryAttempts.delete(operationId);
+                throw error;
+            }
+
+            // Calculate exponential backoff delay
+            const delay = this.baseDelay * Math.pow(2, attempts - 1);
+            this.showToast(`Retry attempt ${attempts}/${maxRetries}...`, ToastType.INFO, 2000);
+
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, delay));
+
+            // Retry recursively
+            return this.retryOperation(operationId, operation, maxRetries);
+        }
+    }
+
+    // Handle fetch errors with automatic retry for network issues
+    async handleFetchError(error, response, context = '', retryFn = null) {
+        const errorType = this.detectErrorType(error, response);
+        const message = this.getErrorMessage(errorType, error.message);
+
+        // For network errors, automatically offer retry if retry function provided
+        if (errorType === ErrorType.NETWORK && retryFn) {
+            this.showError(message, errorType, {
+                retry: retryFn,
+                context: context
+            });
+        } else if (errorType === ErrorType.AUTH) {
+            // For auth errors, show message without retry (need to re-login)
+            this.showError(message, errorType, {
+                dismissible: true,
+                autoDismiss: null
+            });
+        } else {
+            // For other errors, show with optional retry
+            this.showError(message, errorType, {
+                retry: retryFn,
+                context: context,
+                autoDismiss: retryFn ? null : 5000
+            });
+        }
+
+        return errorType;
+    }
+}
+
 class GoReadApp {
     constructor() {
         this.currentFeed = null;
@@ -13,6 +316,9 @@ class GoReadApp {
 
         // Performance optimizations
         this.throttleTimeout = null;
+
+        // Initialize error handler
+        this.errorHandler = new ErrorHandler();
 
         this.init();
     }
@@ -509,7 +815,12 @@ class GoReadApp {
             }
         } catch (error) {
             console.error('Failed to load feeds:', error);
-            this.showError('Failed to load feeds: ' + error.message);
+            const errorType = this.errorHandler.detectErrorType(error);
+            const message = this.errorHandler.getErrorMessage(errorType, 'Failed to load your feeds');
+            this.showError(message, errorType, {
+                retry: () => this.loadFeeds(),
+                context: 'loading feeds'
+            });
         }
     }
 
@@ -545,21 +856,28 @@ class GoReadApp {
                     this.showLogin();
                     return;
                 }
-                throw new Error(`HTTP ${feedsResponse.status}`);
+                const error = new Error(`HTTP ${feedsResponse.status}`);
+                const errorType = this.errorHandler.detectErrorType(error, feedsResponse);
+                const message = this.errorHandler.getErrorMessage(errorType, 'Failed to load your feeds');
+                this.showError(message, errorType, {
+                    retry: () => this.loadFeedsOptimized(),
+                    context: 'loading feeds'
+                });
+                throw error;
             }
-            
+
             const feedsData = await feedsResponse.json();
             this.feeds = feedsData;
-            
+
             if (Array.isArray(this.feeds)) {
                 this.renderFeeds();
-                
+
                 // Process unread counts if available
                 if (countsResponse.ok) {
                     const unreadCounts = await countsResponse.json();
                     this.applyUnreadCounts(unreadCounts);
                 }
-                
+
                 if (this.feeds.length > 0) {
                     // Select "all" - now the element should exist
                     this.currentFeed = 'all';
@@ -568,16 +886,16 @@ class GoReadApp {
                         allElement.classList.add('active');
                     }
                     document.getElementById('article-pane-title').textContent = 'Articles';
-                    
+
                     // Load articles immediately after unread counts are applied
                     this.loadArticles('all');
                 }
             } else {
-                this.showError('Invalid feed data received from server');
+                this.showError('Invalid feed data received from server', ErrorType.SERVER);
             }
         } catch (error) {
             console.error('Failed to load feeds:', error);
-            this.showError('Failed to load feeds: ' + error.message);
+            // Error already shown above with retry option
         }
     }
 
@@ -771,7 +1089,13 @@ class GoReadApp {
                 this.autoSelectFirstUnreadFromNewBatch(newArticlesStartIndex);
             }
         } catch (error) {
-            this.showError('Failed to load articles: ' + error.message);
+            console.error('Failed to load articles:', error);
+            const errorType = this.errorHandler.detectErrorType(error);
+            const message = this.errorHandler.getErrorMessage(errorType, 'Failed to load articles');
+            this.showError(message, errorType, {
+                retry: () => this.loadArticles(feedId, append),
+                context: 'loading articles'
+            });
         }
     }
 
@@ -1782,10 +2106,31 @@ class GoReadApp {
                 } catch (e) {
                     // Use default error message
                 }
-                this.showError('Failed to add feed: ' + errorMessage);
+                const errorType = this.errorHandler.detectErrorType(new Error(errorMessage), response);
+                const message = this.errorHandler.getErrorMessage(errorType, errorMessage);
+                this.showError(message, errorType, {
+                    retry: response.status >= 500 || response.status === 0 ? () => {
+                        const urlInput = document.getElementById('feed-url-input');
+                        if (urlInput && urlInput.value) {
+                            this.addFeed();
+                        }
+                    } : null,
+                    context: 'adding feed'
+                });
             }
         } catch (error) {
-            this.showError('Failed to add feed: ' + error.message);
+            console.error('Failed to add feed:', error);
+            const errorType = this.errorHandler.detectErrorType(error);
+            const message = this.errorHandler.getErrorMessage(errorType, 'Failed to add feed');
+            this.showError(message, errorType, {
+                retry: () => {
+                    const urlInput = document.getElementById('feed-url-input');
+                    if (urlInput && urlInput.value) {
+                        this.addFeed();
+                    }
+                },
+                context: 'adding feed'
+            });
         } finally {
             // Always restore all form controls
             const spinnerOverlay = submitButton.querySelector('.button-spinner-overlay');
@@ -1844,40 +2189,50 @@ class GoReadApp {
     async refreshFeeds() {
         const refreshBtn = document.getElementById('refresh-btn');
         const originalText = refreshBtn ? refreshBtn.textContent : '';
-        
+
         try {
             // Show loading state
             if (refreshBtn) {
                 refreshBtn.disabled = true;
                 refreshBtn.textContent = 'Refreshing...';
             }
-            
+
             console.log('Refreshing feeds...');
             const response = await fetch('/api/feeds/refresh', {
                 method: 'POST',
                 headers: this.getAuthHeaders()
             });
-            
+
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                const error = new Error(`HTTP ${response.status}`);
+                const errorType = this.errorHandler.detectErrorType(error, response);
+                const message = this.errorHandler.getErrorMessage(errorType, error.message);
+
+                // Show error with retry option
+                this.errorHandler.showError(message, errorType, {
+                    retry: () => this.refreshFeeds(),
+                    context: 'refreshing feeds'
+                });
+
+                throw error;
             }
-            
+
             console.log('Feeds refreshed successfully');
-            
+
             // Reload articles for current feed to show any new content
             if (this.currentFeed) {
                 await this.loadArticles(this.currentFeed);
             }
-            
+
             // Update unread counts to reflect any changes
             await this.updateUnreadCounts();
-            
+
             // Show success feedback
             this.showSuccess('Feeds refreshed successfully');
-            
+
         } catch (error) {
             console.error('Failed to refresh feeds:', error);
-            this.showError('Failed to refresh feeds: ' + error.message);
+            // Error already shown above with retry option
         } finally {
             // Restore button state
             if (refreshBtn) {
@@ -1887,38 +2242,14 @@ class GoReadApp {
         }
     }
 
-    showError(message) {
-        const existingError = document.querySelector('.error');
-        if (existingError) {
-            existingError.remove();
-        }
-        
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'error';
-        errorDiv.textContent = message;
-        
-        document.body.appendChild(errorDiv);
-        
-        setTimeout(() => {
-            errorDiv.remove();
-        }, 5000);
+    // Wrapper for backward compatibility - delegates to errorHandler
+    showError(message, errorType = ErrorType.UNKNOWN, options = {}) {
+        this.errorHandler.showError(message, errorType, options);
     }
 
+    // Show success message as a toast
     showSuccess(message) {
-        const existingSuccess = document.querySelector('.success');
-        if (existingSuccess) {
-            existingSuccess.remove();
-        }
-        
-        const successDiv = document.createElement('div');
-        successDiv.className = 'success';
-        successDiv.textContent = message;
-        
-        document.body.appendChild(successDiv);
-        
-        setTimeout(() => {
-            successDiv.remove();
-        }, 5000);
+        this.errorHandler.showToast(message, ToastType.SUCCESS);
     }
 
     escapeHtml(text) {
