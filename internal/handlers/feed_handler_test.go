@@ -23,6 +23,7 @@ func (m *mockDBFeedHandler) GrantFreeMonths(int, int) error                     
 func (m *mockDBFeedHandler) GetUserByEmail(string) (*database.User, error)                                 { return nil, nil }
 func (m *mockDBFeedHandler) AddFeed(*database.Feed) error                                                  { return nil }
 func (m *mockDBFeedHandler) UpdateFeed(*database.Feed) error                                               { return nil }
+func (m *mockDBFeedHandler) UpdateFeedTracking(int, time.Time, time.Time, int) error                       { return nil }
 func (m *mockDBFeedHandler) GetFeeds() ([]database.Feed, error)                                            { return nil, nil }
 func (m *mockDBFeedHandler) GetFeedByURL(string) (*database.Feed, error)                                   { return nil, nil }
 func (m *mockDBFeedHandler) GetUserFeeds(int) ([]database.Feed, error)                                     { return nil, nil }

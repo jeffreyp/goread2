@@ -88,6 +88,7 @@ func (m *mockDBAdminHandler) IsUserSubscriptionActive(int) (bool, error)        
 func (m *mockDBAdminHandler) GetUserFeedCount(int) (int, error)                         { return 0, nil }
 func (m *mockDBAdminHandler) AddFeed(*database.Feed) error                              { return nil }
 func (m *mockDBAdminHandler) UpdateFeed(*database.Feed) error                           { return nil }
+func (m *mockDBAdminHandler) UpdateFeedTracking(int, time.Time, time.Time, int) error   { return nil }
 func (m *mockDBAdminHandler) GetFeeds() ([]database.Feed, error)                        { return nil, nil }
 func (m *mockDBAdminHandler) GetFeedByURL(string) (*database.Feed, error)               { return nil, nil }
 func (m *mockDBAdminHandler) GetUserFeeds(int) ([]database.Feed, error)                 { return nil, nil }

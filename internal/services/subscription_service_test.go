@@ -107,6 +107,7 @@ func (m *mockDBForSub) GetUserByEmail(email string) (*database.User, error) {
 // Stub methods to satisfy interface
 func (m *mockDBForSub) AddFeed(*database.Feed) error                    { return nil }
 func (m *mockDBForSub) UpdateFeed(*database.Feed) error                 { return nil }
+func (m *mockDBForSub) UpdateFeedTracking(int, time.Time, time.Time, int) error { return nil }
 func (m *mockDBForSub) GetFeeds() ([]database.Feed, error)              { return nil, nil }
 func (m *mockDBForSub) GetFeedByURL(string) (*database.Feed, error)     { return nil, nil }
 func (m *mockDBForSub) GetUserFeeds(int) ([]database.Feed, error)       { return nil, nil }

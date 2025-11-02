@@ -103,6 +103,7 @@ func (m *mockDBAudit) SetUserAdmin(int, bool) error                             
 func (m *mockDBAudit) GrantFreeMonths(int, int) error                            { return nil }
 func (m *mockDBAudit) AddFeed(*database.Feed) error                              { return nil }
 func (m *mockDBAudit) UpdateFeed(*database.Feed) error                           { return nil }
+func (m *mockDBAudit) UpdateFeedTracking(int, time.Time, time.Time, int) error   { return nil }
 func (m *mockDBAudit) GetFeeds() ([]database.Feed, error)                        { return nil, nil }
 func (m *mockDBAudit) GetFeedByURL(string) (*database.Feed, error)               { return nil, nil }
 func (m *mockDBAudit) GetUserFeeds(int) ([]database.Feed, error)                 { return nil, nil }

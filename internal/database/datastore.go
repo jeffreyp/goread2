@@ -74,13 +74,16 @@ type AuditLogEntity struct {
 }
 
 type FeedEntity struct {
-	ID          int64     `datastore:"-"`
-	Title       string    `datastore:"title"`
-	URL         string    `datastore:"url"`
-	Description string    `datastore:"description"`
-	CreatedAt   time.Time `datastore:"created_at"`
-	UpdatedAt   time.Time `datastore:"updated_at"`
-	LastFetch   time.Time `datastore:"last_fetch"`
+	ID                    int64     `datastore:"-"`
+	Title                 string    `datastore:"title"`
+	URL                   string    `datastore:"url"`
+	Description           string    `datastore:"description"`
+	CreatedAt             time.Time `datastore:"created_at"`
+	UpdatedAt             time.Time `datastore:"updated_at"`
+	LastFetch             time.Time `datastore:"last_fetch"`
+	LastChecked           time.Time `datastore:"last_checked"`
+	LastHadNewContent     time.Time `datastore:"last_had_new_content"`
+	AverageUpdateInterval int       `datastore:"average_update_interval"`
 }
 
 type ArticleEntity struct {
@@ -123,12 +126,15 @@ func (db *DatastoreDB) AddFeed(feed *Feed) error {
 	ctx := context.Background()
 
 	entity := &FeedEntity{
-		Title:       feed.Title,
-		URL:         feed.URL,
-		Description: feed.Description,
-		CreatedAt:   feed.CreatedAt,
-		UpdatedAt:   feed.UpdatedAt,
-		LastFetch:   feed.LastFetch,
+		Title:                 feed.Title,
+		URL:                   feed.URL,
+		Description:           feed.Description,
+		CreatedAt:             feed.CreatedAt,
+		UpdatedAt:             feed.UpdatedAt,
+		LastFetch:             feed.LastFetch,
+		LastChecked:           feed.LastChecked,
+		LastHadNewContent:     feed.LastHadNewContent,
+		AverageUpdateInterval: feed.AverageUpdateInterval,
 	}
 
 	key := datastore.IncompleteKey("Feed", nil)
@@ -166,6 +172,29 @@ func (db *DatastoreDB) UpdateFeed(feed *Feed) error {
 	return nil
 }
 
+func (db *DatastoreDB) UpdateFeedTracking(feedID int, lastChecked, lastHadNewContent time.Time, averageUpdateInterval int) error {
+	ctx := context.Background()
+
+	key := datastore.IDKey("Feed", int64(feedID), nil)
+	var entity FeedEntity
+	if err := db.client.Get(ctx, key, &entity); err != nil {
+		return fmt.Errorf("failed to get feed: %w", err)
+	}
+
+	entity.LastChecked = lastChecked
+	// Only update LastHadNewContent if it's not zero (meaning there was new content)
+	if !lastHadNewContent.IsZero() {
+		entity.LastHadNewContent = lastHadNewContent
+	}
+	entity.AverageUpdateInterval = averageUpdateInterval
+
+	if _, err := db.client.Put(ctx, key, &entity); err != nil {
+		return fmt.Errorf("failed to update feed tracking: %w", err)
+	}
+
+	return nil
+}
+
 func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 	ctx := context.Background()
 
@@ -180,13 +209,16 @@ func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 	for i, entity := range entities {
 		entity.ID = keys[i].ID
 		feeds[i] = Feed{
-			ID:          int(entity.ID),
-			Title:       entity.Title,
-			URL:         entity.URL,
-			Description: entity.Description,
-			CreatedAt:   entity.CreatedAt,
-			UpdatedAt:   entity.UpdatedAt,
-			LastFetch:   entity.LastFetch,
+			ID:                    int(entity.ID),
+			Title:                 entity.Title,
+			URL:                   entity.URL,
+			Description:           entity.Description,
+			CreatedAt:             entity.CreatedAt,
+			UpdatedAt:             entity.UpdatedAt,
+			LastFetch:             entity.LastFetch,
+			LastChecked:           entity.LastChecked,
+			LastHadNewContent:     entity.LastHadNewContent,
+			AverageUpdateInterval: entity.AverageUpdateInterval,
 		}
 	}
 
@@ -210,13 +242,16 @@ func (db *DatastoreDB) GetFeedByURL(url string) (*Feed, error) {
 	entity := entities[0]
 	entity.ID = keys[0].ID
 	feed := &Feed{
-		ID:          int(entity.ID),
-		Title:       entity.Title,
-		URL:         entity.URL,
-		Description: entity.Description,
-		CreatedAt:   entity.CreatedAt,
-		UpdatedAt:   entity.UpdatedAt,
-		LastFetch:   entity.LastFetch,
+		ID:                    int(entity.ID),
+		Title:                 entity.Title,
+		URL:                   entity.URL,
+		Description:           entity.Description,
+		CreatedAt:             entity.CreatedAt,
+		UpdatedAt:             entity.UpdatedAt,
+		LastFetch:             entity.LastFetch,
+		LastChecked:           entity.LastChecked,
+		LastHadNewContent:     entity.LastHadNewContent,
+		AverageUpdateInterval: entity.AverageUpdateInterval,
 	}
 
 	return feed, nil
@@ -237,13 +272,16 @@ func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
 
 	entity.ID = key.ID
 	feed := &Feed{
-		ID:          int(entity.ID),
-		Title:       entity.Title,
-		URL:         entity.URL,
-		Description: entity.Description,
-		CreatedAt:   entity.CreatedAt,
-		UpdatedAt:   entity.UpdatedAt,
-		LastFetch:   entity.LastFetch,
+		ID:                    int(entity.ID),
+		Title:                 entity.Title,
+		URL:                   entity.URL,
+		Description:           entity.Description,
+		CreatedAt:             entity.CreatedAt,
+		UpdatedAt:             entity.UpdatedAt,
+		LastFetch:             entity.LastFetch,
+		LastChecked:           entity.LastChecked,
+		LastHadNewContent:     entity.LastHadNewContent,
+		AverageUpdateInterval: entity.AverageUpdateInterval,
 	}
 
 	return feed, nil
@@ -580,13 +618,16 @@ func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
 					entity := feedEntities[i]
 					entity.ID = feedIDs[i]
 					validFeeds = append(validFeeds, Feed{
-						ID:          int(entity.ID),
-						Title:       entity.Title,
-						URL:         entity.URL,
-						Description: entity.Description,
-						CreatedAt:   entity.CreatedAt,
-						UpdatedAt:   entity.UpdatedAt,
-						LastFetch:   entity.LastFetch,
+						ID:                    int(entity.ID),
+						Title:                 entity.Title,
+						URL:                   entity.URL,
+						Description:           entity.Description,
+						CreatedAt:             entity.CreatedAt,
+						UpdatedAt:             entity.UpdatedAt,
+						LastFetch:             entity.LastFetch,
+						LastChecked:           entity.LastChecked,
+						LastHadNewContent:     entity.LastHadNewContent,
+						AverageUpdateInterval: entity.AverageUpdateInterval,
 					})
 				}
 			}
@@ -599,13 +640,16 @@ func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
 	for i, entity := range feedEntities {
 		entity.ID = feedIDs[i]
 		feeds[i] = Feed{
-			ID:          int(entity.ID),
-			Title:       entity.Title,
-			URL:         entity.URL,
-			Description: entity.Description,
-			CreatedAt:   entity.CreatedAt,
-			UpdatedAt:   entity.UpdatedAt,
-			LastFetch:   entity.LastFetch,
+			ID:                    int(entity.ID),
+			Title:                 entity.Title,
+			URL:                   entity.URL,
+			Description:           entity.Description,
+			CreatedAt:             entity.CreatedAt,
+			UpdatedAt:             entity.UpdatedAt,
+			LastFetch:             entity.LastFetch,
+			LastChecked:           entity.LastChecked,
+			LastHadNewContent:     entity.LastHadNewContent,
+			AverageUpdateInterval: entity.AverageUpdateInterval,
 		}
 	}
 

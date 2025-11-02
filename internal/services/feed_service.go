@@ -162,13 +162,17 @@ func (fs *FeedService) AddFeed(url string) (*database.Feed, error) {
 		return nil, fmt.Errorf("failed to fetch feed: %w", err)
 	}
 
+	now := time.Now()
 	feed := &database.Feed{
-		Title:       feedData.Title,
-		URL:         url,
-		Description: feedData.Description,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		LastFetch:   time.Now(),
+		Title:                 feedData.Title,
+		URL:                   url,
+		Description:           feedData.Description,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+		LastFetch:             now,
+		LastChecked:           now,
+		LastHadNewContent:     now,
+		AverageUpdateInterval: 0, // Will be calculated after first few updates
 	}
 
 	if err := fs.db.AddFeed(feed); err != nil {
@@ -720,20 +724,127 @@ func (fs *FeedService) RefreshFeeds() error {
 		feedMap[feed.URL] = feed
 	}
 
+	now := time.Now()
+	checked := 0
+	skipped := 0
+	hasNewContent := 0
+
 	for _, feed := range feedMap {
-		feedData, err := fs.fetchFeed(feed.URL)
-		if err != nil {
+		// Smart feed prioritization: only check feeds that are due
+		if !fs.shouldCheckFeed(feed, now) {
+			skipped++
 			continue
 		}
+
+		// Fetch and save articles
+		feedData, err := fs.fetchFeed(feed.URL)
+		checked++
+
+		// Update last_checked regardless of success/failure
+		feed.LastChecked = now
+
+		if err != nil {
+			log.Printf("Failed to fetch feed %s: %v", feed.URL, err)
+			_ = fs.updateFeedTracking(feed, false)
+			continue
+		}
+
+		// Count existing articles before saving
+		existingArticles, _ := fs.db.GetArticles(feed.ID)
+		existingCount := len(existingArticles)
 
 		if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
+			log.Printf("Failed to save articles from feed %s: %v", feed.URL, err)
+			_ = fs.updateFeedTracking(feed, false)
 			continue
 		}
 
-		_ = fs.db.UpdateFeedLastFetch(feed.ID, time.Now())
+		// Check if there are new articles
+		newArticles, _ := fs.db.GetArticles(feed.ID)
+		hadNewContent := len(newArticles) > existingCount
+
+		if hadNewContent {
+			hasNewContent++
+		}
+
+		// Update tracking fields
+		_ = fs.updateFeedTracking(feed, hadNewContent)
+		_ = fs.db.UpdateFeedLastFetch(feed.ID, now)
 	}
 
+	log.Printf("Feed refresh complete: checked=%d, skipped=%d, had_new_content=%d", checked, skipped, hasNewContent)
+
 	return nil
+}
+
+// shouldCheckFeed determines if a feed should be checked based on smart prioritization
+func (fs *FeedService) shouldCheckFeed(feed database.Feed, now time.Time) bool {
+	// Always check feeds that have never been checked
+	if feed.LastChecked.IsZero() {
+		return true
+	}
+
+	// Calculate time since last check
+	timeSinceLastCheck := now.Sub(feed.LastChecked)
+
+	// If we have historical data about update frequency, use it
+	if feed.AverageUpdateInterval > 0 {
+		// Check if it's been at least 50% of the average update interval
+		// This ensures we don't miss updates while avoiding excessive checks
+		checkInterval := time.Duration(feed.AverageUpdateInterval) * time.Second / 2
+		if timeSinceLastCheck >= checkInterval {
+			return true
+		}
+	} else {
+		// No historical data: use conservative defaults based on last activity
+		if !feed.LastHadNewContent.IsZero() {
+			timeSinceNewContent := now.Sub(feed.LastHadNewContent)
+
+			// If feed had new content recently (< 1 week), check more frequently
+			if timeSinceNewContent < 7*24*time.Hour {
+				return timeSinceLastCheck >= 30*time.Minute
+			}
+
+			// If feed had new content in the last month, check every hour
+			if timeSinceNewContent < 30*24*time.Hour {
+				return timeSinceLastCheck >= 1*time.Hour
+			}
+
+			// If feed hasn't updated in months, check less frequently (every 6 hours)
+			return timeSinceLastCheck >= 6*time.Hour
+		}
+
+		// Never seen new content: check every hour initially
+		return timeSinceLastCheck >= 1*time.Hour
+	}
+
+	return false
+}
+
+// updateFeedTracking updates the smart tracking fields for a feed
+func (fs *FeedService) updateFeedTracking(feed database.Feed, hadNewContent bool) error {
+	now := time.Now()
+	lastHadNewContent := feed.LastHadNewContent
+
+	// Update last_had_new_content if there was new content
+	if hadNewContent {
+		// Calculate new average update interval
+		if !feed.LastHadNewContent.IsZero() {
+			intervalSeconds := int(now.Sub(feed.LastHadNewContent).Seconds())
+
+			// Update running average (weighted: 70% old, 30% new)
+			if feed.AverageUpdateInterval > 0 {
+				feed.AverageUpdateInterval = (feed.AverageUpdateInterval*7 + intervalSeconds*3) / 10
+			} else {
+				feed.AverageUpdateInterval = intervalSeconds
+			}
+		}
+
+		lastHadNewContent = now
+	}
+
+	// Update the feed tracking in database
+	return fs.db.UpdateFeedTracking(feed.ID, now, lastHadNewContent, feed.AverageUpdateInterval)
 }
 
 func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {

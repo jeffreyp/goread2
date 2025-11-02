@@ -29,6 +29,7 @@ type Database interface {
 	// Feed methods
 	AddFeed(feed *Feed) error
 	UpdateFeed(feed *Feed) error
+	UpdateFeedTracking(feedID int, lastChecked, lastHadNewContent time.Time, averageUpdateInterval int) error
 	GetFeeds() ([]Feed, error)
 	GetFeedByURL(url string) (*Feed, error)
 	GetUserFeeds(userID int) ([]Feed, error)
@@ -92,13 +93,16 @@ type User struct {
 }
 
 type Feed struct {
-	ID          int       `json:"id"`
-	Title       string    `json:"title"`
-	URL         string    `json:"url"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	LastFetch   time.Time `json:"last_fetch"`
+	ID                    int       `json:"id"`
+	Title                 string    `json:"title"`
+	URL                   string    `json:"url"`
+	Description           string    `json:"description"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+	LastFetch             time.Time `json:"last_fetch"`
+	LastChecked           time.Time `json:"last_checked"`            // When we last attempted to check for updates
+	LastHadNewContent     time.Time `json:"last_had_new_content"`    // When we last found new articles
+	AverageUpdateInterval int       `json:"average_update_interval"` // Average seconds between updates (0 = unknown)
 }
 
 type Article struct {
@@ -203,7 +207,10 @@ func (db *DB) CreateTables() error {
 		description TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		last_fetch DATETIME DEFAULT CURRENT_TIMESTAMP
+		last_fetch DATETIME DEFAULT CURRENT_TIMESTAMP,
+		last_checked DATETIME,
+		last_had_new_content DATETIME,
+		average_update_interval INTEGER DEFAULT 0
 	);`
 
 	articlesTable := `
@@ -335,7 +342,7 @@ func (db *DB) CreateIndexes() error {
 
 func (db *DB) migrateDatabase() error {
 	// Add missing columns to existing users table if they don't exist
-	allColumns := []string{
+	userColumns := []string{
 		"ALTER TABLE users ADD COLUMN google_id TEXT",
 		"ALTER TABLE users ADD COLUMN email TEXT",
 		"ALTER TABLE users ADD COLUMN name TEXT",
@@ -350,7 +357,7 @@ func (db *DB) migrateDatabase() error {
 		"ALTER TABLE users ADD COLUMN max_articles_on_feed_add INTEGER DEFAULT 100",
 	}
 
-	for _, alterQuery := range allColumns {
+	for _, alterQuery := range userColumns {
 		_, err := db.Exec(alterQuery)
 		if err != nil {
 			// Ignore "duplicate column" errors - column already exists
@@ -358,6 +365,37 @@ func (db *DB) migrateDatabase() error {
 				return fmt.Errorf("migration failed: %w", err)
 			}
 		}
+	}
+
+	// Add missing columns to existing feeds table for smart update tracking
+	// Note: SQLite doesn't allow CURRENT_TIMESTAMP as default in ALTER TABLE
+	// So we add columns with NULL default, then update existing rows
+	feedColumns := []string{
+		"ALTER TABLE feeds ADD COLUMN last_checked DATETIME",
+		"ALTER TABLE feeds ADD COLUMN last_had_new_content DATETIME",
+		"ALTER TABLE feeds ADD COLUMN average_update_interval INTEGER DEFAULT 0",
+	}
+
+	for _, alterQuery := range feedColumns {
+		_, err := db.Exec(alterQuery)
+		if err != nil {
+			// Ignore "duplicate column" errors - column already exists
+			if !strings.Contains(err.Error(), "duplicate column name") {
+				return fmt.Errorf("migration failed: %w", err)
+			}
+		}
+	}
+
+	// Update existing feeds to have current timestamp for new tracking fields
+	// This only affects feeds that existed before the migration
+	_, errUpdate := db.Exec(`
+		UPDATE feeds
+		SET last_checked = COALESCE(last_checked, last_fetch),
+		    last_had_new_content = COALESCE(last_had_new_content, last_fetch)
+		WHERE last_checked IS NULL OR last_had_new_content IS NULL
+	`)
+	if errUpdate != nil {
+		log.Printf("Warning: Failed to set initial tracking timestamps: %v", errUpdate)
 	}
 
 	// Set trial_ends_at for existing users who don't have it set
@@ -398,11 +436,11 @@ func (db *DB) Close() error {
 }
 
 func (db *DB) AddFeed(feed *Feed) error {
-	query := `INSERT INTO feeds (title, url, description, created_at, updated_at, last_fetch) 
-			  VALUES (?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO feeds (title, url, description, created_at, updated_at, last_fetch, last_checked, last_had_new_content, average_update_interval)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := db.Exec(query, feed.Title, feed.URL, feed.Description,
-		feed.CreatedAt, feed.UpdatedAt, feed.LastFetch)
+		feed.CreatedAt, feed.UpdatedAt, feed.LastFetch, feed.LastChecked, feed.LastHadNewContent, feed.AverageUpdateInterval)
 	if err != nil {
 		return err
 	}
@@ -421,8 +459,18 @@ func (db *DB) UpdateFeed(feed *Feed) error {
 	return err
 }
 
+func (db *DB) UpdateFeedTracking(feedID int, lastChecked, lastHadNewContent time.Time, averageUpdateInterval int) error {
+	query := `UPDATE feeds SET last_checked = ?, last_had_new_content = ?, average_update_interval = ? WHERE id = ?`
+	_, err := db.Exec(query, lastChecked, lastHadNewContent, averageUpdateInterval, feedID)
+	return err
+}
+
 func (db *DB) GetFeeds() ([]Feed, error) {
-	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch FROM feeds ORDER BY title`
+	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch,
+			  COALESCE(last_checked, last_fetch) as last_checked,
+			  COALESCE(last_had_new_content, last_fetch) as last_had_new_content,
+			  COALESCE(average_update_interval, 0) as average_update_interval
+			  FROM feeds ORDER BY title`
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -433,7 +481,7 @@ func (db *DB) GetFeeds() ([]Feed, error) {
 	for rows.Next() {
 		var feed Feed
 		err := rows.Scan(&feed.ID, &feed.Title, &feed.URL, &feed.Description,
-			&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch)
+			&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch, &feed.LastChecked, &feed.LastHadNewContent, &feed.AverageUpdateInterval)
 		if err != nil {
 			return nil, err
 		}
@@ -444,10 +492,14 @@ func (db *DB) GetFeeds() ([]Feed, error) {
 }
 
 func (db *DB) GetFeedByURL(url string) (*Feed, error) {
-	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch FROM feeds WHERE url = ?`
+	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch,
+			  COALESCE(last_checked, last_fetch) as last_checked,
+			  COALESCE(last_had_new_content, last_fetch) as last_had_new_content,
+			  COALESCE(average_update_interval, 0) as average_update_interval
+			  FROM feeds WHERE url = ?`
 	var feed Feed
 	err := db.QueryRow(query, url).Scan(&feed.ID, &feed.Title, &feed.URL, &feed.Description,
-		&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch)
+		&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch, &feed.LastChecked, &feed.LastHadNewContent, &feed.AverageUpdateInterval)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -704,10 +756,13 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 
 // User feed methods
 func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
-	query := `SELECT f.id, f.title, f.url, f.description, f.created_at, f.updated_at, f.last_fetch 
-			  FROM feeds f 
-			  JOIN user_feeds uf ON f.id = uf.feed_id 
-			  WHERE uf.user_id = ? 
+	query := `SELECT f.id, f.title, f.url, f.description, f.created_at, f.updated_at, f.last_fetch,
+			  COALESCE(f.last_checked, f.last_fetch) as last_checked,
+			  COALESCE(f.last_had_new_content, f.last_fetch) as last_had_new_content,
+			  COALESCE(f.average_update_interval, 0) as average_update_interval
+			  FROM feeds f
+			  JOIN user_feeds uf ON f.id = uf.feed_id
+			  WHERE uf.user_id = ?
 			  ORDER BY f.title`
 
 	rows, err := db.Query(query, userID)
@@ -720,7 +775,7 @@ func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
 	for rows.Next() {
 		var feed Feed
 		err := rows.Scan(&feed.ID, &feed.Title, &feed.URL, &feed.Description,
-			&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch)
+			&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch, &feed.LastChecked, &feed.LastHadNewContent, &feed.AverageUpdateInterval)
 		if err != nil {
 			return nil, err
 		}
@@ -731,9 +786,12 @@ func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
 }
 
 func (db *DB) GetAllUserFeeds() ([]Feed, error) {
-	query := `SELECT DISTINCT f.id, f.title, f.url, f.description, f.created_at, f.updated_at, f.last_fetch 
-			  FROM feeds f 
-			  JOIN user_feeds uf ON f.id = uf.feed_id 
+	query := `SELECT DISTINCT f.id, f.title, f.url, f.description, f.created_at, f.updated_at, f.last_fetch,
+			  COALESCE(f.last_checked, f.last_fetch) as last_checked,
+			  COALESCE(f.last_had_new_content, f.last_fetch) as last_had_new_content,
+			  COALESCE(f.average_update_interval, 0) as average_update_interval
+			  FROM feeds f
+			  JOIN user_feeds uf ON f.id = uf.feed_id
 			  ORDER BY f.title`
 
 	rows, err := db.Query(query)
@@ -746,7 +804,7 @@ func (db *DB) GetAllUserFeeds() ([]Feed, error) {
 	for rows.Next() {
 		var feed Feed
 		err := rows.Scan(&feed.ID, &feed.Title, &feed.URL, &feed.Description,
-			&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch)
+			&feed.CreatedAt, &feed.UpdatedAt, &feed.LastFetch, &feed.LastChecked, &feed.LastHadNewContent, &feed.AverageUpdateInterval)
 		if err != nil {
 			return nil, err
 		}

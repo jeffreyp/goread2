@@ -63,10 +63,12 @@ func main() {
 		CleanupInterval: cfg.SchedulerCleanupInterval,
 	})
 
-	// Start the feed scheduler for automatic staggered updates
-	if err := feedScheduler.Start(); err != nil {
-		log.Printf("Warning: Failed to start feed scheduler: %v", err)
-	}
+	// DISABLED: Always-on scheduler loop to reduce costs
+	// Feed updates are now triggered by cron job only (every 1 hour)
+	// This saves ~$30-60/month in instance hours
+	// if err := feedScheduler.Start(); err != nil {
+	// 	log.Printf("Warning: Failed to start feed scheduler: %v", err)
+	// }
 
 	// Validate OAuth configuration
 	if err := authService.ValidateConfig(); err != nil {

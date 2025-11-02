@@ -34,6 +34,7 @@ func (m *mockDB) GrantFreeMonths(int, int) error                                
 func (m *mockDB) GetUserByEmail(string) (*database.User, error)                                 { return nil, nil }
 func (m *mockDB) AddFeed(*database.Feed) error                                                  { return nil }
 func (m *mockDB) UpdateFeed(*database.Feed) error                                               { return nil }
+func (m *mockDB) UpdateFeedTracking(int, time.Time, time.Time, int) error                       { return nil }
 func (m *mockDB) GetFeeds() ([]database.Feed, error)                                            { return nil, nil }
 func (m *mockDB) GetFeedByURL(string) (*database.Feed, error)                                   { return nil, nil }
 func (m *mockDB) GetAllUserFeeds() ([]database.Feed, error)                                     { return nil, nil }
