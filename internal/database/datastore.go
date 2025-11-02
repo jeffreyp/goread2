@@ -766,11 +766,11 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unrea
 
 		for _, feedID := range batch {
 			go func(fid int64) {
-				// Get recent articles from this feed (more than needed for better sorting)
+				// Get recent articles from this feed
 				query := datastore.NewQuery("Article").
 					FilterField("feed_id", "=", fid).
 					Order("-published_at").
-					Limit(limit + offset + 50) // Get extra for better sorting across feeds
+					Limit(limit + offset) // Fetch exactly what we need for pagination
 
 				var feedArticles []ArticleEntity
 				keys, err := db.client.GetAll(ctx, query, &feedArticles)
