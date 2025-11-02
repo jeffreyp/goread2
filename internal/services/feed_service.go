@@ -25,11 +25,12 @@ type HTTPClient interface {
 }
 
 type FeedService struct {
-	db           database.Database
-	rateLimiter  *DomainRateLimiter
-	urlValidator *URLValidator
-	unreadCache  *cache.UnreadCache
-	httpClient   HTTPClient // Optional: if nil, creates client using urlValidator
+	db            database.Database
+	rateLimiter   *DomainRateLimiter
+	urlValidator  *URLValidator
+	unreadCache   *cache.UnreadCache
+	feedListCache *cache.FeedListCache
+	httpClient    HTTPClient // Optional: if nil, creates client using urlValidator
 }
 
 type RSS struct {
@@ -144,10 +145,11 @@ type OPMLOutline struct {
 
 func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedService {
 	return &FeedService{
-		db:           db,
-		rateLimiter:  rateLimiter,
-		urlValidator: NewURLValidator(),
-		unreadCache:  cache.NewUnreadCache(90 * time.Second), // 90 second TTL
+		db:            db,
+		rateLimiter:   rateLimiter,
+		urlValidator:  NewURLValidator(),
+		unreadCache:   cache.NewUnreadCache(90 * time.Second),   // 90 second TTL
+		feedListCache: cache.NewFeedListCache(20 * time.Minute), // 20 minute TTL
 	}
 }
 
@@ -310,8 +312,9 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		// Don't fail the entire operation, just log the error
 	}
 
-	// Invalidate cache since unread counts changed dramatically
+	// Invalidate caches since subscription changed
 	fs.unreadCache.Invalidate(userID)
+	fs.feedListCache.Invalidate() // Feed list changed - user subscribed to new feed
 
 	return existingFeed, nil
 }
@@ -326,8 +329,9 @@ func (fs *FeedService) UnsubscribeUserFromFeed(userID, feedID int) error {
 		return err
 	}
 
-	// Invalidate cache since feed removal affects counts
+	// Invalidate caches since subscription changed
 	fs.unreadCache.Invalidate(userID)
+	fs.feedListCache.Invalidate() // Feed list may have changed - user unsubscribed
 
 	return nil
 }
@@ -702,9 +706,18 @@ func (fs *FeedService) RefreshFeeds() error {
 	}
 
 	// Also get all user feeds to ensure we refresh feeds that users are subscribed to
-	allUserFeeds, err := fs.db.GetAllUserFeeds()
-	if err != nil {
-		allUserFeeds = []database.Feed{}
+	// Use cache to reduce expensive database queries (runs every hour via cron)
+	allUserFeeds, cached := fs.feedListCache.Get()
+	if !cached {
+		// Cache miss - fetch from database
+		var err error
+		allUserFeeds, err = fs.db.GetAllUserFeeds()
+		if err != nil {
+			allUserFeeds = []database.Feed{}
+		} else {
+			// Populate cache for next request
+			fs.feedListCache.Set(allUserFeeds)
+		}
 	}
 
 	// Combine and deduplicate feeds by URL
