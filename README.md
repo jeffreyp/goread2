@@ -10,12 +10,13 @@ A modern, multi-user RSS reader inspired by Google Reader, built with Go and fea
 - **Three-pane layout** (feeds → articles → content) like Google Reader
 - **RSS/Atom feed support** with OPML import and export capabilities
 - **Smart article import** with configurable limits to prevent overload
-- **Real-time updates** with background polling every 30 minutes
+- **Smart feed updates** with background polling every hour and intelligent prioritization
 - **Per-user article management** (read/unread, starred status)
 - **Subscription system** with 30-day free trial and Stripe integration
 - **Keyboard shortcuts** for efficient navigation
 - **Reading optimization** with clean, sans-serif typography
 - **Self-hosted** - runs locally or deploys to cloud platforms
+- **Cost-optimized** with intelligent caching and query optimization
 
 ## 🚀 Quick Start
 
@@ -94,6 +95,8 @@ make clean             # Remove all build artifacts
 | [**API Reference**](docs/API.md) | API endpoints and usage |
 | [**Feature Flags**](docs/FEATURE-FLAGS.md) | Configuration and feature toggles |
 | [**Security Guide**](docs/SECURITY.md) | Security features and best practices |
+| [**Performance & Cost**](docs/PERFORMANCE.md) | Optimization strategies and cost savings |
+| [**Caching Strategy**](docs/CACHING.md) | HTTP and application-level caching |
 | [**Troubleshooting**](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [**Contributing**](docs/CONTRIBUTING.md) | Development and contribution guide |
 

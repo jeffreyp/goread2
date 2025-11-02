@@ -161,9 +161,9 @@ resources:
 cron:
 - description: "Refresh RSS feeds for all users"
   url: /api/feeds/refresh
-  schedule: every 30 minutes
+  schedule: every 1 hours
   target: default
-  
+
 - description: "Clean up expired sessions"
   url: /auth/cleanup
   schedule: every 1 hours
