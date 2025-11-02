@@ -64,9 +64,6 @@ type Database interface {
 	CreateAuditLog(log *AuditLog) error
 	GetAuditLogs(limit, offset int, filters map[string]interface{}) ([]AuditLog, error)
 
-	// Legacy methods (for migration)
-	GetAllArticles() ([]Article, error)
-
 	UpdateFeedLastFetch(feedID int, lastFetch time.Time) error
 	Close() error
 }
@@ -158,7 +155,7 @@ func InitDB() (Database, error) {
 		return NewDatastoreDB(projectID)
 	}
 
-	db, err := sql.Open("sqlite3", "./goread2.db")
+	db, err := sql.Open("sqlite3", "./goread2.db?_loc=auto")
 	if err != nil {
 		return nil, err
 	}
@@ -208,8 +205,8 @@ func (db *DB) CreateTables() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		last_fetch DATETIME DEFAULT CURRENT_TIMESTAMP,
-		last_checked DATETIME,
-		last_had_new_content DATETIME,
+		last_checked DATETIME DEFAULT CURRENT_TIMESTAMP,
+		last_had_new_content DATETIME DEFAULT CURRENT_TIMESTAMP,
 		average_update_interval INTEGER DEFAULT 0
 	);`
 
@@ -467,9 +464,7 @@ func (db *DB) UpdateFeedTracking(feedID int, lastChecked, lastHadNewContent time
 
 func (db *DB) GetFeeds() ([]Feed, error) {
 	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch,
-			  COALESCE(last_checked, last_fetch) as last_checked,
-			  COALESCE(last_had_new_content, last_fetch) as last_had_new_content,
-			  COALESCE(average_update_interval, 0) as average_update_interval
+			  last_checked, last_had_new_content, average_update_interval
 			  FROM feeds ORDER BY title`
 	rows, err := db.Query(query)
 	if err != nil {
@@ -493,9 +488,7 @@ func (db *DB) GetFeeds() ([]Feed, error) {
 
 func (db *DB) GetFeedByURL(url string) (*Feed, error) {
 	query := `SELECT id, title, url, description, created_at, updated_at, last_fetch,
-			  COALESCE(last_checked, last_fetch) as last_checked,
-			  COALESCE(last_had_new_content, last_fetch) as last_had_new_content,
-			  COALESCE(average_update_interval, 0) as average_update_interval
+			  last_checked, last_had_new_content, average_update_interval
 			  FROM feeds WHERE url = ?`
 	var feed Feed
 	err := db.QueryRow(query, url).Scan(&feed.ID, &feed.Title, &feed.URL, &feed.Description,
@@ -590,37 +583,6 @@ func (db *DB) FindArticleByURL(url string) (*Article, error) {
 	article.IsStarred = false
 
 	return &article, nil
-}
-
-func (db *DB) GetAllArticles() ([]Article, error) {
-	query := `SELECT a.id, a.feed_id, a.title, a.url, a.content, a.description, a.author, 
-			  a.published_at, a.created_at 
-			  FROM articles a 
-			  JOIN feeds f ON a.feed_id = f.id 
-			  ORDER BY a.published_at DESC`
-
-	rows, err := db.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	var articles []Article
-	for rows.Next() {
-		var article Article
-		err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.URL,
-			&article.Content, &article.Description, &article.Author,
-			&article.PublishedAt, &article.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		// Default read/starred status to false for this basic method
-		article.IsRead = false
-		article.IsStarred = false
-		articles = append(articles, article)
-	}
-
-	return articles, nil
 }
 
 // Legacy single-user methods - deprecated in favor of multi-user methods
@@ -757,9 +719,7 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 // User feed methods
 func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
 	query := `SELECT f.id, f.title, f.url, f.description, f.created_at, f.updated_at, f.last_fetch,
-			  COALESCE(f.last_checked, f.last_fetch) as last_checked,
-			  COALESCE(f.last_had_new_content, f.last_fetch) as last_had_new_content,
-			  COALESCE(f.average_update_interval, 0) as average_update_interval
+			  f.last_checked, f.last_had_new_content, f.average_update_interval
 			  FROM feeds f
 			  JOIN user_feeds uf ON f.id = uf.feed_id
 			  WHERE uf.user_id = ?
@@ -787,9 +747,7 @@ func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
 
 func (db *DB) GetAllUserFeeds() ([]Feed, error) {
 	query := `SELECT DISTINCT f.id, f.title, f.url, f.description, f.created_at, f.updated_at, f.last_fetch,
-			  COALESCE(f.last_checked, f.last_fetch) as last_checked,
-			  COALESCE(f.last_had_new_content, f.last_fetch) as last_had_new_content,
-			  COALESCE(f.average_update_interval, 0) as average_update_interval
+			  f.last_checked, f.last_had_new_content, f.average_update_interval
 			  FROM feeds f
 			  JOIN user_feeds uf ON f.id = uf.feed_id
 			  ORDER BY f.title`

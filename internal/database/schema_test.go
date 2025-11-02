@@ -16,7 +16,7 @@ func setupTestDB(t *testing.T) *DB {
 
 	// Create in-memory database with shared cache for concurrent access
 	// The ?cache=shared parameter allows multiple connections to access the same in-memory database
-	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
+	db, err := sql.Open("sqlite3", "file::memory:?cache=shared&_loc=auto")
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
@@ -69,13 +69,17 @@ func createTestUser(t *testing.T, db *DB) *User {
 func createTestFeed(t *testing.T, db *DB) *Feed {
 	t.Helper()
 
+	now := time.Now()
 	feed := &Feed{
-		Title:       "Test Feed",
-		URL:         fmt.Sprintf("https://example.com/feed_%d.xml", time.Now().UnixNano()),
-		Description: "A test feed",
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		LastFetch:   time.Now(),
+		Title:                 "Test Feed",
+		URL:                   fmt.Sprintf("https://example.com/feed_%d.xml", now.UnixNano()),
+		Description:           "A test feed",
+		CreatedAt:             now,
+		UpdatedAt:             now,
+		LastFetch:             now,
+		LastChecked:           now,
+		LastHadNewContent:     now,
+		AverageUpdateInterval: 0,
 	}
 
 	err := db.AddFeed(feed)
@@ -859,23 +863,6 @@ func TestFindArticleByURLNotFound(t *testing.T) {
 
 	if article != nil {
 		t.Error("Expected nil for nonexistent article, got an article")
-	}
-}
-
-func TestGetAllArticles(t *testing.T) {
-	db := setupTestDB(t)
-
-	feed := createTestFeed(t, db)
-	createTestArticle(t, db, feed.ID)
-	createTestArticle(t, db, feed.ID)
-
-	articles, err := db.GetAllArticles()
-	if err != nil {
-		t.Fatalf("GetAllArticles failed: %v", err)
-	}
-
-	if len(articles) < 2 {
-		t.Errorf("Expected at least 2 articles, got %d", len(articles))
 	}
 }
 

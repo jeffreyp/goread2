@@ -60,7 +60,6 @@ func (m *mockDB) BatchSetUserArticleStatus(int, []database.Article, bool, bool) 
 func (m *mockDB) MarkUserArticleRead(int, int, bool) error                            { return nil }
 func (m *mockDB) ToggleUserArticleStar(int, int) error                                { return nil }
 func (m *mockDB) GetUserUnreadCounts(int) (map[int]int, error)                        { return nil, nil }
-func (m *mockDB) GetAllArticles() ([]database.Article, error)                         { return nil, nil }
 func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error                            { return nil }
 func (m *mockDB) UpdateUserMaxArticlesOnFeedAdd(int, int) error                       { return nil }
 func (m *mockDB) CreateAuditLog(*database.AuditLog) error                             { return nil }

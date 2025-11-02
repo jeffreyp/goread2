@@ -415,37 +415,6 @@ func (db *DatastoreDB) FindArticleByURL(url string) (*Article, error) {
 	return &article, nil
 }
 
-func (db *DatastoreDB) GetAllArticles() ([]Article, error) {
-	ctx := context.Background()
-
-	query := datastore.NewQuery("Article").Order("-published_at")
-	var entities []ArticleEntity
-	keys, err := db.client.GetAll(ctx, query, &entities)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all articles: %w", err)
-	}
-
-	articles := make([]Article, len(entities))
-	for i, entity := range entities {
-		entity.ID = keys[i].ID
-		articles[i] = Article{
-			ID:          int(entity.ID),
-			FeedID:      int(entity.FeedID),
-			Title:       entity.Title,
-			URL:         entity.URL,
-			Content:     entity.Content,
-			Description: entity.Description,
-			Author:      entity.Author,
-			PublishedAt: entity.PublishedAt,
-			CreatedAt:   entity.CreatedAt,
-			IsRead:      entity.IsRead,
-			IsStarred:   entity.IsStarred,
-		}
-	}
-
-	return articles, nil
-}
-
 // Legacy methods removed - use multi-user methods instead
 
 func (db *DatastoreDB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) error {

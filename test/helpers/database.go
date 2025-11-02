@@ -13,7 +13,7 @@ import (
 
 // CreateTestDB creates an in-memory SQLite database for testing
 func CreateTestDB(t *testing.T) database.Database {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite3", ":memory:?_loc=auto")
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
@@ -53,7 +53,10 @@ func createTestTables(db *database.DB) error {
 			description TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			last_fetch DATETIME DEFAULT CURRENT_TIMESTAMP
+			last_fetch DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_checked DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_had_new_content DATETIME DEFAULT CURRENT_TIMESTAMP,
+			average_update_interval INTEGER DEFAULT 0
 		)`,
 		`CREATE TABLE articles (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,13 +123,17 @@ func CreateTestUser(t *testing.T, db database.Database, googleID, email, name st
 
 // CreateTestFeed creates a test feed in the database
 func CreateTestFeed(t *testing.T, db database.Database, title, url, description string) *database.Feed {
+	now := time.Now()
 	feed := &database.Feed{
-		Title:       title,
-		URL:         url,
-		Description: description,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		LastFetch:   time.Now(),
+		Title:                 title,
+		URL:                   url,
+		Description:           description,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+		LastFetch:             now,
+		LastChecked:           now,
+		LastHadNewContent:     now,
+		AverageUpdateInterval: 0,
 	}
 
 	if err := db.AddFeed(feed); err != nil {

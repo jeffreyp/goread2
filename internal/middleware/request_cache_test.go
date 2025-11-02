@@ -59,7 +59,6 @@ func (m *mockDB) DeleteSession(string) error                                    
 func (m *mockDB) DeleteExpiredSessions() error                                                  { return nil }
 func (m *mockDB) CreateAuditLog(*database.AuditLog) error                                       { return nil }
 func (m *mockDB) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error)    { return nil, nil }
-func (m *mockDB) GetAllArticles() ([]database.Article, error)                                   { return nil, nil }
 func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error                                      { return nil }
 func (m *mockDB) Close() error                                                                  { return nil }
 

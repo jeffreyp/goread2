@@ -336,10 +336,6 @@ func (fs *FeedService) GetArticles(feedID int) ([]database.Article, error) {
 	return fs.db.GetArticles(feedID)
 }
 
-func (fs *FeedService) GetAllArticles() ([]database.Article, error) {
-	return fs.db.GetAllArticles()
-}
-
 func (fs *FeedService) GetUserArticles(userID int) ([]database.Article, error) {
 	return fs.db.GetUserArticles(userID)
 }
