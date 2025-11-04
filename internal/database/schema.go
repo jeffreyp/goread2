@@ -11,6 +11,12 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// ArticlePaginationResult contains paginated articles and a cursor for the next page
+type ArticlePaginationResult struct {
+	Articles   []Article
+	NextCursor string // Empty string means no more results
+}
+
 type Database interface {
 	// User methods
 	CreateUser(user *User) error
@@ -43,7 +49,7 @@ type Database interface {
 	GetArticles(feedID int) ([]Article, error)
 	FindArticleByURL(url string) (*Article, error)
 	GetUserArticles(userID int) ([]Article, error)
-	GetUserArticlesPaginated(userID, limit, offset int, unreadOnly bool) ([]Article, error)
+	GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error)
 	GetUserFeedArticles(userID, feedID int) ([]Article, error)
 
 	// User article status methods
@@ -798,11 +804,16 @@ func (db *DB) UnsubscribeUserFromFeed(userID, feedID int) error {
 
 // User article methods
 func (db *DB) GetUserArticles(userID int) ([]Article, error) {
-	return db.GetUserArticlesPaginated(userID, 50, 0, false) // Default: first 50 articles
+	result, err := db.GetUserArticlesPaginated(userID, 50, "", false) // Default: first 50 articles
+	if err != nil {
+		return nil, err
+	}
+	return result.Articles, nil
 }
 
-// GetUserArticlesPaginated fetches user articles with pagination
-func (db *DB) GetUserArticlesPaginated(userID, limit, offset int, unreadOnly bool) ([]Article, error) {
+// GetUserArticlesPaginated fetches user articles with cursor-based pagination
+// Uses keyset pagination for efficient querying without scanning skipped rows
+func (db *DB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
 	baseQuery := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.content, a.description, a.author,
 			  a.published_at, a.created_at,
 			  COALESCE(ua.is_read, 0) as is_read,
@@ -813,14 +824,31 @@ func (db *DB) GetUserArticlesPaginated(userID, limit, offset int, unreadOnly boo
 			  LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
 			  WHERE uf.user_id = ?`
 
+	args := []interface{}{userID, userID}
+
 	// Add unread filter if requested
 	if unreadOnly {
 		baseQuery += ` AND COALESCE(ua.is_read, 0) = 0`
 	}
 
-	baseQuery += ` ORDER BY a.published_at DESC LIMIT ? OFFSET ?`
+	// Apply keyset pagination if cursor is provided
+	if cursor != "" {
+		// Decode cursor to get last article's published_at and id
+		cursorData, err := decodeSQLiteCursor(cursor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cursor: %w", err)
+		}
+		// Keyset pagination: use WHERE clause instead of OFFSET
+		// Order by published_at DESC, id DESC for deterministic ordering
+		baseQuery += ` AND (a.published_at < ? OR (a.published_at = ? AND a.id < ?))`
+		args = append(args, cursorData.PublishedAt, cursorData.PublishedAt, cursorData.ID)
+	}
 
-	rows, err := db.Query(baseQuery, userID, userID, limit, offset)
+	// Fetch limit+1 to check if there are more results
+	baseQuery += ` ORDER BY a.published_at DESC, a.id DESC LIMIT ?`
+	args = append(args, limit+1)
+
+	rows, err := db.Query(baseQuery, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -838,7 +866,46 @@ func (db *DB) GetUserArticlesPaginated(userID, limit, offset int, unreadOnly boo
 		articles = append(articles, article)
 	}
 
-	return articles, nil
+	// Determine if there are more results and generate next cursor
+	var nextCursor string
+	if len(articles) > limit {
+		// More results exist, create cursor from the last article we're returning
+		lastArticle := articles[limit-1]
+		nextCursor = encodeSQLiteCursor(lastArticle.ID, lastArticle.PublishedAt)
+		articles = articles[:limit] // Trim to requested limit
+	}
+
+	return &ArticlePaginationResult{
+		Articles:   articles,
+		NextCursor: nextCursor,
+	}, nil
+}
+
+// sqliteCursor represents the keyset values for pagination
+type sqliteCursor struct {
+	PublishedAt time.Time
+	ID          int
+}
+
+// encodeSQLiteCursor creates a cursor from article ID and published date
+func encodeSQLiteCursor(id int, publishedAt time.Time) string {
+	// Format: unixnano_id to preserve full timestamp precision
+	cursorStr := fmt.Sprintf("%d_%d", publishedAt.UnixNano(), id)
+	return cursorStr
+}
+
+// decodeSQLiteCursor decodes a cursor string back to cursor data
+func decodeSQLiteCursor(cursor string) (*sqliteCursor, error) {
+	var timestampNano int64
+	var id int
+	_, err := fmt.Sscanf(cursor, "%d_%d", &timestampNano, &id)
+	if err != nil {
+		return nil, err
+	}
+	return &sqliteCursor{
+		PublishedAt: time.Unix(0, timestampNano),
+		ID:          id,
+	}, nil
 }
 
 func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {

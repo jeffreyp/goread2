@@ -35,7 +35,7 @@ func (m *mockDBFeedHandler) AddArticle(*database.Article) error                 
 func (m *mockDBFeedHandler) GetArticles(int) ([]database.Article, error)                                   { return nil, nil }
 func (m *mockDBFeedHandler) FindArticleByURL(string) (*database.Article, error)                            { return nil, nil }
 func (m *mockDBFeedHandler) GetUserArticles(int) ([]database.Article, error)                               { return nil, nil }
-func (m *mockDBFeedHandler) GetUserArticlesPaginated(int, int, int, bool) ([]database.Article, error)     { return nil, nil }
+func (m *mockDBFeedHandler) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) { return &database.ArticlePaginationResult{}, nil }
 func (m *mockDBFeedHandler) GetUserFeedArticles(int, int) ([]database.Article, error)                      { return nil, nil }
 func (m *mockDBFeedHandler) GetUserArticleStatus(int, int) (*database.UserArticle, error)                  { return nil, nil }
 func (m *mockDBFeedHandler) SetUserArticleStatus(int, int, bool, bool) error                               { return nil }

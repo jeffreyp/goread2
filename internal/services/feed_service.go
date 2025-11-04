@@ -344,8 +344,8 @@ func (fs *FeedService) GetUserArticles(userID int) ([]database.Article, error) {
 	return fs.db.GetUserArticles(userID)
 }
 
-func (fs *FeedService) GetUserArticlesPaginated(userID, limit, offset int, unreadOnly bool) ([]database.Article, error) {
-	return fs.db.GetUserArticlesPaginated(userID, limit, offset, unreadOnly)
+func (fs *FeedService) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*database.ArticlePaginationResult, error) {
+	return fs.db.GetUserArticlesPaginated(userID, limit, cursor, unreadOnly)
 }
 
 func (fs *FeedService) GetUserFeedArticles(userID, feedID int) ([]database.Article, error) {

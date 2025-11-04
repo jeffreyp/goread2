@@ -100,7 +100,7 @@ func (m *mockDBAdminHandler) AddArticle(*database.Article) error                
 func (m *mockDBAdminHandler) GetArticles(int) ([]database.Article, error)               { return nil, nil }
 func (m *mockDBAdminHandler) FindArticleByURL(string) (*database.Article, error)        { return nil, nil }
 func (m *mockDBAdminHandler) GetUserArticles(int) ([]database.Article, error)           { return nil, nil }
-func (m *mockDBAdminHandler) GetUserArticlesPaginated(int, int, int, bool) ([]database.Article, error) { return nil, nil }
+func (m *mockDBAdminHandler) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) { return &database.ArticlePaginationResult{}, nil }
 func (m *mockDBAdminHandler) GetUserFeedArticles(int, int) ([]database.Article, error)  { return nil, nil }
 func (m *mockDBAdminHandler) GetUserArticleStatus(int, int) (*database.UserArticle, error) { return nil, nil }
 func (m *mockDBAdminHandler) SetUserArticleStatus(int, int, bool, bool) error           { return nil }

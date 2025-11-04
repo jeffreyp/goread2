@@ -723,10 +723,14 @@ func (db *DatastoreDB) UnsubscribeUserFromFeed(userID, feedID int) error {
 }
 
 func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
-	return db.GetUserArticlesPaginated(userID, 50, 0, false) // Default: first 50 articles
+	result, err := db.GetUserArticlesPaginated(userID, 50, "", false) // Default: first 50 articles
+	if err != nil {
+		return nil, err
+	}
+	return result.Articles, nil
 }
 
-func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unreadOnly bool) ([]Article, error) {
+func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
 	ctx := context.Background()
 
 	// Get user's subscribed feeds
@@ -736,7 +740,10 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unrea
 	}
 
 	if len(feeds) == 0 {
-		return []Article{}, nil
+		return &ArticlePaginationResult{
+			Articles:   []Article{},
+			NextCursor: "",
+		}, nil
 	}
 
 	// Create a map of feed IDs to feed titles for efficient lookup
@@ -747,9 +754,9 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unrea
 		feedTitleMap[feed.ID] = feed.Title
 	}
 
-	// Get articles more efficiently by running fewer, larger queries
-	// We'll get more articles than needed and sort/paginate in memory
-	// This reduces query overhead significantly
+	// For Datastore, we need a different approach since we're querying across multiple feeds
+	// We'll query each feed and merge results, then apply cursor-based pagination in memory
+	// This is still more efficient than the old approach because we fetch less data per feed
 	var allArticles []Article
 
 	// Query articles from all feeds in parallel batches
@@ -767,10 +774,11 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unrea
 		for _, feedID := range batch {
 			go func(fid int64) {
 				// Get recent articles from this feed
+				// We fetch more than limit since we need to merge and sort across feeds
 				query := datastore.NewQuery("Article").
 					FilterField("feed_id", "=", fid).
 					Order("-published_at").
-					Limit(limit + offset) // Fetch exactly what we need for pagination
+					Limit(limit * 2) // Fetch 2x limit per feed to ensure we have enough after sorting
 
 				var feedArticles []ArticleEntity
 				keys, err := db.client.GetAll(ctx, query, &feedArticles)
@@ -810,14 +818,17 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unrea
 		}
 	}
 
-	// Sort all articles by published_at desc
+	// Sort all articles by published_at desc, then by id desc for deterministic ordering
 	sort.Slice(allArticles, func(i, j int) bool {
+		if allArticles[i].PublishedAt.Equal(allArticles[j].PublishedAt) {
+			return allArticles[i].ID > allArticles[j].ID
+		}
 		return allArticles[i].PublishedAt.After(allArticles[j].PublishedAt)
 	})
 
 	// Get user status for articles using efficient batch key lookup
 	// Only fetch UserArticle entities for the articles we have, not all user's articles
-	if unreadOnly || len(allArticles) > 0 {
+	if len(allArticles) > 0 {
 		// Build keys for only the articles we're working with
 		statusMap := make(map[int]UserArticleEntity)
 		chunkSize := 1000 // Datastore GetMulti limit
@@ -879,21 +890,53 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID, limit, offset int, unrea
 		allArticles = filteredArticles
 	}
 
-	// Apply pagination
-	startIdx := offset
-	endIdx := offset + limit
+	// Apply cursor-based pagination
+	startIdx := 0
+	if cursor != "" {
+		// Decode cursor to find start position
+		cursorData, err := decodeSQLiteCursor(cursor) // Reuse same cursor format
+		if err != nil {
+			return nil, fmt.Errorf("invalid cursor: %w", err)
+		}
 
-	if startIdx >= len(allArticles) {
-		return []Article{}, nil
+		// Find the position of the cursor in our sorted list
+		for i, article := range allArticles {
+			if article.PublishedAt.Before(cursorData.PublishedAt) ||
+				(article.PublishedAt.Equal(cursorData.PublishedAt) && article.ID < cursorData.ID) {
+				startIdx = i
+				break
+			}
+		}
 	}
 
+	// Calculate end index
+	endIdx := startIdx + limit
 	if endIdx > len(allArticles) {
 		endIdx = len(allArticles)
 	}
 
-	paginatedArticles := allArticles[startIdx:endIdx]
+	// Check if we have a full page (more results exist beyond this page)
+	var nextCursor string
+	if endIdx < len(allArticles) {
+		// More results exist, create cursor from the last article we're returning
+		if endIdx > startIdx {
+			lastArticle := allArticles[endIdx-1]
+			nextCursor = encodeSQLiteCursor(lastArticle.ID, lastArticle.PublishedAt)
+		}
+	}
 
-	return paginatedArticles, nil
+	// Get the page of articles
+	var paginatedArticles []Article
+	if startIdx < len(allArticles) {
+		paginatedArticles = allArticles[startIdx:endIdx]
+	} else {
+		paginatedArticles = []Article{}
+	}
+
+	return &ArticlePaginationResult{
+		Articles:   paginatedArticles,
+		NextCursor: nextCursor,
+	}, nil
 }
 
 func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {

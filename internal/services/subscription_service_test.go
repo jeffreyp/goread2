@@ -119,8 +119,8 @@ func (m *mockDBForSub) AddArticle(*database.Article) error              { return
 func (m *mockDBForSub) GetArticles(int) ([]database.Article, error)     { return nil, nil }
 func (m *mockDBForSub) FindArticleByURL(string) (*database.Article, error) { return nil, nil }
 func (m *mockDBForSub) GetUserArticles(int) ([]database.Article, error) { return nil, nil }
-func (m *mockDBForSub) GetUserArticlesPaginated(int, int, int, bool) ([]database.Article, error) {
-	return nil, nil
+func (m *mockDBForSub) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) {
+	return &database.ArticlePaginationResult{}, nil
 }
 func (m *mockDBForSub) GetUserFeedArticles(int, int) ([]database.Article, error)     { return nil, nil }
 func (m *mockDBForSub) GetUserArticleStatus(int, int) (*database.UserArticle, error) { return nil, nil }

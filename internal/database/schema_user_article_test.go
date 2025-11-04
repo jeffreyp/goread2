@@ -59,24 +59,42 @@ func TestGetUserArticlesPaginated(t *testing.T) {
 		createTestArticle(t, db, feed.ID)
 	}
 
-	// Test pagination
-	articles, err := db.GetUserArticlesPaginated(user.ID, 2, 0, false)
+	// Test first page
+	result, err := db.GetUserArticlesPaginated(user.ID, 2, "", false)
 	if err != nil {
 		t.Fatalf("GetUserArticlesPaginated failed: %v", err)
 	}
 
-	if len(articles) != 2 {
-		t.Errorf("Expected 2 articles, got %d", len(articles))
+	if len(result.Articles) != 2 {
+		t.Errorf("Expected 2 articles, got %d", len(result.Articles))
 	}
 
-	// Test offset
-	articles, err = db.GetUserArticlesPaginated(user.ID, 2, 2, false)
+	if result.NextCursor == "" {
+		t.Error("Expected next_cursor to be non-empty for first page")
+	}
+
+	// Test second page using cursor
+	result, err = db.GetUserArticlesPaginated(user.ID, 2, result.NextCursor, false)
 	if err != nil {
-		t.Fatalf("GetUserArticlesPaginated with offset failed: %v", err)
+		t.Fatalf("GetUserArticlesPaginated with cursor failed: %v", err)
 	}
 
-	if len(articles) != 2 {
-		t.Errorf("Expected 2 articles with offset, got %d", len(articles))
+	if len(result.Articles) != 2 {
+		t.Errorf("Expected 2 articles with cursor, got %d", len(result.Articles))
+	}
+
+	// Test third page (should have 1 article and no next cursor)
+	result, err = db.GetUserArticlesPaginated(user.ID, 2, result.NextCursor, false)
+	if err != nil {
+		t.Fatalf("GetUserArticlesPaginated with cursor failed: %v", err)
+	}
+
+	if len(result.Articles) != 1 {
+		t.Errorf("Expected 1 article on last page, got %d", len(result.Articles))
+	}
+
+	if result.NextCursor != "" {
+		t.Error("Expected next_cursor to be empty on last page")
 	}
 }
 
@@ -103,20 +121,91 @@ func TestGetUserArticlesPaginatedUnreadOnly(t *testing.T) {
 	}
 
 	// Get unread only
-	unreadArticles, err := db.GetUserArticlesPaginated(user.ID, 10, 0, true)
+	result, err := db.GetUserArticlesPaginated(user.ID, 10, "", true)
 	if err != nil {
 		t.Fatalf("GetUserArticlesPaginated(unreadOnly=true) failed: %v", err)
 	}
 
-	if len(unreadArticles) != 3 {
-		t.Errorf("Expected 3 unread articles, got %d", len(unreadArticles))
+	if len(result.Articles) != 3 {
+		t.Errorf("Expected 3 unread articles, got %d", len(result.Articles))
 	}
 
 	// Verify all are unread
-	for _, a := range unreadArticles {
+	for _, a := range result.Articles {
 		if a.IsRead {
 			t.Error("Unread-only query returned a read article")
 		}
+	}
+}
+
+func TestGetUserArticlesPaginatedEdgeCases(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed := createTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+
+	// Test 1: Empty result set
+	result, err := db.GetUserArticlesPaginated(user.ID, 10, "", false)
+	if err != nil {
+		t.Fatalf("GetUserArticlesPaginated failed on empty: %v", err)
+	}
+	if len(result.Articles) != 0 {
+		t.Errorf("Expected 0 articles for empty feed, got %d", len(result.Articles))
+	}
+	if result.NextCursor != "" {
+		t.Error("Expected empty cursor for empty result set")
+	}
+
+	// Test 2: Invalid cursor format
+	_, err = db.GetUserArticlesPaginated(user.ID, 10, "invalid_cursor", false)
+	if err == nil {
+		t.Error("Expected error for invalid cursor format")
+	}
+
+	// Test 3: Malformed cursor (missing parts)
+	_, err = db.GetUserArticlesPaginated(user.ID, 10, "123456789", false)
+	if err == nil {
+		t.Error("Expected error for malformed cursor")
+	}
+
+	// Test 4: Non-numeric cursor parts
+	_, err = db.GetUserArticlesPaginated(user.ID, 10, "abc_def", false)
+	if err == nil {
+		t.Error("Expected error for non-numeric cursor")
+	}
+
+	// Create some articles for next tests
+	for i := 0; i < 3; i++ {
+		createTestArticle(t, db, feed.ID)
+	}
+
+	// Test 5: Cursor pointing past all results (no more data)
+	// Use a cursor from far in the past (should return no results)
+	pastCursor := "1_1" // Very old timestamp and low ID
+	result, err = db.GetUserArticlesPaginated(user.ID, 10, pastCursor, false)
+	if err != nil {
+		t.Fatalf("GetUserArticlesPaginated failed with past cursor: %v", err)
+	}
+	if len(result.Articles) != 0 {
+		t.Errorf("Expected 0 articles with past cursor, got %d", len(result.Articles))
+	}
+	if result.NextCursor != "" {
+		t.Error("Expected empty cursor when no more results")
+	}
+
+	// Test 6: Exact limit boundary (3 articles, limit=3, should have no next cursor)
+	result, err = db.GetUserArticlesPaginated(user.ID, 3, "", false)
+	if err != nil {
+		t.Fatalf("GetUserArticlesPaginated failed: %v", err)
+	}
+	if len(result.Articles) != 3 {
+		t.Errorf("Expected 3 articles, got %d", len(result.Articles))
+	}
+	if result.NextCursor != "" {
+		t.Error("Expected no next cursor when exactly at limit")
 	}
 }
 

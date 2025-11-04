@@ -50,12 +50,12 @@ func TestPerformanceBaseline(t *testing.T) {
 
 		// Test 4: Query articles with pagination
 		start = time.Now()
-		articles, err := testServer.DB.GetUserArticlesPaginated(user.ID, 50, 0, false)
+		result, err := testServer.DB.GetUserArticlesPaginated(user.ID, 50, "", false)
 		duration = time.Since(start)
 		if err != nil {
 			t.Fatalf("Failed to get articles: %v", err)
 		}
-		t.Logf("✅ Queried %d articles (paginated) in %v", len(articles), duration)
+		t.Logf("✅ Queried %d articles (paginated) in %v", len(result.Articles), duration)
 
 		// Test 5: Calculate unread counts
 		start = time.Now()
@@ -114,7 +114,7 @@ func TestConcurrentUserOperations(t *testing.T) {
 			// Each user queries their feeds
 			_, _ = testServer.DB.GetUserFeeds(u.ID)
 			// Each user queries their articles
-			_, _ = testServer.DB.GetUserArticlesPaginated(u.ID, 50, 0, false)
+			_, _ = testServer.DB.GetUserArticlesPaginated(u.ID, 50, "", false)
 			// Each user gets unread counts
 			_, _ = testServer.DB.GetUserUnreadCounts(u.ID)
 		}(user)

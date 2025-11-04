@@ -299,39 +299,61 @@ Get articles for a specific feed.
 
 **Parameters**:
 - `id` (path) - Feed ID or "all" for all feeds
+- `limit` (query, optional) - Number of articles per page (default: 50, max: 200)
+- `cursor` (query, optional) - Pagination cursor from previous response (omit for first page)
+- `unread_only` (query, optional) - Filter to unread articles only (`true`, `1`, or omit)
 
 **Response**:
 ```json
-[
-  {
-    "id": 1,
-    "feed_id": 1,
-    "title": "Article Title",
-    "url": "https://example.com/article1",
-    "content": "Full article content...",
-    "description": "Article summary",
-    "author": "John Author",
-    "published_at": "2023-01-01T10:00:00Z",
-    "created_at": "2023-01-01T10:30:00Z",
-    "is_read": false,
-    "is_starred": false
-  }
-]
+{
+  "articles": [
+    {
+      "id": 1,
+      "feed_id": 1,
+      "feed_title": "Example Blog",
+      "title": "Article Title",
+      "url": "https://example.com/article1",
+      "content": "Full article content...",
+      "description": "Article summary",
+      "author": "John Author",
+      "published_at": "2023-01-01T10:00:00Z",
+      "created_at": "2023-01-01T10:30:00Z",
+      "is_read": false,
+      "is_starred": false
+    }
+  ],
+  "next_cursor": "1672570800000000000_1"
+}
 ```
 
+**Pagination**:
+- Uses cursor-based pagination for efficient querying
+- `next_cursor` will be empty ("") when there are no more results
+- To get next page, include `cursor` parameter with the `next_cursor` value from previous response
+- Cursors are opaque strings - don't parse or modify them
+
 **Special Cases**:
-- Use `id=all` to get articles from all subscribed feeds
-- Articles are ordered by `published_at` (newest first)
+- Use `id=all` to get articles from all subscribed feeds (supports pagination)
+- Use `id={feed_id}` to get articles from a specific feed (no pagination)
+- Articles are ordered by `published_at` DESC, then `id` DESC for deterministic ordering
 - `is_read` and `is_starred` are user-specific
 
 **Example**:
 ```bash
-# Get articles from specific feed
+# Get first page from specific feed (no pagination)
 curl "http://localhost:8080/api/feeds/1/articles" \
   -H "Cookie: session=your-session-cookie"
 
-# Get articles from all feeds
-curl "http://localhost:8080/api/feeds/all/articles" \
+# Get first page from all feeds (with pagination)
+curl "http://localhost:8080/api/feeds/all/articles?limit=50" \
+  -H "Cookie: session=your-session-cookie"
+
+# Get next page using cursor from previous response
+curl "http://localhost:8080/api/feeds/all/articles?limit=50&cursor=1672570800000000000_1" \
+  -H "Cookie: session=your-session-cookie"
+
+# Get unread articles only
+curl "http://localhost:8080/api/feeds/all/articles?unread_only=true&limit=50" \
   -H "Cookie: session=your-session-cookie"
 ```
 

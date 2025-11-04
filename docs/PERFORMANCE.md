@@ -44,20 +44,30 @@ Our pricing model ($2.99/month unlimited feeds) requires aggressive cost optimiz
 - Eliminates unbounded Datastore entity reads
 - Expected savings: $300-500/month
 
-#### 3. Optimize Pagination Queries ($50-100/month savings)
+#### 3. Cursor-Based Pagination ($100-200/month savings)
 
-**Problem:** Pagination was fetching +50 extra articles per feed "for better sorting".
+**Problem:** Offset-based pagination was inefficient, especially for Datastore:
+- SQLite: Had to scan through all skipped rows with OFFSET
+- Datastore: Fetched `limit + offset + 50` extra articles per feed
+- Each page deeper required more reads
 
 **Solution:**
-- Changed `Limit(limit + offset + 50)` to `Limit(limit + offset)`
-- Sorting still works correctly with exact article count needed
+- Implemented cursor-based pagination using keyset pagination for SQLite
+- For Datastore: reduced per-feed fetch from `limit + offset + 50` to `limit * 2`
+- Cursors encode the last article's timestamp and ID for precise positioning
+- No need to scan skipped rows - jump directly to the right position
 
-**Implementation:** `internal/database/datastore.go:773`
+**Implementation:**
+- SQLite: `internal/database/schema.go:814-909` (keyset pagination with WHERE clause)
+- Datastore: `internal/database/datastore.go:733-940` (reduced fetch size)
+- API: `internal/handlers/feed_handler.go:132-161` (cursor parameter)
 
 **Impact:**
-- Reduces entity reads by ~50 per feed per request
-- For user with 10 feeds: saves 500 entity reads per page load
-- Expected savings: $50-100/month
+- **SQLite**: O(1) positioning instead of O(offset) scanning
+- **Datastore**: Eliminates wasteful `+50` article fetching
+- For user with 10 feeds on page 2: saves ~500+ entity reads
+- Scales better with deep pagination
+- Expected savings: $100-200/month
 
 #### 4. Cache GetAllUserFeeds() ($50-100/month savings)
 
@@ -76,9 +86,9 @@ Our pricing model ($2.99/month unlimited feeds) requires aggressive cost optimiz
 
 ### Total Cost Savings
 
-**Estimated total: $430-760/month**
+**Estimated total: $530-960/month**
 
-This reduces per-user costs by approximately $5-9/month, making the $2.99/month pricing sustainable.
+This reduces per-user costs by approximately $6-11/month, making the $2.99/month pricing sustainable and profitable.
 
 ## Performance Optimizations
 
@@ -201,12 +211,11 @@ Enable detailed logging for cost analysis:
 
 Several P1 and P2 optimizations remain in the Beads issue tracker:
 
-1. **Cursor-based pagination** (P1) - More efficient than offset-based
-2. **Optimize UnsubscribeUserFromFeed** (P1) - Reduce cascading deletes
-3. **Increase unread cache TTL** (P1) - From 90s to 5-10 minutes
-4. **Smart feed update prioritization refinement** (P2)
-5. **Cloud Monitoring dashboards** (P2) - Better visibility into costs
-6. **Keys-only queries** (P2) - Where full entities not needed
+1. **Optimize UnsubscribeUserFromFeed** (P1) - Reduce cascading deletes
+2. **Increase unread cache TTL** (P1) - From 90s to 5-10 minutes
+3. **Smart feed update prioritization refinement** (P2)
+4. **Cloud Monitoring dashboards** (P2) - Better visibility into costs
+5. **Keys-only queries** (P2) - Where full entities not needed
 
 Run `bd ready` to see all available optimization issues.
 
@@ -262,11 +271,11 @@ Set up Google Cloud budget alerts:
 
 ## Summary
 
-Through careful optimization, we've reduced operational costs by $430-760/month while maintaining excellent performance and user experience. Key strategies:
+Through careful optimization, we've reduced operational costs by $530-960/month while maintaining excellent performance and user experience. Key strategies:
 
 1. ✅ Smart feed update prioritization
 2. ✅ Remove unbounded queries
-3. ✅ Optimize pagination
+3. ✅ Cursor-based pagination (replaces offset-based)
 4. ✅ Cache expensive operations
 5. ✅ Concurrent processing where safe
 

@@ -115,7 +115,7 @@ func (m *mockDBAudit) AddArticle(*database.Article) error                       
 func (m *mockDBAudit) GetArticles(int) ([]database.Article, error)               { return nil, nil }
 func (m *mockDBAudit) FindArticleByURL(string) (*database.Article, error)        { return nil, nil }
 func (m *mockDBAudit) GetUserArticles(int) ([]database.Article, error)           { return nil, nil }
-func (m *mockDBAudit) GetUserArticlesPaginated(int, int, int, bool) ([]database.Article, error) { return nil, nil }
+func (m *mockDBAudit) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) { return &database.ArticlePaginationResult{}, nil }
 func (m *mockDBAudit) GetUserFeedArticles(int, int) ([]database.Article, error)  { return nil, nil }
 func (m *mockDBAudit) GetUserArticleStatus(int, int) (*database.UserArticle, error) { return nil, nil }
 func (m *mockDBAudit) SetUserArticleStatus(int, int, bool, bool) error           { return nil }

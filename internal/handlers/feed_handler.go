@@ -132,7 +132,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 	if idStr == "all" {
 		// Parse pagination parameters
 		limit := 50 // Default limit
-		offset := 0 // Default offset
+		cursor := "" // Empty cursor means start from beginning
 		unreadOnly := false // Default to showing all articles
 
 		if limitStr := c.Query("limit"); limitStr != "" {
@@ -141,22 +141,23 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 			}
 		}
 
-		if offsetStr := c.Query("offset"); offsetStr != "" {
-			if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
-				offset = parsedOffset
-			}
-		}
+		cursor = c.Query("cursor") // Get cursor from query parameter
 
 		if unreadStr := c.Query("unread_only"); unreadStr == "true" || unreadStr == "1" {
 			unreadOnly = true
 		}
 
-		articles, err := fh.feedService.GetUserArticlesPaginated(user.ID, limit, offset, unreadOnly)
+		result, err := fh.feedService.GetUserArticlesPaginated(user.ID, limit, cursor, unreadOnly)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, articles)
+
+		// Return both articles and next_cursor for pagination
+		c.JSON(http.StatusOK, gin.H{
+			"articles": result.Articles,
+			"next_cursor": result.NextCursor,
+		})
 		return
 	}
 

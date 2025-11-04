@@ -181,14 +181,17 @@ func TestArticleAPI(t *testing.T) {
 			t.Errorf("Expected status 200, got %d", rr.Code)
 		}
 
-		var articles []database.Article
-		err := json.Unmarshal(rr.Body.Bytes(), &articles)
+		var response struct {
+			Articles   []database.Article `json:"articles"`
+			NextCursor string             `json:"next_cursor"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &response)
 		if err != nil {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		if len(articles) != 1 {
-			t.Errorf("Expected 1 article, got %d", len(articles))
+		if len(response.Articles) != 1 {
+			t.Errorf("Expected 1 article, got %d", len(response.Articles))
 		}
 	})
 
