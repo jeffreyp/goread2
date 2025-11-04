@@ -29,25 +29,28 @@ describe('GoReadApp', () => {
         
         // Mock successful authentication
         mockFetch({
-            '/auth/me': createMockResponse({ 
-                user: { 
-                    id: 1, 
-                    name: 'Test User', 
-                    email: 'test@example.com', 
+            '/auth/me': createMockResponse({
+                user: {
+                    id: 1,
+                    name: 'Test User',
+                    email: 'test@example.com',
                     avatar: 'https://example.com/avatar.jpg',
                     created_at: '2024-01-01T00:00:00Z'
-                } 
+                }
             }),
-            '/api/subscription': createMockResponse({ 
-                status: 'trial', 
-                current_feeds: 5, 
-                feed_limit: 20, 
+            '/api/subscription': createMockResponse({
+                status: 'trial',
+                current_feeds: 5,
+                feed_limit: 20,
                 trial_days_remaining: 15,
                 trial_ends_at: '2024-12-31T23:59:59Z'
             }),
             '/api/feeds': createMockResponse(createTestFeeds()),
             '/api/feeds/unread-counts': createMockResponse({ '1': 5, '2': 3 }),
-            '/api/feeds/all/articles': createMockResponse(createTestArticles())
+            '/api/feeds/all/articles': createMockResponse({
+                articles: createTestArticles(),
+                next_cursor: ''
+            })
         });
     });
 
