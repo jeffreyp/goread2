@@ -146,6 +146,7 @@ func TestFeedListCache_GetReturnsCopy(t *testing.T) {
 	retrieved, _ := cache.Get()
 	retrieved[0].Title = "Modified"
 	retrieved = append(retrieved, database.Feed{ID: 999, Title: "Added", URL: "https://example.com/added"})
+	_ = retrieved // Verify slice modification doesn't affect cache
 
 	// Verify cache wasn't modified
 	cached, _ := cache.Get()
@@ -168,6 +169,7 @@ func TestFeedListCache_SetStoresCopy(t *testing.T) {
 	// Modify original after setting
 	original[0].Title = "Modified"
 	original = append(original, database.Feed{ID: 999, Title: "Added", URL: "https://example.com/added"})
+	_ = original // Verify input slice modification doesn't affect cache
 
 	// Verify cache wasn't affected
 	cached, _ := cache.Get()
