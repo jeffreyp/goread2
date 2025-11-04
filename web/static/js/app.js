@@ -1028,7 +1028,7 @@ class GoReadApp {
             if (!append) {
                 document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
                 this.articles = [];
-                this.articleOffset = 0;
+                this.nextCursor = '';
                 this.loadedArticleIds = new Set(); // Track loaded article IDs to prevent duplicates
             }
 
@@ -1036,24 +1036,25 @@ class GoReadApp {
             let url;
             if (feedId === 'all') {
                 const unreadParam = this.articleFilter === 'unread' ? '&unread_only=true' : '';
-
-                // When loading more in unread mode, adjust offset to account for articles marked as read
-                let requestOffset = this.articleOffset;
-                if (append && this.articleFilter === 'unread') {
-                    // Count how many of the loaded articles are now marked as read
-                    const readCount = this.articles.filter(a => a.is_read).length;
-                    // Request from an earlier offset to ensure we get continuity
-                    // This will cause some overlap, which we'll filter out with our duplicate detection
-                    requestOffset = Math.max(0, this.articleOffset - readCount);
-                }
-
-                url = `/api/feeds/all/articles?limit=${limit}&offset=${requestOffset}${unreadParam}`;
+                const cursorParam = this.nextCursor ? `&cursor=${encodeURIComponent(this.nextCursor)}` : '';
+                url = `/api/feeds/all/articles?limit=${limit}${cursorParam}${unreadParam}`;
             } else {
                 url = `/api/feeds/${feedId}/articles`;
             }
 
             const response = await fetch(url);
-            const newArticles = await response.json();
+            const data = await response.json();
+
+            // Handle cursor-based pagination response for 'all' feed
+            let newArticles, nextCursor;
+            if (feedId === 'all' && data.articles !== undefined) {
+                newArticles = data.articles;
+                nextCursor = data.next_cursor || '';
+            } else {
+                // Single feed endpoint still returns array directly
+                newArticles = data;
+                nextCursor = '';
+            }
 
             // Track the starting index of newly loaded articles (for auto-selection after load more)
             const newArticlesStartIndex = append ? this.articles.length : 0;
@@ -1069,18 +1070,15 @@ class GoReadApp {
                 });
 
                 this.articles.push(...uniqueNewArticles);
-
-                // Increment offset by the number of articles requested, not received
-                // This keeps pagination consistent even when articles are filtered
-                this.articleOffset += limit;
+                this.nextCursor = nextCursor;
             } else {
                 this.articles = newArticles;
                 // Track all loaded article IDs
                 this.loadedArticleIds = new Set(newArticles.map(a => a.id));
-                this.articleOffset = newArticles.length;
+                this.nextCursor = nextCursor;
             }
 
-            this.hasMoreArticles = newArticles.length === limit;
+            this.hasMoreArticles = nextCursor !== '';
 
             this.renderArticlesOptimized(append);
 
