@@ -1299,8 +1299,8 @@ func (db *DatastoreDB) CleanupOrphanedUserArticles(olderThanDays int) (int, erro
 				continue
 			}
 
-			// Check if article is old enough
-			if article.CreatedAt.After(cutoffDate) {
+			// Check if article is old enough (skip check if olderThanDays is 0)
+			if olderThanDays > 0 && article.CreatedAt.After(cutoffDate) {
 				continue // Too recent, skip
 			}
 

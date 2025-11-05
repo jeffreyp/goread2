@@ -1088,19 +1088,39 @@ func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
 // the user is no longer subscribed to. Only cleans up articles older than the specified number of days.
 // Returns the number of records deleted.
 func (db *DB) CleanupOrphanedUserArticles(olderThanDays int) (int, error) {
-	query := `
-		DELETE FROM user_articles
-		WHERE rowid IN (
-			SELECT ua.rowid
-			FROM user_articles ua
-			JOIN articles a ON ua.article_id = a.id
-			LEFT JOIN user_feeds uf ON ua.user_id = uf.user_id AND a.feed_id = uf.feed_id
-			WHERE uf.user_id IS NULL
-			AND a.created_at < datetime('now', '-' || ? || ' days')
-		)
-	`
+	var query string
+	var result sql.Result
+	var err error
 
-	result, err := db.Exec(query, olderThanDays)
+	if olderThanDays == 0 {
+		// Clean up all orphaned user articles regardless of age
+		query = `
+			DELETE FROM user_articles
+			WHERE rowid IN (
+				SELECT ua.rowid
+				FROM user_articles ua
+				JOIN articles a ON ua.article_id = a.id
+				LEFT JOIN user_feeds uf ON ua.user_id = uf.user_id AND a.feed_id = uf.feed_id
+				WHERE uf.user_id IS NULL
+			)
+		`
+		result, err = db.Exec(query)
+	} else {
+		// Clean up orphaned user articles older than the specified number of days
+		query = `
+			DELETE FROM user_articles
+			WHERE rowid IN (
+				SELECT ua.rowid
+				FROM user_articles ua
+				JOIN articles a ON ua.article_id = a.id
+				LEFT JOIN user_feeds uf ON ua.user_id = uf.user_id AND a.feed_id = uf.feed_id
+				WHERE uf.user_id IS NULL
+				AND a.created_at < datetime('now', '-' || ? || ' days')
+			)
+		`
+		result, err = db.Exec(query, olderThanDays)
+	}
+
 	if err != nil {
 		return 0, fmt.Errorf("failed to cleanup orphaned user articles: %w", err)
 	}
