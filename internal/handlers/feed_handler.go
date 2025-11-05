@@ -291,6 +291,46 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Feeds refreshed successfully"})
 }
 
+func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
+	// If this is the cron endpoint, verify it's authorized
+	if c.Request.URL.Path == "/cron/cleanup-orphaned-articles" {
+		// In App Engine, verify the X-Appengine-Cron header
+		if os.Getenv("GAE_ENV") == "standard" {
+			cronHeader := c.GetHeader("X-Appengine-Cron")
+			if cronHeader != "true" {
+				log.Printf("Unauthorized cron request from IP: %s", auth.GetSecureClientIP(c))
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+				return
+			}
+		} else {
+			// In non-App Engine environments, require authentication with admin privileges
+			user, exists := auth.GetUserFromContext(c)
+			if !exists || !user.IsAdmin {
+				log.Printf("Unauthorized cron request - requires admin authentication")
+				c.JSON(http.StatusForbidden, gin.H{"error": "Admin authentication required"})
+				return
+			}
+		}
+		log.Printf("Cron cleanup started at %v", time.Now())
+	} else {
+		log.Printf("Manual cleanup started at %v", time.Now())
+	}
+
+	// Clean up user articles orphaned for more than 7 days
+	deletedCount, err := fh.db.CleanupOrphanedUserArticles(7)
+	if err != nil {
+		log.Printf("Cleanup failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Printf("Cleanup completed successfully at %v, deleted %d orphaned records", time.Now(), deletedCount)
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Cleanup completed successfully",
+		"deleted_count": deletedCount,
+	})
+}
+
 func (fh *FeedHandler) DebugFeed(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {

@@ -665,58 +665,12 @@ func (db *DatastoreDB) UnsubscribeUserFromFeed(userID, feedID int) error {
 	ctx := context.Background()
 
 	// Remove the user-feed subscription
+	// Note: Orphaned UserArticle entities will be cleaned up by periodic background job
+	// (see CleanupOrphanedUserArticles)
 	key := datastore.NameKey("UserFeed", fmt.Sprintf("%d_%d", userID, feedID), nil)
 	err := db.client.Delete(ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to delete subscription: %w", err)
-	}
-
-	// Also remove all user-article relationships for this feed
-	// This ensures when the user re-adds the feed, articles appear as fresh/unread
-
-	// First, get all articles for this feed
-	articleQuery := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID)).KeysOnly()
-	articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get articles for feed cleanup: %w", err)
-	}
-
-	// Get all user-article relationships for this user and these articles
-	if len(articleKeys) > 0 {
-		// Process in chunks to avoid datastore query limits
-		chunkSize := 100
-		for i := 0; i < len(articleKeys); i += chunkSize {
-			end := i + chunkSize
-			if end > len(articleKeys) {
-				end = len(articleKeys)
-			}
-
-			chunk := articleKeys[i:end]
-			var userArticleKeys []*datastore.Key
-
-			for _, articleKey := range chunk {
-				articleID := articleKey.ID
-				// Query for user-article relationships with this user and article
-				userArticleQuery := datastore.NewQuery("UserArticle").
-					FilterField("user_id", "=", int64(userID)).
-					FilterField("article_id", "=", articleID).
-					KeysOnly()
-
-				keys, err := db.client.GetAll(ctx, userArticleQuery, nil)
-				if err != nil {
-					continue // Skip errors and continue cleanup
-				}
-				userArticleKeys = append(userArticleKeys, keys...)
-			}
-
-			// Delete the user-article relationships in batches
-			if len(userArticleKeys) > 0 {
-				if err := db.client.DeleteMulti(ctx, userArticleKeys); err != nil {
-					// Log but don't fail - partial cleanup is better than none
-					fmt.Printf("Warning: Failed to delete some user-article relationships: %v\n", err)
-				}
-			}
-		}
 	}
 
 	return nil
@@ -1293,6 +1247,106 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 	}
 
 	return unreadCount, nil
+}
+
+// CleanupOrphanedUserArticles removes UserArticle entities that reference articles from feeds
+// the user is no longer subscribed to. Only cleans up articles older than the specified number of days.
+// Returns the number of records deleted.
+func (db *DatastoreDB) CleanupOrphanedUserArticles(olderThanDays int) (int, error) {
+	ctx := context.Background()
+	deletedCount := 0
+	cutoffDate := time.Now().AddDate(0, 0, -olderThanDays)
+
+	// Query UserArticle entities in batches
+	batchSize := 500
+	var cursor *datastore.Cursor
+
+	for {
+		query := datastore.NewQuery("UserArticle").Limit(batchSize)
+		if cursor != nil {
+			query = query.Start(*cursor)
+		}
+
+		var userArticles []UserArticleEntity
+		keys, err := db.client.GetAll(ctx, query.KeysOnly(), &userArticles)
+		if err != nil {
+			return deletedCount, fmt.Errorf("failed to query user articles: %w", err)
+		}
+
+		if len(keys) == 0 {
+			break
+		}
+
+		// Process this batch
+		var keysToDelete []*datastore.Key
+
+		for _, key := range keys {
+			// Parse user_id and article_id from the key name (format: "userID_articleID")
+			keyName := key.Name
+			var userID, articleID int64
+			_, err := fmt.Sscanf(keyName, "%d_%d", &userID, &articleID)
+			if err != nil {
+				continue // Skip malformed keys
+			}
+
+			// Get the article to find its feed_id and created_at
+			articleKey := datastore.IDKey("Article", articleID, nil)
+			var article ArticleEntity
+			err = db.client.Get(ctx, articleKey, &article)
+			if err != nil {
+				// Article doesn't exist, definitely orphaned
+				keysToDelete = append(keysToDelete, key)
+				continue
+			}
+
+			// Check if article is old enough
+			if article.CreatedAt.After(cutoffDate) {
+				continue // Too recent, skip
+			}
+
+			// Check if user is still subscribed to this feed
+			userFeedKey := datastore.NameKey("UserFeed", fmt.Sprintf("%d_%d", userID, article.FeedID), nil)
+			var userFeed UserFeedEntity
+			err = db.client.Get(ctx, userFeedKey, &userFeed)
+			if err == datastore.ErrNoSuchEntity {
+				// User is not subscribed, this is orphaned
+				keysToDelete = append(keysToDelete, key)
+			}
+			// If no error, user is still subscribed, keep it
+		}
+
+		// Delete orphaned UserArticle entities in this batch
+		if len(keysToDelete) > 0 {
+			err := db.client.DeleteMulti(ctx, keysToDelete)
+			if err != nil {
+				// Log but continue with other batches
+				fmt.Printf("Warning: Failed to delete some orphaned user articles: %v\n", err)
+			} else {
+				deletedCount += len(keysToDelete)
+			}
+		}
+
+		// Check if there are more results
+		if len(keys) < batchSize {
+			break
+		}
+
+		// Get cursor for next page (note: we need to re-run the query to get the cursor)
+		iter := db.client.Run(ctx, query)
+		for i := 0; i < len(keys); i++ {
+			_, err := iter.Next(nil)
+			if err != nil {
+				break
+			}
+		}
+		nextCursor, err := iter.Cursor()
+		if err != nil {
+			break
+		}
+		cursor = &nextCursor
+	}
+
+	return deletedCount, nil
 }
 
 // getUserFeedsWithRetry gets user feeds with retry logic to handle eventual consistency

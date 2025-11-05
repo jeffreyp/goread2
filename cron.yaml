@@ -7,3 +7,12 @@ cron:
     min_backoff_seconds: 10
     max_backoff_seconds: 300
     max_doublings: 3
+
+- description: "Cleanup orphaned user articles"
+  url: /cron/cleanup-orphaned-articles
+  schedule: every 24 hours
+  target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3

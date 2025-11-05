@@ -43,6 +43,7 @@ func (m *mockDBFeedHandler) BatchSetUserArticleStatus(int, []database.Article, b
 func (m *mockDBFeedHandler) MarkUserArticleRead(int, int, bool) error                                      { return nil }
 func (m *mockDBFeedHandler) ToggleUserArticleStar(int, int) error                                          { return nil }
 func (m *mockDBFeedHandler) GetUserUnreadCounts(int) (map[int]int, error)                                  { return nil, nil }
+func (m *mockDBFeedHandler) CleanupOrphanedUserArticles(int) (int, error)                                  { return 0, nil }
 func (m *mockDBFeedHandler) CreateSession(*database.Session) error                                         { return nil }
 func (m *mockDBFeedHandler) GetSession(string) (*database.Session, error)                                  { return nil, nil }
 func (m *mockDBFeedHandler) DeleteSession(string) error                                                    { return nil }

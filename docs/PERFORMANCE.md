@@ -84,11 +84,38 @@ Our pricing model ($2.99/month unlimited feeds) requires aggressive cost optimiz
 - ~45 fewer expensive queries per day
 - Expected savings: $50-100/month
 
+#### 5. Deferred Cleanup for UnsubscribeUserFromFeed ($20-50/month savings)
+
+**Problem:** Unsubscribing from a feed triggered expensive cleanup of all user-article relationships:
+- SQLite: DELETE with subquery on every unsubscribe
+- Datastore: Queried all articles in feed, then all UserArticle entities (potentially thousands of reads)
+- Users experienced slow unsubscribe operations
+- Cost spike on every unsubscribe
+
+**Solution:**
+- Removed synchronous cleanup from `UnsubscribeUserFromFeed()`
+- Unsubscribe now only deletes the UserFeed subscription (instant operation)
+- Implemented `CleanupOrphanedUserArticles()` method for batch cleanup
+- Daily cron job cleans up orphaned records older than 7 days
+- Articles from unsubscribed feeds don't appear in UI (filtered by `GetUserArticlesPaginated`)
+
+**Implementation:**
+- Database methods: `internal/database/schema.go:787-794`, `internal/database/datastore.go:664-677`
+- Cleanup methods: `internal/database/schema.go:1090-1114`, `internal/database/datastore.go:1255-1347`
+- Cron handler: `internal/handlers/feed_handler.go:294-332`
+- Cron schedule: `cron.yaml:11-18`
+
+**Impact:**
+- 10-100x faster unsubscribe operations
+- Spreads cleanup cost over time instead of spike per unsubscribe
+- Better user experience (instant unsubscribe)
+- Expected savings: $20-50/month
+
 ### Total Cost Savings
 
-**Estimated total: $530-960/month**
+**Estimated total: $550-1,010/month**
 
-This reduces per-user costs by approximately $6-11/month, making the $2.99/month pricing sustainable and profitable.
+This reduces per-user costs by approximately $6-12/month, making the $2.99/month pricing sustainable and profitable.
 
 ## Performance Optimizations
 
@@ -211,11 +238,10 @@ Enable detailed logging for cost analysis:
 
 Several P1 and P2 optimizations remain in the Beads issue tracker:
 
-1. **Optimize UnsubscribeUserFromFeed** (P1) - Reduce cascading deletes
-2. **Increase unread cache TTL** (P1) - From 90s to 5-10 minutes
-3. **Smart feed update prioritization refinement** (P2)
-4. **Cloud Monitoring dashboards** (P2) - Better visibility into costs
-5. **Keys-only queries** (P2) - Where full entities not needed
+1. **Increase unread cache TTL** (P1) - From 90s to 5-10 minutes
+2. **Smart feed update prioritization refinement** (P2)
+3. **Cloud Monitoring dashboards** (P2) - Better visibility into costs
+4. **Keys-only queries** (P2) - Where full entities not needed
 
 Run `bd ready` to see all available optimization issues.
 
@@ -259,7 +285,7 @@ go test ./test/integration -run TestPerformanceBaseline
 
 3. **Cron jobs**
    - Feed refresh: every 1 hour
-   - Session cleanup: every 1 hour
+   - Orphaned article cleanup: every 24 hours
    - Monitor via App Engine logs
 
 ### Cost Alerts
@@ -271,12 +297,13 @@ Set up Google Cloud budget alerts:
 
 ## Summary
 
-Through careful optimization, we've reduced operational costs by $530-960/month while maintaining excellent performance and user experience. Key strategies:
+Through careful optimization, we've reduced operational costs by $550-1,010/month while maintaining excellent performance and user experience. Key strategies:
 
 1. ✅ Smart feed update prioritization
 2. ✅ Remove unbounded queries
 3. ✅ Cursor-based pagination (replaces offset-based)
 4. ✅ Cache expensive operations
-5. ✅ Concurrent processing where safe
+5. ✅ Deferred cleanup for unsubscribe operations
+6. ✅ Concurrent processing where safe
 
 These optimizations make the $2.99/month pricing sustainable and profitable.

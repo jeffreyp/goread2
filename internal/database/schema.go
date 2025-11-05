@@ -59,6 +59,7 @@ type Database interface {
 	MarkUserArticleRead(userID, articleID int, isRead bool) error
 	ToggleUserArticleStar(userID, articleID int) error
 	GetUserUnreadCounts(userID int) (map[int]int, error)
+	CleanupOrphanedUserArticles(olderThanDays int) (int, error)
 
 	// Session methods
 	CreateSession(session *Session) error
@@ -786,19 +787,10 @@ func (db *DB) SubscribeUserToFeed(userID, feedID int) error {
 
 func (db *DB) UnsubscribeUserFromFeed(userID, feedID int) error {
 	// Remove the user-feed subscription
+	// Note: Orphaned user_articles will be cleaned up by periodic background job
+	// (see CleanupOrphanedUserArticles)
 	query := `DELETE FROM user_feeds WHERE user_id = ? AND feed_id = ?`
 	_, err := db.Exec(query, userID, feedID)
-	if err != nil {
-		return err
-	}
-
-	// Also remove all user-article relationships for this feed
-	// This ensures when the user re-adds the feed, articles appear as fresh/unread
-	cleanupQuery := `DELETE FROM user_articles
-					 WHERE user_id = ? AND article_id IN (
-						SELECT id FROM articles WHERE feed_id = ?
-					 )`
-	_, err = db.Exec(cleanupQuery, userID, feedID)
 	return err
 }
 
@@ -1090,6 +1082,35 @@ func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
 	}
 
 	return count, nil
+}
+
+// CleanupOrphanedUserArticles removes user_articles that reference articles from feeds
+// the user is no longer subscribed to. Only cleans up articles older than the specified number of days.
+// Returns the number of records deleted.
+func (db *DB) CleanupOrphanedUserArticles(olderThanDays int) (int, error) {
+	query := `
+		DELETE FROM user_articles
+		WHERE rowid IN (
+			SELECT ua.rowid
+			FROM user_articles ua
+			JOIN articles a ON ua.article_id = a.id
+			LEFT JOIN user_feeds uf ON ua.user_id = uf.user_id AND a.feed_id = uf.feed_id
+			WHERE uf.user_id IS NULL
+			AND a.created_at < datetime('now', '-' || ? || ' days')
+		)
+	`
+
+	result, err := db.Exec(query, olderThanDays)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cleanup orphaned user articles: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
 }
 
 // Subscription management methods

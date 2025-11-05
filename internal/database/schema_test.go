@@ -955,10 +955,99 @@ func TestUnsubscribeUserFromFeed(t *testing.T) {
 		t.Errorf("Expected 0 feeds, got %d", len(userFeeds))
 	}
 
-	// Verify user article status was also cleaned up
+	// Verify user article status is NOT immediately cleaned up (deferred cleanup)
+	// The orphaned user_article record will be cleaned up by the periodic CleanupOrphanedUserArticles job
 	status, err := db.GetUserArticleStatus(user.ID, article.ID)
-	if err == nil || status != nil {
-		t.Error("User article status should have been deleted with unsubscription")
+	if err != nil {
+		t.Fatalf("GetUserArticleStatus failed: %v", err)
+	}
+	if status == nil {
+		t.Error("User article status should still exist after unsubscription (cleanup is deferred)")
+	}
+
+	// Verify that the article won't appear in GetUserArticlesPaginated
+	// (it filters by subscribed feeds)
+	articles, err := db.GetUserArticlesPaginated(user.ID, 50, "", false)
+	if err != nil {
+		t.Fatalf("GetUserArticlesPaginated failed: %v", err)
+	}
+	if len(articles.Articles) != 0 {
+		t.Errorf("Expected 0 articles from unsubscribed feed, got %d", len(articles.Articles))
+	}
+}
+
+func TestCleanupOrphanedUserArticles(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed1 := createTestFeed(t, db)
+	feed2 := createTestFeed(t, db)
+
+	// Subscribe to both feeds
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	if err := db.SubscribeUserToFeed(user.ID, feed2.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+
+	// Create articles for both feeds
+	article1 := createTestArticle(t, db, feed1.ID)
+	article2 := createTestArticle(t, db, feed2.ID)
+
+	// Mark articles as read
+	if err := db.MarkUserArticleRead(user.ID, article1.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
+	if err := db.MarkUserArticleRead(user.ID, article2.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
+
+	// Unsubscribe from feed1 (this leaves orphaned user_article for article1)
+	if err := db.UnsubscribeUserFromFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("UnsubscribeUserFromFeed failed: %v", err)
+	}
+
+	// Verify both user_articles still exist before cleanup
+	status1, err := db.GetUserArticleStatus(user.ID, article1.ID)
+	if err != nil || status1 == nil {
+		t.Fatal("User article status for article1 should exist before cleanup")
+	}
+	status2, err := db.GetUserArticleStatus(user.ID, article2.ID)
+	if err != nil || status2 == nil {
+		t.Fatal("User article status for article2 should exist before cleanup")
+	}
+
+	// Run cleanup (0 days means clean up all orphaned records regardless of age)
+	deletedCount, err := db.CleanupOrphanedUserArticles(0)
+	if err != nil {
+		t.Fatalf("CleanupOrphanedUserArticles failed: %v", err)
+	}
+
+	// Should have deleted 1 orphaned record (article1 from unsubscribed feed1)
+	if deletedCount != 1 {
+		t.Errorf("Expected 1 deleted record, got %d", deletedCount)
+	}
+
+	// Verify article1's user_article was deleted
+	status1, err = db.GetUserArticleStatus(user.ID, article1.ID)
+	if err == nil && status1 != nil {
+		t.Error("User article status for article1 should have been deleted (orphaned)")
+	}
+
+	// Verify article2's user_article still exists (not orphaned)
+	status2, err = db.GetUserArticleStatus(user.ID, article2.ID)
+	if err != nil || status2 == nil {
+		t.Error("User article status for article2 should still exist (not orphaned)")
+	}
+
+	// Run cleanup again, should delete nothing
+	deletedCount, err = db.CleanupOrphanedUserArticles(0)
+	if err != nil {
+		t.Fatalf("Second CleanupOrphanedUserArticles failed: %v", err)
+	}
+	if deletedCount != 0 {
+		t.Errorf("Expected 0 deleted records on second run, got %d", deletedCount)
 	}
 }
 
