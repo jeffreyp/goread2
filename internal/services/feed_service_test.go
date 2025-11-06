@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"goread2/internal/database"
 )
@@ -492,4 +493,279 @@ func TestExportOPMLEmptyFeeds(t *testing.T) {
 	if len(opml.Body.Outlines) != 0 {
 		t.Errorf("Expected 0 feeds in OPML for user with no subscriptions, got %d", len(opml.Body.Outlines))
 	}
+}
+
+// TestShouldCheckFeed tests the smart prioritization logic
+func TestShouldCheckFeed(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+	now := time.Now()
+
+	tests := []struct {
+		name               string
+		feed               database.Feed
+		expectedCheck      bool
+		description        string
+	}{
+		{
+			name: "never checked feed",
+			feed: database.Feed{
+				ID:                1,
+				LastChecked:       time.Time{}, // Zero time = never checked
+			},
+			expectedCheck: true,
+			description:   "feeds never checked should always be checked",
+		},
+		{
+			name: "active feed with known interval",
+			feed: database.Feed{
+				ID:                    2,
+				LastChecked:           now.Add(-31 * time.Minute),
+				LastHadNewContent:     now.Add(-1 * time.Hour),
+				AverageUpdateInterval: 3600, // 1 hour average
+			},
+			expectedCheck: true,
+			description:   "feed checked 31 min ago with 1hr interval (>50% threshold) should be checked",
+		},
+		{
+			name: "active feed too soon",
+			feed: database.Feed{
+				ID:                    3,
+				LastChecked:           now.Add(-10 * time.Minute),
+				LastHadNewContent:     now.Add(-30 * time.Minute),
+				AverageUpdateInterval: 3600, // 1 hour average
+			},
+			expectedCheck: false,
+			description:   "feed checked 10 min ago with 1hr interval (<50% threshold) should be skipped",
+		},
+		{
+			name: "recent active feed no interval data",
+			feed: database.Feed{
+				ID:                    4,
+				LastChecked:           now.Add(-20 * time.Minute),
+				LastHadNewContent:     now.Add(-5 * 24 * time.Hour), // 5 days ago
+				AverageUpdateInterval: 0, // No historical data
+			},
+			expectedCheck: false,
+			description:   "feed checked 20 min ago, active < 1 week, check every 30 min",
+		},
+		{
+			name: "recent active feed ready",
+			feed: database.Feed{
+				ID:                    5,
+				LastChecked:           now.Add(-31 * time.Minute),
+				LastHadNewContent:     now.Add(-5 * 24 * time.Hour), // 5 days ago
+				AverageUpdateInterval: 0,
+			},
+			expectedCheck: true,
+			description:   "feed checked 31 min ago, active < 1 week, should be checked",
+		},
+		{
+			name: "regular feed not ready",
+			feed: database.Feed{
+				ID:                    6,
+				LastChecked:           now.Add(-45 * time.Minute),
+				LastHadNewContent:     now.Add(-20 * 24 * time.Hour), // 20 days ago
+				AverageUpdateInterval: 0,
+			},
+			expectedCheck: false,
+			description:   "feed checked 45 min ago, active < 1 month, check every 1 hour",
+		},
+		{
+			name: "regular feed ready",
+			feed: database.Feed{
+				ID:                    7,
+				LastChecked:           now.Add(-61 * time.Minute),
+				LastHadNewContent:     now.Add(-20 * 24 * time.Hour), // 20 days ago
+				AverageUpdateInterval: 0,
+			},
+			expectedCheck: true,
+			description:   "feed checked 61 min ago, active < 1 month, should be checked",
+		},
+		{
+			name: "dormant feed not ready",
+			feed: database.Feed{
+				ID:                    8,
+				LastChecked:           now.Add(-5 * time.Hour),
+				LastHadNewContent:     now.Add(-40 * 24 * time.Hour), // 40 days ago
+				AverageUpdateInterval: 0,
+			},
+			expectedCheck: false,
+			description:   "feed checked 5 hours ago, dormant > 1 month, check every 6 hours",
+		},
+		{
+			name: "dormant feed ready",
+			feed: database.Feed{
+				ID:                    9,
+				LastChecked:           now.Add(-7 * time.Hour),
+				LastHadNewContent:     now.Add(-40 * 24 * time.Hour), // 40 days ago
+				AverageUpdateInterval: 0,
+			},
+			expectedCheck: true,
+			description:   "feed checked 7 hours ago, dormant > 1 month, should be checked",
+		},
+		{
+			name: "never had content",
+			feed: database.Feed{
+				ID:                    10,
+				LastChecked:           now.Add(-45 * time.Minute),
+				LastHadNewContent:     time.Time{}, // Never had new content
+				AverageUpdateInterval: 0,
+			},
+			expectedCheck: false,
+			description:   "feed with no content history, check every 1 hour",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := fs.shouldCheckFeed(tt.feed, now)
+			if result != tt.expectedCheck {
+				t.Errorf("%s: expected shouldCheckFeed=%v, got %v",
+					tt.description, tt.expectedCheck, result)
+			}
+		})
+	}
+}
+
+// TestUpdateFeedTracking tests the feed tracking update logic
+func TestUpdateFeedTracking(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+
+	// Create a test feed
+	feed := &database.Feed{
+		Title:       "Test Feed",
+		URL:         "https://example.com/feed.xml",
+		Description: "Test feed for tracking",
+	}
+	if err := db.AddFeed(feed); err != nil {
+		t.Fatalf("Failed to add test feed: %v", err)
+	}
+
+	t.Run("first content update", func(t *testing.T) {
+		now := time.Now()
+		feed.LastChecked = now
+		feed.LastHadNewContent = time.Time{} // No previous content
+		feed.AverageUpdateInterval = 0
+
+		err := fs.updateFeedTracking(*feed, true)
+		if err != nil {
+			t.Fatalf("updateFeedTracking failed: %v", err)
+		}
+
+		// Fetch the updated feed
+		updatedFeed, err := db.GetFeedByURL(feed.URL)
+		if err != nil {
+			t.Fatalf("Failed to get updated feed: %v", err)
+		}
+
+		// LastHadNewContent should be updated
+		if updatedFeed.LastHadNewContent.IsZero() {
+			t.Error("LastHadNewContent should be set after first content update")
+		}
+
+		// AverageUpdateInterval should still be 0 (no previous interval to calculate)
+		if updatedFeed.AverageUpdateInterval != 0 {
+			t.Errorf("Expected AverageUpdateInterval=0 on first update, got %d", updatedFeed.AverageUpdateInterval)
+		}
+	})
+
+	t.Run("subsequent content update calculates interval", func(t *testing.T) {
+		// Set up feed with previous content
+		previousContentTime := time.Now().Add(-2 * time.Hour)
+		feed.LastHadNewContent = previousContentTime
+		feed.AverageUpdateInterval = 0
+
+		now := time.Now()
+		feed.LastChecked = now
+
+		err := fs.updateFeedTracking(*feed, true)
+		if err != nil {
+			t.Fatalf("updateFeedTracking failed: %v", err)
+		}
+
+		// Fetch the updated feed
+		updatedFeed, err := db.GetFeedByURL(feed.URL)
+		if err != nil {
+			t.Fatalf("Failed to get updated feed: %v", err)
+		}
+
+		// AverageUpdateInterval should be set (approximately 2 hours = 7200 seconds)
+		expectedInterval := 2 * 3600 // 2 hours in seconds
+		tolerance := 60 // Allow 60 seconds tolerance
+		if updatedFeed.AverageUpdateInterval < expectedInterval-tolerance ||
+			updatedFeed.AverageUpdateInterval > expectedInterval+tolerance {
+			t.Errorf("Expected AverageUpdateInterval around %d seconds, got %d",
+				expectedInterval, updatedFeed.AverageUpdateInterval)
+		}
+	})
+
+	t.Run("running average calculation", func(t *testing.T) {
+		// Set up feed with existing average (1 hour)
+		previousContentTime := time.Now().Add(-2 * time.Hour)
+		feed.LastHadNewContent = previousContentTime
+		feed.AverageUpdateInterval = 3600 // 1 hour
+
+		now := time.Now()
+		feed.LastChecked = now
+
+		err := fs.updateFeedTracking(*feed, true)
+		if err != nil {
+			t.Fatalf("updateFeedTracking failed: %v", err)
+		}
+
+		// Fetch the updated feed
+		updatedFeed, err := db.GetFeedByURL(feed.URL)
+		if err != nil {
+			t.Fatalf("Failed to get updated feed: %v", err)
+		}
+
+		// New interval is 2 hours (7200 seconds)
+		// Running average = (3600*7 + 7200*3) / 10 = (25200 + 21600) / 10 = 4680
+		expectedAverage := 4680
+		tolerance := 60
+		if updatedFeed.AverageUpdateInterval < expectedAverage-tolerance ||
+			updatedFeed.AverageUpdateInterval > expectedAverage+tolerance {
+			t.Errorf("Expected AverageUpdateInterval around %d seconds (70%% old + 30%% new), got %d",
+				expectedAverage, updatedFeed.AverageUpdateInterval)
+		}
+	})
+
+	t.Run("no new content does not update LastHadNewContent", func(t *testing.T) {
+		// Set up feed with previous content time
+		previousContentTime := time.Now().Add(-5 * time.Hour)
+		feed.LastHadNewContent = previousContentTime
+		oldInterval := feed.AverageUpdateInterval
+
+		now := time.Now()
+		feed.LastChecked = now
+
+		err := fs.updateFeedTracking(*feed, false) // No new content
+		if err != nil {
+			t.Fatalf("updateFeedTracking failed: %v", err)
+		}
+
+		// Fetch the updated feed
+		updatedFeed, err := db.GetFeedByURL(feed.URL)
+		if err != nil {
+			t.Fatalf("Failed to get updated feed: %v", err)
+		}
+
+		// LastHadNewContent should not be updated (within 1 second tolerance)
+		timeDiff := updatedFeed.LastHadNewContent.Sub(previousContentTime)
+		if timeDiff > time.Second || timeDiff < -time.Second {
+			t.Error("LastHadNewContent should not be updated when no new content")
+		}
+
+		// AverageUpdateInterval should not change
+		if updatedFeed.AverageUpdateInterval != oldInterval {
+			t.Errorf("Expected AverageUpdateInterval unchanged (%d), got %d",
+				oldInterval, updatedFeed.AverageUpdateInterval)
+		}
+	})
 }

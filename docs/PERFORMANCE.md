@@ -12,22 +12,28 @@ Our pricing model ($2.99/month unlimited feeds) requires aggressive cost optimiz
 
 #### 1. Smart Feed Update Prioritization ($30-60/month savings)
 
-**Problem:** Checking every feed every 30 minutes was expensive and unnecessary for infrequently-updated feeds.
+**Problem:** Checking every feed every hour was still expensive and unnecessary for infrequently-updated feeds.
 
 **Solution:**
 - Reduced cron schedule from every 30 minutes to **every 1 hour**
-- Implemented smart prioritization based on feed update patterns:
+- Implemented smart prioritization based on feed update patterns in both `FeedService.RefreshFeeds()` and `FeedScheduler.updateSingleFeed()`:
+  - **Feeds with known update frequency**: checked at 50% of their average update interval
   - **Active feeds** (< 1 week since last update): checked every 30 minutes
   - **Regular feeds** (< 1 month): checked every 1 hour
   - **Dormant feeds** (> 1 month): checked every 6 hours
-- Track feed update patterns with running average
+- Track feed update patterns with weighted running average (70% historical, 30% new)
+- Automatically learn each feed's update frequency over time
 
-**Implementation:** `internal/services/feed_service.go:776-818`
+**Implementation:**
+- Smart prioritization logic: `internal/services/feed_service.go:789-857`
+- Integrated into scheduler: `internal/services/feed_scheduler.go:320-371`
+- Database tracking fields: `LastChecked`, `LastHadNewContent`, `AverageUpdateInterval`
 
 **Impact:**
-- 50% reduction in cron-triggered instance spawns
-- Fewer unnecessary feed checks
-- Expected savings: $30-60/month
+- 20-40% reduction in unnecessary feed fetches (compared to checking all feeds every hour)
+- Adaptive learning improves efficiency over time
+- Better resource utilization for dormant feeds
+- Expected savings: $30-60/month in bandwidth and compute costs
 
 #### 2. Remove Unbounded Queries ($300-500/month savings)
 
@@ -239,9 +245,8 @@ Enable detailed logging for cost analysis:
 Several P1 and P2 optimizations remain in the Beads issue tracker:
 
 1. **Increase unread cache TTL** (P1) - From 90s to 5-10 minutes
-2. **Smart feed update prioritization refinement** (P2)
-3. **Cloud Monitoring dashboards** (P2) - Better visibility into costs
-4. **Keys-only queries** (P2) - Where full entities not needed
+2. **Cloud Monitoring dashboards** (P2) - Better visibility into costs
+3. **Keys-only queries** (P2) - Where full entities not needed
 
 Run `bd ready` to see all available optimization issues.
 

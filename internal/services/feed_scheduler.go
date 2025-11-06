@@ -6,6 +6,7 @@ import (
 	"log"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"goread2/internal/database"
@@ -263,10 +264,18 @@ func (fs *FeedScheduler) calculateFeedPriority(feed database.Feed) int {
 	return priority
 }
 
+// feedUpdateStats tracks statistics during feed refresh
+type feedUpdateStats struct {
+	checked        int32
+	skipped        int32
+	hasNewContent  int32
+}
+
 // processScheduledFeeds processes feeds according to their schedule
 func (fs *FeedScheduler) processScheduledFeeds(scheduledFeeds []ScheduledFeed) error {
 	semaphore := make(chan struct{}, fs.maxConcurrent)
 	var wg sync.WaitGroup
+	var stats feedUpdateStats
 
 	for _, scheduled := range scheduledFeeds {
 		// Wait until it's time to update this feed
@@ -293,41 +302,72 @@ func (fs *FeedScheduler) processScheduledFeeds(scheduledFeeds []ScheduledFeed) e
 			defer wg.Done()
 			defer func() { <-semaphore }() // Release semaphore
 
-			fs.updateSingleFeed(feed)
+			fs.updateSingleFeed(feed, &stats)
 		}(scheduled.Feed)
 	}
 
 	wg.Wait()
+
+	// Log summary statistics
+	checked := atomic.LoadInt32(&stats.checked)
+	skipped := atomic.LoadInt32(&stats.skipped)
+	hasNew := atomic.LoadInt32(&stats.hasNewContent)
+	log.Printf("Feed refresh complete: checked=%d, skipped=%d, had_new_content=%d", checked, skipped, hasNew)
+
 	return nil
 }
 
-// updateSingleFeed updates a single feed with rate limiting
-func (fs *FeedScheduler) updateSingleFeed(feed database.Feed) {
-	// Check rate limiting for this domain
-	if !fs.rateLimiter.Allow(feed.URL) {
-		log.Printf("Rate limited: skipping update for feed %d (%s)", feed.ID, feed.URL)
+// updateSingleFeed updates a single feed with rate limiting and smart prioritization
+func (fs *FeedScheduler) updateSingleFeed(feed database.Feed, stats *feedUpdateStats) {
+	now := time.Now()
+
+	// Smart feed prioritization: only check feeds that are due
+	if !fs.feedService.shouldCheckFeed(feed, now) {
+		atomic.AddInt32(&stats.skipped, 1)
 		return
 	}
 
-	log.Printf("Updating feed %d: %s", feed.ID, feed.Title)
+	// Check rate limiting for this domain
+	if !fs.rateLimiter.Allow(feed.URL) {
+		log.Printf("Rate limited: skipping update for feed %d (%s)", feed.ID, feed.URL)
+		atomic.AddInt32(&stats.skipped, 1)
+		return
+	}
+
+	// Count existing articles before saving
+	existingArticles, _ := fs.feedService.db.GetArticles(feed.ID)
+	existingCount := len(existingArticles)
 
 	// Fetch and update the feed
 	feedData, err := fs.feedService.fetchFeed(feed.URL)
+	atomic.AddInt32(&stats.checked, 1)
+
+	// Update last_checked regardless of success/failure
+	feed.LastChecked = now
+
 	if err != nil {
 		log.Printf("Failed to fetch feed %d (%s): %v", feed.ID, feed.URL, err)
+		_ = fs.feedService.updateFeedTracking(feed, false)
 		return
 	}
 
 	if err := fs.feedService.saveArticlesFromFeed(feed.ID, feedData); err != nil {
 		log.Printf("Failed to save articles for feed %d: %v", feed.ID, err)
+		_ = fs.feedService.updateFeedTracking(feed, false)
 		return
 	}
 
-	if err := fs.feedService.db.UpdateFeedLastFetch(feed.ID, time.Now()); err != nil {
-		log.Printf("Failed to update last fetch time for feed %d: %v", feed.ID, err)
+	// Check if there are new articles
+	newArticles, _ := fs.feedService.db.GetArticles(feed.ID)
+	hadNewContent := len(newArticles) > existingCount
+
+	if hadNewContent {
+		atomic.AddInt32(&stats.hasNewContent, 1)
 	}
 
-	log.Printf("Successfully updated feed %d: %s", feed.ID, feed.Title)
+	// Update tracking fields
+	_ = fs.feedService.updateFeedTracking(feed, hadNewContent)
+	_ = fs.feedService.db.UpdateFeedLastFetch(feed.ID, now)
 }
 
 // GetSchedulerStatus returns the current status of the scheduler
