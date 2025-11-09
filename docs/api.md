@@ -140,20 +140,34 @@ Subscribe user to a new feed.
 ```
 
 **Error Responses**:
-- `400 Bad Request` - Invalid URL or missing field
-- `402 Payment Required` - Feed limit reached (trial users)
+- `400 Bad Request` - Invalid URL format or SSRF-blocked URL
+- `402 Payment Required` - Feed limit reached or trial expired
 - `403 Forbidden` - Invalid or missing CSRF token
+- `404 Not Found` - No RSS/Atom feeds found at the URL
+- `408 Request Timeout` - Feed discovery/fetch exceeded timeout (15 seconds)
+- `422 Unprocessable Entity` - Invalid feed format or XML parsing error
+- `502 Bad Gateway` - Network error (DNS failure, connection error, HTTP error status)
+- `500 Internal Server Error` - Database error or unexpected server error
 
-**Example**:
-```bash
-curl -X POST "http://localhost:8080/api/feeds" \
-  -H "Cookie: session=your-session-cookie" \
-  -H "X-CSRF-Token: your-csrf-token" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com/feed.xml"}'
+**Error Response Format**:
+```json
+{
+  "error_code": "feed_not_found",
+  "error": "No RSS/Atom feeds found on this website. Try entering a direct feed URL instead, or check if the site provides feeds.",
+  "details": "additional technical details (optional)"
+}
 ```
-- `409 Conflict` - Already subscribed to feed
-- `500 Internal Server Error` - Feed fetch failed
+
+**Error Codes**:
+- `invalid_url` - Malformed URL (400)
+- `ssrf_blocked` - URL blocked by SSRF protection (400)
+- `feed_not_found` - No feeds discovered (404)
+- `feed_timeout` - Request timed out (408)
+- `invalid_feed_format` - Invalid XML or unsupported format (422)
+- `network_error` - DNS, connection, or HTTP errors (502)
+- `database_error` - Database operation failed (500)
+- `limit_reached` - Free user feed limit reached (402)
+- `trial_expired` - Trial period ended (402)
 
 **Example**:
 ```bash
