@@ -94,7 +94,32 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 	feed, err := fh.feedService.AddFeedForUser(user.ID, req.URL)
 	if err != nil {
 		log.Printf("Failed to add feed '%s' for user %d: %v", req.URL, user.ID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
+		// Get structured error details
+		errorDetails := services.GetErrorDetails(err)
+
+		// Map error types to HTTP status codes
+		var statusCode int
+		switch {
+		case errors.Is(err, services.ErrInvalidURL):
+			statusCode = http.StatusBadRequest
+		case errors.Is(err, services.ErrSSRFBlocked):
+			statusCode = http.StatusBadRequest
+		case errors.Is(err, services.ErrFeedNotFound):
+			statusCode = http.StatusNotFound
+		case errors.Is(err, services.ErrFeedTimeout):
+			statusCode = http.StatusRequestTimeout
+		case errors.Is(err, services.ErrInvalidFeedFormat):
+			statusCode = http.StatusUnprocessableEntity
+		case errors.Is(err, services.ErrNetworkError):
+			statusCode = http.StatusBadGateway
+		case errors.Is(err, services.ErrDatabaseError):
+			statusCode = http.StatusInternalServerError
+		default:
+			statusCode = http.StatusInternalServerError
+		}
+
+		c.JSON(statusCode, errorDetails)
 		return
 	}
 	c.JSON(http.StatusCreated, feed)

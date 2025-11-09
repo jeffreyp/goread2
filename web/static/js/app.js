@@ -2098,20 +2098,26 @@ class GoReadApp {
                 }
             } else {
                 let errorMessage = `HTTP ${response.status}`;
+                let errorCode = null;
                 try {
                     const error = await response.json();
                     errorMessage = error.error || errorMessage;
+                    errorCode = error.error_code;
                 } catch (e) {
                     // Use default error message
                 }
+
+                // Use backend error message if available, it's already user-friendly
                 const errorType = this.errorHandler.detectErrorType(new Error(errorMessage), response);
-                const message = this.errorHandler.getErrorMessage(errorType, errorMessage);
-                this.showError(message, errorType, {
-                    retry: response.status >= 500 || response.status === 0 ? () => {
-                        const urlInput = document.getElementById('feed-url-input');
-                        if (urlInput && urlInput.value) {
-                            this.addFeed();
-                        }
+
+                // Show error with retry option for retryable errors
+                const isRetryable = response.status === 408 || // Timeout
+                                   response.status === 502 || // Bad Gateway (network)
+                                   response.status >= 500;    // Server errors
+
+                this.showError(errorMessage, errorType, {
+                    retry: isRetryable ? () => {
+                        this.addFeed();
                     } : null,
                     context: 'adding feed'
                 });
@@ -2119,13 +2125,10 @@ class GoReadApp {
         } catch (error) {
             console.error('Failed to add feed:', error);
             const errorType = this.errorHandler.detectErrorType(error);
-            const message = this.errorHandler.getErrorMessage(errorType, 'Failed to add feed');
+            const message = this.errorHandler.getErrorMessage(errorType, 'Unable to add feed. Please check your connection and try again.');
             this.showError(message, errorType, {
                 retry: () => {
-                    const urlInput = document.getElementById('feed-url-input');
-                    if (urlInput && urlInput.value) {
-                        this.addFeed();
-                    }
+                    this.addFeed();
                 },
                 context: 'adding feed'
             });

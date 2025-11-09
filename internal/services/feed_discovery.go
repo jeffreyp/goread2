@@ -28,14 +28,31 @@ func NewFeedDiscovery() *FeedDiscovery {
 // NormalizeURL adds protocol if missing and validates the URL with SSRF protection
 func (fd *FeedDiscovery) NormalizeURL(rawURL string) (string, error) {
 	// Use the URL validator which includes SSRF protection
-	return fd.urlValidator.ValidateAndNormalizeURL(rawURL)
+	normalizedURL, err := fd.urlValidator.ValidateAndNormalizeURL(rawURL)
+	if err != nil {
+		// Check if it's an SSRF protection error
+		if strings.Contains(err.Error(), "SSRF protection") ||
+			strings.Contains(err.Error(), "blocked network") ||
+			strings.Contains(err.Error(), "not allowed") {
+			return "", fmt.Errorf("%w: %v", ErrSSRFBlocked, err)
+		}
+		// Check if it's a DNS/network error
+		if strings.Contains(err.Error(), "DNS lookup failed") ||
+			strings.Contains(err.Error(), "no IP addresses found") {
+			return "", fmt.Errorf("%w: %v", ErrNetworkError, err)
+		}
+		// Otherwise it's an invalid URL
+		return "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
+	}
+	return normalizedURL, nil
 }
 
 // DiscoverFeedURL attempts to find feed URLs from a given URL
 func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 	normalizedURL, err := fd.NormalizeURL(inputURL)
 	if err != nil {
-		return nil, fmt.Errorf("URL normalization failed: %w", err)
+		// Errors from NormalizeURL are already wrapped with custom types
+		return nil, err
 	}
 
 	// First check if the input URL itself is already a valid feed
@@ -81,7 +98,8 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 		return feedURLs, nil
 	}
 
-	return nil, fmt.Errorf("no feeds found for %s", normalizedURL)
+	// No feeds found at all
+	return nil, fmt.Errorf("%w: %s", ErrFeedNotFound, normalizedURL)
 }
 
 // discoverFeedsFromHTML parses HTML to find feed links

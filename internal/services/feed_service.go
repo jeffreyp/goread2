@@ -213,7 +213,7 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("feed discovery timed out after 15 seconds for %s", inputURL)
+		return nil, fmt.Errorf("%w: %s", ErrFeedTimeout, inputURL)
 	case <-done:
 		return result, resultErr
 	}
@@ -226,7 +226,8 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 	discovery := NewFeedDiscovery()
 	normalizedURL, err := discovery.NormalizeURL(inputURL)
 	if err != nil {
-		return nil, fmt.Errorf("invalid URL: %w", err)
+		// Errors from NormalizeURL are already wrapped with custom types
+		return nil, err
 	}
 
 	// Check for known sites first
@@ -240,11 +241,12 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		// Use feed discovery for other sites
 		feedURLs, err := discovery.DiscoverFeedURL(inputURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to discover feed: %w", err)
+			// Errors from DiscoverFeedURL are already wrapped with custom types
+			return nil, err
 		}
 
 		if len(feedURLs) == 0 {
-			return nil, fmt.Errorf("no RSS/Atom feeds found for %s. Please check if the site has feeds or try a direct feed URL", inputURL)
+			return nil, fmt.Errorf("%w: %s", ErrFeedNotFound, inputURL)
 		}
 
 		feedURL = feedURLs[0]
@@ -253,14 +255,15 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 	// First check if feed already exists
 	existingFeed, err := fs.db.GetFeedByURL(feedURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check existing feed: %w", err)
+		return nil, fmt.Errorf("%w: failed to check existing feed: %v", ErrDatabaseError, err)
 	}
 
 	if existingFeed == nil {
 		// Feed doesn't exist, create it
 		feedData, err := fs.fetchFeed(feedURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch feed: %w", err)
+			// Errors from fetchFeed are already wrapped with custom types
+			return nil, err
 		}
 
 		feed := &database.Feed{
@@ -273,17 +276,17 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		}
 
 		if err := fs.db.AddFeed(feed); err != nil {
-			return nil, fmt.Errorf("failed to insert feed: %w", err)
+			return nil, fmt.Errorf("%w: failed to insert feed: %v", ErrDatabaseError, err)
 		}
 
 		// Get user's article limit preference for new feeds
 		user, err := fs.db.GetUserByID(userID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user %d: %w", userID, err)
+			return nil, fmt.Errorf("%w: failed to get user %d: %v", ErrDatabaseError, userID, err)
 		}
 
 		if err := fs.saveArticlesFromFeedWithLimit(feed.ID, feedData, user.MaxArticlesOnFeedAdd); err != nil {
-			return nil, fmt.Errorf("failed to save articles: %w", err)
+			return nil, fmt.Errorf("%w: failed to save articles: %v", ErrDatabaseError, err)
 		}
 
 		existingFeed = feed
@@ -302,7 +305,7 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 
 	// Subscribe user to the feed FIRST
 	if err := fs.db.SubscribeUserToFeed(userID, existingFeed.ID); err != nil {
-		return nil, fmt.Errorf("failed to subscribe user to feed: %w", err)
+		return nil, fmt.Errorf("%w: failed to subscribe user to feed: %v", ErrDatabaseError, err)
 	}
 
 	// Mark all articles in this feed as unread for the subscriber synchronously
@@ -478,20 +481,27 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	// Validate URL for SSRF protection (skip if using mock HTTP client for testing)
 	if fs.httpClient == nil {
 		if err := fs.urlValidator.ValidateURL(url); err != nil {
-			return nil, fmt.Errorf("URL validation failed: %w", err)
+			// Check if it's an SSRF protection error
+			if strings.Contains(err.Error(), "SSRF protection") ||
+				strings.Contains(err.Error(), "blocked network") ||
+				strings.Contains(err.Error(), "not allowed") {
+				return nil, fmt.Errorf("%w: %v", ErrSSRFBlocked, err)
+			}
+			return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
 		}
 	}
 
 	// Apply rate limiting if available (skip if using mock HTTP client for testing)
 	if fs.rateLimiter != nil && fs.httpClient == nil {
 		if !fs.rateLimiter.Allow(url) {
-			return nil, fmt.Errorf("rate limited: too many requests to domain")
+			// Rate limiting is a temporary network-related issue
+			return nil, fmt.Errorf("%w: rate limited - too many requests to domain", ErrNetworkError)
 		}
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: failed to create request: %v", ErrNetworkError, err)
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
@@ -504,19 +514,28 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		// Network errors: DNS failures, connection errors, timeouts
+		return nil, fmt.Errorf("%w: %v", ErrNetworkError, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Check HTTP status code
+	if resp.StatusCode == 404 {
+		return nil, fmt.Errorf("%w: feed URL returned 404 Not Found", ErrFeedNotFound)
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("%w: feed URL returned HTTP %d", ErrNetworkError, resp.StatusCode)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: failed to read response body: %v", ErrNetworkError, err)
 	}
 
 	// Handle character encoding conversion
 	body, err = fs.convertToUTF8(body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: failed to convert encoding: %v", ErrInvalidFeedFormat, err)
 	}
 
 	// Special handling for feeds with media namespace conflicts
@@ -543,7 +562,7 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 		return fs.convertAtomToFeedData(&atom, url), nil
 	}
 
-	return nil, fmt.Errorf("unsupported feed format or invalid XML")
+	return nil, fmt.Errorf("%w: unsupported feed format or invalid XML", ErrInvalidFeedFormat)
 }
 
 func (fs *FeedService) convertRSSToFeedData(rss *RSS, feedURL string) *FeedData {

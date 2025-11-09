@@ -1,0 +1,162 @@
+{
+  "policies": [
+    {
+      "displayName": "GoRead2 - High Datastore Read Operations",
+      "documentation": {
+        "content": "Alert triggered when Datastore read operations exceed 100 reads/second for 5 minutes. This may indicate inefficient queries or unexpected traffic.",
+        "mimeType": "text/markdown"
+      },
+      "conditions": [
+        {
+          "displayName": "Datastore read operations > 100/sec",
+          "conditionThreshold": {
+            "filter": "metric.type=\"datastore.googleapis.com/api/request_count\" resource.type=\"datastore_request\" metric.label.api_method=\"Lookup\"",
+            "aggregations": [
+              {
+                "alignmentPeriod": "60s",
+                "perSeriesAligner": "ALIGN_RATE",
+                "crossSeriesReducer": "REDUCE_SUM",
+                "groupByFields": []
+              }
+            ],
+            "comparison": "COMPARISON_GT",
+            "thresholdValue": 100,
+            "duration": "300s"
+          }
+        }
+      ],
+      "combiner": "OR",
+      "enabled": true,
+      "alertStrategy": {
+        "autoClose": "1800s"
+      }
+    },
+    {
+      "displayName": "GoRead2 - High Datastore Write Operations",
+      "documentation": {
+        "content": "Alert triggered when Datastore write operations exceed 50 writes/second for 5 minutes. This may indicate a write-heavy workload or potential issues.",
+        "mimeType": "text/markdown"
+      },
+      "conditions": [
+        {
+          "displayName": "Datastore write operations > 50/sec",
+          "conditionThreshold": {
+            "filter": "metric.type=\"datastore.googleapis.com/api/request_count\" resource.type=\"datastore_request\" metric.label.api_method=one_of(\"Put\",\"Commit\")",
+            "aggregations": [
+              {
+                "alignmentPeriod": "60s",
+                "perSeriesAligner": "ALIGN_RATE",
+                "crossSeriesReducer": "REDUCE_SUM",
+                "groupByFields": []
+              }
+            ],
+            "comparison": "COMPARISON_GT",
+            "thresholdValue": 50,
+            "duration": "300s"
+          }
+        }
+      ],
+      "combiner": "OR",
+      "enabled": true,
+      "alertStrategy": {
+        "autoClose": "1800s"
+      }
+    },
+    {
+      "displayName": "GoRead2 - High App Engine Instance Count",
+      "documentation": {
+        "content": "Alert triggered when App Engine instance count exceeds 8 instances for 10 minutes. May indicate high traffic or autoscaling issues. Max configured is 10 instances.",
+        "mimeType": "text/markdown"
+      },
+      "conditions": [
+        {
+          "displayName": "Instance count > 8",
+          "conditionThreshold": {
+            "filter": "metric.type=\"appengine.googleapis.com/system/instance_count\" resource.type=\"gae_app\"",
+            "aggregations": [
+              {
+                "alignmentPeriod": "60s",
+                "perSeriesAligner": "ALIGN_MEAN",
+                "crossSeriesReducer": "REDUCE_SUM",
+                "groupByFields": []
+              }
+            ],
+            "comparison": "COMPARISON_GT",
+            "thresholdValue": 8,
+            "duration": "600s"
+          }
+        }
+      ],
+      "combiner": "OR",
+      "enabled": true,
+      "alertStrategy": {
+        "autoClose": "1800s"
+      }
+    },
+    {
+      "displayName": "GoRead2 - Sudden Increase in Datastore Operations",
+      "documentation": {
+        "content": "Alert triggered when total Datastore operations increase by more than 50% compared to the previous hour. This helps catch unexpected spikes in usage.",
+        "mimeType": "text/markdown"
+      },
+      "conditions": [
+        {
+          "displayName": "Datastore operations increased by 50%",
+          "conditionThreshold": {
+            "filter": "metric.type=\"datastore.googleapis.com/api/request_count\" resource.type=\"datastore_request\"",
+            "aggregations": [
+              {
+                "alignmentPeriod": "3600s",
+                "perSeriesAligner": "ALIGN_RATE",
+                "crossSeriesReducer": "REDUCE_SUM",
+                "groupByFields": []
+              }
+            ],
+            "comparison": "COMPARISON_GT",
+            "thresholdValue": 0,
+            "duration": "0s",
+            "forecastOptions": {
+              "forecastHorizon": "3600s"
+            }
+          }
+        }
+      ],
+      "combiner": "OR",
+      "enabled": true,
+      "alertStrategy": {
+        "autoClose": "3600s"
+      }
+    },
+    {
+      "displayName": "GoRead2 - High Bandwidth Usage",
+      "documentation": {
+        "content": "Alert triggered when outbound bandwidth exceeds 10 MB/second for 5 minutes. This may indicate serving large responses or potential data exfiltration.",
+        "mimeType": "text/markdown"
+      },
+      "conditions": [
+        {
+          "displayName": "Bandwidth > 10 MB/sec",
+          "conditionThreshold": {
+            "filter": "metric.type=\"appengine.googleapis.com/http/server/response_bytes\" resource.type=\"gae_app\"",
+            "aggregations": [
+              {
+                "alignmentPeriod": "60s",
+                "perSeriesAligner": "ALIGN_RATE",
+                "crossSeriesReducer": "REDUCE_SUM",
+                "groupByFields": []
+              }
+            ],
+            "comparison": "COMPARISON_GT",
+            "thresholdValue": 10485760,
+            "duration": "300s"
+          }
+        }
+      ],
+      "combiner": "OR",
+      "enabled": true,
+      "alertStrategy": {
+        "autoClose": "1800s"
+      }
+    }
+  ]
+}

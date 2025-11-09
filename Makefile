@@ -1,4 +1,4 @@
-.PHONY: all build lint test validate-config deploy-dev deploy-prod clean build-js build-css build-frontend help
+.PHONY: all build lint test validate-config deploy-dev deploy-prod clean build-js build-css build-frontend deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
 
 # Default target - build everything
 all: build-frontend build test
@@ -23,6 +23,7 @@ help:
 	@echo "  validate-build     Validate config + build frontend + build app"
 	@echo "  deploy-dev         Deploy to development environment"
 	@echo "  deploy-prod        Deploy to production environment"
+	@echo "  deploy-monitoring  Deploy monitoring dashboard and alerts"
 	@echo "  clean              Remove all build artifacts"
 	@echo "  dev                Start development server"
 	@echo "  help               Show this help message"
@@ -110,3 +111,17 @@ clean:
 dev: validate-config
 	@echo "🔧 Starting development server..."
 	go run main.go
+
+# Deploy Cloud Monitoring dashboard
+deploy-monitoring-dashboard:
+	@echo "📊 Deploying monitoring dashboard..."
+	./monitoring/deploy-dashboard.sh
+
+# Deploy Cloud Monitoring alerting policies
+deploy-monitoring-alerts:
+	@echo "🚨 Deploying alerting policies..."
+	./monitoring/deploy-alerts.sh
+
+# Deploy all monitoring (dashboard + alerts)
+deploy-monitoring: deploy-monitoring-dashboard deploy-monitoring-alerts
+	@echo "✅ All monitoring resources deployed"

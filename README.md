@@ -96,6 +96,7 @@ make clean             # Remove all build artifacts
 | [**Feature Flags**](docs/FEATURE-FLAGS.md) | Configuration and feature toggles |
 | [**Security Guide**](docs/SECURITY.md) | Security features and best practices |
 | [**Performance & Cost**](docs/PERFORMANCE.md) | Optimization strategies and cost savings |
+| [**Monitoring**](docs/MONITORING.md) | Cloud Monitoring dashboards and cost tracking |
 | [**Caching Strategy**](docs/CACHING.md) | HTTP and application-level caching |
 | [**Troubleshooting**](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [**Contributing**](docs/CONTRIBUTING.md) | Development and contribution guide |

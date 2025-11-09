@@ -80,8 +80,9 @@ func TestFeedAPI(t *testing.T) {
 		req := testServer.CreateAuthenticatedRequest(t, "POST", "/api/feeds", feedData, user)
 		rr := testServer.ExecuteRequest(req)
 
-		if rr.Code != http.StatusInternalServerError {
-			t.Errorf("Expected status 500, got %d", rr.Code)
+		// Network errors (DNS failures) return 502 Bad Gateway
+		if rr.Code != http.StatusBadGateway {
+			t.Errorf("Expected status 502 (Bad Gateway for network error), got %d", rr.Code)
 		}
 	})
 

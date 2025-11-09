@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/xml"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -768,4 +769,167 @@ func TestUpdateFeedTracking(t *testing.T) {
 				oldInterval, updatedFeed.AverageUpdateInterval)
 		}
 	})
+}
+
+// TestAddFeedErrorInvalidURL tests that invalid URLs return ErrInvalidURL
+func TestAddFeedErrorInvalidURL(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+
+	// Create test user
+	user := &database.User{
+		GoogleID: "test-user-error-invalid-url",
+		Email:    "test@example.com",
+		Name:     "Test User",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Test various invalid URLs
+	testCases := []struct {
+		url          string
+		expectedErrs []error
+	}{
+		{"", []error{ErrInvalidURL}},                     // Empty URL
+		{"javascript:alert('xss')", []error{ErrInvalidURL, ErrSSRFBlocked}}, // Invalid scheme
+		{"not-a-url", []error{ErrNetworkError}},          // DNS lookup fails
+	}
+
+	for _, tc := range testCases {
+		_, err := fs.AddFeedForUser(user.ID, tc.url)
+		if err == nil {
+			t.Errorf("Expected error for invalid URL '%s', got nil", tc.url)
+			continue
+		}
+
+		// Check if error matches any of the expected errors
+		matched := false
+		for _, expectedErr := range tc.expectedErrs {
+			if errors.Is(err, expectedErr) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Errorf("Expected one of %v for '%s', got: %v", tc.expectedErrs, tc.url, err)
+		}
+	}
+}
+
+// TestAddFeedErrorSSRFBlocked tests that SSRF-blocked URLs return ErrSSRFBlocked
+func TestAddFeedErrorSSRFBlocked(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+
+	// Create test user
+	user := &database.User{
+		GoogleID: "test-user-error-ssrf",
+		Email:    "test-ssrf@example.com",
+		Name:     "Test User SSRF",
+	}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// Test SSRF-blocked URLs
+	testCases := []string{
+		"http://localhost/feed.xml",
+		"http://127.0.0.1/rss",
+		"http://192.168.1.1/feed",
+		"http://10.0.0.1/rss.xml",
+	}
+
+	for _, testURL := range testCases {
+		_, err := fs.AddFeedForUser(user.ID, testURL)
+		if err == nil {
+			t.Errorf("Expected error for SSRF-blocked URL '%s', got nil", testURL)
+			continue
+		}
+
+		if !errors.Is(err, ErrSSRFBlocked) {
+			t.Errorf("Expected ErrSSRFBlocked for '%s', got: %v", testURL, err)
+		}
+	}
+}
+
+// Note: Testing invalid format and 404 responses via integration tests is complex
+// due to SSRF protection. These error conditions are tested via unit tests of
+// the fetchFeed function and HTTP handler tests.
+
+// TestGetErrorDetails tests the GetErrorDetails function
+func TestGetErrorDetails(t *testing.T) {
+	testCases := []struct {
+		err              error
+		expectedCode     string
+		expectedContains string
+	}{
+		{
+			err:              ErrInvalidURL,
+			expectedCode:     ErrorCodeInvalidURL,
+			expectedContains: "valid website URL",
+		},
+		{
+			err:              ErrFeedNotFound,
+			expectedCode:     ErrorCodeFeedNotFound,
+			expectedContains: "No RSS/Atom feeds found",
+		},
+		{
+			err:              ErrFeedTimeout,
+			expectedCode:     ErrorCodeFeedTimeout,
+			expectedContains: "took too long",
+		},
+		{
+			err:              ErrInvalidFeedFormat,
+			expectedCode:     ErrorCodeInvalidFormat,
+			expectedContains: "invalid format",
+		},
+		{
+			err:              ErrNetworkError,
+			expectedCode:     ErrorCodeNetworkError,
+			expectedContains: "Unable to reach",
+		},
+		{
+			err:              ErrSSRFBlocked,
+			expectedCode:     ErrorCodeSSRFBlocked,
+			expectedContains: "security reasons",
+		},
+		{
+			err:              ErrDatabaseError,
+			expectedCode:     ErrorCodeDatabaseError,
+			expectedContains: "database error",
+		},
+	}
+
+	for _, tc := range testCases {
+		details := GetErrorDetails(tc.err)
+
+		if details.ErrorCode != tc.expectedCode {
+			t.Errorf("Expected error code '%s', got '%s' for error: %v",
+				tc.expectedCode, details.ErrorCode, tc.err)
+		}
+
+		if !contains(details.Message, tc.expectedContains) {
+			t.Errorf("Expected message to contain '%s', got '%s' for error: %v",
+				tc.expectedContains, details.Message, tc.err)
+		}
+	}
+}
+
+// Helper function to check if string contains substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsAtIndex(s, substr))
+}
+
+func containsAtIndex(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
