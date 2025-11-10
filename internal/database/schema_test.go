@@ -48,13 +48,13 @@ func createTestUser(t *testing.T, db *DB) *User {
 	t.Helper()
 
 	user := &User{
-		GoogleID:            fmt.Sprintf("test_google_id_%d", time.Now().UnixNano()),
-		Email:               fmt.Sprintf("test%d@example.com", time.Now().UnixNano()),
-		Name:                "Test User",
-		Avatar:              "https://example.com/avatar.jpg",
-		CreatedAt:           time.Now(),
-		SubscriptionStatus:  "trial",
-		TrialEndsAt:         time.Now().AddDate(0, 0, 30),
+		GoogleID:             fmt.Sprintf("test_google_id_%d", time.Now().UnixNano()),
+		Email:                fmt.Sprintf("test%d@example.com", time.Now().UnixNano()),
+		Name:                 "Test User",
+		Avatar:               "https://example.com/avatar.jpg",
+		CreatedAt:            time.Now(),
+		SubscriptionStatus:   "trial",
+		TrialEndsAt:          time.Now().AddDate(0, 0, 30),
 		MaxArticlesOnFeedAdd: 100,
 	}
 

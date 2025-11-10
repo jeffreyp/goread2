@@ -79,8 +79,8 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 			user.ID,
 			user.Email,
 			map[string]interface{}{
-				"is_admin":    request.IsAdmin,
-				"user_name":   user.Name,
+				"is_admin":  request.IsAdmin,
+				"user_name": user.Name,
 			},
 			auth.GetSecureClientIP(c),
 			err.Error(),
@@ -97,8 +97,8 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 		user.ID,
 		user.Email,
 		map[string]interface{}{
-			"is_admin":    request.IsAdmin,
-			"user_name":   user.Name,
+			"is_admin":  request.IsAdmin,
+			"user_name": user.Name,
 		},
 		auth.GetSecureClientIP(c),
 	)

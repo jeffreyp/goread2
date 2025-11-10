@@ -20,12 +20,12 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 	log.Printf("Subscription system enabled: %v", cfg.SubscriptionEnabled)
-	
+
 	// Validate environment configuration
 	if err := config.ValidateEnvironmentConfig(); err != nil {
 		log.Fatalf("Configuration validation failed: %v", err)
 	}
-	
+
 	// Warn about potentially unhandled environment variables
 	config.WarnAboutUnhandledEnvVars()
 
@@ -200,7 +200,7 @@ func main() {
 	api := r.Group("/api")
 	api.Use(auth.RateLimitMiddleware(apiRateLimiter)) // Rate limiting for API endpoints
 	api.Use(authMiddleware.RequireAuth())
-	api.Use(middleware.RequestCacheMiddleware())       // Request-scoped cache to eliminate duplicate DB calls
+	api.Use(middleware.RequestCacheMiddleware())        // Request-scoped cache to eliminate duplicate DB calls
 	api.Use(authMiddleware.CSRFMiddleware(csrfManager)) // CSRF protection for state-changing operations
 	{
 		api.GET("/feeds", feedHandler.GetFeeds)

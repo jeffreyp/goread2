@@ -190,7 +190,7 @@ func TestGetSecureClientIP_PreventsSpoofing(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/test", nil)
-	c.Request.RemoteAddr = "203.0.113.1:12345" // Real client IP
+	c.Request.RemoteAddr = "203.0.113.1:12345"          // Real client IP
 	c.Request.Header.Set("X-Forwarded-For", "10.0.0.1") // Spoofed private IP
 	c.Request.Header.Set("X-Real-IP", "192.168.1.1")    // Spoofed private IP
 

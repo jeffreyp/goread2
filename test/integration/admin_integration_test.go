@@ -24,7 +24,7 @@ func setupLocalAdminToken(t *testing.T, googleID, email, name string) string {
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
 	}
-	
+
 	err = os.Chdir("../..")
 	if err != nil {
 		t.Fatalf("Failed to change to project root: %v", err)
@@ -130,7 +130,7 @@ func setupMainTestUser(t *testing.T, googleID, email, name string) {
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
 	}
-	
+
 	err = os.Chdir("../..")
 	if err != nil {
 		t.Fatalf("Failed to change to project root: %v", err)
@@ -404,7 +404,7 @@ func TestAdminTokenCommands(t *testing.T) {
 
 	t.Run("CreateAdminToken", func(t *testing.T) {
 		cmd := createLocalAdminCommand("create-token", "Integration test token 2")
-		
+
 		// Provide "y" input to proceed with creation (since admin tokens already exist)
 		cmd.Stdin = strings.NewReader("y\n")
 
@@ -415,7 +415,7 @@ func TestAdminTokenCommands(t *testing.T) {
 
 		outputStr := string(output)
 		t.Logf("Create token output:\n%s", outputStr)
-		
+
 		if !strings.Contains(outputStr, "Admin token created successfully") {
 			t.Error("Expected success message for token creation")
 		}

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/gzip"
+	"github.com/gin-gonic/gin"
 )
 
 func setupSimpleCacheTestRouter() *gin.Engine {

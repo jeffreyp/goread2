@@ -18,12 +18,12 @@ import (
 )
 
 type PaymentService struct {
-	db                  database.Database
-	subscriptionService *SubscriptionService
-	stripeSecretKey     string
+	db                   database.Database
+	subscriptionService  *SubscriptionService
+	stripeSecretKey      string
 	stripePublishableKey string
-	stripeWebhookSecret string
-	stripePriceID       string
+	stripeWebhookSecret  string
+	stripePriceID        string
 }
 
 type CheckoutSessionRequest struct {
@@ -39,7 +39,7 @@ type CheckoutSessionResponse struct {
 
 func NewPaymentService(db database.Database, subscriptionService *SubscriptionService) *PaymentService {
 	ctx := context.Background()
-	
+
 	// Get Stripe credentials from Secret Manager or environment
 	secretKey, publishableKey, webhookSecret, priceID, err := secrets.GetStripeCredentials(ctx)
 	if err != nil {
@@ -55,7 +55,7 @@ func NewPaymentService(db database.Database, subscriptionService *SubscriptionSe
 		fmt.Printf("ERROR: Stripe secret key appears to be too short: %d characters\n", len(secretKey))
 	} else {
 		// Log first and last 4 characters for debugging (safe)
-		fmt.Printf("INFO: Using Stripe key: %s...%s (%d chars total)\n", 
+		fmt.Printf("INFO: Using Stripe key: %s...%s (%d chars total)\n",
 			secretKey[:4], secretKey[len(secretKey)-4:], len(secretKey))
 	}
 	stripe.Key = secretKey

@@ -31,7 +31,8 @@ func RequestCacheMiddleware() gin.HandlerFunc {
 // This eliminates duplicate GetUserFeeds calls within a single request.
 //
 // Example usage in handlers:
-//   feeds, err := middleware.GetCachedUserFeeds(c, userID, db)
+//
+//	feeds, err := middleware.GetCachedUserFeeds(c, userID, db)
 func GetCachedUserFeeds(c *gin.Context, userID int, db database.Database) ([]database.Feed, error) {
 	// Try to get the cache from context
 	cacheInterface, exists := c.Get("request_cache")

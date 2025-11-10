@@ -226,25 +226,25 @@ func listUsers(db database.Database, subscriptionService *services.SubscriptionS
 	} else if datastoreDB, ok := db.(*database.DatastoreDB); ok {
 		// Datastore implementation
 		ctx := context.Background()
-		
+
 		fmt.Println("Using Google Cloud Datastore - querying users...")
-		
+
 		query := datastore.NewQuery("User").Order("created_at")
 		var users []*database.UserEntity
 		keys, err := datastoreDB.GetClient().GetAll(ctx, query, &users)
 		if err != nil {
 			fmt.Printf("Error querying users from datastore: %v\n", err)
 			fmt.Println("Trying to get specific user by email instead...")
-			
+
 			// Fallback: try to get the specific user we know exists
 			user, err := subscriptionService.GetUserByEmail("jeffrey@jeffreypratt.org")
 			if err != nil {
 				fmt.Printf("Cannot find jeffrey@jeffreypratt.org either: %v\n", err)
 				log.Fatal("Failed to query users and fallback failed")
 			}
-			
+
 			fmt.Printf("\nFound user via direct lookup:\n")
-			fmt.Printf("ID: %d, Email: %s, Name: %s, Status: %s\n", 
+			fmt.Printf("ID: %d, Email: %s, Name: %s, Status: %s\n",
 				user.ID, user.Email, user.Name, user.SubscriptionStatus)
 			return
 		}
@@ -456,7 +456,7 @@ func fixSubscriptionStatus(subscriptionService *services.SubscriptionService, em
 
 	// Create payment service to handle subscription update
 	paymentService := services.NewPaymentService(subscriptionService.GetDB(), subscriptionService)
-	
+
 	// This will fetch from Stripe and update the database
 	err = paymentService.HandleSubscriptionUpdate(user.SubscriptionID)
 	if err != nil {
@@ -472,7 +472,7 @@ func fixSubscriptionStatus(subscriptionService *services.SubscriptionService, em
 	fmt.Printf("✅ Subscription status updated successfully!\n")
 	fmt.Printf("   Previous status: %s\n", user.SubscriptionStatus)
 	fmt.Printf("   Current status:  %s\n", updatedUser.SubscriptionStatus)
-	
+
 	if !updatedUser.LastPaymentDate.IsZero() {
 		fmt.Printf("   Last payment:    %s\n", updatedUser.LastPaymentDate.Format("2006-01-02 15:04:05"))
 	}
@@ -496,10 +496,10 @@ func setSubscriptionID(subscriptionService *services.SubscriptionService, email,
 	}
 
 	fmt.Printf("✅ Subscription ID updated successfully!\n")
-	
+
 	// Now sync the status from Stripe using the new subscription ID
 	fmt.Println("Now syncing status from Stripe with new subscription ID...")
-	
+
 	paymentService := services.NewPaymentService(subscriptionService.GetDB(), subscriptionService)
 	err = paymentService.HandleSubscriptionUpdate(subscriptionID)
 	if err != nil {
@@ -717,7 +717,7 @@ func hasAdminUsers(subscriptionService *services.SubscriptionService) bool {
 			fmt.Printf("ERROR: Failed to check admin users: %v\n", err)
 			return false
 		}
-		
+
 		return count > 0
 	} else if datastoreDB, ok := db.(*database.DatastoreDB); ok {
 		ctx := context.Background()

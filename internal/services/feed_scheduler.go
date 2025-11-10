@@ -37,7 +37,7 @@ type SchedulerConfig struct {
 
 // ScheduledFeed represents a feed scheduled for update
 type ScheduledFeed struct {
-	Feed      database.Feed
+	Feed       database.Feed
 	NextUpdate time.Time
 	Priority   int // Higher number = higher priority
 }
@@ -266,9 +266,9 @@ func (fs *FeedScheduler) calculateFeedPriority(feed database.Feed) int {
 
 // feedUpdateStats tracks statistics during feed refresh
 type feedUpdateStats struct {
-	checked        int32
-	skipped        int32
-	hasNewContent  int32
+	checked       int32
+	skipped       int32
+	hasNewContent int32
 }
 
 // processScheduledFeeds processes feeds according to their schedule

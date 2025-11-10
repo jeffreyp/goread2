@@ -417,12 +417,12 @@ func TestValidateEnvironmentConfigStrict(t *testing.T) {
 		{
 			name: "complete_valid_config_strict",
 			envVars: map[string]string{
-				"GOOGLE_CLIENT_ID":       "test-client-id",
-				"GOOGLE_CLIENT_SECRET":   "test-client-secret",
-				"GOOGLE_REDIRECT_URL":    "http://localhost:8080/auth/callback",
-				"GOOGLE_CLOUD_PROJECT":   "my-project-123",
-				"SUBSCRIPTION_ENABLED":   "false",
-				"INITIAL_ADMIN_EMAILS":   "admin@example.com",
+				"GOOGLE_CLIENT_ID":     "test-client-id",
+				"GOOGLE_CLIENT_SECRET": "test-client-secret",
+				"GOOGLE_REDIRECT_URL":  "http://localhost:8080/auth/callback",
+				"GOOGLE_CLOUD_PROJECT": "my-project-123",
+				"SUBSCRIPTION_ENABLED": "false",
+				"INITIAL_ADMIN_EMAILS": "admin@example.com",
 			},
 			strict:      true,
 			expectError: false,

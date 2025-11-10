@@ -174,30 +174,30 @@ func TestGenerateFallbackTitle(t *testing.T) {
 	fs := NewFeedService(db, nil)
 
 	tests := []struct {
-		name        string
-		link        string
-		description string
-		shouldNotBe string // What the title should NOT be
+		name          string
+		link          string
+		description   string
+		shouldNotBe   string // What the title should NOT be
 		shouldContain string // What the title SHOULD contain (optional)
 	}{
 		{
-			name:        "Mastodon post with numeric ID in URL",
-			link:        "https://mastodon.social/@user/115329840719892796",
-			description: "<p>This is a test post about something interesting</p>",
-			shouldNotBe: "115329840719892796",
+			name:          "Mastodon post with numeric ID in URL",
+			link:          "https://mastodon.social/@user/115329840719892796",
+			description:   "<p>This is a test post about something interesting</p>",
+			shouldNotBe:   "115329840719892796",
 			shouldContain: "This is a test post",
 		},
 		{
-			name:        "Empty description, numeric URL",
-			link:        "https://example.com/posts/123456789",
-			description: "",
-			shouldNotBe: "123456789",
+			name:          "Empty description, numeric URL",
+			link:          "https://example.com/posts/123456789",
+			description:   "",
+			shouldNotBe:   "123456789",
 			shouldContain: "Untitled",
 		},
 		{
-			name:        "Valid URL slug",
-			link:        "https://example.com/my-awesome-article",
-			description: "",
+			name:          "Valid URL slug",
+			link:          "https://example.com/my-awesome-article",
+			description:   "",
 			shouldContain: "My Awesome Article",
 		},
 	}
@@ -505,16 +505,16 @@ func TestShouldCheckFeed(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name               string
-		feed               database.Feed
-		expectedCheck      bool
-		description        string
+		name          string
+		feed          database.Feed
+		expectedCheck bool
+		description   string
 	}{
 		{
 			name: "never checked feed",
 			feed: database.Feed{
-				ID:                1,
-				LastChecked:       time.Time{}, // Zero time = never checked
+				ID:          1,
+				LastChecked: time.Time{}, // Zero time = never checked
 			},
 			expectedCheck: true,
 			description:   "feeds never checked should always be checked",
@@ -547,7 +547,7 @@ func TestShouldCheckFeed(t *testing.T) {
 				ID:                    4,
 				LastChecked:           now.Add(-20 * time.Minute),
 				LastHadNewContent:     now.Add(-5 * 24 * time.Hour), // 5 days ago
-				AverageUpdateInterval: 0, // No historical data
+				AverageUpdateInterval: 0,                            // No historical data
 			},
 			expectedCheck: false,
 			description:   "feed checked 20 min ago, active < 1 week, check every 30 min",
@@ -698,7 +698,7 @@ func TestUpdateFeedTracking(t *testing.T) {
 
 		// AverageUpdateInterval should be set (approximately 2 hours = 7200 seconds)
 		expectedInterval := 2 * 3600 // 2 hours in seconds
-		tolerance := 60 // Allow 60 seconds tolerance
+		tolerance := 60              // Allow 60 seconds tolerance
 		if updatedFeed.AverageUpdateInterval < expectedInterval-tolerance ||
 			updatedFeed.AverageUpdateInterval > expectedInterval+tolerance {
 			t.Errorf("Expected AverageUpdateInterval around %d seconds, got %d",
@@ -793,9 +793,9 @@ func TestAddFeedErrorInvalidURL(t *testing.T) {
 		url          string
 		expectedErrs []error
 	}{
-		{"", []error{ErrInvalidURL}},                     // Empty URL
+		{"", []error{ErrInvalidURL}},                                        // Empty URL
 		{"javascript:alert('xss')", []error{ErrInvalidURL, ErrSSRFBlocked}}, // Invalid scheme
-		{"not-a-url", []error{ErrNetworkError}},          // DNS lookup fails
+		{"not-a-url", []error{ErrNetworkError}},                             // DNS lookup fails
 	}
 
 	for _, tc := range testCases {

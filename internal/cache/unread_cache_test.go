@@ -88,11 +88,11 @@ func TestUnreadCache_UpdateCount(t *testing.T) {
 	cache.Set(userID, counts)
 
 	tests := []struct {
-		name            string
-		wasRead         bool
-		nowRead         bool
-		expectedCount   int
-		description     string
+		name          string
+		wasRead       bool
+		nowRead       bool
+		expectedCount int
+		description   string
 	}{
 		{
 			name:          "Mark as read decrements count",
@@ -240,7 +240,7 @@ func TestUnreadCache_GetStats(t *testing.T) {
 	}
 
 	// Add some users
-	cache.Set(1, map[int]int{10: 5, 20: 10})           // User 1: 2 feeds
+	cache.Set(1, map[int]int{10: 5, 20: 10})          // User 1: 2 feeds
 	cache.Set(2, map[int]int{30: 15, 40: 20, 50: 25}) // User 2: 3 feeds
 
 	stats = cache.GetStats()

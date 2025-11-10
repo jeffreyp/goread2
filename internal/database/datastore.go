@@ -15,20 +15,20 @@ type DatastoreDB struct {
 }
 
 type UserEntity struct {
-	ID                  int64     `datastore:"-"`
-	GoogleID            string    `datastore:"google_id"`
-	Email               string    `datastore:"email"`
-	Name                string    `datastore:"name"`
-	Avatar              string    `datastore:"avatar"`
-	CreatedAt           time.Time `datastore:"created_at"`
-	SubscriptionStatus  string    `datastore:"subscription_status"`
-	SubscriptionID      string    `datastore:"subscription_id"`
-	TrialEndsAt         time.Time `datastore:"trial_ends_at"`
-	LastPaymentDate     time.Time `datastore:"last_payment_date"`
-	NextBillingDate     time.Time `datastore:"next_billing_date"`
-	IsAdmin             bool      `datastore:"is_admin"`
-	FreeMonthsRemaining int       `datastore:"free_months_remaining"`
-	MaxArticlesOnFeedAdd int      `datastore:"max_articles_on_feed_add"`
+	ID                   int64     `datastore:"-"`
+	GoogleID             string    `datastore:"google_id"`
+	Email                string    `datastore:"email"`
+	Name                 string    `datastore:"name"`
+	Avatar               string    `datastore:"avatar"`
+	CreatedAt            time.Time `datastore:"created_at"`
+	SubscriptionStatus   string    `datastore:"subscription_status"`
+	SubscriptionID       string    `datastore:"subscription_id"`
+	TrialEndsAt          time.Time `datastore:"trial_ends_at"`
+	LastPaymentDate      time.Time `datastore:"last_payment_date"`
+	NextBillingDate      time.Time `datastore:"next_billing_date"`
+	IsAdmin              bool      `datastore:"is_admin"`
+	FreeMonthsRemaining  int       `datastore:"free_months_remaining"`
+	MaxArticlesOnFeedAdd int       `datastore:"max_articles_on_feed_add"`
 }
 
 type UserFeedEntity struct {
@@ -450,18 +450,18 @@ func (db *DatastoreDB) CreateUser(user *User) error {
 	}
 
 	entity := &UserEntity{
-		GoogleID:            user.GoogleID,
-		Email:               user.Email,
-		Name:                user.Name,
-		Avatar:              user.Avatar,
-		CreatedAt:           user.CreatedAt,
-		SubscriptionStatus:  user.SubscriptionStatus,
-		SubscriptionID:      user.SubscriptionID,
-		TrialEndsAt:         user.TrialEndsAt,
-		LastPaymentDate:     user.LastPaymentDate,
-		NextBillingDate:     user.NextBillingDate,
-		IsAdmin:             user.IsAdmin,
-		FreeMonthsRemaining: user.FreeMonthsRemaining,
+		GoogleID:             user.GoogleID,
+		Email:                user.Email,
+		Name:                 user.Name,
+		Avatar:               user.Avatar,
+		CreatedAt:            user.CreatedAt,
+		SubscriptionStatus:   user.SubscriptionStatus,
+		SubscriptionID:       user.SubscriptionID,
+		TrialEndsAt:          user.TrialEndsAt,
+		LastPaymentDate:      user.LastPaymentDate,
+		NextBillingDate:      user.NextBillingDate,
+		IsAdmin:              user.IsAdmin,
+		FreeMonthsRemaining:  user.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: user.MaxArticlesOnFeedAdd,
 	}
 
@@ -498,19 +498,19 @@ func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
 	}
 
 	return &User{
-		ID:                  int(entity.ID),
-		GoogleID:            entity.GoogleID,
-		Email:               entity.Email,
-		Name:                entity.Name,
-		Avatar:              entity.Avatar,
-		CreatedAt:           entity.CreatedAt,
-		SubscriptionStatus:  entity.SubscriptionStatus,
-		SubscriptionID:      entity.SubscriptionID,
-		TrialEndsAt:         entity.TrialEndsAt,
-		LastPaymentDate:     entity.LastPaymentDate,
-		NextBillingDate:     entity.NextBillingDate,
-		IsAdmin:             entity.IsAdmin,
-		FreeMonthsRemaining: entity.FreeMonthsRemaining,
+		ID:                   int(entity.ID),
+		GoogleID:             entity.GoogleID,
+		Email:                entity.Email,
+		Name:                 entity.Name,
+		Avatar:               entity.Avatar,
+		CreatedAt:            entity.CreatedAt,
+		SubscriptionStatus:   entity.SubscriptionStatus,
+		SubscriptionID:       entity.SubscriptionID,
+		TrialEndsAt:          entity.TrialEndsAt,
+		LastPaymentDate:      entity.LastPaymentDate,
+		NextBillingDate:      entity.NextBillingDate,
+		IsAdmin:              entity.IsAdmin,
+		FreeMonthsRemaining:  entity.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: maxArticles,
 	}, nil
 }
@@ -532,19 +532,19 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 	}
 
 	return &User{
-		ID:                  int(entity.ID),
-		GoogleID:            entity.GoogleID,
-		Email:               entity.Email,
-		Name:                entity.Name,
-		Avatar:              entity.Avatar,
-		CreatedAt:           entity.CreatedAt,
-		SubscriptionStatus:  entity.SubscriptionStatus,
-		SubscriptionID:      entity.SubscriptionID,
-		TrialEndsAt:         entity.TrialEndsAt,
-		LastPaymentDate:     entity.LastPaymentDate,
-		NextBillingDate:     entity.NextBillingDate,
-		IsAdmin:             entity.IsAdmin,
-		FreeMonthsRemaining: entity.FreeMonthsRemaining,
+		ID:                   int(entity.ID),
+		GoogleID:             entity.GoogleID,
+		Email:                entity.Email,
+		Name:                 entity.Name,
+		Avatar:               entity.Avatar,
+		CreatedAt:            entity.CreatedAt,
+		SubscriptionStatus:   entity.SubscriptionStatus,
+		SubscriptionID:       entity.SubscriptionID,
+		TrialEndsAt:          entity.TrialEndsAt,
+		LastPaymentDate:      entity.LastPaymentDate,
+		NextBillingDate:      entity.NextBillingDate,
+		IsAdmin:              entity.IsAdmin,
+		FreeMonthsRemaining:  entity.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: maxArticles,
 	}, nil
 }
@@ -1165,7 +1165,7 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 	// Get all articles for this feed with eventual consistency retry
 	var articleKeys []*datastore.Key
 	var err error
-	
+
 	// Retry logic to handle eventual consistency issues with newly added feeds
 	for attempt := 0; attempt < 3; attempt++ {
 		articleQuery := datastore.NewQuery("Article").
@@ -1180,12 +1180,12 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 			}
 			return 0, err
 		}
-		
+
 		// If we got articles or this isn't the first attempt, use the result
 		if len(articleKeys) > 0 || attempt > 0 {
 			break
 		}
-		
+
 		// If no articles found on first attempt, wait and retry (might be consistency lag)
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -1555,19 +1555,19 @@ func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 	}
 
 	return &User{
-		ID:                  int(user.ID),
-		GoogleID:            user.GoogleID,
-		Email:               user.Email,
-		Name:                user.Name,
-		Avatar:              user.Avatar,
-		CreatedAt:           user.CreatedAt,
-		SubscriptionStatus:  user.SubscriptionStatus,
-		SubscriptionID:      user.SubscriptionID,
-		TrialEndsAt:         user.TrialEndsAt,
-		LastPaymentDate:     user.LastPaymentDate,
-		NextBillingDate:     user.NextBillingDate,
-		IsAdmin:             user.IsAdmin,
-		FreeMonthsRemaining: user.FreeMonthsRemaining,
+		ID:                   int(user.ID),
+		GoogleID:             user.GoogleID,
+		Email:                user.Email,
+		Name:                 user.Name,
+		Avatar:               user.Avatar,
+		CreatedAt:            user.CreatedAt,
+		SubscriptionStatus:   user.SubscriptionStatus,
+		SubscriptionID:       user.SubscriptionID,
+		TrialEndsAt:          user.TrialEndsAt,
+		LastPaymentDate:      user.LastPaymentDate,
+		NextBillingDate:      user.NextBillingDate,
+		IsAdmin:              user.IsAdmin,
+		FreeMonthsRemaining:  user.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: maxArticles,
 	}, nil
 }
@@ -1575,14 +1575,14 @@ func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 // Session methods for Datastore
 func (db *DatastoreDB) CreateSession(session *Session) error {
 	ctx := context.Background()
-	
+
 	entity := &SessionEntity{
 		ID:        session.ID,
 		UserID:    int64(session.UserID),
 		CreatedAt: session.CreatedAt,
 		ExpiresAt: session.ExpiresAt,
 	}
-	
+
 	key := datastore.NameKey("Session", session.ID, nil)
 	_, err := db.client.Put(ctx, key, entity)
 	return err
@@ -1590,10 +1590,10 @@ func (db *DatastoreDB) CreateSession(session *Session) error {
 
 func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
 	ctx := context.Background()
-	
+
 	key := datastore.NameKey("Session", sessionID, nil)
 	var entity SessionEntity
-	
+
 	err := db.client.Get(ctx, key, &entity)
 	if err == datastore.ErrNoSuchEntity {
 		return nil, nil
@@ -1601,9 +1601,9 @@ func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	entity.ID = sessionID
-	
+
 	return &Session{
 		ID:        entity.ID,
 		UserID:    int(entity.UserID),
@@ -1614,7 +1614,7 @@ func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
 
 func (db *DatastoreDB) DeleteSession(sessionID string) error {
 	ctx := context.Background()
-	
+
 	key := datastore.NameKey("Session", sessionID, nil)
 	return db.client.Delete(ctx, key)
 }

@@ -116,9 +116,9 @@ func (d *DomainRateLimiter) GetDomainStats() map[string]DomainStats {
 	stats := make(map[string]DomainStats)
 	for domain, limiter := range d.limiters {
 		stats[domain] = DomainStats{
-			Domain:         domain,
+			Domain:          domain,
 			TokensRemaining: int(limiter.Tokens()),
-			BurstLimit:     d.burstSize,
+			BurstLimit:      d.burstSize,
 		}
 	}
 

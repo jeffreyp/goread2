@@ -22,46 +22,50 @@ func (m *mockDB) GetUserFeeds(userID int) ([]database.Feed, error) {
 }
 
 // Implement other database.Database interface methods as no-ops
-func (m *mockDB) CreateUser(*database.User) error                                               { return nil }
-func (m *mockDB) GetUserByGoogleID(string) (*database.User, error)                              { return nil, nil }
-func (m *mockDB) GetUserByID(int) (*database.User, error)                                       { return nil, nil }
-func (m *mockDB) UpdateUserSubscription(int, string, string, time.Time, time.Time) error        { return nil }
-func (m *mockDB) IsUserSubscriptionActive(int) (bool, error)                                    { return false, nil }
-func (m *mockDB) GetUserFeedCount(int) (int, error)                                             { return 0, nil }
-func (m *mockDB) UpdateUserMaxArticlesOnFeedAdd(int, int) error                                 { return nil }
-func (m *mockDB) SetUserAdmin(int, bool) error                                                  { return nil }
-func (m *mockDB) GrantFreeMonths(int, int) error                                                { return nil }
-func (m *mockDB) GetUserByEmail(string) (*database.User, error)                                 { return nil, nil }
-func (m *mockDB) AddFeed(*database.Feed) error                                                  { return nil }
-func (m *mockDB) UpdateFeed(*database.Feed) error                                               { return nil }
-func (m *mockDB) UpdateFeedTracking(int, time.Time, time.Time, int) error                       { return nil }
-func (m *mockDB) GetFeeds() ([]database.Feed, error)                                            { return nil, nil }
-func (m *mockDB) GetFeedByURL(string) (*database.Feed, error)                                   { return nil, nil }
-func (m *mockDB) GetAllUserFeeds() ([]database.Feed, error)                                     { return nil, nil }
-func (m *mockDB) DeleteFeed(int) error                                                          { return nil }
-func (m *mockDB) SubscribeUserToFeed(int, int) error                                            { return nil }
-func (m *mockDB) UnsubscribeUserFromFeed(int, int) error                                        { return nil }
-func (m *mockDB) AddArticle(*database.Article) error                                            { return nil }
-func (m *mockDB) GetArticles(int) ([]database.Article, error)                                   { return nil, nil }
-func (m *mockDB) FindArticleByURL(string) (*database.Article, error)                            { return nil, nil }
-func (m *mockDB) GetUserArticles(int) ([]database.Article, error)                               { return nil, nil }
-func (m *mockDB) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) { return &database.ArticlePaginationResult{}, nil }
-func (m *mockDB) GetUserFeedArticles(int, int) ([]database.Article, error)                      { return nil, nil }
-func (m *mockDB) GetUserArticleStatus(int, int) (*database.UserArticle, error)                  { return nil, nil }
-func (m *mockDB) SetUserArticleStatus(int, int, bool, bool) error                               { return nil }
-func (m *mockDB) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error           { return nil }
-func (m *mockDB) MarkUserArticleRead(int, int, bool) error                                      { return nil }
-func (m *mockDB) ToggleUserArticleStar(int, int) error                                          { return nil }
-func (m *mockDB) GetUserUnreadCounts(int) (map[int]int, error)                                  { return nil, nil }
-func (m *mockDB) CleanupOrphanedUserArticles(int) (int, error)                                  { return 0, nil }
-func (m *mockDB) CreateSession(*database.Session) error                                         { return nil }
-func (m *mockDB) GetSession(string) (*database.Session, error)                                  { return nil, nil }
-func (m *mockDB) DeleteSession(string) error                                                    { return nil }
-func (m *mockDB) DeleteExpiredSessions() error                                                  { return nil }
-func (m *mockDB) CreateAuditLog(*database.AuditLog) error                                       { return nil }
-func (m *mockDB) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error)    { return nil, nil }
-func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error                                      { return nil }
-func (m *mockDB) Close() error                                                                  { return nil }
+func (m *mockDB) CreateUser(*database.User) error                                        { return nil }
+func (m *mockDB) GetUserByGoogleID(string) (*database.User, error)                       { return nil, nil }
+func (m *mockDB) GetUserByID(int) (*database.User, error)                                { return nil, nil }
+func (m *mockDB) UpdateUserSubscription(int, string, string, time.Time, time.Time) error { return nil }
+func (m *mockDB) IsUserSubscriptionActive(int) (bool, error)                             { return false, nil }
+func (m *mockDB) GetUserFeedCount(int) (int, error)                                      { return 0, nil }
+func (m *mockDB) UpdateUserMaxArticlesOnFeedAdd(int, int) error                          { return nil }
+func (m *mockDB) SetUserAdmin(int, bool) error                                           { return nil }
+func (m *mockDB) GrantFreeMonths(int, int) error                                         { return nil }
+func (m *mockDB) GetUserByEmail(string) (*database.User, error)                          { return nil, nil }
+func (m *mockDB) AddFeed(*database.Feed) error                                           { return nil }
+func (m *mockDB) UpdateFeed(*database.Feed) error                                        { return nil }
+func (m *mockDB) UpdateFeedTracking(int, time.Time, time.Time, int) error                { return nil }
+func (m *mockDB) GetFeeds() ([]database.Feed, error)                                     { return nil, nil }
+func (m *mockDB) GetFeedByURL(string) (*database.Feed, error)                            { return nil, nil }
+func (m *mockDB) GetAllUserFeeds() ([]database.Feed, error)                              { return nil, nil }
+func (m *mockDB) DeleteFeed(int) error                                                   { return nil }
+func (m *mockDB) SubscribeUserToFeed(int, int) error                                     { return nil }
+func (m *mockDB) UnsubscribeUserFromFeed(int, int) error                                 { return nil }
+func (m *mockDB) AddArticle(*database.Article) error                                     { return nil }
+func (m *mockDB) GetArticles(int) ([]database.Article, error)                            { return nil, nil }
+func (m *mockDB) FindArticleByURL(string) (*database.Article, error)                     { return nil, nil }
+func (m *mockDB) GetUserArticles(int) ([]database.Article, error)                        { return nil, nil }
+func (m *mockDB) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) {
+	return &database.ArticlePaginationResult{}, nil
+}
+func (m *mockDB) GetUserFeedArticles(int, int) ([]database.Article, error)            { return nil, nil }
+func (m *mockDB) GetUserArticleStatus(int, int) (*database.UserArticle, error)        { return nil, nil }
+func (m *mockDB) SetUserArticleStatus(int, int, bool, bool) error                     { return nil }
+func (m *mockDB) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error { return nil }
+func (m *mockDB) MarkUserArticleRead(int, int, bool) error                            { return nil }
+func (m *mockDB) ToggleUserArticleStar(int, int) error                                { return nil }
+func (m *mockDB) GetUserUnreadCounts(int) (map[int]int, error)                        { return nil, nil }
+func (m *mockDB) CleanupOrphanedUserArticles(int) (int, error)                        { return 0, nil }
+func (m *mockDB) CreateSession(*database.Session) error                               { return nil }
+func (m *mockDB) GetSession(string) (*database.Session, error)                        { return nil, nil }
+func (m *mockDB) DeleteSession(string) error                                          { return nil }
+func (m *mockDB) DeleteExpiredSessions() error                                        { return nil }
+func (m *mockDB) CreateAuditLog(*database.AuditLog) error                             { return nil }
+func (m *mockDB) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
+	return nil, nil
+}
+func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error { return nil }
+func (m *mockDB) Close() error                             { return nil }
 
 func TestRequestCacheMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)

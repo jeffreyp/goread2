@@ -80,20 +80,20 @@ type DB struct {
 }
 
 type User struct {
-	ID                  int       `json:"id"`
-	GoogleID            string    `json:"google_id"`
-	Email               string    `json:"email"`
-	Name                string    `json:"name"`
-	Avatar              string    `json:"avatar"`
-	CreatedAt           time.Time `json:"created_at"`
-	SubscriptionStatus  string    `json:"subscription_status"`   // 'trial', 'active', 'cancelled', 'expired', 'admin'
-	SubscriptionID      string    `json:"subscription_id"`       // Stripe subscription ID
-	TrialEndsAt         time.Time `json:"trial_ends_at"`         // When free trial expires
-	LastPaymentDate     time.Time `json:"last_payment_date"`     // Last successful payment
-	NextBillingDate     time.Time `json:"next_billing_date"`     // Next billing date for active subscriptions
-	IsAdmin             bool      `json:"is_admin"`              // Admin users bypass subscription limits
-	FreeMonthsRemaining int       `json:"free_months_remaining"` // Additional free months granted
-	MaxArticlesOnFeedAdd int      `json:"max_articles_on_feed_add"` // Max articles to import when adding a new feed (0 = unlimited)
+	ID                   int       `json:"id"`
+	GoogleID             string    `json:"google_id"`
+	Email                string    `json:"email"`
+	Name                 string    `json:"name"`
+	Avatar               string    `json:"avatar"`
+	CreatedAt            time.Time `json:"created_at"`
+	SubscriptionStatus   string    `json:"subscription_status"`      // 'trial', 'active', 'cancelled', 'expired', 'admin'
+	SubscriptionID       string    `json:"subscription_id"`          // Stripe subscription ID
+	TrialEndsAt          time.Time `json:"trial_ends_at"`            // When free trial expires
+	LastPaymentDate      time.Time `json:"last_payment_date"`        // Last successful payment
+	NextBillingDate      time.Time `json:"next_billing_date"`        // Next billing date for active subscriptions
+	IsAdmin              bool      `json:"is_admin"`                 // Admin users bypass subscription limits
+	FreeMonthsRemaining  int       `json:"free_months_remaining"`    // Additional free months granted
+	MaxArticlesOnFeedAdd int       `json:"max_articles_on_feed_add"` // Max articles to import when adding a new feed (0 = unlimited)
 }
 
 type Feed struct {

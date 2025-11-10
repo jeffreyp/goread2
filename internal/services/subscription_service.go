@@ -147,7 +147,6 @@ func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*Subscriptio
 		info.CanAddFeeds = feedCount < FreeTrialFeedLimit && isActive
 	}
 
-
 	// Calculate days remaining in trial
 	if user.SubscriptionStatus == "trial" {
 		daysRemaining := int(time.Until(user.TrialEndsAt).Hours() / 24)

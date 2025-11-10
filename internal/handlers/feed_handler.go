@@ -156,8 +156,8 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 	idStr := c.Param("id")
 	if idStr == "all" {
 		// Parse pagination parameters
-		limit := 50 // Default limit
-		cursor := "" // Empty cursor means start from beginning
+		limit := 50         // Default limit
+		cursor := ""        // Empty cursor means start from beginning
 		unreadOnly := false // Default to showing all articles
 
 		if limitStr := c.Query("limit"); limitStr != "" {
@@ -180,7 +180,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 
 		// Return both articles and next_cursor for pagination
 		c.JSON(http.StatusOK, gin.H{
-			"articles": result.Articles,
+			"articles":    result.Articles,
 			"next_cursor": result.NextCursor,
 		})
 		return
@@ -351,7 +351,7 @@ func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 
 	log.Printf("Cleanup completed successfully at %v, deleted %d orphaned records", time.Now(), deletedCount)
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Cleanup completed successfully",
+		"message":       "Cleanup completed successfully",
 		"deleted_count": deletedCount,
 	})
 }
@@ -435,8 +435,8 @@ func (fh *FeedHandler) DebugArticleByURL(c *gin.Context) {
 
 	if article == nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"found": false,
-			"url":   url,
+			"found":   false,
+			"url":     url,
 			"message": "Article not found in database",
 		})
 		return
@@ -464,11 +464,11 @@ func (fh *FeedHandler) DebugAllSubscriptions(c *gin.Context) {
 	}
 
 	type FeedStatus struct {
-		Feed            database.Feed `json:"feed"`
-		IsSubscribed    bool          `json:"is_subscribed"`
-		AllArticleCount int           `json:"all_article_count"`
-		UserArticleCount int          `json:"user_article_count"`
-		Status          string        `json:"status"`
+		Feed             database.Feed `json:"feed"`
+		IsSubscribed     bool          `json:"is_subscribed"`
+		AllArticleCount  int           `json:"all_article_count"`
+		UserArticleCount int           `json:"user_article_count"`
+		Status           string        `json:"status"`
 	}
 
 	var feedStatuses []FeedStatus
@@ -493,16 +493,16 @@ func (fh *FeedHandler) DebugAllSubscriptions(c *gin.Context) {
 		}
 
 		feedStatuses = append(feedStatuses, FeedStatus{
-			Feed:            feed,
-			IsSubscribed:    isSubscribed,
-			AllArticleCount: len(allArticles),
+			Feed:             feed,
+			IsSubscribed:     isSubscribed,
+			AllArticleCount:  len(allArticles),
 			UserArticleCount: len(userArticles),
-			Status:          status,
+			Status:           status,
 		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"total_feeds": len(userFeeds),
+		"total_feeds":   len(userFeeds),
 		"feed_statuses": feedStatuses,
 	})
 }

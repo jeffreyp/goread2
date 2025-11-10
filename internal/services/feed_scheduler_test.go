@@ -134,46 +134,46 @@ func TestFeedScheduler_CalculateFeedPriority(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		lastFetch    time.Time
-		expectedMin  int
-		expectedMax  int
-		description  string
+		name        string
+		lastFetch   time.Time
+		expectedMin int
+		expectedMax int
+		description string
 	}{
 		{
-			name:         "very old feed",
-			lastFetch:    time.Now().Add(-25 * time.Hour),
-			expectedMin:  75, // 50 base + 30 for >24h
-			expectedMax:  85,
-			description:  "feeds not updated in >24h get high priority",
+			name:        "very old feed",
+			lastFetch:   time.Now().Add(-25 * time.Hour),
+			expectedMin: 75, // 50 base + 30 for >24h
+			expectedMax: 85,
+			description: "feeds not updated in >24h get high priority",
 		},
 		{
-			name:         "moderately old feed",
-			lastFetch:    time.Now().Add(-8 * time.Hour),
-			expectedMin:  60, // 50 base + 15 for >6h
-			expectedMax:  70,
-			description:  "feeds not updated in >6h get medium priority",
+			name:        "moderately old feed",
+			lastFetch:   time.Now().Add(-8 * time.Hour),
+			expectedMin: 60, // 50 base + 15 for >6h
+			expectedMax: 70,
+			description: "feeds not updated in >6h get medium priority",
 		},
 		{
-			name:         "somewhat old feed",
-			lastFetch:    time.Now().Add(-3 * time.Hour),
-			expectedMin:  50, // 50 base + 5 for >2h
-			expectedMax:  60,
-			description:  "feeds not updated in >2h get slight priority boost",
+			name:        "somewhat old feed",
+			lastFetch:   time.Now().Add(-3 * time.Hour),
+			expectedMin: 50, // 50 base + 5 for >2h
+			expectedMax: 60,
+			description: "feeds not updated in >2h get slight priority boost",
 		},
 		{
-			name:         "recent feed",
-			lastFetch:    time.Now().Add(-1 * time.Hour),
-			expectedMin:  45, // 50 base, no bonus
-			expectedMax:  55,
-			description:  "recently updated feeds get base priority",
+			name:        "recent feed",
+			lastFetch:   time.Now().Add(-1 * time.Hour),
+			expectedMin: 45, // 50 base, no bonus
+			expectedMax: 55,
+			description: "recently updated feeds get base priority",
 		},
 		{
-			name:         "very recent feed",
-			lastFetch:    time.Now().Add(-10 * time.Minute),
-			expectedMin:  25, // 50 base - 20 for too recent
-			expectedMax:  35,
-			description:  "very recently updated feeds get lower priority",
+			name:        "very recent feed",
+			lastFetch:   time.Now().Add(-10 * time.Minute),
+			expectedMin: 25, // 50 base - 20 for too recent
+			expectedMax: 35,
+			description: "very recently updated feeds get lower priority",
 		},
 	}
 
@@ -246,8 +246,8 @@ func TestFeedScheduler_CreateStaggeredSchedule(t *testing.T) {
 
 func TestFeedScheduler_StartStop(t *testing.T) {
 	scheduler := &FeedScheduler{
-		updateWindow:    time.Hour,    // Need positive values for tickers
-		cleanupInterval: time.Minute,  // Need positive values for tickers
+		updateWindow:    time.Hour,   // Need positive values for tickers
+		cleanupInterval: time.Minute, // Need positive values for tickers
 		stopChan:        make(chan struct{}),
 	}
 

@@ -45,10 +45,10 @@ func SetupTestServer(t *testing.T) *TestServer {
 
 	// Create feed scheduler for testing (but don't start it)
 	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{
-		UpdateWindow:    2 * time.Second, // Very short window for fast tests
+		UpdateWindow:    2 * time.Second,        // Very short window for fast tests
 		MinInterval:     100 * time.Millisecond, // Minimal interval for tests
-		MaxConcurrent:   10,            // More concurrent for faster tests
-		CleanupInterval: 10 * time.Minute, // Less frequent cleanup for tests
+		MaxConcurrent:   10,                     // More concurrent for faster tests
+		CleanupInterval: 10 * time.Minute,       // Less frequent cleanup for tests
 	})
 
 	csrfManager := auth.NewCSRFManager()

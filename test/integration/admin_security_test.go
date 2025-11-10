@@ -16,7 +16,7 @@ func TestAdminSecurityBootstrap(t *testing.T) {
 	t.Run("BootstrapWithoutAdminUser", func(t *testing.T) {
 		// Ensure database is completely clean for this test
 		cleanupDatabase(t)
-		
+
 		// Try to create token without any admin users in database
 		cmd := exec.Command("go", "run", "cmd/admin/main.go", "create-token", "Unauthorized attempt")
 		cmd.Dir = "../.."
@@ -45,7 +45,7 @@ func TestAdminSecurityBootstrap(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get current directory: %v", err)
 		}
-		
+
 		err = os.Chdir("../..")
 		if err != nil {
 			t.Fatalf("Failed to change to project root: %v", err)
@@ -171,7 +171,7 @@ func TestAdminTokenLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
 	}
-	
+
 	err = os.Chdir("../..")
 	if err != nil {
 		t.Fatalf("Failed to change to project root: %v", err)
@@ -305,7 +305,7 @@ func TestAdminTokenSecurityWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
 	}
-	
+
 	err = os.Chdir("../..")
 	if err != nil {
 		t.Fatalf("Failed to change to project root: %v", err)

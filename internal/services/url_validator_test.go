@@ -356,13 +356,13 @@ func TestSSRFProtection_InternalServices(t *testing.T) {
 
 	// Common internal service ports
 	internalServices := []string{
-		"http://127.0.0.1:6379",      // Redis
-		"http://127.0.0.1:5432",      // PostgreSQL
-		"http://127.0.0.1:3306",      // MySQL
-		"http://127.0.0.1:27017",     // MongoDB
-		"http://192.168.1.1:8080",    // Internal web service
-		"http://10.0.0.5:9200",       // Elasticsearch
-		"http://172.16.0.10:8500",    // Consul
+		"http://127.0.0.1:6379",   // Redis
+		"http://127.0.0.1:5432",   // PostgreSQL
+		"http://127.0.0.1:3306",   // MySQL
+		"http://127.0.0.1:27017",  // MongoDB
+		"http://192.168.1.1:8080", // Internal web service
+		"http://10.0.0.5:9200",    // Elasticsearch
+		"http://172.16.0.10:8500", // Consul
 	}
 
 	for _, url := range internalServices {
