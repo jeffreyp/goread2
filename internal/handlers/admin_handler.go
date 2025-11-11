@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"goread2/internal/auth"
-	"goread2/internal/services"
+	"github.com/jeffreyp/goread2/internal/auth"
+	"github.com/jeffreyp/goread2/internal/services"
 )
 
 type AdminHandler struct {

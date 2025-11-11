@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // Test RSS feed without title tags (like Mastodon)

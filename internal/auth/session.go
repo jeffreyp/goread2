@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // CachedSession represents a session stored in the in-memory cache

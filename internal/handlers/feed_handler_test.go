@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"goread2/internal/database"
-	"goread2/internal/services"
+	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/services"
 )
 
 // Mock database for testing

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 func TestNewFeedListCache(t *testing.T) {

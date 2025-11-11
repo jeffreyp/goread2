@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // FeedScheduler manages staggered feed updates to prevent DDoS attacks

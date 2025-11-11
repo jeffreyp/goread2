@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // setupDatastoreDB creates a test datastore database

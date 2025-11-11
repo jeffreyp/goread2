@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 func TestAdminSecurityBootstrap(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"os"
 	"testing"
 
-	"goread2/internal/config"
-	"goread2/internal/services"
-	"goread2/test/helpers"
+	"github.com/jeffreyp/goread2/internal/config"
+	"github.com/jeffreyp/goread2/internal/services"
+	"github.com/jeffreyp/goread2/test/helpers"
 )
 
 func TestAPIWithFeatureFlag(t *testing.T) {

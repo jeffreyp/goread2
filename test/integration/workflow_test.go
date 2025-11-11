@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"testing"
 
-	"goread2/internal/database"
-	"goread2/test/helpers"
+	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/test/helpers"
 )
 
 // TestUserWorkflowEndToEnd tests the complete user journey:

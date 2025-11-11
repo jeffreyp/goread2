@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"goread2/internal/config"
+	"github.com/jeffreyp/goread2/internal/config"
 )
 
 func main() {

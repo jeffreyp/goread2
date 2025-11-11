@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // setupTestDB creates an in-memory SQLite database for testing

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"goread2/internal/services"
+	"github.com/jeffreyp/goread2/internal/services"
 )
 
 func TestNewPaymentHandler(t *testing.T) {

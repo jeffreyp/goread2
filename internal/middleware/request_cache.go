@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // RequestCache provides request-scoped caching to eliminate duplicate database calls

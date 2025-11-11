@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // mockDBAudit implements database.Database interface for audit testing

@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 type contextKey string

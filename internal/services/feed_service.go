@@ -15,8 +15,8 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/language"
-	"goread2/internal/cache"
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/cache"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // HTTPClient interface for making HTTP requests (allows mocking in tests)

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
-	"goread2/internal/config"
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/config"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 const (

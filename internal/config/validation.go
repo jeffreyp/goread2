@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"goread2/internal/secrets"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 // ValidateEnvironmentConfig validates that all environment variables are properly configured

@@ -3,7 +3,7 @@ package fixtures
 import (
 	"time"
 
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // Sample users for testing

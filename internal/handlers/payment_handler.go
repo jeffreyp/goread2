@@ -9,8 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v78"
 	"github.com/stripe/stripe-go/v78/webhook"
-	"goread2/internal/auth"
-	"goread2/internal/services"
+	"github.com/jeffreyp/goread2/internal/auth"
+	"github.com/jeffreyp/goread2/internal/services"
 )
 
 type PaymentHandler struct {

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // FeedListCache provides in-memory caching for the list of all user feeds.

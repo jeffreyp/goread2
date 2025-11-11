@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"goread2/internal/config"
-	"goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/config"
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // mockDBForSub implements database.Database interface for subscription service testing

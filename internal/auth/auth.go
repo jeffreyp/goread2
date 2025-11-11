@@ -10,9 +10,9 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"goread2/internal/config"
-	"goread2/internal/database"
-	"goread2/internal/secrets"
+	"github.com/jeffreyp/goread2/internal/config"
+	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 // redactEmail redacts an email address for logging, keeping only first char and domain

@@ -13,8 +13,8 @@ import (
 	"github.com/stripe/stripe-go/v78/price"
 	"github.com/stripe/stripe-go/v78/product"
 	"github.com/stripe/stripe-go/v78/subscription"
-	"goread2/internal/database"
-	"goread2/internal/secrets"
+	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 type PaymentService struct {

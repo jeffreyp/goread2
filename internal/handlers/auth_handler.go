@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"goread2/internal/auth"
+	"github.com/jeffreyp/goread2/internal/auth"
 )
 
 type AuthHandler struct {

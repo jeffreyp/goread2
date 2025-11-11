@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"goread2/internal/auth"
-	"goread2/internal/database"
-	"goread2/internal/middleware"
-	"goread2/internal/services"
+	"github.com/jeffreyp/goread2/internal/auth"
+	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/middleware"
+	"github.com/jeffreyp/goread2/internal/services"
 )
 
 type FeedHandler struct {

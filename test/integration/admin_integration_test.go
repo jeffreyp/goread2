@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"goread2/internal/database"
-	"goread2/test/helpers"
+	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/test/helpers"
 )
 
 // Global test token for integration tests

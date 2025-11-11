@@ -3,7 +3,7 @@ package handlers
 import (
 	"testing"
 
-	"goread2/internal/auth"
+	"github.com/jeffreyp/goread2/internal/auth"
 )
 
 func TestNewAuthHandler(t *testing.T) {
