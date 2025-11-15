@@ -4,20 +4,18 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/jeffreyp/goread2)](https://go.dev/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/jeffreyp/goread2)](https://goreportcard.com/report/github.com/jeffreyp/goread2)
 
-A modern, multi-user RSS reader inspired by Google Reader, built with Go and featuring Google OAuth authentication, a clean three-pane interface, and comprehensive user data isolation.
+A modern, multi-user RSS reader inspired by Google Reader.
 
 ## ✨ Features
 
 - **Multi-user support** with Google OAuth authentication
 - **Three-pane layout** (feeds → articles → content) like Google Reader
 - **RSS/Atom feed support** with OPML import and export capabilities
-- **Smart article import** with configurable limits to prevent overload
-- **Smart feed updates** with background polling every hour and intelligent prioritization
+- **Smart feed updates** with background polling and intelligent prioritization
 - **Per-user article management** (read/unread, starred status)
 - **Subscription system** with 30-day free trial and Stripe integration
 - **Keyboard shortcuts** for efficient navigation
-- **Reading optimization** with clean, sans-serif typography
-- **Self-hosted** - runs locally or deploys to cloud platforms
+- **Reading optimization** with clean sans-serif typography
 - **Cost-optimized** with intelligent caching and query optimization
 
 ## 🚀 Quick Start
@@ -70,7 +68,7 @@ Access at [http://localhost:8080](http://localhost:8080) and sign in with Google
 
 ## 🔧 Build System
 
-The project includes a comprehensive Makefile with the following targets:
+The project includes a Makefile with the following targets:
 
 ```bash
 make help              # Show all available commands
@@ -140,8 +138,6 @@ Run the comprehensive test suite:
 make test  # Runs both backend and frontend tests
 ```
 
-- **Comprehensive test coverage** with significant improvements in critical areas
-- **Admin security testing** for the new database-based token authentication system
 - **Multi-user isolation testing** to ensure data security
 - **Integration tests** for API endpoints, authentication, and admin functionality
 - **Dual database support testing** (SQLite + Google Datastore) 
