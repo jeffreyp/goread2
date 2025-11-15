@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 	"github.com/stripe/stripe-go/v78"
 	billingportalsession "github.com/stripe/stripe-go/v78/billingportal/session"
 	"github.com/stripe/stripe-go/v78/checkout/session"
@@ -13,8 +15,6 @@ import (
 	"github.com/stripe/stripe-go/v78/price"
 	"github.com/stripe/stripe-go/v78/product"
 	"github.com/stripe/stripe-go/v78/subscription"
-	"github.com/jeffreyp/goread2/internal/database"
-	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 type PaymentService struct {

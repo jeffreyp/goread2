@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jeffreyp/goread2/internal/cache"
+	"github.com/jeffreyp/goread2/internal/database"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/language"
-	"github.com/jeffreyp/goread2/internal/cache"
-	"github.com/jeffreyp/goread2/internal/database"
 )
 
 // HTTPClient interface for making HTTP requests (allows mocking in tests)

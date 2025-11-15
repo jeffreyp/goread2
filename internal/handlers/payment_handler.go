@@ -7,10 +7,10 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stripe/stripe-go/v78"
-	"github.com/stripe/stripe-go/v78/webhook"
 	"github.com/jeffreyp/goread2/internal/auth"
 	"github.com/jeffreyp/goread2/internal/services"
+	"github.com/stripe/stripe-go/v78"
+	"github.com/stripe/stripe-go/v78/webhook"
 )
 
 type PaymentHandler struct {
