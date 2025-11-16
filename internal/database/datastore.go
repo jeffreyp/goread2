@@ -13,6 +13,11 @@ const (
 	// datastoreTimeout is the default timeout for all Datastore operations
 	// This prevents operations from hanging indefinitely in production
 	datastoreTimeout = 30 * time.Second
+
+	// maxArticlesPerFeed limits memory usage when paginating across multiple feeds
+	// This prevents OOM errors when users subscribe to many active feeds
+	// With this limit, even 1000 feeds would only load ~200KB of articles
+	maxArticlesPerFeed = 200
 )
 
 type DatastoreDB struct {
@@ -759,10 +764,16 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor st
 			go func(fid int64) {
 				// Get recent articles from this feed
 				// We fetch more than limit since we need to merge and sort across feeds
+				// But cap it at maxArticlesPerFeed to prevent unbounded memory usage
+				articlesPerFeed := limit * 2
+				if articlesPerFeed > maxArticlesPerFeed {
+					articlesPerFeed = maxArticlesPerFeed
+				}
+
 				query := datastore.NewQuery("Article").
 					FilterField("feed_id", "=", fid).
 					Order("-published_at").
-					Limit(limit * 2) // Fetch 2x limit per feed to ensure we have enough after sorting
+					Limit(articlesPerFeed)
 
 				var feedArticles []ArticleEntity
 				keys, err := db.client.GetAll(ctx, query, &feedArticles)
