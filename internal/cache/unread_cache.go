@@ -18,11 +18,16 @@ type UnreadCache struct {
 // NewUnreadCache creates a new unread count cache with the specified TTL.
 // Typical TTL is 90-120 seconds for background refresh of counts.
 func NewUnreadCache(ttl time.Duration) *UnreadCache {
-	return &UnreadCache{
+	uc := &UnreadCache{
 		counts:    make(map[int]map[int]int),
 		refreshAt: make(map[int]time.Time),
 		ttl:       ttl,
 	}
+
+	// Start cleanup goroutine to prevent memory leak
+	go uc.cleanupExpiredEntries()
+
+	return uc
 }
 
 // Get retrieves cached unread counts for a user if they exist and are not expired.
@@ -134,5 +139,24 @@ func (uc *UnreadCache) GetStats() CacheStats {
 	return CacheStats{
 		CachedUsers: len(uc.counts),
 		TotalFeeds:  totalFeeds,
+	}
+}
+
+// cleanupExpiredEntries removes expired cache entries to prevent memory leak.
+// Runs every 5 minutes to clean up entries that have passed their expiry time.
+func (uc *UnreadCache) cleanupExpiredEntries() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		uc.mu.Lock()
+		now := time.Now()
+		for userID, expiry := range uc.refreshAt {
+			if now.After(expiry) {
+				delete(uc.counts, userID)
+				delete(uc.refreshAt, userID)
+			}
+		}
+		uc.mu.Unlock()
 	}
 }

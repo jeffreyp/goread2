@@ -20,10 +20,15 @@ type FeedListCache struct {
 // NewFeedListCache creates a new feed list cache with the specified TTL.
 // Typical TTL is 15-30 minutes to balance freshness with cost savings.
 func NewFeedListCache(ttl time.Duration) *FeedListCache {
-	return &FeedListCache{
+	fc := &FeedListCache{
 		feeds: nil,
 		ttl:   ttl,
 	}
+
+	// Start cleanup goroutine to prevent memory leak
+	go fc.cleanupIfExpired()
+
+	return fc
 }
 
 // Get retrieves the cached feed list if it exists and is not expired.
@@ -84,5 +89,20 @@ func (fc *FeedListCache) GetStats() FeedListCacheStats {
 	return FeedListCacheStats{
 		CachedFeeds: len(fc.feeds),
 		IsValid:     fc.feeds != nil && time.Now().Before(fc.refreshAt),
+	}
+}
+
+// cleanupIfExpired removes expired cache entry to prevent memory leak.
+// Runs every 5 minutes to clean up the feed list if it has passed its expiry time.
+func (fc *FeedListCache) cleanupIfExpired() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		fc.mu.Lock()
+		if fc.feeds != nil && time.Now().After(fc.refreshAt) {
+			fc.feeds = nil
+		}
+		fc.mu.Unlock()
 	}
 }
