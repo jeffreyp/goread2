@@ -9,9 +9,20 @@ import (
 	"cloud.google.com/go/datastore"
 )
 
+const (
+	// datastoreTimeout is the default timeout for all Datastore operations
+	// This prevents operations from hanging indefinitely in production
+	datastoreTimeout = 30 * time.Second
+)
+
 type DatastoreDB struct {
 	client    *datastore.Client
 	projectID string
+}
+
+// newDatastoreContext creates a new context with the standard Datastore timeout
+func newDatastoreContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), datastoreTimeout)
 }
 
 type UserEntity struct {
@@ -101,7 +112,8 @@ type ArticleEntity struct {
 }
 
 func NewDatastoreDB(projectID string) (*DatastoreDB, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 	client, err := datastore.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create datastore client: %w", err)
@@ -123,7 +135,8 @@ func (db *DatastoreDB) Close() error {
 }
 
 func (db *DatastoreDB) AddFeed(feed *Feed) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	entity := &FeedEntity{
 		Title:                 feed.Title,
@@ -148,7 +161,8 @@ func (db *DatastoreDB) AddFeed(feed *Feed) error {
 }
 
 func (db *DatastoreDB) UpdateFeed(feed *Feed) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Get the existing entity to preserve fields we're not updating
 	key := datastore.IDKey("Feed", int64(feed.ID), nil)
@@ -173,7 +187,8 @@ func (db *DatastoreDB) UpdateFeed(feed *Feed) error {
 }
 
 func (db *DatastoreDB) UpdateFeedTracking(feedID int, lastChecked, lastHadNewContent time.Time, averageUpdateInterval int) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.IDKey("Feed", int64(feedID), nil)
 	var entity FeedEntity
@@ -196,7 +211,8 @@ func (db *DatastoreDB) UpdateFeedTracking(feedID int, lastChecked, lastHadNewCon
 }
 
 func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	query := datastore.NewQuery("Feed").Order("title")
 	var entities []FeedEntity
@@ -226,7 +242,8 @@ func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 }
 
 func (db *DatastoreDB) GetFeedByURL(url string) (*Feed, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	query := datastore.NewQuery("Feed").FilterField("url", "=", url).Limit(1)
 	var entities []FeedEntity
@@ -258,7 +275,8 @@ func (db *DatastoreDB) GetFeedByURL(url string) (*Feed, error) {
 }
 
 func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.IDKey("Feed", int64(feedID), nil)
 	var entity FeedEntity
@@ -288,7 +306,8 @@ func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
 }
 
 func (db *DatastoreDB) DeleteFeed(id int) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	feedKey := datastore.IDKey("Feed", int64(id), nil)
 	if err := db.client.Delete(ctx, feedKey); err != nil {
@@ -311,7 +330,8 @@ func (db *DatastoreDB) DeleteFeed(id int) error {
 }
 
 func (db *DatastoreDB) AddArticle(article *Article) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Check if article already exists
 	query := datastore.NewQuery("Article").FilterField("url", "=", article.URL).Limit(1)
@@ -351,7 +371,8 @@ func (db *DatastoreDB) AddArticle(article *Article) error {
 }
 
 func (db *DatastoreDB) GetArticles(feedID int) ([]Article, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	query := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID)).Order("-published_at")
 	var entities []ArticleEntity
@@ -382,7 +403,8 @@ func (db *DatastoreDB) GetArticles(feedID int) ([]Article, error) {
 }
 
 func (db *DatastoreDB) FindArticleByURL(url string) (*Article, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	query := datastore.NewQuery("Article").FilterField("url", "=", url).Limit(1)
 	var entities []ArticleEntity
@@ -418,7 +440,8 @@ func (db *DatastoreDB) FindArticleByURL(url string) (*Article, error) {
 // Legacy methods removed - use multi-user methods instead
 
 func (db *DatastoreDB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.IDKey("Feed", int64(feedID), nil)
 	var entity FeedEntity
@@ -436,7 +459,8 @@ func (db *DatastoreDB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) erro
 
 // User methods for Datastore
 func (db *DatastoreDB) CreateUser(user *User) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Set default subscription values for new users
 	if user.SubscriptionStatus == "" {
@@ -476,7 +500,8 @@ func (db *DatastoreDB) CreateUser(user *User) error {
 }
 
 func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	query := datastore.NewQuery("User").FilterField("google_id", "=", googleID).Limit(1)
 	var entities []UserEntity
@@ -516,7 +541,8 @@ func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
 }
 
 func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.IDKey("User", int64(userID), nil)
 	var entity UserEntity
@@ -550,7 +576,8 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 }
 
 func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Use eventually consistent query, but with retry logic for recent changes
 	query := datastore.NewQuery("UserFeed").FilterField("user_id", "=", int64(userID))
@@ -626,7 +653,8 @@ func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
 }
 
 func (db *DatastoreDB) SubscribeUserToFeed(userID, feedID int) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Check if subscription already exists
 	query := datastore.NewQuery("UserFeed").
@@ -662,7 +690,8 @@ func (db *DatastoreDB) SubscribeUserToFeed(userID, feedID int) error {
 }
 
 func (db *DatastoreDB) UnsubscribeUserFromFeed(userID, feedID int) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Remove the user-feed subscription
 	// Note: Orphaned UserArticle entities will be cleaned up by periodic background job
@@ -685,7 +714,8 @@ func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
 }
 
 func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Get user's subscribed feeds
 	feeds, err := db.GetUserFeeds(userID)
@@ -894,7 +924,8 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor st
 }
 
 func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// First verify user is subscribed to this feed
 	subscriptionQuery := datastore.NewQuery("UserFeed").
@@ -1010,7 +1041,8 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 }
 
 func (db *DatastoreDB) GetUserArticleStatus(userID, articleID int) (*UserArticle, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
 	var entity UserArticleEntity
@@ -1031,7 +1063,8 @@ func (db *DatastoreDB) GetUserArticleStatus(userID, articleID int) (*UserArticle
 }
 
 func (db *DatastoreDB) SetUserArticleStatus(userID, articleID int, isRead, isStarred bool) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	entity := &UserArticleEntity{
 		UserID:    int64(userID),
@@ -1080,7 +1113,8 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 		return nil
 	}
 
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Batch process articles in chunks to avoid datastore limits
 	chunkSize := 100
@@ -1117,7 +1151,8 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 }
 
 func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Get all user feeds with strong consistency retry for recent changes
 	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
@@ -1253,7 +1288,8 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 // the user is no longer subscribed to. Only cleans up articles older than the specified number of days.
 // Returns the number of records deleted.
 func (db *DatastoreDB) CleanupOrphanedUserArticles(olderThanDays int) (int, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 	deletedCount := 0
 	cutoffDate := time.Now().AddDate(0, 0, -olderThanDays)
 
@@ -1382,7 +1418,8 @@ func (db *DatastoreDB) getUserFeedsWithRetry(ctx context.Context, userID int, ma
 }
 
 func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Query for all user feed relationships
 	query := datastore.NewQuery("UserFeed")
@@ -1415,7 +1452,8 @@ func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
 
 // Subscription management methods
 func (db *DatastoreDB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.IDKey("User", int64(userID), nil)
 	var entity UserEntity
@@ -1437,7 +1475,8 @@ func (db *DatastoreDB) UpdateUserSubscription(userID int, status, subscriptionID
 }
 
 func (db *DatastoreDB) IsUserSubscriptionActive(userID int) (bool, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.IDKey("User", int64(userID), nil)
 	var entity UserEntity
@@ -1470,7 +1509,8 @@ func (db *DatastoreDB) IsUserSubscriptionActive(userID int) (bool, error) {
 }
 
 func (db *DatastoreDB) GetUserFeedCount(userID int) (int, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Use Count() instead of GetAll for better performance
 	query := datastore.NewQuery("UserFeed").FilterField("user_id", "=", int64(userID))
@@ -1484,7 +1524,8 @@ func (db *DatastoreDB) GetUserFeedCount(userID int) (int, error) {
 
 // Admin management methods
 func (db *DatastoreDB) SetUserAdmin(userID int, isAdmin bool) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Get user entity first
 	userKey := datastore.IDKey("User", int64(userID), nil)
@@ -1508,7 +1549,8 @@ func (db *DatastoreDB) SetUserAdmin(userID int, isAdmin bool) error {
 }
 
 func (db *DatastoreDB) GrantFreeMonths(userID int, months int) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Get user entity first
 	userKey := datastore.IDKey("User", int64(userID), nil)
@@ -1532,7 +1574,8 @@ func (db *DatastoreDB) GrantFreeMonths(userID int, months int) error {
 }
 
 func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	query := datastore.NewQuery("User").FilterField("email", "=", email).Limit(1)
 
@@ -1574,7 +1617,8 @@ func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 
 // Session methods for Datastore
 func (db *DatastoreDB) CreateSession(session *Session) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	entity := &SessionEntity{
 		ID:        session.ID,
@@ -1589,7 +1633,8 @@ func (db *DatastoreDB) CreateSession(session *Session) error {
 }
 
 func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.NameKey("Session", sessionID, nil)
 	var entity SessionEntity
@@ -1613,14 +1658,16 @@ func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
 }
 
 func (db *DatastoreDB) DeleteSession(sessionID string) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	key := datastore.NameKey("Session", sessionID, nil)
 	return db.client.Delete(ctx, key)
 }
 
 func (db *DatastoreDB) DeleteExpiredSessions() error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	// Query for expired sessions
 	query := datastore.NewQuery("Session").FilterField("expires_at", "<", time.Now()).KeysOnly()
@@ -1640,7 +1687,8 @@ func (db *DatastoreDB) DeleteExpiredSessions() error {
 
 // Audit log methods for Datastore
 func (db *DatastoreDB) CreateAuditLog(log *AuditLog) error {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	entity := &AuditLogEntity{
 		Timestamp:        log.Timestamp,
@@ -1666,7 +1714,8 @@ func (db *DatastoreDB) CreateAuditLog(log *AuditLog) error {
 }
 
 func (db *DatastoreDB) GetAuditLogs(limit, offset int, filters map[string]interface{}) ([]AuditLog, error) {
-	ctx := context.Background()
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
 
 	query := datastore.NewQuery("AuditLog").Order("-timestamp")
 
