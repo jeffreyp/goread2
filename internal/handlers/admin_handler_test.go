@@ -135,6 +135,7 @@ func TestNewAdminHandler(t *testing.T) {
 
 	if handler == nil {
 		t.Fatal("NewAdminHandler returned nil")
+		return
 	}
 
 	if handler.subscriptionService != mockSubscriptionService {

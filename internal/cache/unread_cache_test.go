@@ -9,6 +9,7 @@ func TestNewUnreadCache(t *testing.T) {
 	cache := NewUnreadCache(60 * time.Second)
 	if cache == nil {
 		t.Fatal("NewUnreadCache returned nil")
+		return
 	}
 	if cache.ttl != 60*time.Second {
 		t.Errorf("Expected TTL 60s, got %v", cache.ttl)

@@ -11,6 +11,7 @@ func TestNewFeedListCache(t *testing.T) {
 	cache := NewFeedListCache(20 * time.Minute)
 	if cache == nil {
 		t.Fatal("NewFeedListCache returned nil")
+		return
 	}
 	if cache.ttl != 20*time.Minute {
 		t.Errorf("Expected TTL 20 minutes, got %v", cache.ttl)

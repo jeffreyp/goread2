@@ -389,6 +389,7 @@ func TestGetWithoutLoad(t *testing.T) {
 	cfg := Get()
 	if cfg == nil {
 		t.Fatal("Get() returned nil")
+		return
 	}
 
 	// Should have default values
