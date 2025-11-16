@@ -51,16 +51,25 @@ func GetCachedUserFeeds(c *gin.Context, userID int, db database.Database) ([]dat
 	}
 	cache.mu.RUnlock()
 
-	// Cache miss - fetch from database
+	// Cache miss - acquire write lock to fetch from database
+	// Use double-check locking to prevent race condition where multiple
+	// goroutines could see cache miss and all fetch from database
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	// Double-check: another goroutine may have populated cache while we waited for lock
+	if feeds, cached := cache.userFeeds[userID]; cached {
+		return feeds, nil // Cache hit after acquiring lock!
+	}
+
+	// Still a cache miss - fetch from database
 	feeds, err := db.GetUserFeeds(userID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store in cache for next call (write lock)
-	cache.mu.Lock()
+	// Store in cache for next call
 	cache.userFeeds[userID] = feeds
-	cache.mu.Unlock()
 
 	return feeds, nil
 }
