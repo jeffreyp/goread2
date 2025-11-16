@@ -5,9 +5,16 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+)
+
+const (
+	// secretManagerTimeout is the timeout for Secret Manager API calls
+	// This prevents indefinite hangs if the service is slow or unavailable
+	secretManagerTimeout = 10 * time.Second
 )
 
 // Cache for OAuth credentials (fetched once at startup)
@@ -50,6 +57,10 @@ func GetSecret(ctx context.Context, secretName string) (string, error) {
 	if projectID == "" {
 		return "", fmt.Errorf("GOOGLE_CLOUD_PROJECT environment variable is required")
 	}
+
+	// Create a context with timeout to prevent indefinite hangs
+	ctx, cancel := context.WithTimeout(ctx, secretManagerTimeout)
+	defer cancel()
 
 	// Create the client
 	client, err := secretmanager.NewClient(ctx)
