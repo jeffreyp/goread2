@@ -334,10 +334,6 @@ func (fs *FeedScheduler) updateSingleFeed(feed database.Feed, stats *feedUpdateS
 		return
 	}
 
-	// Count existing articles before saving
-	existingArticles, _ := fs.feedService.db.GetArticles(feed.ID)
-	existingCount := len(existingArticles)
-
 	// Fetch and update the feed
 	feedData, err := fs.feedService.fetchFeed(feed.URL)
 	atomic.AddInt32(&stats.checked, 1)
@@ -351,15 +347,16 @@ func (fs *FeedScheduler) updateSingleFeed(feed database.Feed, stats *feedUpdateS
 		return
 	}
 
-	if err := fs.feedService.saveArticlesFromFeed(feed.ID, feedData); err != nil {
+	// Save articles and get count of newly saved articles
+	savedCount, err := fs.feedService.saveArticlesFromFeed(feed.ID, feedData)
+	if err != nil {
 		log.Printf("Failed to save articles for feed %d: %v", feed.ID, err)
 		_ = fs.feedService.updateFeedTracking(feed, false)
 		return
 	}
 
-	// Check if there are new articles
-	newArticles, _ := fs.feedService.db.GetArticles(feed.ID)
-	hadNewContent := len(newArticles) > existingCount
+	// Check if there are new articles based on saved count
+	hadNewContent := savedCount > 0
 
 	if hadNewContent {
 		atomic.AddInt32(&stats.hasNewContent, 1)

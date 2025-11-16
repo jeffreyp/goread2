@@ -181,7 +181,7 @@ func (fs *FeedService) AddFeed(url string) (*database.Feed, error) {
 		return nil, fmt.Errorf("failed to insert feed: %w", err)
 	}
 
-	if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
+	if _, err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
 		return nil, fmt.Errorf("failed to save articles: %w", err)
 	}
 
@@ -285,7 +285,7 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 			return nil, fmt.Errorf("%w: failed to get user %d: %v", ErrDatabaseError, userID, err)
 		}
 
-		if err := fs.saveArticlesFromFeedWithLimit(feed.ID, feedData, user.MaxArticlesOnFeedAdd); err != nil {
+		if _, err := fs.saveArticlesFromFeedWithLimit(feed.ID, feedData, user.MaxArticlesOnFeedAdd); err != nil {
 			return nil, fmt.Errorf("%w: failed to save articles: %v", ErrDatabaseError, err)
 		}
 
@@ -654,12 +654,12 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom, feedURL string) *FeedDa
 	}
 }
 
-func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) error {
+func (fs *FeedService) saveArticlesFromFeed(feedID int, feedData *FeedData) (int, error) {
 	// Use unlimited (0) for backward compatibility
 	return fs.saveArticlesFromFeedWithLimit(feedID, feedData, 0)
 }
 
-func (fs *FeedService) saveArticlesFromFeedWithLimit(feedID int, feedData *FeedData, maxArticles int) error {
+func (fs *FeedService) saveArticlesFromFeedWithLimit(feedID int, feedData *FeedData, maxArticles int) (int, error) {
 	var savedCount int
 	var errors []string
 
@@ -711,10 +711,10 @@ func (fs *FeedService) saveArticlesFromFeedWithLimit(feedID int, feedData *FeedD
 
 	// Only return error if NO articles were saved
 	if savedCount == 0 && len(articlesToSave) > 0 {
-		return fmt.Errorf("failed to save any articles from feed %d", feedID)
+		return 0, fmt.Errorf("failed to save any articles from feed %d", feedID)
 	}
 
-	return nil
+	return savedCount, nil
 }
 
 func (fs *FeedService) RefreshFeeds() error {
@@ -777,19 +777,16 @@ func (fs *FeedService) RefreshFeeds() error {
 			continue
 		}
 
-		// Count existing articles before saving
-		existingArticles, _ := fs.db.GetArticles(feed.ID)
-		existingCount := len(existingArticles)
-
-		if err := fs.saveArticlesFromFeed(feed.ID, feedData); err != nil {
+		// Save articles and get count of newly saved articles
+		savedCount, err := fs.saveArticlesFromFeed(feed.ID, feedData)
+		if err != nil {
 			log.Printf("Failed to save articles from feed %s: %v", feed.URL, err)
 			_ = fs.updateFeedTracking(feed, false)
 			continue
 		}
 
-		// Check if there are new articles
-		newArticles, _ := fs.db.GetArticles(feed.ID)
-		hadNewContent := len(newArticles) > existingCount
+		// Check if there are new articles based on saved count
+		hadNewContent := savedCount > 0
 
 		if hadNewContent {
 			hasNewContent++
