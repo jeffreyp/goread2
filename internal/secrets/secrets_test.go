@@ -10,6 +10,12 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("both credentials from environment", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		if err := os.Setenv("GOOGLE_CLIENT_ID", "test-client-id-123"); err != nil {
 			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
@@ -36,6 +42,9 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("missing GOOGLE_CLOUD_PROJECT for secret reference", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup - set credentials to trigger Secret Manager lookup
 		if err := os.Setenv("GOOGLE_CLIENT_ID", "_secret:google-client-id"); err != nil {
 			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
@@ -60,6 +69,9 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("empty client ID triggers secret lookup", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		_ = os.Unsetenv("GOOGLE_CLIENT_ID")
 		if err := os.Setenv("GOOGLE_CLIENT_SECRET", "test-secret"); err != nil {
@@ -78,6 +90,9 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("secret reference prefix triggers secret lookup", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		if err := os.Setenv("GOOGLE_CLIENT_ID", "_secret:my-client-id"); err != nil {
 			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
@@ -99,6 +114,9 @@ func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("client secret with secret reference", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		if err := os.Setenv("GOOGLE_CLIENT_ID", "test-client-id"); err != nil {
 			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)
@@ -124,6 +142,9 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("all credentials from environment", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
 			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
@@ -164,6 +185,9 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("missing secret key triggers secret lookup", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		_ = os.Unsetenv("STRIPE_SECRET_KEY")
 		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012"); err != nil {
@@ -190,6 +214,9 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("placeholder value triggers secret lookup", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup - "stripe-secret-key" is treated as a placeholder
 		if err := os.Setenv("STRIPE_SECRET_KEY", "stripe-secret-key"); err != nil {
 			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
@@ -219,6 +246,9 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("publishable key placeholder triggers secret lookup", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
 			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
@@ -248,6 +278,9 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("webhook secret placeholder triggers secret lookup", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
 			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
@@ -277,6 +310,9 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 	})
 
 	t.Run("price ID placeholder triggers secret lookup", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
 			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
@@ -310,6 +346,9 @@ func TestGetSecret_MissingProjectID(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("missing GOOGLE_CLOUD_PROJECT", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup
 		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
 
@@ -333,6 +372,9 @@ func TestGetOAuthCredentials_CustomSecretNames(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("custom secret names via environment", func(t *testing.T) {
+		// Reset cache before test
+		ResetCacheForTesting()
+
 		// Setup - Use environment variables to avoid Secret Manager
 		if err := os.Setenv("GOOGLE_CLIENT_ID", "test-client-id"); err != nil {
 			t.Fatalf("Failed to set GOOGLE_CLIENT_ID: %v", err)

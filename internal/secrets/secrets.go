@@ -4,10 +4,45 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 )
+
+// Cache for OAuth credentials (fetched once at startup)
+var (
+	oauthClientID     string
+	oauthClientSecret string
+	oauthOnce         sync.Once
+	oauthErr          error
+)
+
+// Cache for Stripe credentials (fetched once at startup)
+var (
+	stripeSecretKey      string
+	stripePublishableKey string
+	stripeWebhookSecret  string
+	stripePriceID        string
+	stripeOnce           sync.Once
+	stripeErr            error
+)
+
+// ResetCacheForTesting resets the secret caches for testing purposes
+// This should only be used in tests to allow multiple test cases
+func ResetCacheForTesting() {
+	oauthClientID = ""
+	oauthClientSecret = ""
+	oauthOnce = sync.Once{}
+	oauthErr = nil
+
+	stripeSecretKey = ""
+	stripePublishableKey = ""
+	stripeWebhookSecret = ""
+	stripePriceID = ""
+	stripeOnce = sync.Once{}
+	stripeErr = nil
+}
 
 // GetSecret retrieves a secret from Google Secret Manager
 func GetSecret(ctx context.Context, secretName string) (string, error) {
@@ -38,76 +73,90 @@ func GetSecret(ctx context.Context, secretName string) (string, error) {
 }
 
 // GetOAuthCredentials retrieves OAuth credentials from environment or secrets
+// Uses sync.Once to cache credentials on first call, preventing repeated Secret Manager fetches
 func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, err error) {
-	// Try to get from environment variables first (for backwards compatibility)
-	clientID = os.Getenv("GOOGLE_CLIENT_ID")
-	clientSecret = os.Getenv("GOOGLE_CLIENT_SECRET")
+	// Use sync.Once to ensure we only fetch secrets once, even with concurrent calls
+	oauthOnce.Do(func() {
+		// Try to get from environment variables first (for backwards compatibility)
+		oauthClientID = os.Getenv("GOOGLE_CLIENT_ID")
+		oauthClientSecret = os.Getenv("GOOGLE_CLIENT_SECRET")
 
-	// If they contain secret references, or are empty, fetch from Secret Manager
-	if clientID == "" || (len(clientID) >= 8 && clientID[:8] == "_secret:") {
-		secretName := os.Getenv("SECRET_CLIENT_ID_NAME")
-		if secretName == "" {
-			secretName = "google-client-id"
+		// If they contain secret references, or are empty, fetch from Secret Manager
+		if oauthClientID == "" || (len(oauthClientID) >= 8 && oauthClientID[:8] == "_secret:") {
+			secretName := os.Getenv("SECRET_CLIENT_ID_NAME")
+			if secretName == "" {
+				secretName = "google-client-id"
+			}
+
+			oauthClientID, oauthErr = GetSecret(ctx, secretName)
+			if oauthErr != nil {
+				oauthErr = fmt.Errorf("failed to get client ID secret: %w", oauthErr)
+				return
+			}
 		}
 
-		clientID, err = GetSecret(ctx, secretName)
-		if err != nil {
-			return "", "", fmt.Errorf("failed to get client ID secret: %w", err)
-		}
-	}
+		if oauthClientSecret == "" || (len(oauthClientSecret) >= 8 && oauthClientSecret[:8] == "_secret:") {
+			secretName := os.Getenv("SECRET_CLIENT_SECRET_NAME")
+			if secretName == "" {
+				secretName = "google-client-secret"
+			}
 
-	if clientSecret == "" || (len(clientSecret) >= 8 && clientSecret[:8] == "_secret:") {
-		secretName := os.Getenv("SECRET_CLIENT_SECRET_NAME")
-		if secretName == "" {
-			secretName = "google-client-secret"
+			oauthClientSecret, oauthErr = GetSecret(ctx, secretName)
+			if oauthErr != nil {
+				oauthErr = fmt.Errorf("failed to get client secret: %w", oauthErr)
+				return
+			}
 		}
+	})
 
-		clientSecret, err = GetSecret(ctx, secretName)
-		if err != nil {
-			return "", "", fmt.Errorf("failed to get client secret: %w", err)
-		}
-	}
-
-	return clientID, clientSecret, nil
+	return oauthClientID, oauthClientSecret, oauthErr
 }
 
 // GetStripeCredentials retrieves Stripe credentials from environment or secrets
+// Uses sync.Once to cache credentials on first call, preventing repeated Secret Manager fetches
 func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webhookSecret, priceID string, err error) {
-	// Get Stripe secret key
-	secretKey = os.Getenv("STRIPE_SECRET_KEY")
-	if secretKey == "" || secretKey == "stripe-secret-key" {
-		secretKey, err = GetSecret(ctx, "stripe-secret-key")
-		if err != nil {
-			return "", "", "", "", fmt.Errorf("failed to get Stripe secret key: %w", err)
+	// Use sync.Once to ensure we only fetch secrets once, even with concurrent calls
+	stripeOnce.Do(func() {
+		// Get Stripe secret key
+		stripeSecretKey = os.Getenv("STRIPE_SECRET_KEY")
+		if stripeSecretKey == "" || stripeSecretKey == "stripe-secret-key" {
+			stripeSecretKey, stripeErr = GetSecret(ctx, "stripe-secret-key")
+			if stripeErr != nil {
+				stripeErr = fmt.Errorf("failed to get Stripe secret key: %w", stripeErr)
+				return
+			}
 		}
-	}
 
-	// Get Stripe publishable key
-	publishableKey = os.Getenv("STRIPE_PUBLISHABLE_KEY")
-	if publishableKey == "" || publishableKey == "stripe-publishable-key" {
-		publishableKey, err = GetSecret(ctx, "stripe-publishable-key")
-		if err != nil {
-			return "", "", "", "", fmt.Errorf("failed to get Stripe publishable key: %w", err)
+		// Get Stripe publishable key
+		stripePublishableKey = os.Getenv("STRIPE_PUBLISHABLE_KEY")
+		if stripePublishableKey == "" || stripePublishableKey == "stripe-publishable-key" {
+			stripePublishableKey, stripeErr = GetSecret(ctx, "stripe-publishable-key")
+			if stripeErr != nil {
+				stripeErr = fmt.Errorf("failed to get Stripe publishable key: %w", stripeErr)
+				return
+			}
 		}
-	}
 
-	// Get Stripe webhook secret
-	webhookSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
-	if webhookSecret == "" || webhookSecret == "stripe-webhook-secret" {
-		webhookSecret, err = GetSecret(ctx, "stripe-webhook-secret")
-		if err != nil {
-			return "", "", "", "", fmt.Errorf("failed to get Stripe webhook secret: %w", err)
+		// Get Stripe webhook secret
+		stripeWebhookSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
+		if stripeWebhookSecret == "" || stripeWebhookSecret == "stripe-webhook-secret" {
+			stripeWebhookSecret, stripeErr = GetSecret(ctx, "stripe-webhook-secret")
+			if stripeErr != nil {
+				stripeErr = fmt.Errorf("failed to get Stripe webhook secret: %w", stripeErr)
+				return
+			}
 		}
-	}
 
-	// Get Stripe price ID
-	priceID = os.Getenv("STRIPE_PRICE_ID")
-	if priceID == "" || priceID == "stripe-price-id" {
-		priceID, err = GetSecret(ctx, "stripe-price-id")
-		if err != nil {
-			return "", "", "", "", fmt.Errorf("failed to get Stripe price ID: %w", err)
+		// Get Stripe price ID
+		stripePriceID = os.Getenv("STRIPE_PRICE_ID")
+		if stripePriceID == "" || stripePriceID == "stripe-price-id" {
+			stripePriceID, stripeErr = GetSecret(ctx, "stripe-price-id")
+			if stripeErr != nil {
+				stripeErr = fmt.Errorf("failed to get Stripe price ID: %w", stripeErr)
+				return
+			}
 		}
-	}
+	})
 
-	return secretKey, publishableKey, webhookSecret, priceID, nil
+	return stripeSecretKey, stripePublishableKey, stripeWebhookSecret, stripePriceID, stripeErr
 }

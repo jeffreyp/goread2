@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 // Helper function to clear relevant environment variables
@@ -130,6 +132,9 @@ func TestValidateOAuthConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+		// Reset secret cache before test
+		secrets.ResetCacheForTesting()
+
 			clearValidationEnv()
 			defer clearValidationEnv()
 
@@ -281,6 +286,9 @@ func TestValidateStripeConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+		// Reset secret cache before test
+		secrets.ResetCacheForTesting()
+
 			clearValidationEnv()
 			defer clearValidationEnv()
 
@@ -381,6 +389,9 @@ func TestValidateOtherConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+		// Reset secret cache before test
+		secrets.ResetCacheForTesting()
+
 			clearValidationEnv()
 			defer clearValidationEnv()
 
@@ -487,6 +498,9 @@ func TestValidateEnvironmentConfigStrict(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+		// Reset secret cache before test
+		secrets.ResetCacheForTesting()
+
 			clearValidationEnv()
 			defer clearValidationEnv()
 
@@ -517,6 +531,9 @@ func TestValidateEnvironmentConfigStrict(t *testing.T) {
 
 func TestValidateEnvironmentConfig(t *testing.T) {
 	t.Run("calls_strict_mode_false", func(t *testing.T) {
+		// Reset secret cache before test
+		secrets.ResetCacheForTesting()
+
 		clearValidationEnv()
 		defer clearValidationEnv()
 
@@ -532,6 +549,9 @@ func TestValidateEnvironmentConfig(t *testing.T) {
 
 func TestWarnAboutUnhandledEnvVars(t *testing.T) {
 	t.Run("unknown_variable_produces_warning", func(t *testing.T) {
+		// Reset secret cache before test
+		secrets.ResetCacheForTesting()
+
 		// Set a unique unknown variable
 		testVar := "GOREAD_TEST_UNKNOWN_VAR_12345"
 		_ = os.Setenv(testVar, "test-value")
@@ -562,6 +582,9 @@ func TestWarnAboutUnhandledEnvVars(t *testing.T) {
 	})
 
 	t.Run("known_variables_no_warning", func(t *testing.T) {
+		// Reset secret cache before test
+		secrets.ResetCacheForTesting()
+
 		// These variables should not generate warnings
 		knownVars := map[string]string{
 			"PORT":                 "8080",
@@ -605,6 +628,9 @@ func TestWarnAboutUnhandledEnvVars(t *testing.T) {
 	})
 
 	t.Run("function_runs_without_error", func(t *testing.T) {
+		// Reset secret cache before test
+		secrets.ResetCacheForTesting()
+
 		// Just verify the function doesn't panic
 		// It will warn about many environment variables in test environment
 		defer func() {

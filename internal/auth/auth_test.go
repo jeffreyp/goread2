@@ -7,6 +7,7 @@ import (
 
 	"github.com/jeffreyp/goread2/internal/config"
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 // mockDBForAuth extends mockDB with specific behaviors for auth testing
@@ -189,6 +190,9 @@ func TestValidateConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Reset secret cache before each test
+			secrets.ResetCacheForTesting()
+
 			db := newMockDBForAuth()
 
 			// Save original environment variables
