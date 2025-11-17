@@ -20,10 +20,12 @@ type CachedSession struct {
 }
 
 type SessionManager struct {
-	db       database.Database
-	cache    map[string]*CachedSession // sessionID -> cached session
-	cacheMu  sync.RWMutex
-	cacheTTL time.Duration // How long to cache sessions (default: 10 minutes)
+	db          database.Database
+	cache       map[string]*CachedSession // sessionID -> cached session
+	cacheMu     sync.RWMutex
+	cacheTTL    time.Duration // How long to cache sessions (default: 10 minutes)
+	oauthStates map[string]time.Time // OAuth state -> expiry time (for one-time use)
+	stateMu     sync.RWMutex
 }
 
 type Session struct {
@@ -36,9 +38,10 @@ type Session struct {
 
 func NewSessionManager(db database.Database) *SessionManager {
 	sm := &SessionManager{
-		db:       db,
-		cache:    make(map[string]*CachedSession),
-		cacheTTL: 10 * time.Minute, // Cache sessions for 10 minutes
+		db:          db,
+		cache:       make(map[string]*CachedSession),
+		cacheTTL:    10 * time.Minute, // Cache sessions for 10 minutes
+		oauthStates: make(map[string]time.Time),
 	}
 
 	// Start cleanup goroutine for database sessions
@@ -46,6 +49,9 @@ func NewSessionManager(db database.Database) *SessionManager {
 
 	// Start cleanup goroutine for cache
 	go sm.cleanupExpiredCache()
+
+	// Start cleanup goroutine for OAuth states
+	go sm.cleanupExpiredOAuthStates()
 
 	return sm
 }
@@ -260,4 +266,51 @@ func generateSessionID() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(bytes), nil
+}
+
+// StoreOAuthState stores an OAuth state for one-time use with a 10-minute TTL
+func (sm *SessionManager) StoreOAuthState(state string) {
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
+	sm.oauthStates[state] = time.Now().Add(10 * time.Minute)
+}
+
+// ValidateAndConsumeOAuthState checks if a state exists and hasn't been used
+// Returns true if valid and marks it as used (deletes it)
+// Returns false if state doesn't exist or has expired
+func (sm *SessionManager) ValidateAndConsumeOAuthState(state string) bool {
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
+
+	expiry, exists := sm.oauthStates[state]
+	if !exists {
+		return false
+	}
+
+	// Check if expired
+	if time.Now().After(expiry) {
+		delete(sm.oauthStates, state)
+		return false
+	}
+
+	// Valid state - consume it (delete so it can't be reused)
+	delete(sm.oauthStates, state)
+	return true
+}
+
+// cleanupExpiredOAuthStates periodically removes expired OAuth states
+func (sm *SessionManager) cleanupExpiredOAuthStates() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		sm.stateMu.Lock()
+		now := time.Now()
+		for state, expiry := range sm.oauthStates {
+			if now.After(expiry) {
+				delete(sm.oauthStates, state)
+			}
+		}
+		sm.stateMu.Unlock()
+	}
 }

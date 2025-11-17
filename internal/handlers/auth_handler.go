@@ -33,7 +33,10 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Store state in session/cookie for validation
+	// Store state in session manager for one-time use validation
+	ah.sessionManager.StoreOAuthState(state)
+
+	// Store state in cookie for validation (backward compatibility)
 	// Use environment-specific cookie name to avoid conflicts
 	c.SetCookie(getOAuthStateCookieName(), state, 600, "/", "", false, true) // 10 minutes
 
@@ -42,10 +45,18 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 }
 
 func (ah *AuthHandler) Callback(c *gin.Context) {
-	// Verify state parameter
+	// Verify state parameter from cookie
 	storedState, err := c.Cookie(getOAuthStateCookieName())
-	if err != nil || storedState != c.Query("state") {
+	queryState := c.Query("state")
+
+	if err != nil || storedState != queryState {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter"})
+		return
+	}
+
+	// Validate and consume state (one-time use check)
+	if !ah.sessionManager.ValidateAndConsumeOAuthState(queryState) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "State parameter has expired or already been used"})
 		return
 	}
 
