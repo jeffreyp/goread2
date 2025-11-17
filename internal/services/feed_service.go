@@ -159,7 +159,8 @@ func (fs *FeedService) SetHTTPClient(client HTTPClient) {
 }
 
 func (fs *FeedService) AddFeed(url string) (*database.Feed, error) {
-	feedData, err := fs.fetchFeed(url)
+	ctx := context.Background()
+	feedData, err := fs.fetchFeed(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch feed: %w", err)
 	}
@@ -208,7 +209,7 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 
 	go func() {
 		defer close(done)
-		result, resultErr = fs.addFeedForUserInternal(userID, inputURL)
+		result, resultErr = fs.addFeedForUserInternal(ctx, userID, inputURL)
 	}()
 
 	select {
@@ -219,7 +220,7 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 	}
 }
 
-func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*database.Feed, error) {
+func (fs *FeedService) addFeedForUserInternal(ctx context.Context, userID int, inputURL string) (*database.Feed, error) {
 	var feedURL string
 
 	// Normalize the input URL first
@@ -239,7 +240,7 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 		feedURL = "https://www.seattletimes.com/feed/"
 	} else {
 		// Use feed discovery for other sites
-		feedURLs, err := discovery.DiscoverFeedURL(inputURL)
+		feedURLs, err := discovery.DiscoverFeedURL(ctx, inputURL)
 		if err != nil {
 			// Errors from DiscoverFeedURL are already wrapped with custom types
 			return nil, err
@@ -260,7 +261,7 @@ func (fs *FeedService) addFeedForUserInternal(userID int, inputURL string) (*dat
 
 	if existingFeed == nil {
 		// Feed doesn't exist, create it
-		feedData, err := fs.fetchFeed(feedURL)
+		feedData, err := fs.fetchFeed(ctx, feedURL)
 		if err != nil {
 			// Errors from fetchFeed are already wrapped with custom types
 			return nil, err
@@ -477,7 +478,7 @@ func (fs *FeedService) UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles int) e
 	return fs.db.UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles)
 }
 
-func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
+func (fs *FeedService) fetchFeed(ctx context.Context, url string) (*FeedData, error) {
 	// Validate URL for SSRF protection (skip if using mock HTTP client for testing)
 	if fs.httpClient == nil {
 		if err := fs.urlValidator.ValidateURL(url); err != nil {
@@ -499,7 +500,7 @@ func (fs *FeedService) fetchFeed(url string) (*FeedData, error) {
 		}
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to create request: %v", ErrNetworkError, err)
 	}
@@ -765,7 +766,8 @@ func (fs *FeedService) RefreshFeeds() error {
 		}
 
 		// Fetch and save articles
-		feedData, err := fs.fetchFeed(feed.URL)
+		ctx := context.Background()
+		feedData, err := fs.fetchFeed(ctx, feed.URL)
 		checked++
 
 		// Update last_checked regardless of success/failure

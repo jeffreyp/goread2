@@ -632,6 +632,7 @@ func TestGetFeedByURL(t *testing.T) {
 
 	if retrievedFeed == nil {
 		t.Fatal("GetFeedByURL returned nil")
+		return
 	}
 
 	if retrievedFeed.ID != originalFeed.ID {
@@ -842,6 +843,7 @@ func TestFindArticleByURL(t *testing.T) {
 
 	if foundArticle == nil {
 		t.Fatal("FindArticleByURL returned nil")
+		return
 	}
 
 	if foundArticle.ID != originalArticle.ID {

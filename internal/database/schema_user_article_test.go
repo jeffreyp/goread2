@@ -509,6 +509,7 @@ func TestGetSession(t *testing.T) {
 
 	if retrievedSession == nil {
 		t.Fatal("GetSession returned nil")
+		return
 	}
 
 	if retrievedSession.ID != originalSession.ID {

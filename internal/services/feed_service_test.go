@@ -933,3 +933,60 @@ func containsAtIndex(s, substr string) bool {
 	}
 	return false
 }
+
+// timeoutHTTPClient is a mock client that blocks until context is cancelled
+type timeoutHTTPClient struct {
+	requestReceived chan bool
+}
+
+func (m *timeoutHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	m.requestReceived <- true
+	// Block until context is cancelled
+	<-req.Context().Done()
+	return nil, req.Context().Err()
+}
+
+// TestAddFeedForUserTimeout tests that the goroutine is cancelled on timeout
+func TestAddFeedForUserTimeout(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+
+	// Create a mock HTTP client that hangs forever
+	requestReceived := make(chan bool, 1)
+	mockClient := &timeoutHTTPClient{
+		requestReceived: requestReceived,
+	}
+	fs.SetHTTPClient(mockClient)
+
+	// Run AddFeedForUser with a URL that will skip discovery and go straight to fetchFeed
+	// Using slashdot.org which is a known site (skips feed discovery)
+	start := time.Now()
+	feed, err := fs.AddFeedForUser(1, "https://slashdot.org/")
+	duration := time.Since(start)
+
+	// Verify it returned a timeout error
+	if err == nil {
+		t.Fatal("Expected timeout error, got nil")
+	}
+	if !errors.Is(err, ErrFeedTimeout) {
+		t.Errorf("Expected ErrFeedTimeout, got: %v", err)
+	}
+	if feed != nil {
+		t.Errorf("Expected nil feed on timeout, got: %v", feed)
+	}
+
+	// Verify timeout happened around 15 seconds (with some tolerance)
+	if duration < 14*time.Second || duration > 17*time.Second {
+		t.Errorf("Expected timeout around 15s, got: %v", duration)
+	}
+
+	// Verify the HTTP request was received (goroutine started)
+	select {
+	case <-requestReceived:
+		// Good - request was made
+	case <-time.After(1 * time.Second):
+		t.Error("HTTP request was never made - goroutine didn't start")
+	}
+}

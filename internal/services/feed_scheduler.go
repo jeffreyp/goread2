@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
 	"log"
@@ -335,7 +336,8 @@ func (fs *FeedScheduler) updateSingleFeed(feed database.Feed, stats *feedUpdateS
 	}
 
 	// Fetch and update the feed
-	feedData, err := fs.feedService.fetchFeed(feed.URL)
+	ctx := context.Background()
+	feedData, err := fs.feedService.fetchFeed(ctx, feed.URL)
 	atomic.AddInt32(&stats.checked, 1)
 
 	// Update last_checked regardless of success/failure

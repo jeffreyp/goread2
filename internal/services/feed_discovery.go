@@ -48,7 +48,7 @@ func (fd *FeedDiscovery) NormalizeURL(rawURL string) (string, error) {
 }
 
 // DiscoverFeedURL attempts to find feed URLs from a given URL
-func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
+func (fd *FeedDiscovery) DiscoverFeedURL(ctx context.Context, inputURL string) ([]string, error) {
 	normalizedURL, err := fd.NormalizeURL(inputURL)
 	if err != nil {
 		// Errors from NormalizeURL are already wrapped with custom types
@@ -56,24 +56,24 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 	}
 
 	// First check if the input URL itself is already a valid feed
-	if fd.isValidFeed(normalizedURL) {
+	if fd.isValidFeed(ctx, normalizedURL) {
 		return []string{normalizedURL}, nil
 	}
 
 	// Check for Mastodon-style feeds first (e.g., https://mastodon.social/@username.rss)
-	mastodonFeeds := fd.tryMastodonFeedPaths(normalizedURL)
+	mastodonFeeds := fd.tryMastodonFeedPaths(ctx, normalizedURL)
 	if len(mastodonFeeds) > 0 {
 		return mastodonFeeds, nil
 	}
 
 	// Try common feed paths (faster and more reliable than checking the main URL)
-	commonFeeds := fd.tryCommonFeedPaths(normalizedURL)
+	commonFeeds := fd.tryCommonFeedPaths(ctx, normalizedURL)
 	if len(commonFeeds) > 0 {
 		return commonFeeds, nil
 	}
 
 	// If no common paths worked, try to discover feeds from the page
-	feedURLs, err := fd.discoverFeedsFromHTML(normalizedURL)
+	feedURLs, err := fd.discoverFeedsFromHTML(ctx, normalizedURL)
 	if err != nil {
 
 		// If everything fails, return some educated guesses for both HTTP and HTTPS
@@ -103,7 +103,7 @@ func (fd *FeedDiscovery) DiscoverFeedURL(inputURL string) ([]string, error) {
 }
 
 // discoverFeedsFromHTML parses HTML to find feed links
-func (fd *FeedDiscovery) discoverFeedsFromHTML(urlStr string) ([]string, error) {
+func (fd *FeedDiscovery) discoverFeedsFromHTML(ctx context.Context, urlStr string) ([]string, error) {
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
@@ -116,31 +116,24 @@ func (fd *FeedDiscovery) discoverFeedsFromHTML(urlStr string) ([]string, error) 
 	for _, scheme := range schemes {
 		testURL := scheme + "://" + host
 
-		// Create a context with timeout for this request
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-
 		req, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
 		if err != nil {
-			cancel()
 			continue
 		}
 		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
 		resp, err := fd.client.Do(req)
 		if err != nil {
-			cancel()
 			continue
 		}
 
 		if resp.StatusCode != 200 {
 			_ = resp.Body.Close()
-			cancel()
 			continue
 		}
 
 		body, err := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		cancel()
 
 		if err != nil {
 			continue
@@ -193,7 +186,7 @@ func (fd *FeedDiscovery) extractFeedLinksFromHTML(html, baseURL string) ([]strin
 }
 
 // tryCommonFeedPaths tries common feed paths for a website
-func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
+func (fd *FeedDiscovery) tryCommonFeedPaths(ctx context.Context, baseURL string) []string {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil
@@ -223,17 +216,14 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 		for _, path := range commonPaths {
 			feedURL := baseSchemeHost + path
 
-			// Quick check if URL returns 200 with short timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			// Quick check if URL returns 200
 			req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
 			if err != nil {
-				cancel()
 				continue
 			}
 			req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
 			resp, err := fd.client.Do(req)
-			cancel()
 
 			if err != nil {
 				continue
@@ -261,7 +251,7 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(baseURL string) []string {
 }
 
 // tryMastodonFeedPaths tries Mastodon-style RSS feeds (e.g., @username.rss)
-func (fd *FeedDiscovery) tryMastodonFeedPaths(baseURL string) []string {
+func (fd *FeedDiscovery) tryMastodonFeedPaths(ctx context.Context, baseURL string) []string {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil
@@ -280,17 +270,14 @@ func (fd *FeedDiscovery) tryMastodonFeedPaths(baseURL string) []string {
 	for _, scheme := range schemes {
 		feedURL := scheme + "://" + parsedURL.Host + path + ".rss"
 
-		// Quick check if URL returns 200 with short timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		// Quick check if URL returns 200
 		req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
 		if err != nil {
-			cancel()
 			continue
 		}
 		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
 		resp, err := fd.client.Do(req)
-		cancel()
 
 		if err != nil {
 			continue
@@ -310,14 +297,11 @@ func (fd *FeedDiscovery) tryMastodonFeedPaths(baseURL string) []string {
 }
 
 // isValidFeed checks if a given URL is a valid RSS/Atom feed
-func (fd *FeedDiscovery) isValidFeed(feedURL string) bool {
+func (fd *FeedDiscovery) isValidFeed(ctx context.Context, feedURL string) bool {
 	// Validate URL for SSRF protection
 	if err := fd.urlValidator.ValidateURL(feedURL); err != nil {
 		return false
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
 	if err != nil {

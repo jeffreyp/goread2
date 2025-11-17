@@ -143,6 +143,7 @@ func TestNewAuditService(t *testing.T) {
 
 	if service == nil {
 		t.Fatal("NewAuditService returned nil")
+		return
 	}
 
 	if service.db == nil {

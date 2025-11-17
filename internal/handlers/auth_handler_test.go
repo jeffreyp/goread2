@@ -16,6 +16,7 @@ func TestNewAuthHandler(t *testing.T) {
 
 	if handler == nil {
 		t.Fatal("NewAuthHandler returned nil")
+		return
 	}
 
 	if handler.authService != mockAuthService {

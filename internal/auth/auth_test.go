@@ -102,6 +102,7 @@ func TestNewAuthService(t *testing.T) {
 
 	if authService == nil {
 		t.Fatal("NewAuthService returned nil")
+		return
 	}
 
 	if authService.config == nil {

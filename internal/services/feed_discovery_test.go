@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -10,6 +11,7 @@ func TestNewFeedDiscovery(t *testing.T) {
 
 	if fd == nil {
 		t.Fatal("NewFeedDiscovery returned nil")
+		return
 	}
 
 	if fd.client == nil {
@@ -191,7 +193,8 @@ func TestTryMastodonFeedPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := fd.tryMastodonFeedPaths(tt.input)
+			ctx := context.Background()
+			result := fd.tryMastodonFeedPaths(ctx, tt.input)
 
 			if tt.shouldFindFeed {
 				if len(result) == 0 {
@@ -254,7 +257,8 @@ func TestTryMastodonFeedPaths_URLPatternDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := fd.tryMastodonFeedPaths(tt.input)
+			ctx := context.Background()
+			result := fd.tryMastodonFeedPaths(ctx, tt.input)
 
 			if tt.shouldDetect {
 				// For Mastodon URLs, we should attempt to check the .rss URL

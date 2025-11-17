@@ -18,6 +18,7 @@ func TestNewMiddleware(t *testing.T) {
 
 	if middleware == nil {
 		t.Fatal("NewMiddleware returned nil")
+		return
 	}
 
 	if middleware.sessionManager != sessionManager {

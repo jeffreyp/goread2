@@ -15,6 +15,7 @@ func TestRateLimiter(t *testing.T) {
 		rl := NewRateLimiter(10, 20)
 		if rl == nil {
 			t.Fatal("NewRateLimiter returned nil")
+			return
 		}
 		if rl.ips == nil {
 			t.Error("RateLimiter ips map is nil")

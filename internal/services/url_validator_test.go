@@ -12,6 +12,7 @@ func TestNewURLValidator(t *testing.T) {
 
 	if validator == nil {
 		t.Fatal("NewURLValidator returned nil")
+		return
 	}
 
 	if validator.AllowedSchemes == nil {
@@ -290,6 +291,7 @@ func TestCreateSecureHTTPClient(t *testing.T) {
 
 	if client == nil {
 		t.Fatal("CreateSecureHTTPClient returned nil")
+		return
 	}
 
 	if client.Timeout == 0 {

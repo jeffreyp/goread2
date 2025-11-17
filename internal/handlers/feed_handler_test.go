@@ -76,6 +76,7 @@ func TestNewFeedHandler(t *testing.T) {
 
 	if handler == nil {
 		t.Fatal("NewFeedHandler returned nil")
+		return
 	}
 
 	if handler.feedService != mockFeedService {

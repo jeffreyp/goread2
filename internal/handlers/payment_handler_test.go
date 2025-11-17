@@ -18,6 +18,7 @@ func TestNewPaymentHandler(t *testing.T) {
 
 	if handler == nil {
 		t.Fatal("NewPaymentHandler returned nil")
+		return
 	}
 
 	if handler.paymentService != mockPaymentService {

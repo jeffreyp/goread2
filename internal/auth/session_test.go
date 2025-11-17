@@ -103,6 +103,7 @@ func TestNewSessionManager(t *testing.T) {
 	sm := NewSessionManager(db)
 	if sm == nil {
 		t.Fatal("NewSessionManager returned nil")
+		return
 	}
 
 	if sm.db == nil {
@@ -130,6 +131,7 @@ func TestCreateSession(t *testing.T) {
 
 	if session == nil {
 		t.Fatal("CreateSession returned nil session")
+		return
 	}
 
 	if session.ID == "" {
@@ -185,6 +187,7 @@ func TestGetSession(t *testing.T) {
 	}
 	if retrievedSession == nil {
 		t.Fatal("GetSession returned nil")
+		return
 	}
 
 	if retrievedSession.ID != session.ID {
@@ -515,6 +518,7 @@ func TestGetSessionFromRequest(t *testing.T) {
 	}
 	if retrievedSession == nil {
 		t.Fatal("GetSessionFromRequest returned nil session")
+		return
 	}
 	if retrievedSession.ID != session.ID {
 		t.Error("Retrieved session ID doesn't match")
