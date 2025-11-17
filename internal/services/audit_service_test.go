@@ -136,6 +136,9 @@ func (m *mockDBAudit) CreateSession(*database.Session) error         { return ni
 func (m *mockDBAudit) GetSession(string) (*database.Session, error)  { return nil, nil }
 func (m *mockDBAudit) DeleteSession(string) error                    { return nil }
 func (m *mockDBAudit) DeleteExpiredSessions() error                  { return nil }
+func (m *mockDBAudit) GetAccountStats(int) (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}
 
 func TestNewAuditService(t *testing.T) {
 	db := newMockDBAudit()

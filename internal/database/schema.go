@@ -59,6 +59,7 @@ type Database interface {
 	MarkUserArticleRead(userID, articleID int, isRead bool) error
 	ToggleUserArticleStar(userID, articleID int) error
 	GetUserUnreadCounts(userID int) (map[int]int, error)
+	GetAccountStats(userID int) (map[string]interface{}, error)
 	CleanupOrphanedUserArticles(olderThanDays int) (int, error)
 
 	// Session methods
@@ -1058,6 +1059,50 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	}
 
 	return unreadCounts, nil
+}
+
+// GetAccountStats retrieves user account statistics in a single batched query
+// Returns total articles, total unread, and active feeds count
+func (db *DB) GetAccountStats(userID int) (map[string]interface{}, error) {
+	// Single query to get all stats at once - avoids N+1 problem
+	query := `
+		SELECT
+			COUNT(DISTINCT a.id) as total_articles,
+			COUNT(DISTINCT CASE
+				WHEN NOT EXISTS (
+					SELECT 1 FROM user_articles ua
+					WHERE ua.article_id = a.id
+					AND ua.user_id = ?
+					AND ua.is_read = 1
+				) THEN a.id
+			END) as total_unread,
+			COUNT(DISTINCT CASE
+				WHEN NOT EXISTS (
+					SELECT 1 FROM user_articles ua
+					WHERE ua.article_id = a.id
+					AND ua.user_id = ?
+					AND ua.is_read = 1
+				) THEN a.feed_id
+			END) as active_feeds
+		FROM articles a
+		INNER JOIN feeds f ON a.feed_id = f.id
+		INNER JOIN user_feeds uf ON f.id = uf.feed_id
+		WHERE uf.user_id = ?
+	`
+
+	var totalArticles, totalUnread, activeFeeds int
+	err := db.QueryRow(query, userID, userID, userID).Scan(&totalArticles, &totalUnread, &activeFeeds)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := map[string]interface{}{
+		"total_articles": totalArticles,
+		"total_unread":   totalUnread,
+		"active_feeds":   activeFeeds,
+	}
+
+	return stats, nil
 }
 
 // Helper function to get unread count for a specific feed efficiently

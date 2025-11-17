@@ -642,38 +642,22 @@ func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 		return
 	}
 
-	// Get total articles count across all feeds
-	totalArticles := 0
-	totalUnread := 0
-	activeFeeds := 0
-
-	for _, feed := range feeds {
-		articles, err := fh.feedService.GetUserFeedArticles(user.ID, feed.ID)
-		if err != nil {
-			continue // Skip failed feeds in stats
-		}
-		totalArticles += len(articles)
-
-		unreadCount := 0
-		for _, article := range articles {
-			if !article.IsRead {
-				unreadCount++
-			}
-		}
-		totalUnread += unreadCount
-		if unreadCount > 0 {
-			activeFeeds++
-		}
+	// Get account stats efficiently in a single batched query
+	accountStats, err := fh.db.GetAccountStats(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
 	// Get subscription info for additional stats
 	subscriptionInfo, _ := fh.subscriptionService.GetUserSubscriptionInfo(user.ID)
 
+	// Combine all stats
 	stats := gin.H{
 		"total_feeds":       len(feeds),
-		"total_articles":    totalArticles,
-		"total_unread":      totalUnread,
-		"active_feeds":      activeFeeds,
+		"total_articles":    accountStats["total_articles"],
+		"total_unread":      accountStats["total_unread"],
+		"active_feeds":      accountStats["active_feeds"],
 		"subscription_info": subscriptionInfo,
 		"feeds":             feeds,
 	}

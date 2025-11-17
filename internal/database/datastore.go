@@ -1206,6 +1206,90 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	return unreadCounts, nil
 }
 
+// GetAccountStats retrieves user account statistics using parallel queries
+// Returns total articles, total unread, and active feeds count
+func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	// Get all user feeds with strong consistency retry
+	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(userFeeds) == 0 {
+		return map[string]interface{}{
+			"total_articles": 0,
+			"total_unread":   0,
+			"active_feeds":   0,
+		}, nil
+	}
+
+	// Use goroutines to fetch stats in parallel for better performance
+	type feedStats struct {
+		totalArticles int
+		unreadCount   int
+		err           error
+	}
+
+	results := make(chan feedStats, len(userFeeds))
+
+	// Process each feed in parallel
+	for _, feed := range userFeeds {
+		go func(feedID int) {
+			// Get article count for this feed
+			articleQuery := datastore.NewQuery("Article").
+				FilterField("feed_id", "=", int64(feedID)).
+				KeysOnly()
+			articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
+			if err != nil {
+				results <- feedStats{err: err}
+				return
+			}
+
+			totalArticles := len(articleKeys)
+
+			// Get unread count for this feed
+			unreadCount, err := db.getFeedUnreadCountForUser(ctx, userID, feedID)
+			if err != nil {
+				results <- feedStats{err: err}
+				return
+			}
+
+			results <- feedStats{
+				totalArticles: totalArticles,
+				unreadCount:   unreadCount,
+			}
+		}(feed.ID)
+	}
+
+	// Aggregate results
+	totalArticles := 0
+	totalUnread := 0
+	activeFeeds := 0
+
+	for i := 0; i < len(userFeeds); i++ {
+		result := <-results
+		if result.err != nil {
+			return nil, result.err
+		}
+		totalArticles += result.totalArticles
+		totalUnread += result.unreadCount
+		if result.unreadCount > 0 {
+			activeFeeds++
+		}
+	}
+
+	stats := map[string]interface{}{
+		"total_articles": totalArticles,
+		"total_unread":   totalUnread,
+		"active_feeds":   activeFeeds,
+	}
+
+	return stats, nil
+}
+
 // Helper function to efficiently count unread articles for a specific feed
 func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, feedID int) (int, error) {
 	// Get all articles for this feed with eventual consistency retry

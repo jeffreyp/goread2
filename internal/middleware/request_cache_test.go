@@ -64,6 +64,9 @@ func (m *mockDB) CreateAuditLog(*database.AuditLog) error                       
 func (m *mockDB) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
 }
+func (m *mockDB) GetAccountStats(int) (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}
 func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error { return nil }
 func (m *mockDB) Close() error                             { return nil }
 

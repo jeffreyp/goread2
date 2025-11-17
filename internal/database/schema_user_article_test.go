@@ -764,3 +764,71 @@ func TestConcurrentAccess(t *testing.T) {
 func formatString(format string, args ...interface{}) string {
 	return fmt.Sprintf(format, args...)
 }
+
+func TestGetAccountStats(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed1 := createTestFeed(t, db)
+	feed2 := createTestFeed(t, db)
+
+	// Subscribe user to both feeds
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	if err := db.SubscribeUserToFeed(user.ID, feed2.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+
+	// Add articles to feeds
+	article1 := createTestArticle(t, db, feed1.ID)
+	article2 := createTestArticle(t, db, feed1.ID)
+	article3 := createTestArticle(t, db, feed2.ID)
+
+	// Mark one article as read
+	if err := db.MarkUserArticleRead(user.ID, article1.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
+
+	// Get account stats
+	stats, err := db.GetAccountStats(user.ID)
+	if err != nil {
+		t.Fatalf("GetAccountStats failed: %v", err)
+	}
+
+	// Verify stats
+	if stats["total_articles"] != 3 {
+		t.Errorf("Expected total_articles=3, got %v", stats["total_articles"])
+	}
+	if stats["total_unread"] != 2 {
+		t.Errorf("Expected total_unread=2, got %v", stats["total_unread"])
+	}
+	if stats["active_feeds"] != 2 {
+		t.Errorf("Expected active_feeds=2 (both feeds have unread), got %v", stats["active_feeds"])
+	}
+
+	// Mark all remaining articles as read
+	if err := db.MarkUserArticleRead(user.ID, article2.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
+	if err := db.MarkUserArticleRead(user.ID, article3.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
+
+	// Get stats again
+	stats, err = db.GetAccountStats(user.ID)
+	if err != nil {
+		t.Fatalf("GetAccountStats failed: %v", err)
+	}
+
+	// Verify all read
+	if stats["total_articles"] != 3 {
+		t.Errorf("Expected total_articles=3, got %v", stats["total_articles"])
+	}
+	if stats["total_unread"] != 0 {
+		t.Errorf("Expected total_unread=0, got %v", stats["total_unread"])
+	}
+	if stats["active_feeds"] != 0 {
+		t.Errorf("Expected active_feeds=0 (no unread), got %v", stats["active_feeds"])
+	}
+}

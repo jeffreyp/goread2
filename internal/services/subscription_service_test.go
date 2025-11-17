@@ -142,6 +142,9 @@ func (m *mockDBForSub) CreateAuditLog(*database.AuditLog) error       { return n
 func (m *mockDBForSub) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
 }
+func (m *mockDBForSub) GetAccountStats(int) (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}
 
 func TestNewSubscriptionService(t *testing.T) {
 	db := newMockDBForSub()

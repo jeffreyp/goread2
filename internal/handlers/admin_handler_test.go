@@ -79,6 +79,9 @@ func (m *mockDBAdminHandler) GetAuditLogs(limit, offset int, filters map[string]
 }
 
 // Stub methods to satisfy interface
+func (m *mockDBAdminHandler) GetAccountStats(int) (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}
 func (m *mockDBAdminHandler) Close() error                                     { return nil }
 func (m *mockDBAdminHandler) CreateUser(*database.User) error                  { return nil }
 func (m *mockDBAdminHandler) GetUserByGoogleID(string) (*database.User, error) { return nil, nil }
