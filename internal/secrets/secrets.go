@@ -17,6 +17,14 @@ const (
 	secretManagerTimeout = 10 * time.Second
 )
 
+// Singleton Secret Manager client (reused across all calls)
+// This prevents creating a new client on every GetSecret call
+var (
+	secretClient     *secretmanager.Client
+	secretClientOnce sync.Once
+	secretClientErr  error
+)
+
 // Cache for OAuth credentials (fetched once at startup)
 var (
 	oauthClientID     string
@@ -38,6 +46,14 @@ var (
 // ResetCacheForTesting resets the secret caches for testing purposes
 // This should only be used in tests to allow multiple test cases
 func ResetCacheForTesting() {
+	// Close existing client if it exists
+	if secretClient != nil {
+		_ = secretClient.Close()
+		secretClient = nil
+	}
+	secretClientOnce = sync.Once{}
+	secretClientErr = nil
+
 	oauthClientID = ""
 	oauthClientSecret = ""
 	oauthOnce = sync.Once{}
@@ -51,7 +67,18 @@ func ResetCacheForTesting() {
 	stripeErr = nil
 }
 
+// getOrCreateSecretClient returns the singleton Secret Manager client
+// Creates it on first call, reuses it on subsequent calls
+func getOrCreateSecretClient(ctx context.Context) (*secretmanager.Client, error) {
+	secretClientOnce.Do(func() {
+		// Create the client once and reuse it
+		secretClient, secretClientErr = secretmanager.NewClient(ctx)
+	})
+	return secretClient, secretClientErr
+}
+
 // GetSecret retrieves a secret from Google Secret Manager
+// Uses a singleton client to avoid creating a new client on every call
 func GetSecret(ctx context.Context, secretName string) (string, error) {
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	if projectID == "" {
@@ -62,12 +89,11 @@ func GetSecret(ctx context.Context, secretName string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, secretManagerTimeout)
 	defer cancel()
 
-	// Create the client
-	client, err := secretmanager.NewClient(ctx)
+	// Get or create the singleton client (created once, reused forever)
+	client, err := getOrCreateSecretClient(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to create secret manager client: %w", err)
 	}
-	defer func() { _ = client.Close() }()
 
 	// Build the request
 	req := &secretmanagerpb.AccessSecretVersionRequest{
