@@ -87,6 +87,11 @@ func (uc *UnreadCache) UpdateCount(userID, feedID int, wasRead, nowRead bool) {
 		return // No cache to update
 	}
 
+	// Check if cache is still valid - don't update expired cache
+	if time.Now().After(uc.refreshAt[userID]) {
+		return
+	}
+
 	// Update count based on state transition
 	if !wasRead && nowRead {
 		// Article marked as read - decrement unread count
