@@ -148,7 +148,7 @@ func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedS
 		db:            db,
 		rateLimiter:   rateLimiter,
 		urlValidator:  NewURLValidator(),
-		unreadCache:   cache.NewUnreadCache(90 * time.Second),   // 90 second TTL
+		unreadCache:   cache.NewUnreadCache(5 * time.Minute),    // 5 minute TTL
 		feedListCache: cache.NewFeedListCache(20 * time.Minute), // 20 minute TTL
 	}
 }
