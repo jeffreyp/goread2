@@ -41,7 +41,11 @@ func GetCachedUserFeeds(c *gin.Context, userID int, db database.Database) ([]dat
 		return db.GetUserFeeds(userID)
 	}
 
-	cache := cacheInterface.(*RequestCache)
+	cache, ok := cacheInterface.(*RequestCache)
+	if !ok {
+		// Wrong type in context - fetch directly
+		return db.GetUserFeeds(userID)
+	}
 
 	// Check if feeds are already cached (read lock)
 	cache.mu.RLock()
