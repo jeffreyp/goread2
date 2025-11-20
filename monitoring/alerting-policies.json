@@ -96,27 +96,27 @@
     {
       "displayName": "GoRead2 - Sudden Increase in Datastore Operations",
       "documentation": {
-        "content": "Alert triggered when total Datastore operations increase by more than 50% compared to the previous hour. This helps catch unexpected spikes in usage.",
+        "content": "Alert triggered when total Datastore operations increase by more than 100% compared to baseline for at least 10 minutes. This helps catch unexpected spikes in usage while reducing false positives.",
         "mimeType": "text/markdown"
       },
       "conditions": [
         {
-          "displayName": "Datastore operations increased by 50%",
+          "displayName": "Datastore operations increased by 100%",
           "conditionThreshold": {
             "filter": "metric.type=\"datastore.googleapis.com/api/request_count\" resource.type=\"datastore_request\"",
             "aggregations": [
               {
-                "alignmentPeriod": "3600s",
+                "alignmentPeriod": "300s",
                 "perSeriesAligner": "ALIGN_RATE",
                 "crossSeriesReducer": "REDUCE_SUM",
                 "groupByFields": []
               }
             ],
             "comparison": "COMPARISON_GT",
-            "thresholdValue": 0,
-            "duration": "0s",
+            "thresholdValue": 1.0,
+            "duration": "600s",
             "forecastOptions": {
-              "forecastHorizon": "3600s"
+              "forecastHorizon": "1800s"
             }
           }
         }

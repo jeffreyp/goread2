@@ -27,70 +27,80 @@ The dashboard and alerts use only built-in GCP metrics (Datastore, App Engine), 
 
 ## Dashboard
 
-The cost tracking dashboard (`monitoring/dashboard-cost-tracking.json`) provides comprehensive visualizations for cost and performance monitoring.
+**Important**: Cloud Datastore metrics are not available via Cloud Monitoring for App Engine Standard applications. Datastore usage must be monitored through the Cloud Console Datastore Dashboard or Billing Reports.
 
-### Dashboard Layout
+### App Engine Dashboard (`monitoring/dashboard-appengine-simple.json`)
 
-The dashboard includes 10 widgets organized in a 12-column mosaic layout:
+This working dashboard provides App Engine-specific visualizations that ARE available:
 
-#### Cost-Critical Metrics
+#### Dashboard Widgets
 
-1. **Datastore Read Operations** (Last 7 Days)
-   - Tracks Lookup/Get operations per second
-   - High reads = higher costs (~$0.06 per 100K entities)
-   - Hourly aggregation for trend analysis
+1. **App Engine Request Rate**
+   - HTTP requests per second
+   - Correlates with overall application usage
 
-2. **Datastore Write Operations** (Last 7 Days)
-   - Tracks Put/Commit operations per second
-   - Writes cost 3x more than reads (~$0.18 per 100K entities)
-   - Helps identify batch operation efficiency
+2. **App Engine Active Instances**
+   - Number of running instances
+   - Directly impacts cost (instance-hours)
 
-3. **App Engine Instance Hours** (Last 7 Days)
-   - Shows active instance count over time
-   - Each instance hour costs money
-   - Useful for optimizing auto-scaling configuration
+3. **Response Latency (P95)**
+   - 95th percentile response time
+   - Indicates performance issues
 
-4. **Network Egress (Bandwidth Usage)**
-   - Tracks outbound data transfer (bytes/second)
-   - Egress beyond free tier is expensive ($0.12/GB)
-   - Monitor RSS feed fetching and API responses
+4. **Network Sent Bytes**
+   - Outbound bandwidth per second
+   - Bandwidth beyond free tier costs $0.12/GB
 
-#### Performance & Operational Metrics
+5. **HTTP Response Codes**
+   - Stacked area chart of response codes
+   - Grouped by status code (2xx, 3xx, 4xx, 5xx)
 
-5. **Datastore Read Entities (Total)**
-   - Scorecard with sparkline showing entity read rate
-   - Helps identify query fanout issues
+6. **CPU Utilization**
+   - Average CPU usage across instances
+   - High CPU may indicate optimization opportunities
 
-6. **Datastore Write Entities (Total)**
-   - Scorecard with sparkline showing entity write rate
-   - Useful for monitoring batch operations
+7. **Memory Usage**
+   - Average memory consumption
+   - Helps size instances appropriately
 
-7. **Request Latency (p95)**
-   - 95th percentile HTTP response time
-   - High latency may indicate performance issues
-   - Scorecard format for quick assessment
+### Monitoring Datastore Costs
 
-8. **Datastore Operations by Type**
-   - Stacked area chart showing breakdown of API methods
-   - Groups by: Lookup, Put, Commit, Query, etc.
-   - Identifies most common operations
+Since Datastore metrics aren't available in Cloud Monitoring for App Engine Standard, use these alternatives:
 
-9. **App Engine Request Count**
-   - Total HTTP requests per second
-   - Correlates traffic with cost metrics
-   - Hourly aggregation
+#### Option 1: Cloud Console Datastore Dashboard (Recommended)
 
-10. **App Engine Response Codes**
-    - Stacked area chart of HTTP status codes
-    - Grouped by response_code (2xx, 4xx, 5xx)
-    - Helps identify errors affecting user experience
+Go to: https://console.cloud.google.com/datastore/stats
 
-### Using the Dashboard
+This shows:
+- Entity counts by kind
+- Storage size
+- Index sizes
+- **Note**: Stats update once per day
 
-- **Time Range**: All charts default to 7-day view
-- **Aggregation**: Most metrics use 1-hour alignment periods
-- **Updates**: Metrics update automatically every minute
-- **Drill-down**: Click any chart to explore in Metrics Explorer
+#### Option 2: Billing Reports
+
+Go to: https://console.cloud.google.com/billing/reports
+
+Filter by:
+- **Service**: Cloud Datastore
+- **SKUs**:
+  - "Datastore Entity Reads"
+  - "Datastore Entity Writes"
+  - "Datastore Entity Deletes"
+  - "Datastore Stored Data"
+
+This gives you actual costs and operation counts.
+
+#### Option 3: Application-Level Logging
+
+Add custom logging in your application to track Datastore operations:
+
+```go
+// Example: Log datastore operations
+log.Printf("Datastore: %s operation on %s (count: %d)", operation, entityKind, count)
+```
+
+Then create log-based metrics in Cloud Logging.
 
 ## Alerting Policies
 
@@ -166,8 +176,11 @@ Threshold: 500 + (2 × 100) = 700 reads/minute
 # Set your project
 gcloud config set project YOUR_PROJECT_ID
 
-# Deploy the dashboard
-gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-cost-tracking.json
+# Deploy the working App Engine dashboard
+gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-appengine-simple.json
+
+# Note: dashboard-cost-tracking.json contains Datastore metrics that don't work
+# with App Engine Standard - use dashboard-appengine-simple.json instead
 ```
 
 #### Option 2: Via Cloud Console
@@ -175,7 +188,7 @@ gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-cost
 1. Go to [Cloud Monitoring Dashboards](https://console.cloud.google.com/monitoring/dashboards)
 2. Click **Create Dashboard**
 3. Click **JSON** in the top right corner
-4. Paste the contents of `monitoring/dashboard-cost-tracking.json`
+4. Paste the contents of `monitoring/dashboard-appengine-simple.json`
 5. Click **Apply**
 
 The dashboard will be created in Cloud Monitoring. If it already exists, update it manually or delete and recreate it.

@@ -1,0 +1,206 @@
+{
+  "displayName": "GoRead2 Cost Tracking - App Engine",
+  "mosaicLayout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "App Engine Request Rate",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/http/server/request_count\"",
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "perSeriesAligner": "ALIGN_RATE",
+                      "crossSeriesReducer": "REDUCE_SUM"
+                    }
+                  }
+                },
+                "plotType": "LINE"
+              }
+            ],
+            "yAxis": {
+              "label": "Requests/second"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 6,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "App Engine Active Instances",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/system/instance_count\"",
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "perSeriesAligner": "ALIGN_MEAN",
+                      "crossSeriesReducer": "REDUCE_SUM"
+                    }
+                  }
+                },
+                "plotType": "LINE"
+              }
+            ],
+            "yAxis": {
+              "label": "Instances"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Response Latency (P95)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/http/server/response_latencies\"",
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "perSeriesAligner": "ALIGN_DELTA",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_95"
+                    }
+                  }
+                },
+                "plotType": "LINE"
+              }
+            ],
+            "yAxis": {
+              "label": "Latency (ms)"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 6,
+        "yPos": 4,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Network Sent Bytes",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/system/network/sent_bytes_count\"",
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "perSeriesAligner": "ALIGN_RATE",
+                      "crossSeriesReducer": "REDUCE_SUM"
+                    }
+                  }
+                },
+                "plotType": "LINE"
+              }
+            ],
+            "yAxis": {
+              "label": "Bytes/second"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 8,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "HTTP Response Codes",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/http/server/response_count\"",
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "perSeriesAligner": "ALIGN_RATE",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": ["metric.response_code"]
+                    }
+                  }
+                },
+                "plotType": "STACKED_AREA"
+              }
+            ],
+            "yAxis": {
+              "label": "Responses/second"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 12,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "CPU Utilization",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/system/cpu/usage\"",
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "perSeriesAligner": "ALIGN_MEAN",
+                      "crossSeriesReducer": "REDUCE_MEAN"
+                    }
+                  }
+                },
+                "plotType": "LINE"
+              }
+            ],
+            "yAxis": {
+              "label": "CPU Usage"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 6,
+        "yPos": 12,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Memory Usage",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/system/memory/usage\"",
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "perSeriesAligner": "ALIGN_MEAN",
+                      "crossSeriesReducer": "REDUCE_MEAN"
+                    }
+                  }
+                },
+                "plotType": "LINE"
+              }
+            ],
+            "yAxis": {
+              "label": "Memory (MB)"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
