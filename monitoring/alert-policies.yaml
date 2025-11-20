@@ -1,0 +1,140 @@
+# Cloud Monitoring Alert Policies for GoRead2 Cost Tracking
+# Deploy with: gcloud alpha monitoring policies create --policy-from-file=FILE
+
+# Alert 1: High Datastore Read Operations
+---
+displayName: "High Datastore Read Operations"
+documentation:
+  content: "Datastore read operations have exceeded 1000 per minute. This may indicate inefficient queries or a sudden traffic spike."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Datastore reads > 1000/min"
+    conditionThreshold:
+      filter: 'resource.type="datastore_database" AND metric.type="datastore.googleapis.com/api/request_count" AND metric.label.api_method="Lookup"'
+      aggregations:
+        - alignmentPeriod: "60s"
+          perSeriesAligner: "ALIGN_RATE"
+          crossSeriesReducer: "REDUCE_SUM"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 16.67  # 1000 operations per minute = ~16.67 per second
+      duration: "300s"  # Alert if sustained for 5 minutes
+combiner: "OR"
+enabled: true
+notificationChannels: []  # Add your notification channels here
+alertStrategy:
+  autoClose: "1800s"  # Auto-close after 30 minutes
+
+---
+# Alert 2: High Datastore Write Operations
+displayName: "High Datastore Write Operations"
+documentation:
+  content: "Datastore write operations have exceeded 500 per minute. This may indicate excessive updates or inefficient batch operations."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Datastore writes > 500/min"
+    conditionThreshold:
+      filter: 'resource.type="datastore_database" AND metric.type="datastore.googleapis.com/api/request_count" AND (metric.label.api_method="Put" OR metric.label.api_method="Commit")'
+      aggregations:
+        - alignmentPeriod: "60s"
+          perSeriesAligner: "ALIGN_RATE"
+          crossSeriesReducer: "REDUCE_SUM"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 8.33  # 500 operations per minute = ~8.33 per second
+      duration: "300s"
+combiner: "OR"
+enabled: true
+notificationChannels: []
+alertStrategy:
+  autoClose: "1800s"
+
+---
+# Alert 3: High App Engine Instance Count
+displayName: "High App Engine Instance Count"
+documentation:
+  content: "App Engine instance count has exceeded 5 instances. This may indicate a traffic spike or inefficient auto-scaling configuration."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Instance count > 5"
+    conditionThreshold:
+      filter: 'resource.type="gae_app" AND metric.type="appengine.googleapis.com/system/instance_count"'
+      aggregations:
+        - alignmentPeriod: "60s"
+          perSeriesAligner: "ALIGN_MEAN"
+          crossSeriesReducer: "REDUCE_SUM"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 5
+      duration: "600s"  # Alert if sustained for 10 minutes
+combiner: "OR"
+enabled: true
+notificationChannels: []
+alertStrategy:
+  autoClose: "1800s"
+
+---
+# Alert 4: High Network Egress
+displayName: "High Network Egress (Bandwidth)"
+documentation:
+  content: "Network egress has exceeded 100 MB/minute. This may indicate excessive data transfer or a potential data leak."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Network egress > 100 MB/min"
+    conditionThreshold:
+      filter: 'resource.type="gae_app" AND metric.type="appengine.googleapis.com/system/network/sent_bytes_count"'
+      aggregations:
+        - alignmentPeriod: "60s"
+          perSeriesAligner: "ALIGN_RATE"
+          crossSeriesReducer: "REDUCE_SUM"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 1677721.6  # 100 MB/min = ~1.67 MB/s = 1677721.6 bytes/s
+      duration: "300s"
+combiner: "OR"
+enabled: true
+notificationChannels: []
+alertStrategy:
+  autoClose: "1800s"
+
+---
+# Alert 5: Datastore Entity Read Spike
+displayName: "Datastore Entity Read Spike"
+documentation:
+  content: "Entity read count has increased by 200% compared to the previous hour. This may indicate inefficient queries or query fanout."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Entity reads 2x increase"
+    conditionThreshold:
+      filter: 'resource.type="datastore_database" AND metric.type="datastore.googleapis.com/entity/read_count"'
+      aggregations:
+        - alignmentPeriod: "3600s"
+          perSeriesAligner: "ALIGN_RATE"
+          crossSeriesReducer: "REDUCE_SUM"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 1000  # Adjust based on your normal baseline
+      duration: "0s"
+combiner: "OR"
+enabled: true
+notificationChannels: []
+alertStrategy:
+  autoClose: "3600s"
+
+---
+# Alert 6: High Error Rate
+displayName: "High HTTP Error Rate (5xx)"
+documentation:
+  content: "HTTP 5xx error rate has exceeded 1%. This may indicate application errors or resource exhaustion."
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "5xx error rate > 1%"
+    conditionThreshold:
+      filter: 'resource.type="gae_app" AND metric.type="appengine.googleapis.com/http/server/response_count" AND metric.label.response_code>=500 AND metric.label.response_code<600'
+      aggregations:
+        - alignmentPeriod: "60s"
+          perSeriesAligner: "ALIGN_RATE"
+          crossSeriesReducer: "REDUCE_SUM"
+      comparison: "COMPARISON_GT"
+      thresholdValue: 0.1  # Adjust based on your request volume
+      duration: "180s"
+combiner: "OR"
+enabled: true
+notificationChannels: []
+alertStrategy:
+  autoClose: "900s"

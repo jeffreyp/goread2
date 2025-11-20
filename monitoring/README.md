@@ -4,10 +4,12 @@ This directory contains Cloud Monitoring dashboards and alerting policies for Go
 
 ## Files
 
-- `cost-dashboard.json` - Dashboard configuration showing Datastore, App Engine, and bandwidth metrics
-- `alerting-policies.json` - Alerting policy definitions for cost spike detection
-- `deploy-dashboard.sh` - Script to deploy the dashboard to Cloud Monitoring
-- `deploy-alerts.sh` - Script to deploy alerting policies to Cloud Monitoring
+- `dashboard-cost-tracking.json` - Dashboard configuration with 10 widgets showing Datastore, App Engine, and bandwidth metrics
+- `alert-policies.yaml` - Six alerting policy definitions for cost spike and error detection
+- `cost-dashboard.json` - (Legacy) Original dashboard configuration
+- `alerting-policies.json` - (Legacy) Original alerting policies
+- `deploy-dashboard.sh` - Script to deploy the dashboard to Cloud Monitoring (if exists)
+- `deploy-alerts.sh` - Script to deploy alerting policies to Cloud Monitoring (if exists)
 
 ## Quick Start
 
@@ -22,10 +24,24 @@ make deploy-monitoring-alerts
 
 ## Manual Deployment
 
+### Using gcloud CLI (Recommended)
+
 ```bash
 # Set your GCP project
 gcloud config set project YOUR_PROJECT_ID
 
+# Deploy dashboard
+gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-cost-tracking.json
+
+# Deploy alerts (after setting up notification channels)
+# Note: YAML file contains multiple policies separated by ---
+# You may need to deploy each policy separately
+gcloud alpha monitoring policies create --policy-from-file=monitoring/alert-policies.yaml
+```
+
+### Using deployment scripts (if available)
+
+```bash
 # Deploy dashboard
 ./monitoring/deploy-dashboard.sh
 

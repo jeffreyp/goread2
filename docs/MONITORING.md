@@ -27,84 +27,220 @@ The dashboard and alerts use only built-in GCP metrics (Datastore, App Engine), 
 
 ## Dashboard
 
-The cost tracking dashboard provides visualizations for:
+The cost tracking dashboard (`monitoring/dashboard-cost-tracking.json`) provides comprehensive visualizations for cost and performance monitoring.
 
-### Datastore Metrics
-- **Read Operations**: Number of Datastore Lookup operations per second
-- **Write Operations**: Number of Put and Commit operations per second
-- **Read Bytes**: Volume of data read from Datastore
-- **Write Bytes**: Volume of data written to Datastore
-- **Operations by Type**: Breakdown of all Datastore API methods
+### Dashboard Layout
 
-### App Engine Metrics
-- **Instance Count**: Number of running instances (by state)
-- **Request Count**: HTTP requests per second
-- **Response Bytes**: Outbound bandwidth usage
-- **Response Latency**: 95th percentile response time
+The dashboard includes 10 widgets organized in a 12-column mosaic layout:
+
+#### Cost-Critical Metrics
+
+1. **Datastore Read Operations** (Last 7 Days)
+   - Tracks Lookup/Get operations per second
+   - High reads = higher costs (~$0.06 per 100K entities)
+   - Hourly aggregation for trend analysis
+
+2. **Datastore Write Operations** (Last 7 Days)
+   - Tracks Put/Commit operations per second
+   - Writes cost 3x more than reads (~$0.18 per 100K entities)
+   - Helps identify batch operation efficiency
+
+3. **App Engine Instance Hours** (Last 7 Days)
+   - Shows active instance count over time
+   - Each instance hour costs money
+   - Useful for optimizing auto-scaling configuration
+
+4. **Network Egress (Bandwidth Usage)**
+   - Tracks outbound data transfer (bytes/second)
+   - Egress beyond free tier is expensive ($0.12/GB)
+   - Monitor RSS feed fetching and API responses
+
+#### Performance & Operational Metrics
+
+5. **Datastore Read Entities (Total)**
+   - Scorecard with sparkline showing entity read rate
+   - Helps identify query fanout issues
+
+6. **Datastore Write Entities (Total)**
+   - Scorecard with sparkline showing entity write rate
+   - Useful for monitoring batch operations
+
+7. **Request Latency (p95)**
+   - 95th percentile HTTP response time
+   - High latency may indicate performance issues
+   - Scorecard format for quick assessment
+
+8. **Datastore Operations by Type**
+   - Stacked area chart showing breakdown of API methods
+   - Groups by: Lookup, Put, Commit, Query, etc.
+   - Identifies most common operations
+
+9. **App Engine Request Count**
+   - Total HTTP requests per second
+   - Correlates traffic with cost metrics
+   - Hourly aggregation
+
+10. **App Engine Response Codes**
+    - Stacked area chart of HTTP status codes
+    - Grouped by response_code (2xx, 4xx, 5xx)
+    - Helps identify errors affecting user experience
+
+### Using the Dashboard
+
+- **Time Range**: All charts default to 7-day view
+- **Aggregation**: Most metrics use 1-hour alignment periods
+- **Updates**: Metrics update automatically every minute
+- **Drill-down**: Click any chart to explore in Metrics Explorer
 
 ## Alerting Policies
 
-Five alerting policies monitor for cost spikes and unusual patterns:
+The alert configuration (`monitoring/alert-policies.yaml`) includes six policies that monitor for cost spikes and unusual patterns:
 
 ### 1. High Datastore Read Operations
-- **Threshold**: > 100 reads/second for 5 minutes
-- **Purpose**: Detect inefficient queries or unexpected traffic
+- **Threshold**: >1000 reads/minute (~16.67/second) sustained for 5 minutes
+- **Purpose**: Detect inefficient queries or traffic spike
+- **Actions**: Check query patterns, review caching effectiveness
+- **Auto-close**: 30 minutes
 
 ### 2. High Datastore Write Operations
-- **Threshold**: > 50 writes/second for 5 minutes
-- **Purpose**: Identify write-heavy workloads or potential issues
+- **Threshold**: >500 writes/minute (~8.33/second) sustained for 5 minutes
+- **Purpose**: Identify excessive updates or inefficient batch operations
+- **Actions**: Review batch operations, check for write loops
+- **Auto-close**: 30 minutes
 
 ### 3. High App Engine Instance Count
-- **Threshold**: > 8 instances for 10 minutes
-- **Purpose**: Catch autoscaling issues (max configured is 10)
+- **Threshold**: >5 instances sustained for 10 minutes
+- **Purpose**: Catch traffic spike or inefficient auto-scaling
+- **Actions**: Review app.yaml scaling settings, check for slow requests
+- **Note**: Max configured is 10 instances
+- **Auto-close**: 30 minutes
 
-### 4. Sudden Increase in Datastore Operations
-- **Threshold**: > 50% increase compared to previous hour
-- **Purpose**: Catch unexpected spikes in usage
+### 4. High Network Egress (Bandwidth)
+- **Threshold**: >100 MB/minute (~1.67 MB/second) sustained for 5 minutes
+- **Purpose**: Detect excessive data transfer or potential data leak
+- **Actions**: Check RSS feed sizes, review API response payloads
+- **Auto-close**: 30 minutes
 
-### 5. High Bandwidth Usage
-- **Threshold**: > 10 MB/second for 5 minutes
-- **Purpose**: Detect large responses or potential issues
+### 5. Datastore Entity Read Spike
+- **Threshold**: >1000 entity reads/hour (baseline, adjust for your usage)
+- **Purpose**: Catch query fanout or sudden traffic increase
+- **Actions**: Investigate recent code changes, check for N+1 queries
+- **Auto-close**: 1 hour
+- **Note**: Adjust threshold based on your baseline after monitoring
+
+### 6. High HTTP Error Rate (5xx)
+- **Threshold**: >0.1 errors/second (>1% of typical traffic) sustained for 3 minutes
+- **Purpose**: Detect application errors or resource exhaustion
+- **Actions**: Check application logs immediately, review recent deployments
+- **Auto-close**: 15 minutes
+- **Critical**: May indicate production outage
+
+### Customizing Alert Thresholds
+
+The default thresholds are conservative. To adjust:
+
+1. **Monitor for 1-2 weeks** to establish your baseline
+2. **Calculate thresholds**: Baseline average + (2 × standard deviation)
+3. **Edit** `monitoring/alert-policies.yaml`
+4. **Redeploy** alerts using gcloud command
+
+Example threshold calculation:
+```
+Average reads: 500/minute
+Std dev: 100
+Threshold: 500 + (2 × 100) = 700 reads/minute
+```
 
 ## Deployment
 
 ### Prerequisites
 - `gcloud` CLI installed and configured
-- Appropriate permissions on the GCP project
-- `jq` installed (for alert deployment)
+- Appropriate permissions on the GCP project (`roles/monitoring.editor` or `roles/monitoring.admin`)
+- `jq` installed (optional, for alert deployment via script)
 
 ### Deploy Dashboard
+
+#### Option 1: Using gcloud CLI (Recommended)
 
 ```bash
 # Set your project
 gcloud config set project YOUR_PROJECT_ID
 
 # Deploy the dashboard
-./monitoring/deploy-dashboard.sh
+gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-cost-tracking.json
 ```
 
-The dashboard will be created in Cloud Monitoring. If it already exists, you'll need to update it manually or delete and recreate it.
+#### Option 2: Via Cloud Console
+
+1. Go to [Cloud Monitoring Dashboards](https://console.cloud.google.com/monitoring/dashboards)
+2. Click **Create Dashboard**
+3. Click **JSON** in the top right corner
+4. Paste the contents of `monitoring/dashboard-cost-tracking.json`
+5. Click **Apply**
+
+The dashboard will be created in Cloud Monitoring. If it already exists, update it manually or delete and recreate it.
 
 ### Deploy Alerting Policies
 
+#### Step 1: Set Up Notification Channels
+
+Before deploying alerts, create notification channels to receive alerts:
+
 ```bash
-# Deploy all alerting policies
-./monitoring/deploy-alerts.sh
+# Email notification
+gcloud alpha monitoring channels create \
+  --display-name="GoRead2 Alerts Email" \
+  --type=email \
+  --channel-labels=email_address=your-email@example.com
+
+# Slack notification (recommended)
+gcloud alpha monitoring channels create \
+  --display-name="GoRead2 Alerts Slack" \
+  --type=slack \
+  --channel-labels=url=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+
+# List channels to get IDs
+gcloud alpha monitoring channels list
 ```
 
-**Note**: After deploying alerts, you must configure notification channels (email, SMS, Slack, etc.) in the Cloud Console:
-https://console.cloud.google.com/monitoring/alerting/notifications
+#### Step 2: Configure Alert Policies
+
+Edit `monitoring/alert-policies.yaml` and add your notification channel IDs to the `notificationChannels` array in each alert policy.
+
+#### Step 3: Deploy Alerts
+
+```bash
+# Install alpha components if needed
+gcloud components install alpha
+
+# Deploy alerts
+gcloud alpha monitoring policies create --policy-from-file=monitoring/alert-policies.yaml
+```
+
+**Note**: The YAML file contains multiple alert policies separated by `---`. You may need to split them into separate files or deploy them individually.
+
+### Alternative: Use Deployment Scripts
+
+If you have existing deployment scripts:
+
+```bash
+# Deploy dashboard (if script exists)
+./monitoring/deploy-dashboard.sh
+
+# Deploy alerting policies (if script exists)
+./monitoring/deploy-alerts.sh
+```
 
 ### Makefile Targets
 
 ```bash
-# Deploy dashboard
+# Deploy dashboard (if Makefile target exists)
 make deploy-monitoring-dashboard
 
-# Deploy alerting policies
+# Deploy alerting policies (if Makefile target exists)
 make deploy-monitoring-alerts
 
-# Deploy both
+# Deploy both (if Makefile target exists)
 make deploy-monitoring
 ```
 
