@@ -65,7 +65,10 @@ All deployment methods require:
    # OAuth configuration
    echo -n "your-oauth-client-id" | gcloud secrets create google-client-id --data-file=-
    echo -n "your-oauth-client-secret" | gcloud secrets create google-client-secret --data-file=-
-   
+
+   # CSRF secret (REQUIRED for production)
+   openssl rand -base64 32 | gcloud secrets create csrf-secret --data-file=-
+
    # Stripe configuration (if using subscriptions)
    echo -n "sk_live_your-secret-key" | gcloud secrets create stripe-secret-key --data-file=-
    echo -n "pk_live_your-publishable-key" | gcloud secrets create stripe-publishable-key --data-file=-
@@ -76,16 +79,20 @@ All deployment methods require:
 3. **Grant App Engine access to secrets:**
    ```bash
    PROJECT_ID=$(gcloud config get-value project)
-   
+
    gcloud secrets add-iam-policy-binding google-client-id \
        --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
        --role="roles/secretmanager.secretAccessor"
-   
+
    gcloud secrets add-iam-policy-binding google-client-secret \
        --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
        --role="roles/secretmanager.secretAccessor"
-   
-   # Repeat for other secrets...
+
+   gcloud secrets add-iam-policy-binding csrf-secret \
+       --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
+       --role="roles/secretmanager.secretAccessor"
+
+   # Repeat for other secrets (Stripe, etc.)...
    ```
 
 ### app.yaml Configuration
@@ -99,6 +106,7 @@ env_variables:
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
   GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
+  CSRF_SECRET: ${CSRF_SECRET}
   SUBSCRIPTION_ENABLED: "true"
   STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
   STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
@@ -129,6 +137,7 @@ env_variables:
   GOOGLE_CLIENT_ID: "your-oauth-client-id"
   GOOGLE_CLIENT_SECRET: "your-oauth-client-secret"
   GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
+  CSRF_SECRET: "your-base64-csrf-secret"
   SUBSCRIPTION_ENABLED: "true"
   STRIPE_SECRET_KEY: "sk_live_your-secret-key"
   STRIPE_PUBLISHABLE_KEY: "pk_live_your-publishable-key"
@@ -420,6 +429,7 @@ WantedBy=multi-user.target
 - `GOOGLE_CLIENT_ID` - OAuth 2.0 client ID from Google Console
 - `GOOGLE_CLIENT_SECRET` - OAuth 2.0 client secret from Google Console ⚠️ **Store in Secret Manager for GAE**
 - `GOOGLE_REDIRECT_URL` - OAuth callback URL (must match Google Console)
+- `CSRF_SECRET` - Base64-encoded 32-byte secret for CSRF token generation ⚠️ **REQUIRED in production - app will fail to start if missing**
 
 ### Optional Variables
 

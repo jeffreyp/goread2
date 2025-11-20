@@ -30,35 +30,44 @@ func NewCSRFManager() *CSRFManager {
 }
 
 // getOrGenerateSecret retrieves the CSRF secret from environment or generates one
-// In production, CSRF_SECRET should be set to ensure consistency across instances
+// In production, CSRF_SECRET must be set to ensure consistency across instances
 // In development/testing, we generate a random secret per process
 func getOrGenerateSecret() []byte {
+	// Check if running in production environment
+	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
+
 	// Try to get secret from environment first
 	secretStr := os.Getenv("CSRF_SECRET")
 	if secretStr != "" {
 		// Decode base64-encoded secret
 		secret, err := base64.StdEncoding.DecodeString(secretStr)
 		if err != nil {
+			if isProduction {
+				log.Fatalf("CSRF_SECRET has invalid base64 format in production: %v", err)
+			}
 			log.Printf("Warning: Invalid CSRF_SECRET format, generating new secret: %v", err)
 		} else if len(secret) >= 32 {
 			return secret
 		} else {
+			if isProduction {
+				log.Fatalf("CSRF_SECRET too short in production (need >= 32 bytes, got %d bytes)", len(secret))
+			}
 			log.Printf("Warning: CSRF_SECRET too short (need >= 32 bytes), generating new secret")
 		}
 	}
 
-	// Generate random secret (32 bytes for HMAC-SHA256)
+	// In production, fail-fast if CSRF_SECRET is not configured
+	if isProduction {
+		log.Fatalf("CSRF_SECRET is required in production environment. Generate one with: openssl rand -base64 32")
+	}
+
+	// Generate random secret for development/testing (32 bytes for HMAC-SHA256)
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		log.Fatalf("Failed to generate CSRF secret: %v", err)
 	}
 
-	// In production, warn that a persistent secret should be configured
-	if os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production" {
-		log.Printf("WARNING: CSRF_SECRET not set in production. Tokens will be invalidated on restart.")
-		log.Printf("Generate a CSRF_SECRET with: openssl rand -base64 32")
-	}
-
+	log.Printf("Using randomly generated CSRF secret (development only)")
 	return secret
 }
 

@@ -6,6 +6,7 @@ env_variables:
   GOOGLE_CLOUD_PROJECT: "goread-467200"
   SECRET_CLIENT_ID_NAME: "google-client-id"
   SECRET_CLIENT_SECRET_NAME: "google-client-secret"
+  CSRF_SECRET: "csrf-secret"
   SUBSCRIPTION_ENABLED: "true"
   ADMIN_TOKEN: "admin-token"
   INITIAL_ADMIN_EMAILS: "initial-admin-emails"
