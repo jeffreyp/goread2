@@ -116,7 +116,7 @@
             "thresholdValue": 1.0,
             "duration": "600s",
             "forecastOptions": {
-              "forecastHorizon": "1800s"
+              "forecastHorizon": "3600s"
             }
           }
         }
