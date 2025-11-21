@@ -83,10 +83,25 @@ validate-config:
 validate-build: validate-config build-frontend build
 	@echo "✅ Validation and build completed"
 
+# Substitute secrets from Secret Manager into app.yaml
+substitute-secrets:
+	@echo "🔐 Fetching secrets from Secret Manager..."
+	@CSRF_SECRET=$$(gcloud secrets versions access latest --secret="csrf-secret") \
+	ADMIN_TOKEN=$$(gcloud secrets versions access latest --secret="admin-token") \
+	INITIAL_ADMIN_EMAILS=$$(gcloud secrets versions access latest --secret="initial-admin-emails") \
+	STRIPE_SECRET_KEY=$$(gcloud secrets versions access latest --secret="stripe-secret-key") \
+	STRIPE_PUBLISHABLE_KEY=$$(gcloud secrets versions access latest --secret="stripe-publishable-key") \
+	STRIPE_WEBHOOK_SECRET=$$(gcloud secrets versions access latest --secret="stripe-webhook-secret") \
+	STRIPE_PRICE_ID=$$(gcloud secrets versions access latest --secret="stripe-price-id") \
+	envsubst < app.yaml > app.yaml.deploy
+	@echo "✓ Secrets substituted into app.yaml.deploy"
+
 # Deploy to development (with validation)
-deploy-dev: validate-config build-frontend
+deploy-dev: validate-config build-frontend substitute-secrets
 	@echo "🚀 Deploying to development..."
-	gcloud app deploy app.yaml --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet
+	@cp app.yaml.deploy app.yaml.tmp
+	@gcloud app deploy app.yaml.tmp --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet
+	@rm -f app.yaml.tmp app.yaml.deploy
 
 # Validate configuration in strict mode (for production)
 validate-config-strict:
@@ -94,9 +109,11 @@ validate-config-strict:
 	VALIDATE_STRICT=true go run cmd/validate-config/main.go
 
 # Deploy to production (with strict validation and tests)
-deploy-prod: validate-config-strict test build-frontend
+deploy-prod: validate-config-strict test build-frontend substitute-secrets
 	@echo "🚀 Deploying to production..."
-	gcloud app deploy app.yaml --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet
+	@cp app.yaml.deploy app.yaml.tmp
+	@gcloud app deploy app.yaml.tmp --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet
+	@rm -f app.yaml.tmp app.yaml.deploy
 	@echo "🧹 Cleaning up old versions..."
 	@gcloud app versions list --sort-by=LAST_DEPLOYED --format="value(id)" --filter="TRAFFIC_SPLIT=0" | head -1 | xargs -r gcloud app versions delete --quiet
 
