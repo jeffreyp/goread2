@@ -7,13 +7,13 @@
         "width": 6,
         "height": 4,
         "widget": {
-          "title": "App Engine Request Rate",
+          "title": "Request Count (via Load Balancer)",
           "xyChart": {
             "dataSets": [
               {
                 "timeSeriesQuery": {
                   "timeSeriesFilter": {
-                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/http/server/request_count\"",
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"loadbalancing.googleapis.com/https/request_count\"",
                     "aggregation": {
                       "alignmentPeriod": "60s",
                       "perSeriesAligner": "ALIGN_RATE",

@@ -25,19 +25,39 @@ The dashboard and alerts use only built-in GCP metrics (Datastore, App Engine), 
 
 **Estimated cost for this monitoring setup**: $0/month for typical usage.
 
-## Dashboard
+## Dashboards
 
-**Important**: Cloud Datastore metrics are not available via Cloud Monitoring for App Engine Standard applications. Datastore usage must be monitored through the Cloud Console Datastore Dashboard or Billing Reports.
+**Important**: Many App Engine Standard metrics are not available or have limited availability via Cloud Monitoring. For cost tracking, use the billing dashboard below. For operational metrics, many App Engine-specific metrics may show errors.
 
-### App Engine Dashboard (`monitoring/dashboard-appengine-simple.json`)
+### Billing Dashboard (`monitoring/dashboard-billing.json`) - RECOMMENDED
 
-This working dashboard provides App Engine-specific visualizations that ARE available:
+The billing dashboard focuses on actual costs and is the most reliable way to monitor your GCP spend:
 
 #### Dashboard Widgets
 
-1. **App Engine Request Rate**
+1. **Daily Cost Trend** - Overall daily spending across all services
+2. **Cost by Service** - Breakdown showing App Engine, Datastore, networking, etc.
+3. **App Engine Instance Count** - Number of running instances (instance-hours = cost)
+4. **Month-to-Date Cost Summary** - Current month's total spend
+
+**Deploy:**
+```bash
+gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-billing.json
+```
+
+### App Engine Dashboard (`monitoring/dashboard-appengine-simple.json`) - LIMITED
+
+**Note:** This dashboard attempts to show App Engine operational metrics, but many may not work due to App Engine Standard limitations. Common errors include:
+- "Cannot find metric(s) that match type = appengine.googleapis.com/http/server/request_count"
+- Metrics may not populate even after 10+ minutes
+
+For **cost tracking**, use the Billing Dashboard instead. This dashboard is only useful if you need operational metrics and they happen to be available in your environment.
+
+#### Dashboard Widgets
+
+1. **Request Count** (via Load Balancer)
    - HTTP requests per second
-   - Correlates with overall application usage
+   - May not be available for all App Engine Standard apps
 
 2. **App Engine Active Instances**
    - Number of running instances
