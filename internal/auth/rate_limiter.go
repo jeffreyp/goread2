@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -85,13 +86,20 @@ func (rl *RateLimiter) cleanupIPs() {
 
 		// Remove entries inactive for more than 1 hour
 		cutoff := time.Now().Add(-1 * time.Hour)
+		deletedCount := 0
+		totalEntries := len(rl.ips)
 		for ip, entry := range rl.ips {
 			if entry.lastAccess.Before(cutoff) {
 				delete(rl.ips, ip)
+				deletedCount++
 			}
 		}
 
 		rl.mu.Unlock()
+
+		// Log cleanup statistics for monitoring
+		log.Printf("Rate limiter cleanup: deleted %d entries, %d remaining (total: %d)",
+			deletedCount, totalEntries-deletedCount, totalEntries)
 	}
 }
 

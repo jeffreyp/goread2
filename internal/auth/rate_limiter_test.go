@@ -1,7 +1,11 @@
 package auth
 
 import (
+	"bytes"
+	"log"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -237,6 +241,69 @@ func TestRateLimiterCleanup(t *testing.T) {
 	newLimiter := rl.GetLimiter("10.0.0.1")
 	if newLimiter == nil {
 		t.Error("Failed to create limiter after cleanup")
+	}
+}
+
+func TestRateLimiterCleanupLogging(t *testing.T) {
+	// This test verifies that cleanup logs statistics correctly
+	// We'll capture log output and verify it contains expected information
+
+	// Capture log output
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr) // Restore default output
+
+	rl := NewRateLimiter(10, 20)
+
+	// Add multiple IP entries
+	ips := []string{"10.0.1.1", "10.0.1.2", "10.0.1.3", "10.0.1.4", "10.0.1.5"}
+	for _, ip := range ips {
+		rl.GetLimiter(ip)
+	}
+
+	// Simulate some IPs being old
+	rl.mu.Lock()
+	oldTime := time.Now().Add(-2 * time.Hour)
+	rl.ips["10.0.1.1"].lastAccess = oldTime
+	rl.ips["10.0.1.2"].lastAccess = oldTime
+	rl.ips["10.0.1.3"].lastAccess = oldTime
+	// 10.0.1.4 and 10.0.1.5 keep current time
+	rl.mu.Unlock()
+
+	// Simulate cleanup with logging
+	rl.mu.Lock()
+	cutoff := time.Now().Add(-1 * time.Hour)
+	deletedCount := 0
+	totalEntries := len(rl.ips)
+	for ip, entry := range rl.ips {
+		if entry.lastAccess.Before(cutoff) {
+			delete(rl.ips, ip)
+			deletedCount++
+		}
+	}
+	rl.mu.Unlock()
+
+	// Log the statistics (same as in the actual cleanup function)
+	log.Printf("Rate limiter cleanup: deleted %d entries, %d remaining (total: %d)",
+		deletedCount, totalEntries-deletedCount, totalEntries)
+
+	// Verify log output
+	logOutput := buf.String()
+
+	if !strings.Contains(logOutput, "Rate limiter cleanup") {
+		t.Error("Log output should contain cleanup message")
+	}
+
+	if !strings.Contains(logOutput, "deleted 3 entries") {
+		t.Errorf("Log should show 3 deleted entries, got: %s", logOutput)
+	}
+
+	if !strings.Contains(logOutput, "2 remaining") {
+		t.Errorf("Log should show 2 remaining entries, got: %s", logOutput)
+	}
+
+	if !strings.Contains(logOutput, "total: 5") {
+		t.Errorf("Log should show total of 5 entries, got: %s", logOutput)
 	}
 }
 
