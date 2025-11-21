@@ -338,15 +338,14 @@ func (db *DatastoreDB) AddArticle(article *Article) error {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
-	// Check if article already exists
-	query := datastore.NewQuery("Article").FilterField("url", "=", article.URL).Limit(1)
-	var existing []ArticleEntity
-	keys, err := db.client.GetAll(ctx, query, &existing)
+	// Check if article already exists using keys-only query (1/3 cost of full entity read)
+	query := datastore.NewQuery("Article").FilterField("url", "=", article.URL).KeysOnly().Limit(1)
+	keys, err := db.client.GetAll(ctx, query, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check for existing article: %w", err)
 	}
 
-	if len(existing) > 0 {
+	if len(keys) > 0 {
 		// Article already exists, set the ID and return
 		article.ID = int(keys[0].ID)
 		return nil
@@ -661,19 +660,19 @@ func (db *DatastoreDB) SubscribeUserToFeed(userID, feedID int) error {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
-	// Check if subscription already exists
+	// Check if subscription already exists using keys-only query (1/3 cost of full entity read)
 	query := datastore.NewQuery("UserFeed").
 		FilterField("user_id", "=", int64(userID)).
 		FilterField("feed_id", "=", int64(feedID)).
+		KeysOnly().
 		Limit(1)
 
-	var existing []UserFeedEntity
-	_, err := db.client.GetAll(ctx, query, &existing)
+	keys, err := db.client.GetAll(ctx, query, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check existing subscription: %w", err)
 	}
 
-	if len(existing) > 0 {
+	if len(keys) > 0 {
 		// Already subscribed
 		return nil
 	}
@@ -938,19 +937,19 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
-	// First verify user is subscribed to this feed
+	// First verify user is subscribed to this feed using keys-only query (1/3 cost)
 	subscriptionQuery := datastore.NewQuery("UserFeed").
 		FilterField("user_id", "=", int64(userID)).
 		FilterField("feed_id", "=", int64(feedID)).
+		KeysOnly().
 		Limit(1)
 
-	var subscriptions []UserFeedEntity
-	_, err := db.client.GetAll(ctx, subscriptionQuery, &subscriptions)
+	keys, err := db.client.GetAll(ctx, subscriptionQuery, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check user subscription: %w", err)
 	}
 
-	if len(subscriptions) == 0 {
+	if len(keys) == 0 {
 		// User is not subscribed to this feed
 		return []Article{}, nil
 	}
@@ -964,7 +963,7 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 	// Get articles for the feed
 	query := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID)).Order("-published_at")
 	var articleEntities []ArticleEntity
-	keys, err := db.client.GetAll(ctx, query, &articleEntities)
+	articleKeys, err := db.client.GetAll(ctx, query, &articleEntities)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get articles: %w", err)
 	}
@@ -985,7 +984,7 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 		}
 
 		// Create keys for this chunk
-		chunkKeys := keys[i:end]
+		chunkKeys := articleKeys[i:end]
 		userArticleKeys := make([]*datastore.Key, len(chunkKeys))
 		for j, key := range chunkKeys {
 			articleID := key.ID
@@ -1021,8 +1020,8 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 	// Build articles with user status
 	articles := make([]Article, len(articleEntities))
 	for i, entity := range articleEntities {
-		entity.ID = keys[i].ID
-		articleID := keys[i].ID
+		entity.ID = articleKeys[i].ID
+		articleID := articleKeys[i].ID
 
 		// Get user status from map (defaults to false if not found)
 		isRead := false
