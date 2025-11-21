@@ -298,25 +298,22 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 		log.Printf("Manual feed refresh started at %v", time.Now())
 	}
 
-	// Process feeds in background to avoid blocking the HTTP request
-	// This prevents App Engine from spinning up multiple instances when feed fetching takes time
-	go func() {
-		var err error
-		if fh.feedScheduler != nil {
-			err = fh.feedScheduler.RefreshFeedsStaggered()
-		} else {
-			err = fh.feedService.RefreshFeeds()
-		}
+	// Use staggered refresh if scheduler is available, otherwise fallback to regular refresh
+	var err error
+	if fh.feedScheduler != nil {
+		err = fh.feedScheduler.RefreshFeedsStaggered()
+	} else {
+		err = fh.feedService.RefreshFeeds()
+	}
 
-		if err != nil {
-			log.Printf("Background feed refresh failed: %v", err)
-		} else {
-			log.Printf("Background feed refresh completed successfully at %v", time.Now())
-		}
-	}()
+	if err != nil {
+		log.Printf("Feed refresh failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-	// Return immediately so App Engine doesn't keep instance running
-	c.JSON(http.StatusOK, gin.H{"message": "Feed refresh started in background"})
+	log.Printf("Feed refresh completed successfully at %v", time.Now())
+	c.JSON(http.StatusOK, gin.H{"message": "Feeds refreshed successfully"})
 }
 
 func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
@@ -344,19 +341,19 @@ func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 		log.Printf("Manual cleanup started at %v", time.Now())
 	}
 
-	// Process cleanup in background to avoid blocking the HTTP request
-	// This prevents App Engine from keeping instances running during long cleanup operations
-	go func() {
-		deletedCount, err := fh.db.CleanupOrphanedUserArticles(7)
-		if err != nil {
-			log.Printf("Background cleanup failed: %v", err)
-		} else {
-			log.Printf("Background cleanup completed successfully at %v, deleted %d orphaned records", time.Now(), deletedCount)
-		}
-	}()
+	// Clean up user articles orphaned for more than 7 days
+	deletedCount, err := fh.db.CleanupOrphanedUserArticles(7)
+	if err != nil {
+		log.Printf("Cleanup failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-	// Return immediately so App Engine doesn't keep instance running
-	c.JSON(http.StatusOK, gin.H{"message": "Cleanup started in background"})
+	log.Printf("Cleanup completed successfully at %v, deleted %d orphaned records", time.Now(), deletedCount)
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Cleanup completed successfully",
+		"deleted_count": deletedCount,
+	})
 }
 
 func (fh *FeedHandler) DebugFeed(c *gin.Context) {
