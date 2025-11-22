@@ -3,7 +3,7 @@
 
 set -e
 
-DASHBOARD_FILE="monitoring/cost-dashboard.json"
+DASHBOARD_FILE="monitoring/dashboard-cost-tracking.json"
 
 # Check if gcloud is installed
 if ! command -v gcloud &> /dev/null; then

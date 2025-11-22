@@ -2,14 +2,16 @@
 
 This directory contains Cloud Monitoring dashboards and alerting policies for GoRead2 cost tracking.
 
+**Important**: These dashboards track **operational metrics** (operations, instances, bandwidth) that correlate with costs. They do NOT show actual billing costs in dollars. For actual billing costs, use the [GCP Billing Reports page](https://console.cloud.google.com/billing/reports).
+
 ## Files
 
-- `dashboard-cost-tracking.json` - Dashboard configuration with 10 widgets showing Datastore, App Engine, and bandwidth metrics
+- `dashboard-cost-tracking.json` - Dashboard configuration with operational metrics (Datastore, App Engine, bandwidth)
 - `alert-policies.yaml` - Six alerting policy definitions for cost spike and error detection
 - `cost-dashboard.json` - (Legacy) Original dashboard configuration
 - `alerting-policies.json` - (Legacy) Original alerting policies
-- `deploy-dashboard.sh` - Script to deploy the dashboard to Cloud Monitoring (if exists)
-- `deploy-alerts.sh` - Script to deploy alerting policies to Cloud Monitoring (if exists)
+- `deploy-dashboard.sh` - Script to deploy the dashboard to Cloud Monitoring
+- `dashboard-appengine-simple.json` - Simplified App Engine metrics dashboard
 
 ## Quick Start
 
