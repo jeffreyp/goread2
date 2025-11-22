@@ -7,71 +7,7 @@
         "width": 6,
         "height": 4,
         "widget": {
-          "title": "Datastore Read Operations (Last 7 Days)",
-          "xyChart": {
-            "dataSets": [
-              {
-                "timeSeriesQuery": {
-                  "timeSeriesFilter": {
-                    "filter": "resource.type=\"datastore_database\" AND metric.type=\"datastore.googleapis.com/api/request_count\" AND metric.label.api_method=\"Lookup\"",
-                    "aggregation": {
-                      "alignmentPeriod": "3600s",
-                      "perSeriesAligner": "ALIGN_RATE",
-                      "crossSeriesReducer": "REDUCE_SUM",
-                      "groupByFields": []
-                    }
-                  }
-                },
-                "plotType": "LINE",
-                "targetAxis": "Y1"
-              }
-            ],
-            "timeshiftDuration": "0s",
-            "yAxis": {
-              "label": "Reads per second",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "xPos": 6,
-        "width": 6,
-        "height": 4,
-        "widget": {
-          "title": "Datastore Write Operations (Last 7 Days)",
-          "xyChart": {
-            "dataSets": [
-              {
-                "timeSeriesQuery": {
-                  "timeSeriesFilter": {
-                    "filter": "resource.type=\"datastore_database\" AND metric.type=\"datastore.googleapis.com/api/request_count\" AND (metric.label.api_method=\"Put\" OR metric.label.api_method=\"Commit\")",
-                    "aggregation": {
-                      "alignmentPeriod": "3600s",
-                      "perSeriesAligner": "ALIGN_RATE",
-                      "crossSeriesReducer": "REDUCE_SUM",
-                      "groupByFields": []
-                    }
-                  }
-                },
-                "plotType": "LINE",
-                "targetAxis": "Y1"
-              }
-            ],
-            "timeshiftDuration": "0s",
-            "yAxis": {
-              "label": "Writes per second",
-              "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 4,
-        "width": 6,
-        "height": 4,
-        "widget": {
-          "title": "App Engine Instance Hours (Last 7 Days)",
+          "title": "App Engine Instance Count",
           "xyChart": {
             "dataSets": [
               {
@@ -100,7 +36,6 @@
       },
       {
         "xPos": 6,
-        "yPos": 4,
         "width": 6,
         "height": 4,
         "widget": {
@@ -132,131 +67,33 @@
         }
       },
       {
-        "yPos": 8,
-        "width": 4,
-        "height": 4,
-        "widget": {
-          "title": "Datastore Read Entities (Total)",
-          "scorecard": {
-            "timeSeriesQuery": {
-              "timeSeriesFilter": {
-                "filter": "resource.type=\"datastore_database\" AND metric.type=\"datastore.googleapis.com/entity/read_count\"",
-                "aggregation": {
-                  "alignmentPeriod": "3600s",
-                  "perSeriesAligner": "ALIGN_RATE",
-                  "crossSeriesReducer": "REDUCE_SUM",
-                  "groupByFields": []
-                }
-              }
-            },
-            "sparkChartView": {
-              "sparkChartType": "SPARK_LINE"
-            }
-          }
-        }
-      },
-      {
-        "xPos": 4,
-        "yPos": 8,
-        "width": 4,
-        "height": 4,
-        "widget": {
-          "title": "Datastore Write Entities (Total)",
-          "scorecard": {
-            "timeSeriesQuery": {
-              "timeSeriesFilter": {
-                "filter": "resource.type=\"datastore_database\" AND metric.type=\"datastore.googleapis.com/entity/write_count\"",
-                "aggregation": {
-                  "alignmentPeriod": "3600s",
-                  "perSeriesAligner": "ALIGN_RATE",
-                  "crossSeriesReducer": "REDUCE_SUM",
-                  "groupByFields": []
-                }
-              }
-            },
-            "sparkChartView": {
-              "sparkChartType": "SPARK_LINE"
-            }
-          }
-        }
-      },
-      {
-        "xPos": 8,
-        "yPos": 8,
-        "width": 4,
-        "height": 4,
-        "widget": {
-          "title": "Request Latency (p95)",
-          "scorecard": {
-            "timeSeriesQuery": {
-              "timeSeriesFilter": {
-                "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/http/server/response_latencies\"",
-                "aggregation": {
-                  "alignmentPeriod": "3600s",
-                  "perSeriesAligner": "ALIGN_DELTA",
-                  "crossSeriesReducer": "REDUCE_PERCENTILE_95",
-                  "groupByFields": []
-                }
-              }
-            },
-            "sparkChartView": {
-              "sparkChartType": "SPARK_LINE"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 12,
+        "yPos": 4,
         "width": 12,
         "height": 4,
         "widget": {
-          "title": "Datastore Operations by Type",
+          "title": "Request Latency (p95)",
           "xyChart": {
             "dataSets": [
               {
                 "timeSeriesQuery": {
                   "timeSeriesFilter": {
-                    "filter": "resource.type=\"datastore_database\" AND metric.type=\"datastore.googleapis.com/api/request_count\"",
+                    "filter": "resource.type=\"gae_app\" AND metric.type=\"appengine.googleapis.com/http/server/response_latencies\"",
                     "aggregation": {
                       "alignmentPeriod": "3600s",
-                      "perSeriesAligner": "ALIGN_RATE",
-                      "crossSeriesReducer": "REDUCE_SUM",
-                      "groupByFields": ["metric.label.api_method"]
+                      "perSeriesAligner": "ALIGN_DELTA",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
+                      "groupByFields": []
                     }
                   }
                 },
-                "plotType": "STACKED_AREA",
+                "plotType": "LINE",
                 "targetAxis": "Y1"
               }
             ],
             "timeshiftDuration": "0s",
             "yAxis": {
-              "label": "Operations per second",
+              "label": "Latency (ms)",
               "scale": "LINEAR"
-            }
-          }
-        }
-      },
-      {
-        "yPos": 16,
-        "width": 12,
-        "height": 4,
-        "widget": {
-          "title": "Datastore Operations Summary",
-          "scorecard": {
-            "timeSeriesQuery": {
-              "timeSeriesFilter": {
-                "filter": "resource.type=\"datastore_database\" AND metric.type=\"datastore.googleapis.com/api/request_count\"",
-                "aggregation": {
-                  "alignmentPeriod": "3600s",
-                  "perSeriesAligner": "ALIGN_RATE",
-                  "crossSeriesReducer": "REDUCE_SUM",
-                  "groupByFields": []
-                }
-              }
-            },
-            "sparkChartView": {
-              "sparkChartType": "SPARK_LINE"
             }
           }
         }

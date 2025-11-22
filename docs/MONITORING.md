@@ -31,22 +31,30 @@ The dashboard and alerts use only built-in GCP metrics (Datastore, App Engine), 
 
 The dashboards below track **operational metrics** (operations, instances, bandwidth) that correlate with costs but do not show actual dollar amounts.
 
-### Cost Tracking Dashboard (`monitoring/dashboard-cost-tracking.json`) - RECOMMENDED
+### Cost Tracking Dashboard (`monitoring/dashboard-cost-tracking.json`)
 
-This dashboard tracks operational metrics that drive costs:
+**Important Limitation**: App Engine Standard environment exposes very limited metrics through Cloud Monitoring. Most HTTP and Datastore metrics are **not available**.
 
-**Note**: App Engine Standard environment has limited HTTP metrics available. Request count and response code metrics are not available through Cloud Monitoring for App Engine Standard runtime.
+This minimal dashboard tracks the only 3 operational metrics available for App Engine Standard:
 
 #### Dashboard Widgets
 
-1. **Datastore Read Operations** - Read operations per second (cost: $0.06 per 100K entities)
-2. **Datastore Write Operations** - Write operations per second (cost: $0.18 per 100K entities)
-3. **App Engine Instance Hours** - Number of running instances (instance-hours = primary cost driver)
-4. **Network Egress** - Outbound bandwidth usage (cost: $0.12/GB beyond free tier)
-5. **Datastore Read/Write Entities** - Total entity counts
-6. **Request Latency (p95)** - Performance indicator
-7. **Datastore Operations by Type** - Breakdown of all operation types
-8. **Datastore Operations Summary** - Overall Datastore activity
+1. **App Engine Instance Count** - Number of running instances (instance-hours = primary cost driver)
+   - Cost: Varies by instance class (F1/F2/F4/F4_1G)
+   - Your config: 1 CPU, 0.5GB RAM
+
+2. **Network Egress** - Outbound bandwidth usage
+   - Cost: $0.12/GB (after free tier of 1GB/day)
+
+3. **Request Latency (p95)** - 95th percentile response time
+   - Performance indicator only, not directly tied to cost
+
+**Metrics NOT Available for App Engine Standard:**
+- ❌ Datastore read/write operations
+- ❌ Datastore entity counts
+- ❌ HTTP request counts
+- ❌ HTTP response codes
+- ❌ CPU/memory usage
 
 **Deploy:**
 ```bash
@@ -57,39 +65,52 @@ gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-cost
 
 Older dashboard configuration with similar metrics. Use `dashboard-cost-tracking.json` instead for the latest version.
 
-## Viewing Actual Billing Costs
+## Tracking Actual Costs and Usage
 
-Since billing metrics are not available in Cloud Monitoring dashboards, use these methods to track actual costs:
+Since most operational metrics are not available through Cloud Monitoring for App Engine Standard, use these alternative methods:
 
-### Option 1: GCP Billing Reports (Recommended)
+### For Billing/Costs
 
-Go to: https://console.cloud.google.com/billing/reports
+**GCP Billing Reports (Primary Method)**: https://console.cloud.google.com/billing/reports
 
-This shows:
+View:
 - Daily/monthly cost trends
 - Cost breakdown by service (App Engine, Datastore, etc.)
-- Cost breakdown by SKU
+- Cost breakdown by SKU (instance hours, bandwidth, Datastore operations, storage)
 - Forecasted costs
 
-Filter by specific services:
-- **App Engine**: Instance hours, bandwidth
-- **Cloud Datastore**: Entity reads, writes, deletes, storage
+Filter by:
+- **App Engine**: Instance hours, outbound bandwidth
+- **Cloud Datastore**: Entity reads, writes, deletes, stored data
 
-### Option 2: BigQuery Billing Export (Advanced)
+### For Datastore Usage
 
-For programmatic access to billing data:
-1. Enable [Cloud Billing export to BigQuery](https://cloud.google.com/billing/docs/how-to/export-data-bigquery)
-2. Query billing data using SQL
-3. Create custom dashboards with Data Studio
+**Cloud Console Datastore Stats**: https://console.cloud.google.com/datastore/stats
 
-### Option 3: Cloud Console Datastore Stats
-
-For Datastore-specific metrics: https://console.cloud.google.com/datastore/stats
-
+Shows:
 - Entity counts by kind
-- Storage size
+- Storage size per kind
 - Index sizes
-- **Note**: Stats update once per day
+- **Note**: Stats update once per day (not real-time)
+
+### For HTTP Request Metrics
+
+Since request count and response code metrics are not available in Cloud Monitoring, use:
+
+**App Engine Logs**:
+```bash
+# View recent logs
+gcloud app logs tail
+
+# View logs for specific time period
+gcloud app logs read --limit=100
+```
+
+Or use the [Logs Explorer](https://console.cloud.google.com/logs) to:
+- Filter by HTTP status codes
+- Count requests over time
+- View request patterns
+- Create log-based metrics (advanced)
 
 ## Alerting Policies
 

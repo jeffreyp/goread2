@@ -1,17 +1,21 @@
 # Cloud Monitoring Configuration
 
-This directory contains Cloud Monitoring dashboards and alerting policies for GoRead2 cost tracking.
+This directory contains Cloud Monitoring dashboards and alerting policies for GoRead2.
 
-**Important**: These dashboards track **operational metrics** (operations, instances, bandwidth) that correlate with costs. They do NOT show actual billing costs in dollars. For actual billing costs, use the [GCP Billing Reports page](https://console.cloud.google.com/billing/reports).
+**Important Limitations**:
+- App Engine Standard environment exposes very limited metrics through Cloud Monitoring
+- Most HTTP and Datastore metrics are NOT available
+- For actual billing costs, use the [GCP Billing Reports page](https://console.cloud.google.com/billing/reports)
+- For Datastore usage, use [Datastore Stats](https://console.cloud.google.com/datastore/stats)
 
 ## Files
 
-- `dashboard-cost-tracking.json` - Dashboard configuration with operational metrics (Datastore, App Engine, bandwidth)
-- `alert-policies.yaml` - Six alerting policy definitions for cost spike and error detection
+- `dashboard-cost-tracking.json` - Minimal dashboard with only 3 working metrics (instance count, bandwidth, latency)
+- `alert-policies.yaml` - Alerting policy definitions (most won't work due to missing metrics)
 - `cost-dashboard.json` - (Legacy) Original dashboard configuration
 - `alerting-policies.json` - (Legacy) Original alerting policies
 - `deploy-dashboard.sh` - Script to deploy the dashboard to Cloud Monitoring
-- `dashboard-appengine-simple.json` - Simplified App Engine metrics dashboard
+- `dashboard-appengine-simple.json` - (Legacy) Simplified App Engine metrics dashboard
 
 ## Quick Start
 
