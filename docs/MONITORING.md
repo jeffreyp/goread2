@@ -35,6 +35,8 @@ The dashboards below track **operational metrics** (operations, instances, bandw
 
 This dashboard tracks operational metrics that drive costs:
 
+**Note**: App Engine Standard environment has limited HTTP metrics available. Request count and response code metrics are not available through Cloud Monitoring for App Engine Standard runtime.
+
 #### Dashboard Widgets
 
 1. **Datastore Read Operations** - Read operations per second (cost: $0.06 per 100K entities)
@@ -44,8 +46,7 @@ This dashboard tracks operational metrics that drive costs:
 5. **Datastore Read/Write Entities** - Total entity counts
 6. **Request Latency (p95)** - Performance indicator
 7. **Datastore Operations by Type** - Breakdown of all operation types
-8. **App Engine Request Count** - HTTP requests per second
-9. **App Engine Response Codes** - Status code distribution
+8. **Datastore Operations Summary** - Overall Datastore activity
 
 **Deploy:**
 ```bash
