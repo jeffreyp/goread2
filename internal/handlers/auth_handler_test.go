@@ -57,6 +57,7 @@ func (m *mockDBAuthHandler) GetUserArticlesByIDs(int, []int) ([]database.Article
 }
 func (m *mockDBAuthHandler) GetSession(string) (*database.Session, error) { return nil, nil }
 func (m *mockDBAuthHandler) CreateSession(*database.Session) error        { return nil }
+func (m *mockDBAuthHandler) UpdateSessionExpiry(string, time.Time) error  { return nil }
 func (m *mockDBAuthHandler) DeleteSession(string) error                   { return nil }
 func (m *mockDBAuthHandler) GetExpiredSessions() ([]database.Session, error) {
 	return nil, nil

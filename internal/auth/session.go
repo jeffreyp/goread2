@@ -136,6 +136,25 @@ func (sm *SessionManager) GetSession(sessionID string) (*Session, bool) {
 	return session, true
 }
 
+func (sm *SessionManager) RefreshSession(sessionID string) error {
+	// Calculate new expiry time (extend by 7 days from now)
+	newExpiry := time.Now().Add(7 * 24 * time.Hour)
+
+	// Update in database
+	if err := sm.db.UpdateSessionExpiry(sessionID, newExpiry); err != nil {
+		return err
+	}
+
+	// Update cache if exists (write lock)
+	sm.cacheMu.Lock()
+	if cached, exists := sm.cache[sessionID]; exists {
+		cached.Session.ExpiresAt = newExpiry
+	}
+	sm.cacheMu.Unlock()
+
+	return nil
+}
+
 func (sm *SessionManager) DeleteSession(sessionID string) {
 	// Delete from database
 	if err := sm.db.DeleteSession(sessionID); err != nil {

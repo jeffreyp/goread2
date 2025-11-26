@@ -85,6 +85,13 @@ func (m *mockDB) GetSession(id string) (*database.Session, error) {
 	return nil, nil
 }
 
+func (m *mockDB) UpdateSessionExpiry(sessionID string, newExpiry time.Time) error {
+	if s, exists := m.sessions[sessionID]; exists {
+		s.ExpiresAt = newExpiry
+	}
+	return nil
+}
+
 func (m *mockDB) DeleteSession(id string) error {
 	delete(m.sessions, id)
 	return nil

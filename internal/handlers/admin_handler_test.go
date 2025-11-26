@@ -126,6 +126,7 @@ func (m *mockDBAdminHandler) UpdateFeedLastFetch(int, time.Time) error      { re
 func (m *mockDBAdminHandler) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
 func (m *mockDBAdminHandler) CreateSession(*database.Session) error         { return nil }
 func (m *mockDBAdminHandler) GetSession(string) (*database.Session, error)  { return nil, nil }
+func (m *mockDBAdminHandler) UpdateSessionExpiry(string, time.Time) error   { return nil }
 func (m *mockDBAdminHandler) DeleteSession(string) error                    { return nil }
 func (m *mockDBAdminHandler) DeleteExpiredSessions() error                  { return nil }
 

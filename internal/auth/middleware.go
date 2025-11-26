@@ -32,6 +32,9 @@ func (m *Middleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
+		// Refresh session to extend expiry for active users
+		_ = m.sessionManager.RefreshSession(session.ID)
+
 		// Add user to context
 		c.Set(string(UserContextKey), session.User)
 		c.Next()
@@ -49,6 +52,9 @@ func (m *Middleware) RequireAuthPage() gin.HandlerFunc {
 			return
 		}
 
+		// Refresh session to extend expiry for active users
+		_ = m.sessionManager.RefreshSession(session.ID)
+
 		// Add user to context
 		c.Set(string(UserContextKey), session.User)
 		c.Next()
@@ -60,6 +66,8 @@ func (m *Middleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session, exists := m.sessionManager.GetSessionFromRequest(c.Request)
 		if exists {
+			// Refresh session to extend expiry for active users
+			_ = m.sessionManager.RefreshSession(session.ID)
 			c.Set(string(UserContextKey), session.User)
 		}
 		c.Next()
@@ -81,6 +89,9 @@ func (m *Middleware) RequireAdmin() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
+		// Refresh session to extend expiry for active users
+		_ = m.sessionManager.RefreshSession(session.ID)
 
 		// Add user to context
 		c.Set(string(UserContextKey), session.User)

@@ -136,6 +136,7 @@ func (m *mockDBForSub) UpdateFeedLastFetch(int, time.Time) error      { return n
 func (m *mockDBForSub) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
 func (m *mockDBForSub) CreateSession(*database.Session) error         { return nil }
 func (m *mockDBForSub) GetSession(string) (*database.Session, error)  { return nil, nil }
+func (m *mockDBForSub) UpdateSessionExpiry(string, time.Time) error   { return nil }
 func (m *mockDBForSub) DeleteSession(string) error                    { return nil }
 func (m *mockDBForSub) DeleteExpiredSessions() error                  { return nil }
 func (m *mockDBForSub) CreateAuditLog(*database.AuditLog) error       { return nil }

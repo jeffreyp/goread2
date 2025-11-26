@@ -134,6 +134,7 @@ func (m *mockDBAudit) UpdateFeedLastFetch(int, time.Time) error      { return ni
 func (m *mockDBAudit) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
 func (m *mockDBAudit) CreateSession(*database.Session) error         { return nil }
 func (m *mockDBAudit) GetSession(string) (*database.Session, error)  { return nil, nil }
+func (m *mockDBAudit) UpdateSessionExpiry(string, time.Time) error   { return nil }
 func (m *mockDBAudit) DeleteSession(string) error                    { return nil }
 func (m *mockDBAudit) DeleteExpiredSessions() error                  { return nil }
 func (m *mockDBAudit) GetAccountStats(int) (map[string]interface{}, error) {

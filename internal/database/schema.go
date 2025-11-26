@@ -65,6 +65,7 @@ type Database interface {
 	// Session methods
 	CreateSession(session *Session) error
 	GetSession(sessionID string) (*Session, error)
+	UpdateSessionExpiry(sessionID string, newExpiry time.Time) error
 	DeleteSession(sessionID string) error
 	DeleteExpiredSessions() error
 
@@ -1342,6 +1343,12 @@ func (db *DB) GetSession(sessionID string) (*Session, error) {
 	}
 
 	return &session, nil
+}
+
+func (db *DB) UpdateSessionExpiry(sessionID string, newExpiry time.Time) error {
+	query := `UPDATE sessions SET expires_at = ? WHERE id = ?`
+	_, err := db.Exec(query, newExpiry, sessionID)
+	return err
 }
 
 func (db *DB) DeleteSession(sessionID string) error {

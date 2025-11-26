@@ -1751,6 +1751,26 @@ func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
 	}, nil
 }
 
+func (db *DatastoreDB) UpdateSessionExpiry(sessionID string, newExpiry time.Time) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	key := datastore.NameKey("Session", sessionID, nil)
+
+	// Get existing session first
+	var session Session
+	if err := db.client.Get(ctx, key, &session); err != nil {
+		return err
+	}
+
+	// Update expiry
+	session.ExpiresAt = newExpiry
+
+	// Save back to Datastore
+	_, err := db.client.Put(ctx, key, &session)
+	return err
+}
+
 func (db *DatastoreDB) DeleteSession(sessionID string) error {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()

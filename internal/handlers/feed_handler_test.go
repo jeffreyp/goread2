@@ -56,6 +56,7 @@ func (m *mockDBFeedHandler) GetUserUnreadCounts(int) (map[int]int, error) { retu
 func (m *mockDBFeedHandler) CleanupOrphanedUserArticles(int) (int, error) { return 0, nil }
 func (m *mockDBFeedHandler) CreateSession(*database.Session) error        { return nil }
 func (m *mockDBFeedHandler) GetSession(string) (*database.Session, error) { return nil, nil }
+func (m *mockDBFeedHandler) UpdateSessionExpiry(string, time.Time) error  { return nil }
 func (m *mockDBFeedHandler) DeleteSession(string) error                   { return nil }
 func (m *mockDBFeedHandler) DeleteExpiredSessions() error                 { return nil }
 func (m *mockDBFeedHandler) CreateAuditLog(*database.AuditLog) error      { return nil }
