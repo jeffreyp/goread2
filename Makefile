@@ -99,9 +99,11 @@ substitute-secrets:
 # Deploy to development (with validation)
 deploy-dev: validate-config build-frontend substitute-secrets
 	@echo "🚀 Deploying to development..."
-	@cp app.yaml.deploy app.yaml.tmp
-	@gcloud app deploy app.yaml.tmp --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet
-	@rm -f app.yaml.tmp app.yaml.deploy
+	@mv app.yaml app.yaml.bak
+	@cp app.yaml.deploy app.yaml
+	@gcloud app deploy --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet
+	@mv app.yaml.bak app.yaml
+	@rm -f app.yaml.deploy
 
 # Validate configuration in strict mode (for production)
 validate-config-strict:
@@ -111,9 +113,11 @@ validate-config-strict:
 # Deploy to production (with strict validation and tests)
 deploy-prod: validate-config-strict test build-frontend substitute-secrets
 	@echo "🚀 Deploying to production..."
-	@cp app.yaml.deploy app.yaml.tmp
-	@gcloud app deploy app.yaml.tmp --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet
-	@rm -f app.yaml.tmp app.yaml.deploy
+	@mv app.yaml app.yaml.bak
+	@cp app.yaml.deploy app.yaml
+	@gcloud app deploy --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet
+	@mv app.yaml.bak app.yaml
+	@rm -f app.yaml.deploy
 	@echo "🧹 Cleaning up old versions..."
 	@gcloud app versions list --sort-by=LAST_DEPLOYED --format="value(id)" --filter="TRAFFIC_SPLIT=0" | head -1 | xargs -r gcloud app versions delete --quiet
 
