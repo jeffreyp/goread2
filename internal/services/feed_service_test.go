@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/xml"
 	"errors"
 	"net/http"
@@ -989,4 +990,188 @@ func TestAddFeedForUserTimeout(t *testing.T) {
 	case <-time.After(1 * time.Second):
 		t.Error("HTTP request was never made - goroutine didn't start")
 	}
+}
+
+func TestFetchFeed_SizeLimit(t *testing.T) {
+	t.Run("feed under size limit succeeds", func(t *testing.T) {
+		// Create a small valid RSS feed (well under 10MB)
+		smallFeed := `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Small Feed</title>
+    <description>A small test feed</description>
+    <link>https://test.com</link>
+    <item>
+      <title>Test Article</title>
+      <link>https://test.com/article1</link>
+      <description>This is a test article.</description>
+      <pubDate>Mon, 01 Jan 2023 12:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>`
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/rss+xml")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(smallFeed))
+		}))
+		defer server.Close()
+
+		db := setupTestDB(t)
+		defer func() { _ = db.Close() }()
+		service := NewFeedService(db, nil)
+		service.SetHTTPClient(&mockHTTPClient{Server: server})
+
+		feed, err := service.fetchFeed(context.Background(), server.URL)
+
+		if err != nil {
+			t.Fatalf("Expected no error for small feed, got: %v", err)
+		}
+		if feed == nil {
+			t.Fatal("Expected feed data, got nil")
+		}
+		if feed.Title != "Small Feed" {
+			t.Errorf("Expected title 'Small Feed', got: %s", feed.Title)
+		}
+	})
+
+	t.Run("feed at size limit is rejected", func(t *testing.T) {
+		// Create a feed exactly at maxFeedBodySize (10MB)
+		const chunkSize = 1024 // 1KB chunks
+		totalChunks := (maxFeedBodySize / chunkSize)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/rss+xml")
+			w.WriteHeader(http.StatusOK)
+
+			// Write exactly maxFeedBodySize bytes
+			chunk := make([]byte, chunkSize)
+			for i := 0; i < chunkSize; i++ {
+				chunk[i] = 'A'
+			}
+
+			for i := 0; i < totalChunks; i++ {
+				_, _ = w.Write(chunk)
+			}
+		}))
+		defer server.Close()
+
+		db := setupTestDB(t)
+		defer func() { _ = db.Close() }()
+		service := NewFeedService(db, nil)
+		service.SetHTTPClient(&mockHTTPClient{Server: server})
+
+		feed, err := service.fetchFeed(context.Background(), server.URL)
+
+		if err == nil {
+			t.Fatal("Expected error for feed at size limit, got nil")
+		}
+		if !errors.Is(err, ErrInvalidFeedFormat) {
+			t.Errorf("Expected ErrInvalidFeedFormat, got: %v", err)
+		}
+		if feed != nil {
+			t.Errorf("Expected nil feed, got: %v", feed)
+		}
+	})
+
+	t.Run("feed exceeding size limit is rejected", func(t *testing.T) {
+		// Create a feed larger than maxFeedBodySize (10MB + 1KB)
+		const chunkSize = 1024 // 1KB chunks
+		totalChunks := (maxFeedBodySize / chunkSize) + 1
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/rss+xml")
+			w.WriteHeader(http.StatusOK)
+
+			// Write maxFeedBodySize + 1KB bytes
+			chunk := make([]byte, chunkSize)
+			for i := 0; i < chunkSize; i++ {
+				chunk[i] = 'A'
+			}
+
+			for i := 0; i < totalChunks; i++ {
+				_, _ = w.Write(chunk)
+			}
+		}))
+		defer server.Close()
+
+		db := setupTestDB(t)
+		defer func() { _ = db.Close() }()
+		service := NewFeedService(db, nil)
+		service.SetHTTPClient(&mockHTTPClient{Server: server})
+
+		feed, err := service.fetchFeed(context.Background(), server.URL)
+
+		if err == nil {
+			t.Fatal("Expected error for oversized feed, got nil")
+		}
+		if !errors.Is(err, ErrInvalidFeedFormat) {
+			t.Errorf("Expected ErrInvalidFeedFormat, got: %v", err)
+		}
+		if feed != nil {
+			t.Errorf("Expected nil feed, got: %v", feed)
+		}
+	})
+
+	t.Run("feed just under size limit succeeds", func(t *testing.T) {
+		// Create a feed just under maxFeedBodySize (9.9MB)
+		const chunkSize = 1024 // 1KB chunks
+		totalChunks := (maxFeedBodySize / chunkSize) - 100 // Leave 100KB buffer
+
+		// Start with a valid RSS feed structure
+		rssHeader := `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Large Feed</title>
+    <description>A large test feed</description>
+    <link>https://test.com</link>
+    <item>
+      <title>Test Article</title>
+      <link>https://test.com/article1</link>
+      <description>`
+		rssFooter := `</description>
+      <pubDate>Mon, 01 Jan 2023 12:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>`
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/rss+xml")
+			w.WriteHeader(http.StatusOK)
+
+			// Write RSS header
+			_, _ = w.Write([]byte(rssHeader))
+
+			// Write padding content
+			chunk := make([]byte, chunkSize)
+			for i := 0; i < chunkSize; i++ {
+				chunk[i] = 'A'
+			}
+
+			for i := 0; i < totalChunks; i++ {
+				_, _ = w.Write(chunk)
+			}
+
+			// Write RSS footer
+			_, _ = w.Write([]byte(rssFooter))
+		}))
+		defer server.Close()
+
+		db := setupTestDB(t)
+		defer func() { _ = db.Close() }()
+		service := NewFeedService(db, nil)
+		service.SetHTTPClient(&mockHTTPClient{Server: server})
+
+		feed, err := service.fetchFeed(context.Background(), server.URL)
+
+		if err != nil {
+			t.Fatalf("Expected no error for large but valid feed, got: %v", err)
+		}
+		if feed == nil {
+			t.Fatal("Expected feed data, got nil")
+		}
+		if feed.Title != "Large Feed" {
+			t.Errorf("Expected title 'Large Feed', got: %s", feed.Title)
+		}
+	})
 }

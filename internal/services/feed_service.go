@@ -19,6 +19,12 @@ import (
 	"golang.org/x/text/language"
 )
 
+const (
+	// maxFeedBodySize is the maximum size we'll read from a feed (10MB)
+	// This prevents memory exhaustion and high bandwidth costs from malicious/broken feeds
+	maxFeedBodySize = 10 * 1024 * 1024 // 10MB
+)
+
 // HTTPClient interface for making HTTP requests (allows mocking in tests)
 type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
@@ -528,9 +534,16 @@ func (fs *FeedService) fetchFeed(ctx context.Context, url string) (*FeedData, er
 		return nil, fmt.Errorf("%w: feed URL returned HTTP %d", ErrNetworkError, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Limit the amount of data we'll read to prevent memory exhaustion and bandwidth costs
+	limitedBody := io.LimitReader(resp.Body, maxFeedBodySize+1)
+	body, err := io.ReadAll(limitedBody)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to read response body: %v", ErrNetworkError, err)
+	}
+
+	// Check if we hit the size limit
+	if len(body) > maxFeedBodySize {
+		return nil, fmt.Errorf("%w: feed exceeds maximum size of %d bytes", ErrInvalidFeedFormat, maxFeedBodySize)
 	}
 
 	// Handle character encoding conversion
