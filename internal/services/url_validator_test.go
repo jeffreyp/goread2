@@ -1,10 +1,12 @@
 package services
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewURLValidator(t *testing.T) {
@@ -52,7 +54,7 @@ func TestValidateURL_ValidURLs(t *testing.T) {
 
 	for _, url := range validURLs {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err != nil {
 				t.Errorf("ValidateURL(%q) returned error: %v", url, err)
 			}
@@ -73,7 +75,7 @@ func TestValidateURL_InvalidSchemes(t *testing.T) {
 
 	for _, url := range invalidSchemes {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should have returned an error for invalid scheme", url)
 			}
@@ -97,7 +99,7 @@ func TestValidateURL_LoopbackAddresses(t *testing.T) {
 
 	for _, url := range loopbackURLs {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should have blocked loopback address", url)
 			}
@@ -125,7 +127,7 @@ func TestValidateURL_PrivateNetworks(t *testing.T) {
 
 	for _, url := range privateURLs {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should have blocked private network address", url)
 			}
@@ -151,7 +153,7 @@ func TestValidateURL_LinkLocalAddresses(t *testing.T) {
 
 	for _, url := range linkLocalURLs {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should have blocked link-local address", url)
 			}
@@ -176,7 +178,7 @@ func TestValidateURL_MulticastAddresses(t *testing.T) {
 
 	for _, url := range multicastURLs {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should have blocked multicast address", url)
 			}
@@ -199,7 +201,7 @@ func TestValidateURL_EmptyOrInvalidURLs(t *testing.T) {
 
 	for _, tc := range invalidURLs {
 		t.Run(tc.url, func(t *testing.T) {
-			err := validator.ValidateURL(tc.url)
+			err := validator.ValidateURL(context.Background(), tc.url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should have returned an error", tc.url)
 			}
@@ -268,7 +270,7 @@ func TestValidateAndNormalizeURL(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
-			result, err := validator.ValidateAndNormalizeURL(tc.input)
+			result, err := validator.ValidateAndNormalizeURL(context.Background(), tc.input)
 			if tc.wantErr {
 				if err == nil {
 					t.Errorf("ValidateAndNormalizeURL(%q) should have returned an error", tc.input)
@@ -342,7 +344,7 @@ func TestSSRFProtection_AWSMetadata(t *testing.T) {
 
 	for _, url := range metadataURLs {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should block metadata endpoint", url)
 			}
@@ -369,7 +371,7 @@ func TestSSRFProtection_InternalServices(t *testing.T) {
 
 	for _, url := range internalServices {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should block internal service", url)
 			}
@@ -389,10 +391,56 @@ func TestValidateURL_IPv6UniqueLocal(t *testing.T) {
 
 	for _, url := range uniqueLocalURLs {
 		t.Run(url, func(t *testing.T) {
-			err := validator.ValidateURL(url)
+			err := validator.ValidateURL(context.Background(), url)
 			if err == nil {
 				t.Errorf("ValidateURL(%q) should block IPv6 unique local address", url)
 			}
 		})
 	}
+}
+
+func TestValidateURL_DNSTimeout(t *testing.T) {
+	validator := NewURLValidator()
+
+	t.Run("context with timeout", func(t *testing.T) {
+		// Create a context with a very short timeout (1ms)
+		// This should timeout before DNS lookup completes for most real domains
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		defer cancel()
+
+		// Wait a bit to ensure context expires
+		time.Sleep(2 * time.Millisecond)
+
+		// Try to validate a URL that would require DNS lookup
+		// Use a real domain that might be slow or use a non-existent one
+		err := validator.ValidateURL(ctx, "https://this-domain-definitely-does-not-exist-12345.com")
+
+		if err == nil {
+			t.Error("Expected timeout error for expired context")
+		}
+	})
+
+	t.Run("cancelled context", func(t *testing.T) {
+		// Create a context and cancel it immediately
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		err := validator.ValidateURL(ctx, "https://example.com")
+
+		if err == nil {
+			t.Error("Expected error for cancelled context")
+		}
+	})
+
+	t.Run("normal context succeeds", func(t *testing.T) {
+		// Normal context with reasonable timeout should work
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		err := validator.ValidateURL(ctx, "https://example.com")
+
+		if err != nil {
+			t.Errorf("ValidateURL with normal context should succeed, got: %v", err)
+		}
+	})
 }

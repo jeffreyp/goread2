@@ -1,12 +1,19 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+)
+
+const (
+	// dnsLookupTimeout is the maximum time to wait for DNS resolution
+	// This prevents hanging on slow or unresponsive DNS servers
+	dnsLookupTimeout = 5 * time.Second
 )
 
 // URLValidator provides SSRF protection for feed URL validation
@@ -62,7 +69,7 @@ func NewURLValidator() *URLValidator {
 }
 
 // ValidateURL validates a URL for SSRF protection
-func (v *URLValidator) ValidateURL(rawURL string) error {
+func (v *URLValidator) ValidateURL(ctx context.Context, rawURL string) error {
 	// Parse the URL
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -92,8 +99,13 @@ func (v *URLValidator) ValidateURL(rawURL string) error {
 		}
 	}
 
-	// Resolve DNS to check actual IP addresses
-	ips, err := net.LookupIP(hostname)
+	// Resolve DNS to check actual IP addresses with timeout
+	// Create a context with timeout to prevent hanging on slow DNS servers
+	dnsCtx, cancel := context.WithTimeout(ctx, dnsLookupTimeout)
+	defer cancel()
+
+	resolver := &net.Resolver{}
+	ips, err := resolver.LookupIP(dnsCtx, "ip", hostname)
 	if err != nil {
 		return fmt.Errorf("DNS lookup failed for %s: %w", hostname, err)
 	}
@@ -134,7 +146,8 @@ func (v *URLValidator) CreateSecureHTTPClient(timeout time.Duration) *http.Clien
 			}
 
 			// Validate each redirect destination
-			if err := v.ValidateURL(req.URL.String()); err != nil {
+			// Use request context for DNS lookups
+			if err := v.ValidateURL(req.Context(), req.URL.String()); err != nil {
 				return fmt.Errorf("redirect to blocked URL: %w", err)
 			}
 
@@ -155,7 +168,7 @@ func (v *URLValidator) CreateSecureHTTPClient(timeout time.Duration) *http.Clien
 }
 
 // ValidateAndNormalizeURL validates a URL and normalizes it (adds https:// if needed)
-func (v *URLValidator) ValidateAndNormalizeURL(rawURL string) (string, error) {
+func (v *URLValidator) ValidateAndNormalizeURL(ctx context.Context, rawURL string) (string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
 		return "", fmt.Errorf("URL cannot be empty")
@@ -167,7 +180,7 @@ func (v *URLValidator) ValidateAndNormalizeURL(rawURL string) (string, error) {
 	}
 
 	// Validate the URL
-	if err := v.ValidateURL(rawURL); err != nil {
+	if err := v.ValidateURL(ctx, rawURL); err != nil {
 		return "", err
 	}
 

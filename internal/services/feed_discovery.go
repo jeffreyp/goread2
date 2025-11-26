@@ -26,9 +26,9 @@ func NewFeedDiscovery() *FeedDiscovery {
 }
 
 // NormalizeURL adds protocol if missing and validates the URL with SSRF protection
-func (fd *FeedDiscovery) NormalizeURL(rawURL string) (string, error) {
+func (fd *FeedDiscovery) NormalizeURL(ctx context.Context, rawURL string) (string, error) {
 	// Use the URL validator which includes SSRF protection
-	normalizedURL, err := fd.urlValidator.ValidateAndNormalizeURL(rawURL)
+	normalizedURL, err := fd.urlValidator.ValidateAndNormalizeURL(ctx, rawURL)
 	if err != nil {
 		// Check if it's an SSRF protection error
 		if strings.Contains(err.Error(), "SSRF protection") ||
@@ -49,7 +49,7 @@ func (fd *FeedDiscovery) NormalizeURL(rawURL string) (string, error) {
 
 // DiscoverFeedURL attempts to find feed URLs from a given URL
 func (fd *FeedDiscovery) DiscoverFeedURL(ctx context.Context, inputURL string) ([]string, error) {
-	normalizedURL, err := fd.NormalizeURL(inputURL)
+	normalizedURL, err := fd.NormalizeURL(ctx, inputURL)
 	if err != nil {
 		// Errors from NormalizeURL are already wrapped with custom types
 		return nil, err
@@ -299,7 +299,7 @@ func (fd *FeedDiscovery) tryMastodonFeedPaths(ctx context.Context, baseURL strin
 // isValidFeed checks if a given URL is a valid RSS/Atom feed
 func (fd *FeedDiscovery) isValidFeed(ctx context.Context, feedURL string) bool {
 	// Validate URL for SSRF protection
-	if err := fd.urlValidator.ValidateURL(feedURL); err != nil {
+	if err := fd.urlValidator.ValidateURL(ctx, feedURL); err != nil {
 		return false
 	}
 

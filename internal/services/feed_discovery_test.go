@@ -132,7 +132,7 @@ func TestNormalizeURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := fd.NormalizeURL(tt.input)
+			result, err := fd.NormalizeURL(context.Background(), tt.input)
 
 			if tt.expectError {
 				if err == nil {

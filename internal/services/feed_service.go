@@ -231,7 +231,7 @@ func (fs *FeedService) addFeedForUserInternal(ctx context.Context, userID int, i
 
 	// Normalize the input URL first
 	discovery := NewFeedDiscovery()
-	normalizedURL, err := discovery.NormalizeURL(inputURL)
+	normalizedURL, err := discovery.NormalizeURL(ctx, inputURL)
 	if err != nil {
 		// Errors from NormalizeURL are already wrapped with custom types
 		return nil, err
@@ -487,7 +487,7 @@ func (fs *FeedService) UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles int) e
 func (fs *FeedService) fetchFeed(ctx context.Context, url string) (*FeedData, error) {
 	// Validate URL for SSRF protection (skip if using mock HTTP client for testing)
 	if fs.httpClient == nil {
-		if err := fs.urlValidator.ValidateURL(url); err != nil {
+		if err := fs.urlValidator.ValidateURL(ctx, url); err != nil {
 			// Check if it's an SSRF protection error
 			if strings.Contains(err.Error(), "SSRF protection") ||
 				strings.Contains(err.Error(), "blocked network") ||
