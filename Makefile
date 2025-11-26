@@ -101,9 +101,16 @@ deploy-dev: validate-config build-frontend substitute-secrets
 	@echo "🚀 Deploying to development..."
 	@mv app.yaml app.yaml.bak
 	@cp app.yaml.deploy app.yaml
-	@gcloud app deploy --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet
-	@mv app.yaml.bak app.yaml
-	@rm -f app.yaml.deploy
+	@echo "🧹 Stopping beads daemon and removing socket file..."
+	@-bd daemon --stop 2>/dev/null || true
+	@-rm -f .beads/bd.sock 2>/dev/null || true
+	@sleep 1
+	@gcloud app deploy --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet; \
+	EXIT_CODE=$$?; \
+	bd daemon --start 2>/dev/null || true; \
+	mv app.yaml.bak app.yaml; \
+	rm -f app.yaml.deploy; \
+	exit $$EXIT_CODE
 
 # Validate configuration in strict mode (for production)
 validate-config-strict:
@@ -115,9 +122,16 @@ deploy-prod: validate-config-strict test build-frontend substitute-secrets
 	@echo "🚀 Deploying to production..."
 	@mv app.yaml app.yaml.bak
 	@cp app.yaml.deploy app.yaml
-	@gcloud app deploy --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet
-	@mv app.yaml.bak app.yaml
-	@rm -f app.yaml.deploy
+	@echo "🧹 Stopping beads daemon and removing socket file..."
+	@-bd daemon --stop 2>/dev/null || true
+	@-rm -f .beads/bd.sock 2>/dev/null || true
+	@sleep 1
+	@gcloud app deploy --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet; \
+	EXIT_CODE=$$?; \
+	bd daemon --start 2>/dev/null || true; \
+	mv app.yaml.bak app.yaml; \
+	rm -f app.yaml.deploy; \
+	exit $$EXIT_CODE
 	@echo "🧹 Cleaning up old versions..."
 	@gcloud app versions list --sort-by=LAST_DEPLOYED --format="value(id)" --filter="TRAFFIC_SPLIT=0" | head -1 | xargs -r gcloud app versions delete --quiet
 
