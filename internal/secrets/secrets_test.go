@@ -213,12 +213,12 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 		}
 	})
 
-	t.Run("placeholder value triggers secret lookup", func(t *testing.T) {
+	t.Run("secret reference prefix triggers secret lookup", func(t *testing.T) {
 		// Reset cache before test
 		ResetCacheForTesting()
 
-		// Setup - "stripe-secret-key" is treated as a placeholder
-		if err := os.Setenv("STRIPE_SECRET_KEY", "stripe-secret-key"); err != nil {
+		// Setup - "_secret:" prefix triggers Secret Manager lookup
+		if err := os.Setenv("STRIPE_SECRET_KEY", "_secret:stripe-secret-key"); err != nil {
 			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
 		}
 		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012"); err != nil {
@@ -241,11 +241,11 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 		// Assert
 		if err == nil {
-			t.Error("Expected error when using placeholder value without GOOGLE_CLOUD_PROJECT, got nil")
+			t.Error("Expected error when using _secret: prefix without GOOGLE_CLOUD_PROJECT, got nil")
 		}
 	})
 
-	t.Run("publishable key placeholder triggers secret lookup", func(t *testing.T) {
+	t.Run("publishable key with secret reference", func(t *testing.T) {
 		// Reset cache before test
 		ResetCacheForTesting()
 
@@ -253,7 +253,7 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 		if err := os.Setenv("STRIPE_SECRET_KEY", "sk_test_123456"); err != nil {
 			t.Fatalf("Failed to set STRIPE_SECRET_KEY: %v", err)
 		}
-		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "stripe-publishable-key"); err != nil {
+		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "_secret:stripe-publishable-key"); err != nil {
 			t.Fatalf("Failed to set STRIPE_PUBLISHABLE_KEY: %v", err)
 		}
 		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678"); err != nil {
@@ -273,11 +273,11 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 		// Assert
 		if err == nil {
-			t.Error("Expected error when using placeholder value without GOOGLE_CLOUD_PROJECT, got nil")
+			t.Error("Expected error when using _secret: prefix without GOOGLE_CLOUD_PROJECT, got nil")
 		}
 	})
 
-	t.Run("webhook secret placeholder triggers secret lookup", func(t *testing.T) {
+	t.Run("webhook secret with secret reference", func(t *testing.T) {
 		// Reset cache before test
 		ResetCacheForTesting()
 
@@ -288,7 +288,7 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 		if err := os.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_789012"); err != nil {
 			t.Fatalf("Failed to set STRIPE_PUBLISHABLE_KEY: %v", err)
 		}
-		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "stripe-webhook-secret"); err != nil {
+		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "_secret:stripe-webhook-secret"); err != nil {
 			t.Fatalf("Failed to set STRIPE_WEBHOOK_SECRET: %v", err)
 		}
 		if err := os.Setenv("STRIPE_PRICE_ID", "price_test_901234"); err != nil {
@@ -305,11 +305,11 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 		// Assert
 		if err == nil {
-			t.Error("Expected error when using placeholder value without GOOGLE_CLOUD_PROJECT, got nil")
+			t.Error("Expected error when using _secret: prefix without GOOGLE_CLOUD_PROJECT, got nil")
 		}
 	})
 
-	t.Run("price ID placeholder triggers secret lookup", func(t *testing.T) {
+	t.Run("price ID with secret reference", func(t *testing.T) {
 		// Reset cache before test
 		ResetCacheForTesting()
 
@@ -323,7 +323,7 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 		if err := os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_345678"); err != nil {
 			t.Fatalf("Failed to set STRIPE_WEBHOOK_SECRET: %v", err)
 		}
-		if err := os.Setenv("STRIPE_PRICE_ID", "stripe-price-id"); err != nil {
+		if err := os.Setenv("STRIPE_PRICE_ID", "_secret:stripe-price-id"); err != nil {
 			t.Fatalf("Failed to set STRIPE_PRICE_ID: %v", err)
 		}
 		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
@@ -337,7 +337,7 @@ func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
 
 		// Assert
 		if err == nil {
-			t.Error("Expected error when using placeholder value without GOOGLE_CLOUD_PROJECT, got nil")
+			t.Error("Expected error when using _secret: prefix without GOOGLE_CLOUD_PROJECT, got nil")
 		}
 	})
 }

@@ -156,7 +156,7 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 	stripeOnce.Do(func() {
 		// Get Stripe secret key
 		stripeSecretKey = os.Getenv("STRIPE_SECRET_KEY")
-		if stripeSecretKey == "" || stripeSecretKey == "stripe-secret-key" {
+		if stripeSecretKey == "" || (len(stripeSecretKey) >= 8 && stripeSecretKey[:8] == "_secret:") {
 			stripeSecretKey, stripeErr = GetSecret(ctx, "stripe-secret-key")
 			if stripeErr != nil {
 				stripeErr = fmt.Errorf("failed to get Stripe secret key: %w", stripeErr)
@@ -166,7 +166,7 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 
 		// Get Stripe publishable key
 		stripePublishableKey = os.Getenv("STRIPE_PUBLISHABLE_KEY")
-		if stripePublishableKey == "" || stripePublishableKey == "stripe-publishable-key" {
+		if stripePublishableKey == "" || (len(stripePublishableKey) >= 8 && stripePublishableKey[:8] == "_secret:") {
 			stripePublishableKey, stripeErr = GetSecret(ctx, "stripe-publishable-key")
 			if stripeErr != nil {
 				stripeErr = fmt.Errorf("failed to get Stripe publishable key: %w", stripeErr)
@@ -176,7 +176,7 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 
 		// Get Stripe webhook secret
 		stripeWebhookSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
-		if stripeWebhookSecret == "" || stripeWebhookSecret == "stripe-webhook-secret" {
+		if stripeWebhookSecret == "" || (len(stripeWebhookSecret) >= 8 && stripeWebhookSecret[:8] == "_secret:") {
 			stripeWebhookSecret, stripeErr = GetSecret(ctx, "stripe-webhook-secret")
 			if stripeErr != nil {
 				stripeErr = fmt.Errorf("failed to get Stripe webhook secret: %w", stripeErr)
@@ -186,7 +186,7 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 
 		// Get Stripe price ID
 		stripePriceID = os.Getenv("STRIPE_PRICE_ID")
-		if stripePriceID == "" || stripePriceID == "stripe-price-id" {
+		if stripePriceID == "" || (len(stripePriceID) >= 8 && stripePriceID[:8] == "_secret:") {
 			stripePriceID, stripeErr = GetSecret(ctx, "stripe-price-id")
 			if stripeErr != nil {
 				stripeErr = fmt.Errorf("failed to get Stripe price ID: %w", stripeErr)

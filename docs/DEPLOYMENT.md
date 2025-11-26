@@ -53,6 +53,8 @@ All deployment methods require:
 
 **Important**: For Google App Engine deployments, environment variables should be configured in Google Secret Manager for security, not hardcoded in `app.yaml`.
 
+**Secret Reference Convention**: The application supports a `_secret:` prefix for environment variables to explicitly trigger Secret Manager lookups. For example, setting `GOOGLE_CLIENT_ID=_secret:my-client-id` will fetch the secret from Google Secret Manager. This convention is consistent across all credentials (OAuth and Stripe) and prevents accidental conflicts with actual secret values.
+
 #### Setting up Google Secret Manager
 
 1. **Enable the Secret Manager API:**
