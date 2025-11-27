@@ -146,13 +146,15 @@ func (ps *PaymentService) CreateCheckoutSession(req CheckoutSessionRequest) (*Ch
 
 // getOrCreateStripeCustomer gets existing customer or creates a new one
 func (ps *PaymentService) getOrCreateStripeCustomer(user *database.User) (string, error) {
-	// Try to find existing customer by email
-	params := &stripe.CustomerListParams{
-		Email: stripe.String(user.Email),
+	// Try to find existing customer by email using Search API (more efficient than List)
+	params := &stripe.CustomerSearchParams{
+		SearchParams: stripe.SearchParams{
+			Query: fmt.Sprintf("email:'%s'", user.Email),
+		},
 	}
 	params.Limit = stripe.Int64(1)
 
-	iter := customer.List(params)
+	iter := customer.Search(params)
 	for iter.Next() {
 		return iter.Customer().ID, nil
 	}
