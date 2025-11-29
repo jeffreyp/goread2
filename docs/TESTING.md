@@ -11,7 +11,7 @@ Testing guide for GoRead2's multi-user RSS reader application.
 GoRead2's testing infrastructure includes:
 - **Package-level unit tests** with 8.0% overall coverage across multiple packages
 - **Integration tests** for end-to-end API validation
-- **Frontend tests** with Jest and jsdom (46 tests)
+- **Frontend tests** with Jest and jsdom (64 tests)
 - **CI/CD integration** with GitHub Actions
 
 ## Current Test Structure
@@ -48,6 +48,7 @@ test/
 web/tests/                  # Frontend tests
 ├── app-core.test.js        # Core frontend functionality (28 tests)
 ├── error-handler.test.js   # Error handling and toast notifications (18 tests)
+├── pagination.test.js      # Pagination and Load More functionality (18 tests)
 ├── utils.js                # Frontend test utilities
 ├── setup.js                # Test environment setup
 └── README.md               # Frontend testing documentation
@@ -485,6 +486,40 @@ describe('Error Handling and Toast Notifications', () => {
 - **Button Interactions**: Click handlers for retry and dismiss actions
 - **DOM Structure**: Proper HTML element creation and class management
 
+#### Pagination and Load More (`web/tests/pagination.test.js`)
+
+Tests cursor-based pagination and Load More button with 18 comprehensive tests:
+
+```javascript
+describe('Pagination Functionality', () => {
+  test('creates Load More button when more articles available', () => {
+    // Test Load More button creation and styling
+  });
+
+  test('handles button click and loading states', () => {
+    // Test button state transitions (normal → loading → restored)
+  });
+
+  test('manages cursor-based pagination correctly', () => {
+    // Test next_cursor handling and page requests
+  });
+});
+```
+
+**Coverage includes:**
+- **Load More Button**: Creation, removal, styling, and state management
+- **Button States**: Loading text, disabled state, error recovery
+- **Article Rendering**:
+  - Empty state placeholder
+  - Multiple article rendering
+  - Appending new articles on load more
+  - Article index assignment and preservation
+- **Pagination State**: hasMoreArticles flag tracking based on cursor
+- **Cursor Logic**: Using next_cursor for subsequent page requests
+- **Feed-Specific Behavior**: Load More only appears for 'all' feed view
+- **Error Handling**: Button state restoration on loading errors
+- **Index Management**: Sequential article indexing across multiple pages
+
 #### Core Functionality (`web/tests/app-core.test.js`)
 
 Tests frontend application logic with 28 comprehensive tests:
@@ -608,9 +643,10 @@ Current test coverage status and targets:
 - **Services package**: 20.1% coverage (subscription logic, feed discovery, **comprehensive admin token security**)
 - **Handlers package**: 1.0% coverage (constructor functions)
 - **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
-- **Frontend**: 46 tests covering core functionality, error handling, and toast notifications
+- **Frontend**: 64 tests covering core functionality, error handling, toast notifications, and pagination
   - **Core frontend tests**: 28 tests for DOM manipulation, events, forms, utilities
   - **Error handler tests**: 18 tests for connection monitoring, error display, toast notifications
+  - **Pagination tests**: 18 tests for Load More button, cursor-based pagination, article rendering
 - **Admin Token System**: Comprehensive test coverage for the new secure authentication system
   - 6 SQLite backend test suites with 20+ individual test cases
   - 6 Datastore backend test suites (skip when emulator unavailable)
