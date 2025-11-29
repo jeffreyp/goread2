@@ -24,7 +24,8 @@
     "testEnvironment": "jsdom",
     "testMatch": [
       "**/web/tests/app-core.test.js",
-      "**/web/tests/error-handler.test.js"
+      "**/web/tests/error-handler.test.js",
+      "**/web/tests/pagination.test.js"
     ],
     "setupFilesAfterEnv": [
       "<rootDir>/web/tests/setup.js"
