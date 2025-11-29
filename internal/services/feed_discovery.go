@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -185,7 +186,7 @@ func (fd *FeedDiscovery) extractFeedLinksFromHTML(html, baseURL string) ([]strin
 	return feedURLs, nil
 }
 
-// tryCommonFeedPaths tries common feed paths for a website
+// tryCommonFeedPaths tries common feed paths for a website in parallel
 func (fd *FeedDiscovery) tryCommonFeedPaths(ctx context.Context, baseURL string) []string {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
@@ -207,50 +208,79 @@ func (fd *FeedDiscovery) tryCommonFeedPaths(ctx context.Context, baseURL string)
 		"/index.xml",
 	}
 
-	var validFeeds []string
-
-	// Try each scheme (HTTPS first, then HTTP)
+	// Build all candidate URLs
+	var candidateURLs []string
 	for _, scheme := range schemes {
 		baseSchemeHost := scheme + "://" + host
-
 		for _, path := range commonPaths {
-			feedURL := baseSchemeHost + path
+			candidateURLs = append(candidateURLs, baseSchemeHost+path)
+		}
+	}
+
+	// Channel to receive the first valid feed URL
+	resultChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	var wg sync.WaitGroup
+
+	// Launch parallel requests for all candidate URLs
+	for _, feedURL := range candidateURLs {
+		wg.Add(1)
+		go func(url string) {
+			defer wg.Done()
+
+			// Check if we already found a result
+			select {
+			case <-doneChan:
+				return
+			default:
+			}
 
 			// Quick check if URL returns 200
-			req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
+			req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
 			if err != nil {
-				continue
+				return
 			}
 			req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
 			resp, err := fd.client.Do(req)
-
 			if err != nil {
-				continue
+				return
 			}
 
 			if resp != nil {
 				_ = resp.Body.Close()
 				if resp.StatusCode == 200 {
-					// For performance, trust that HEAD requests to feed paths are valid
-					// This avoids additional validation requests in production
-					validFeeds = append(validFeeds, feedURL)
-					// Stop after finding the first working feed for faster discovery
-					break
+					// Try to send result (non-blocking in case another goroutine won)
+					select {
+					case resultChan <- url:
+					case <-doneChan:
+					}
 				}
 			}
-		}
-
-		// If we found feeds with the first scheme (HTTPS), don't try HTTP
-		if len(validFeeds) > 0 {
-			break
-		}
+		}(feedURL)
 	}
 
-	return validFeeds
+	// Wait for all goroutines in a separate goroutine
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Return the first valid feed found, or empty if none found
+	select {
+	case feedURL := <-resultChan:
+		close(doneChan) // Signal other goroutines to stop
+		if feedURL != "" {
+			return []string{feedURL}
+		}
+		return nil
+	case <-ctx.Done():
+		close(doneChan)
+		return nil
+	}
 }
 
-// tryMastodonFeedPaths tries Mastodon-style RSS feeds (e.g., @username.rss)
+// tryMastodonFeedPaths tries Mastodon-style RSS feeds (e.g., @username.rss) in parallel
 func (fd *FeedDiscovery) tryMastodonFeedPaths(ctx context.Context, baseURL string) []string {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
@@ -265,35 +295,74 @@ func (fd *FeedDiscovery) tryMastodonFeedPaths(ctx context.Context, baseURL strin
 
 	// Try adding .rss to the end of the URL for Mastodon-style feeds
 	schemes := []string{"https", "http"}
-	var validFeeds []string
 
+	// Build all candidate URLs
+	var candidateURLs []string
 	for _, scheme := range schemes {
-		feedURL := scheme + "://" + parsedURL.Host + path + ".rss"
-
-		// Quick check if URL returns 200
-		req, err := http.NewRequestWithContext(ctx, "HEAD", feedURL, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
-
-		resp, err := fd.client.Do(req)
-
-		if err != nil {
-			continue
-		}
-
-		if resp != nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == 200 {
-				validFeeds = append(validFeeds, feedURL)
-				// Stop after finding the first working feed for faster discovery
-				break
-			}
-		}
+		candidateURLs = append(candidateURLs, scheme+"://"+parsedURL.Host+path+".rss")
 	}
 
-	return validFeeds
+	// Channel to receive the first valid feed URL
+	resultChan := make(chan string, 1)
+	doneChan := make(chan struct{})
+	var wg sync.WaitGroup
+
+	// Launch parallel requests for all candidate URLs
+	for _, feedURL := range candidateURLs {
+		wg.Add(1)
+		go func(url string) {
+			defer wg.Done()
+
+			// Check if we already found a result
+			select {
+			case <-doneChan:
+				return
+			default:
+			}
+
+			// Quick check if URL returns 200
+			req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
+			if err != nil {
+				return
+			}
+			req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
+
+			resp, err := fd.client.Do(req)
+			if err != nil {
+				return
+			}
+
+			if resp != nil {
+				_ = resp.Body.Close()
+				if resp.StatusCode == 200 {
+					// Try to send result (non-blocking in case another goroutine won)
+					select {
+					case resultChan <- url:
+					case <-doneChan:
+					}
+				}
+			}
+		}(feedURL)
+	}
+
+	// Wait for all goroutines in a separate goroutine
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Return the first valid feed found, or empty if none found
+	select {
+	case feedURL := <-resultChan:
+		close(doneChan) // Signal other goroutines to stop
+		if feedURL != "" {
+			return []string{feedURL}
+		}
+		return nil
+	case <-ctx.Done():
+		close(doneChan)
+		return nil
+	}
 }
 
 // isValidFeed checks if a given URL is a valid RSS/Atom feed

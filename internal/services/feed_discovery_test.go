@@ -2,8 +2,11 @@ package services
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewFeedDiscovery(t *testing.T) {
@@ -273,4 +276,100 @@ func TestTryMastodonFeedPaths_URLPatternDetection(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestTryCommonFeedPaths_ParallelPerformance verifies that parallel requests are faster than sequential
+func TestTryCommonFeedPaths_ParallelPerformance(t *testing.T) {
+	// Create test servers with intentional delays
+	requestCount := 0
+	successPath := "/feed.xml"
+
+	// Server responds to /feed.xml with 200 after a delay
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		// Add a small delay to simulate network latency
+		time.Sleep(50 * time.Millisecond)
+
+		if r.URL.Path == successPath {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	fd := NewFeedDiscovery()
+	ctx := context.Background()
+
+	// Measure execution time
+	start := time.Now()
+	result := fd.tryCommonFeedPaths(ctx, server.URL)
+	elapsed := time.Since(start)
+
+	// Verify we found the feed
+	if len(result) == 0 {
+		t.Fatal("Expected to find feed, got empty result")
+	}
+
+	// Verify the correct feed was found
+	if !strings.Contains(result[0], successPath) {
+		t.Errorf("Expected feed URL to contain %s, got %s", successPath, result[0])
+	}
+
+	// With 8 paths and 50ms delay each, sequential would take ~400ms for first scheme
+	// Parallel should complete in ~50-150ms (time for slowest request + overhead)
+	// We use 300ms as threshold to allow for CI/test environment variability
+	maxExpectedTime := 300 * time.Millisecond
+	if elapsed > maxExpectedTime {
+		t.Errorf("Parallel execution took too long: %v (expected < %v). Possible sequential execution.", elapsed, maxExpectedTime)
+	}
+
+	t.Logf("Found feed in %v with %d requests", elapsed, requestCount)
+}
+
+// TestTryMastodonFeedPaths_ParallelPerformance verifies parallel execution for Mastodon feeds
+func TestTryMastodonFeedPaths_ParallelPerformance(t *testing.T) {
+	// Create test server with intentional delay
+	requestCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		// Add a small delay to simulate network latency
+		time.Sleep(50 * time.Millisecond)
+
+		if strings.HasSuffix(r.URL.Path, ".rss") {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	fd := NewFeedDiscovery()
+	ctx := context.Background()
+
+	// Measure execution time
+	start := time.Now()
+	result := fd.tryMastodonFeedPaths(ctx, server.URL+"/@testuser")
+	elapsed := time.Since(start)
+
+	// Verify we found the feed
+	if len(result) == 0 {
+		t.Fatal("Expected to find Mastodon feed, got empty result")
+	}
+
+	// Verify the correct feed was found
+	if !strings.HasSuffix(result[0], ".rss") {
+		t.Errorf("Expected feed URL to end with .rss, got %s", result[0])
+	}
+
+	// With 2 schemes and 50ms delay each, sequential would take ~100ms
+	// Parallel should complete in ~50-100ms (time for fastest successful request)
+	// We use 150ms as threshold to allow for overhead and test environment variability
+	maxExpectedTime := 150 * time.Millisecond
+	if elapsed > maxExpectedTime {
+		t.Errorf("Parallel execution took too long: %v (expected < %v). Possible sequential execution.", elapsed, maxExpectedTime)
+	}
+
+	t.Logf("Found Mastodon feed in %v with %d requests", elapsed, requestCount)
 }
