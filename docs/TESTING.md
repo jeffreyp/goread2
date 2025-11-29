@@ -11,7 +11,7 @@ Testing guide for GoRead2's multi-user RSS reader application.
 GoRead2's testing infrastructure includes:
 - **Package-level unit tests** with 8.0% overall coverage across multiple packages
 - **Integration tests** for end-to-end API validation
-- **Frontend tests** with Jest and jsdom (26+ tests)
+- **Frontend tests** with Jest and jsdom (46 tests)
 - **CI/CD integration** with GitHub Actions
 
 ## Current Test Structure
@@ -45,12 +45,12 @@ test/
 │   └── performance_test.go         # Performance baseline tests
 └── fixtures/            # Test data and sample feeds
     └── sample_feeds.go  # Sample data for tests
-web/tests/               # Frontend tests
-├── app-core.test.js     # Core frontend functionality (26+ tests)
-├── font-choice.test.js  # Font choice feature tests (comprehensive)
-├── utils.js             # Frontend test utilities
-├── setup.js             # Test environment setup
-└── README.md            # Frontend testing documentation
+web/tests/                  # Frontend tests
+├── app-core.test.js        # Core frontend functionality (28 tests)
+├── error-handler.test.js   # Error handling and toast notifications (18 tests)
+├── utils.js                # Frontend test utilities
+├── setup.js                # Test environment setup
+└── README.md               # Frontend testing documentation
 ```
 
 ## Running Tests
@@ -449,9 +449,45 @@ func TestConcurrentUserOperations(t *testing.T) {
 
 ### 3. Frontend Tests
 
+#### Error Handling and Toast Notifications (`web/tests/error-handler.test.js`)
+
+Tests error handling system and user notifications with 18 comprehensive tests:
+
+```javascript
+describe('Error Handling and Toast Notifications', () => {
+  test('displays connection indicator for online/offline states', () => {
+    // Test connection status indicator UI
+  });
+
+  test('shows error messages with appropriate types and icons', () => {
+    // Test error display (network, auth, validation, server, unknown)
+  });
+
+  test('handles toast notifications with auto-dismiss', () => {
+    // Test toast creation and lifecycle
+  });
+});
+```
+
+**Coverage includes:**
+- **Connection Indicator UI**: Online/offline state display and transitions
+- **Error Message Display**:
+  - 5 error types with type-specific icons (📡 network, 🔒 auth, ⚠️ validation, 🔧 server, ❌ unknown)
+  - Retry and dismiss button functionality
+  - Error message replacement logic
+  - User-friendly error messages for each type
+- **Toast Notifications**:
+  - 4 toast types with icons (ℹ️ info, ✓ success, ⚠️ warning, ✕ error)
+  - Toast container management
+  - Multiple concurrent toasts support
+  - Animation classes and auto-removal
+- **Error Classification**: HTTP status code mapping (401/403 → auth, 4xx → validation, 5xx → server)
+- **Button Interactions**: Click handlers for retry and dismiss actions
+- **DOM Structure**: Proper HTML element creation and class management
+
 #### Core Functionality (`web/tests/app-core.test.js`)
 
-Tests frontend application logic with 26 comprehensive tests:
+Tests frontend application logic with 28 comprehensive tests:
 
 ```javascript
 describe('GoReadApp', () => {
@@ -480,38 +516,6 @@ describe('GoReadApp', () => {
 - Keyboard navigation
 - Error handling and display
 
-#### Font Choice Feature (`web/tests/font-choice.test.js`)
-
-Tests comprehensive font choice functionality:
-
-```javascript
-describe('Font Choice Feature', () => {
-  test('toggles between sans-serif and serif fonts', () => {
-    // Test font switching functionality
-  });
-
-  test('persists font preference in localStorage', () => {
-    // Test preference storage and retrieval
-  });
-
-  test('applies CSS custom properties correctly', () => {
-    // Test CSS variable management
-  });
-});
-```
-
-**Coverage includes:**
-- CSS custom properties and font variables
-- Font preference initialization and persistence
-- Toggle button functionality and UI updates
-- Keyboard shortcut integration (f key)
-- LocalStorage integration and error handling
-- CSS class management (font-serif)
-- Accessibility features and ARIA attributes
-- Integration with existing UI components
-- Error handling for corrupted preferences
-- Visual regression prevention
-- Cross-session preference persistence
 
 ## Test Environment
 
@@ -604,7 +608,9 @@ Current test coverage status and targets:
 - **Services package**: 20.1% coverage (subscription logic, feed discovery, **comprehensive admin token security**)
 - **Handlers package**: 1.0% coverage (constructor functions)
 - **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
-- **Frontend**: 26 tests covering core functionality
+- **Frontend**: 46 tests covering core functionality, error handling, and toast notifications
+  - **Core frontend tests**: 28 tests for DOM manipulation, events, forms, utilities
+  - **Error handler tests**: 18 tests for connection monitoring, error display, toast notifications
 - **Admin Token System**: Comprehensive test coverage for the new secure authentication system
   - 6 SQLite backend test suites with 20+ individual test cases
   - 6 Datastore backend test suites (skip when emulator unavailable)
