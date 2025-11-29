@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -281,12 +282,12 @@ func TestTryMastodonFeedPaths_URLPatternDetection(t *testing.T) {
 // TestTryCommonFeedPaths_ParallelPerformance verifies that parallel requests are faster than sequential
 func TestTryCommonFeedPaths_ParallelPerformance(t *testing.T) {
 	// Create test servers with intentional delays
-	requestCount := 0
+	var requestCount atomic.Int32
 	successPath := "/feed.xml"
 
 	// Server responds to /feed.xml with 200 after a delay
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
+		requestCount.Add(1)
 		// Add a small delay to simulate network latency
 		time.Sleep(50 * time.Millisecond)
 
@@ -324,16 +325,16 @@ func TestTryCommonFeedPaths_ParallelPerformance(t *testing.T) {
 		t.Errorf("Parallel execution took too long: %v (expected < %v). Possible sequential execution.", elapsed, maxExpectedTime)
 	}
 
-	t.Logf("Found feed in %v with %d requests", elapsed, requestCount)
+	t.Logf("Found feed in %v with %d requests", elapsed, requestCount.Load())
 }
 
 // TestTryMastodonFeedPaths_ParallelPerformance verifies parallel execution for Mastodon feeds
 func TestTryMastodonFeedPaths_ParallelPerformance(t *testing.T) {
 	// Create test server with intentional delay
-	requestCount := 0
+	var requestCount atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
+		requestCount.Add(1)
 		// Add a small delay to simulate network latency
 		time.Sleep(50 * time.Millisecond)
 
@@ -371,5 +372,5 @@ func TestTryMastodonFeedPaths_ParallelPerformance(t *testing.T) {
 		t.Errorf("Parallel execution took too long: %v (expected < %v). Possible sequential execution.", elapsed, maxExpectedTime)
 	}
 
-	t.Logf("Found Mastodon feed in %v with %d requests", elapsed, requestCount)
+	t.Logf("Found Mastodon feed in %v with %d requests", elapsed, requestCount.Load())
 }
