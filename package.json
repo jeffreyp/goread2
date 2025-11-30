@@ -25,7 +25,10 @@
     "testMatch": [
       "**/web/tests/app-core.test.js",
       "**/web/tests/error-handler.test.js",
-      "**/web/tests/pagination.test.js"
+      "**/web/tests/pagination.test.js",
+      "**/web/tests/goread-app.test.js",
+      "**/web/tests/account-app.test.js",
+      "**/web/tests/integration.test.js"
     ],
     "setupFilesAfterEnv": [
       "<rootDir>/web/tests/setup.js"

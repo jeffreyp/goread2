@@ -155,8 +155,26 @@ beforeEach(() => {
         <button id="help-btn">Help</button>
         <button id="font-toggle-btn" title="Toggle font style">Aa</button>
         <button id="import-opml-btn">Import OPML</button>
+
+        <!-- Account Page Elements -->
+        <div id="profile-info"></div>
+        <div id="subscription-details"></div>
+        <div id="usage-stats"></div>
+
+        <!-- Confirmation Modal for Account Page -->
+        <div id="confirm-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2 id="confirm-title">Confirm Action</h2>
+                <p id="confirm-message">Are you sure?</p>
+                <div class="form-actions">
+                    <button id="confirm-action" class="btn btn-primary">Confirm</button>
+                    <button id="cancel-action" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
     `;
-    
+
     document.body.innerHTML = appHTML;
     
     // Mock fetch by default

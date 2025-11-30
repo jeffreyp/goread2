@@ -178,10 +178,11 @@ const expectElementNotToHaveClass = (element, className) => {
 
 /**
  * Assert element is visible
+ * Note: In jsdom, offsetParent may be null even for visible elements,
+ * so we only check style.display
  */
 const expectElementToBeVisible = (element) => {
     expect(element.style.display).not.toBe('none');
-    expect(element.offsetParent).not.toBeNull();
 };
 
 /**
