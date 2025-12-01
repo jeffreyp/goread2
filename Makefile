@@ -56,6 +56,8 @@ build-js: node_modules
 	npx terser web/static/js/app.js -o web/static/js/app.min.js --compress --mangle
 	npx terser web/static/js/modals.js -o web/static/js/modals.min.js --compress --mangle
 	npx terser web/static/js/account.js -o web/static/js/account.min.js --compress --mangle
+	npx terser web/static/js/animations.js -o web/static/js/animations.min.js --compress --mangle
+	npx terser web/static/js/animations-integration.js -o web/static/js/animations-integration.min.js --compress --mangle
 	@echo "✅ JavaScript minification completed"
 
 # Build minified CSS files
