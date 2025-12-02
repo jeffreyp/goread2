@@ -32,7 +32,7 @@
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 mutation.addedNodes.forEach((node) => {
-                    if (node.classList && node.classList.contains('article-item')) {
+                    if (node.classList && node.classList.contains('article-item') && window.animationManager) {
                         // Add fade-in animation with stagger effect
                         const articles = articleList.querySelectorAll('.article-item');
                         const index = Array.from(articles).indexOf(node);
@@ -53,7 +53,7 @@
         document.addEventListener('click', (e) => {
             // Check if clicked element is a star button or its parent
             const starBtn = e.target.closest('.action-btn[title*="star"], .action-btn[title*="Star"]');
-            if (starBtn) {
+            if (starBtn && window.animationManager) {
                 window.animationManager.animateStar(starBtn);
             }
         });
@@ -68,6 +68,8 @@
             let previousCount = badge.textContent;
 
             const observer = new MutationObserver(() => {
+                if (!window.animationManager) return;
+
                 const currentCount = badge.textContent;
                 if (currentCount !== previousCount) {
                     window.animationManager.animateBadgeChange(badge);
@@ -116,28 +118,27 @@
      * Hook into mark as read functionality to add slide-out animation
      */
     function setupMarkReadAnimations() {
-        // This is a bit tricky since we need to intercept the removal
-        // We'll use a MutationObserver on the article list
+        // Use MutationObserver to detect article removals instead of overriding Element.prototype.remove
         const articleList = document.getElementById('article-list');
         if (!articleList) return;
 
-        // Store reference to original remove method
-        const originalRemove = Element.prototype.remove;
+        // Observe article removals and add animations
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.removedNodes.forEach((node) => {
+                    if (node.classList && node.classList.contains('article-item')) {
+                        // Only animate if unread filter is active
+                        const unreadFilter = document.querySelector('input[name="article-filter"][value="unread"]');
+                        if (unreadFilter && unreadFilter.checked && window.animationManager) {
+                            // Add removal animation class before actual removal
+                            node.classList.add('removing');
+                        }
+                    }
+                });
+            });
+        });
 
-        // Override remove for article items
-        Element.prototype.remove = function() {
-            if (this.classList && this.classList.contains('article-item')) {
-                // Only animate if unread filter is active
-                const unreadFilter = document.querySelector('input[name="article-filter"][value="unread"]');
-                if (unreadFilter && unreadFilter.checked) {
-                    window.animationManager.animateArticleRemoval(this, () => {
-                        originalRemove.call(this);
-                    });
-                    return;
-                }
-            }
-            originalRemove.call(this);
-        };
+        observer.observe(articleList, { childList: true });
     }
 
     /**
@@ -161,7 +162,7 @@
                             modal.classList.add('show');
 
                             // Fade in the content pane when article is opened
-                            if (modal.classList.contains('content-pane')) {
+                            if (modal.classList.contains('content-pane') && window.animationManager) {
                                 window.animationManager.fadeInContent(modal);
                             }
                         } else if (currentDisplay === 'none' || currentDisplay === '') {
@@ -184,7 +185,7 @@
     function setupFormValidation() {
         document.addEventListener('submit', (e) => {
             const form = e.target;
-            if (!form.checkValidity()) {
+            if (!form.checkValidity() && window.animationManager) {
                 e.preventDefault();
 
                 // Shake invalid inputs
@@ -202,6 +203,7 @@
 
         // Also listen for invalid events
         document.addEventListener('invalid', (e) => {
+            if (!window.animationManager) return;
             e.preventDefault();
             const input = e.target;
             window.animationManager.shakeElement(input);
@@ -216,6 +218,8 @@
         if (!contentPane) return;
 
         const observer = new MutationObserver((mutations) => {
+            if (!window.animationManager) return;
+
             // Check if significant content was added (not just small updates)
             const significantChange = mutations.some(m =>
                 m.addedNodes.length > 0 &&

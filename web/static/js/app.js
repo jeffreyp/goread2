@@ -1043,6 +1043,19 @@ class GoReadApp {
             }
 
             const response = await fetch(url);
+
+            // Check if response is successful before parsing JSON
+            if (!response.ok) {
+                // Handle authentication errors
+                if (response.status === 401) {
+                    this.authCheckFailed = true;
+                    this.showLogin();
+                    throw new Error('Authentication required');
+                }
+                // Handle other HTTP errors
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const data = await response.json();
 
             // Handle cursor-based pagination response for 'all' feed
