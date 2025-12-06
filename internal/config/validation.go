@@ -3,7 +3,9 @@ package config
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/jeffreyp/goread2/internal/secrets"
@@ -110,6 +112,22 @@ func validateStripeConfig(strict bool) error {
 }
 
 func validateOtherConfig(strict bool) error {
+	// Validate PORT configuration
+	portStr := os.Getenv("PORT")
+	if portStr == "" {
+		portStr = "8080" // Default value
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return fmt.Errorf("PORT must be a valid integer, got: %s", portStr)
+	}
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("PORT must be between 1 and 65535, got: %d", port)
+	}
+	if strict && port < 1024 {
+		log.Printf("WARNING: Using privileged port %d (requires root/admin privileges)", port)
+	}
+
 	// Check GOOGLE_CLOUD_PROJECT for GAE (only in strict mode - not needed for local dev)
 	if strict && os.Getenv("GOOGLE_CLOUD_PROJECT") == "" {
 		return fmt.Errorf("GOOGLE_CLOUD_PROJECT is not set (required for GAE)")

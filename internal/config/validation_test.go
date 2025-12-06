@@ -29,6 +29,7 @@ func clearValidationEnv() {
 	_ = os.Unsetenv("SECRET_STRIPE_PUBLISHABLE_KEY_NAME")
 	_ = os.Unsetenv("SECRET_STRIPE_WEBHOOK_SECRET_NAME")
 	_ = os.Unsetenv("SECRET_STRIPE_PRICE_ID_NAME")
+	_ = os.Unsetenv("PORT")
 }
 
 func TestValidateOAuthConfig(t *testing.T) {
@@ -384,6 +385,84 @@ func TestValidateOtherConfig(t *testing.T) {
 			},
 			strict:      false,
 			expectError: false,
+		},
+		// PORT validation tests
+		{
+			name: "valid_port_passes",
+			envVars: map[string]string{
+				"PORT": "8080",
+			},
+			strict:      false,
+			expectError: false,
+		},
+		{
+			name: "default_port_when_unset_passes",
+			envVars: map[string]string{
+				// PORT not set - should use default 8080
+			},
+			strict:      false,
+			expectError: false,
+		},
+		{
+			name: "valid_high_port_passes",
+			envVars: map[string]string{
+				"PORT": "65535",
+			},
+			strict:      false,
+			expectError: false,
+		},
+		{
+			name: "valid_low_port_passes",
+			envVars: map[string]string{
+				"PORT": "1",
+			},
+			strict:      false,
+			expectError: false,
+		},
+		{
+			name: "non_numeric_port_fails",
+			envVars: map[string]string{
+				"PORT": "not-a-number",
+			},
+			strict:        false,
+			expectError:   true,
+			errorContains: "PORT must be a valid integer",
+		},
+		{
+			name: "port_zero_fails",
+			envVars: map[string]string{
+				"PORT": "0",
+			},
+			strict:        false,
+			expectError:   true,
+			errorContains: "PORT must be between 1 and 65535",
+		},
+		{
+			name: "negative_port_fails",
+			envVars: map[string]string{
+				"PORT": "-1",
+			},
+			strict:        false,
+			expectError:   true,
+			errorContains: "PORT must be between 1 and 65535",
+		},
+		{
+			name: "port_too_high_fails",
+			envVars: map[string]string{
+				"PORT": "65536",
+			},
+			strict:        false,
+			expectError:   true,
+			errorContains: "PORT must be between 1 and 65535",
+		},
+		{
+			name: "port_way_too_high_fails",
+			envVars: map[string]string{
+				"PORT": "99999",
+			},
+			strict:        false,
+			expectError:   true,
+			errorContains: "PORT must be between 1 and 65535",
 		},
 	}
 
