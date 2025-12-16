@@ -45,6 +45,9 @@
 #     - ~/beads-planning  # Personal planning repo
 #     - ~/work-planning   # Work planning repo
 
+# Git branch for beads sync commits (multi-clone setups)
+sync-branch: beads-sync
+
 # Integration settings (access with 'bd config get/set')
 # These are stored in the database, not in this file:
 # - jira.url
