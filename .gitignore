@@ -71,3 +71,5 @@ node_modules/
 .beads/*.pid
 .beads/*.db-shm
 .beads/*.db-wal
+.beads/.local_version
+.beads/*.migrated
