@@ -531,31 +531,6 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 	c.JSON(http.StatusOK, unreadCounts)
 }
 
-// GetFeedCounts returns both unread and total article counts for all user's feeds
-func (fh *FeedHandler) GetFeedCounts(c *gin.Context) {
-	user, exists := auth.GetUserFromContext(c)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
-		return
-	}
-
-	// Get cached user feeds first to avoid duplicate DB call
-	userFeeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	feedCounts, err := fh.feedService.GetUserFeedCounts(user.ID, userFeeds)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Cache headers are set by middleware for optimal performance
-	c.JSON(http.StatusOK, feedCounts)
-}
-
 func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {

@@ -453,14 +453,13 @@ body.app-body {
 .unread-count {
     background-color: #1a73e8;
     color: white;
-    padding: 2px 10px;
+    padding: 2px 8px;
     border-radius: 12px;
     font-size: 12px;
     font-weight: 600;
-    min-width: 45px;
+    min-width: 20px;
     text-align: center;
     transition: transform 0.2s ease;
-    white-space: nowrap;
 }
 
 .unread-count:empty,
@@ -1759,8 +1758,8 @@ body.app-body {
     }
 
     .unread-count {
-        min-width: 55px;
-        padding: 4px 12px;
+        min-width: 28px;
+        padding: 4px 10px;
         font-size: 13px;
     }
 

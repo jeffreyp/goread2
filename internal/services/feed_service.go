@@ -31,13 +31,12 @@ type HTTPClient interface {
 }
 
 type FeedService struct {
-	db              database.Database
-	rateLimiter     *DomainRateLimiter
-	urlValidator    *URLValidator
-	unreadCache     *cache.UnreadCache
-	feedCountsCache *cache.FeedCountsCache
-	feedListCache   *cache.FeedListCache
-	httpClient      HTTPClient // Optional: if nil, creates client using urlValidator
+	db            database.Database
+	rateLimiter   *DomainRateLimiter
+	urlValidator  *URLValidator
+	unreadCache   *cache.UnreadCache
+	feedListCache *cache.FeedListCache
+	httpClient    HTTPClient // Optional: if nil, creates client using urlValidator
 }
 
 type RSS struct {
@@ -152,12 +151,11 @@ type OPMLOutline struct {
 
 func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedService {
 	return &FeedService{
-		db:              db,
-		rateLimiter:     rateLimiter,
-		urlValidator:    NewURLValidator(),
-		unreadCache:     cache.NewUnreadCache(5 * time.Minute),      // 5 minute TTL
-		feedCountsCache: cache.NewFeedCountsCache(5 * time.Minute),  // 5 minute TTL
-		feedListCache:   cache.NewFeedListCache(20 * time.Minute),   // 20 minute TTL
+		db:            db,
+		rateLimiter:   rateLimiter,
+		urlValidator:  NewURLValidator(),
+		unreadCache:   cache.NewUnreadCache(5 * time.Minute),    // 5 minute TTL
+		feedListCache: cache.NewFeedListCache(20 * time.Minute), // 20 minute TTL
 	}
 }
 
@@ -447,43 +445,6 @@ func (fs *FeedService) GetUserUnreadCounts(userID int, userFeeds []database.Feed
 
 	// Store in cache for next time
 	fs.unreadCache.Set(userID, filteredCounts)
-
-	return filteredCounts, nil
-}
-
-// GetUserFeedCounts returns both unread and total counts for all user's feeds with caching
-func (fs *FeedService) GetUserFeedCounts(userID int, userFeeds []database.Feed) (map[int]database.FeedCounts, error) {
-	// Try cache first for fast response
-	if cached, hit := fs.feedCountsCache.Get(userID); hit {
-		return cached, nil
-	}
-
-	// Cache miss - fetch from database
-	feedCounts, err := fs.db.GetUserFeedCounts(userID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Safety filter: only return counts for feeds that actually exist
-	// This prevents orphaned data from corrupting the UI
-	validFeedIDs := make(map[int]bool)
-	for _, feed := range userFeeds {
-		validFeedIDs[feed.ID] = true
-	}
-
-	// Filter out orphaned counts
-	filteredCounts := make(map[int]database.FeedCounts)
-	for feedID, counts := range feedCounts {
-		if validFeedIDs[feedID] {
-			filteredCounts[feedID] = counts
-		} else {
-			// Log orphaned data for debugging
-			log.Printf("Warning: Filtered orphaned feed counts for non-existent feed ID %d (%d unread, %d total)", feedID, counts.Unread, counts.Total)
-		}
-	}
-
-	// Store in cache for next time
-	fs.feedCountsCache.Set(userID, filteredCounts)
 
 	return filteredCounts, nil
 }

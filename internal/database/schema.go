@@ -59,7 +59,6 @@ type Database interface {
 	MarkUserArticleRead(userID, articleID int, isRead bool) error
 	ToggleUserArticleStar(userID, articleID int) error
 	GetUserUnreadCounts(userID int) (map[int]int, error)
-	GetUserFeedCounts(userID int) (map[int]FeedCounts, error)
 	GetAccountStats(userID int) (map[string]interface{}, error)
 	CleanupOrphanedUserArticles(olderThanDays int) (int, error)
 
@@ -1063,47 +1062,6 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	return unreadCounts, nil
 }
 
-// FeedCounts holds both unread and total article counts for a feed
-type FeedCounts struct {
-	Unread int `json:"unread"`
-	Total  int `json:"total"`
-}
-
-// GetUserFeedCounts returns both unread and total counts for all user's feeds
-func (db *DB) GetUserFeedCounts(userID int) (map[int]FeedCounts, error) {
-	// First get user's feeds
-	userFeeds, err := db.GetUserFeeds(userID)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(userFeeds) == 0 {
-		return make(map[int]FeedCounts), nil
-	}
-
-	feedCounts := make(map[int]FeedCounts)
-
-	// Process each feed individually for better performance with indexes
-	for _, feed := range userFeeds {
-		unreadCount, err := db.getFeedUnreadCountForUser(userID, feed.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		totalCount, err := db.getFeedTotalCountForUser(userID, feed.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		feedCounts[feed.ID] = FeedCounts{
-			Unread: unreadCount,
-			Total:  totalCount,
-		}
-	}
-
-	return feedCounts, nil
-}
-
 // GetAccountStats retrieves user account statistics in a single batched query
 // Returns total articles, total unread, and active feeds count
 func (db *DB) GetAccountStats(userID int) (map[string]interface{}, error) {
@@ -1165,24 +1123,6 @@ func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
 
 	var count int
 	err := db.QueryRow(query, feedID, userID).Scan(&count)
-	if err != nil {
-		return 0, err
-	}
-
-	return count, nil
-}
-
-func (db *DB) getFeedTotalCountForUser(userID, feedID int) (int, error) {
-	// Count total articles for this user in this feed (regardless of read status)
-	query := `
-		SELECT COUNT(*)
-		FROM user_articles ua
-		INNER JOIN articles a ON ua.article_id = a.id
-		WHERE ua.user_id = ? AND a.feed_id = ?
-	`
-
-	var count int
-	err := db.QueryRow(query, userID, feedID).Scan(&count)
 	if err != nil {
 		return 0, err
 	}

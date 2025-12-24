@@ -788,7 +788,7 @@ class GoReadApp {
             // Batch feeds and unread counts requests
             const [feedsResponse, countsResponse] = await Promise.all([
                 fetch('/api/feeds'),
-                fetch('/api/feeds/counts')
+                fetch('/api/feeds/unread-counts')
             ]);
             
             if (!feedsResponse.ok) {
@@ -801,10 +801,10 @@ class GoReadApp {
             if (Array.isArray(this.feeds)) {
                 this.renderFeeds();
                 
-                // Process feed counts if available
+                // Process unread counts if available
                 if (countsResponse.ok) {
-                    const feedCounts = await countsResponse.json();
-                    this.applyFeedCounts(feedCounts);
+                    const unreadCounts = await countsResponse.json();
+                    this.applyUnreadCounts(unreadCounts);
                 }
                 
                 if (this.feeds.length > 0) {
@@ -845,7 +845,7 @@ class GoReadApp {
             // Batch feeds and unread counts requests
             const [feedsResponse, countsResponse] = await Promise.all([
                 fetch('/api/feeds'),
-                fetch('/api/feeds/counts')
+                fetch('/api/feeds/unread-counts')
             ]);
 
             if (!feedsResponse.ok) {
@@ -872,10 +872,10 @@ class GoReadApp {
             if (Array.isArray(this.feeds)) {
                 this.renderFeeds();
 
-                // Process feed counts if available
+                // Process unread counts if available
                 if (countsResponse.ok) {
-                    const feedCounts = await countsResponse.json();
-                    this.applyFeedCounts(feedCounts);
+                    const unreadCounts = await countsResponse.json();
+                    this.applyUnreadCounts(unreadCounts);
                 }
 
                 if (this.feeds.length > 0) {
@@ -1838,110 +1838,87 @@ class GoReadApp {
 
     async updateUnreadCounts() {
         try {
-            const response = await fetch('/api/feeds/counts');
+            const response = await fetch('/api/feeds/unread-counts');
             if (!response.ok) {
-                console.error(`Failed to fetch feed counts: HTTP ${response.status}`);
+                console.error(`Failed to fetch unread counts: HTTP ${response.status}`);
                 if (response.status === 401) {
-                    console.error('Authentication failed for feed counts');
+                    console.error('Authentication failed for unread counts');
                 }
                 return;
             }
-
-            const feedCounts = await response.json();
-            this.applyFeedCounts(feedCounts);
+            
+            const unreadCounts = await response.json();
+            this.applyUnreadCounts(unreadCounts);
         } catch (error) {
-            console.error('Error updating feed counts:', error);
+            console.error('Error updating unread counts:', error);
         }
     }
 
-    applyFeedCounts(feedCounts) {
-        // Handle empty or null feedCounts
-        if (!feedCounts || typeof feedCounts !== 'object') {
-            feedCounts = {};
+    applyUnreadCounts(unreadCounts) {
+        // Handle empty or null unreadCounts
+        if (!unreadCounts || typeof unreadCounts !== 'object') {
+            unreadCounts = {};
         }
-
+        
         // Update individual feed counts
         let totalUnread = 0;
-        let totalArticles = 0;
         this.feeds.forEach(feed => {
             // Try multiple ways to match feed IDs (number, string, parseInt)
-            let counts = null;
+            let unreadCount = 0;
             const feedId = feed.id;
-
-            if (feedCounts.hasOwnProperty(feedId)) {
-                counts = feedCounts[feedId];
-            } else if (feedCounts.hasOwnProperty(feedId.toString())) {
-                counts = feedCounts[feedId.toString()];
-            } else if (feedCounts.hasOwnProperty(parseInt(feedId))) {
-                counts = feedCounts[parseInt(feedId)];
+            
+            if (unreadCounts.hasOwnProperty(feedId)) {
+                unreadCount = unreadCounts[feedId];
+            } else if (unreadCounts.hasOwnProperty(feedId.toString())) {
+                unreadCount = unreadCounts[feedId.toString()];
+            } else if (unreadCounts.hasOwnProperty(parseInt(feedId))) {
+                unreadCount = unreadCounts[parseInt(feedId)];
             } else {
                 // Try to find by any matching value
-                for (const [key, value] of Object.entries(feedCounts)) {
+                for (const [key, value] of Object.entries(unreadCounts)) {
                     if (parseInt(key) === parseInt(feedId) || key.toString() === feedId.toString()) {
-                        counts = value;
+                        unreadCount = value;
                         break;
                     }
                 }
             }
-
-            // Extract unread and total counts
-            let unreadCount = 0;
-            let totalCount = 0;
-            if (counts && typeof counts === 'object') {
-                unreadCount = parseInt(counts.unread) || 0;
-                totalCount = parseInt(counts.total) || 0;
-            }
-
+            
+            // Ensure unreadCount is a number
+            unreadCount = parseInt(unreadCount) || 0;
             totalUnread += unreadCount;
-            totalArticles += totalCount;
-
+            
             const countElement = document.querySelector(`[data-feed-id="${feed.id}"] .unread-count`);
             if (countElement) {
-                // Display format: "X / Y" where X is unread and Y is total
-                countElement.textContent = `${unreadCount} / ${totalCount}`;
+                countElement.textContent = unreadCount;
                 countElement.dataset.count = unreadCount;
-                countElement.dataset.total = totalCount;
             } else {
                 // Try alternative selectors
                 const altElement = document.querySelector(`[data-feed-id='${feed.id}'] .unread-count`);
                 if (altElement) {
-                    altElement.textContent = `${unreadCount} / ${totalCount}`;
+                    altElement.textContent = unreadCount;
                     altElement.dataset.count = unreadCount;
-                    altElement.dataset.total = totalCount;
                 }
             }
         });
-
-        // Update "All Articles" count
+        
+        // Update "Articles" count
         const allUnreadElement = document.getElementById('all-unread-count');
         if (allUnreadElement) {
-            allUnreadElement.textContent = `${totalUnread} / ${totalArticles}`;
+            allUnreadElement.textContent = totalUnread;
             allUnreadElement.dataset.count = totalUnread;
-            allUnreadElement.dataset.total = totalArticles;
         }
-
+        
         // Force a DOM refresh
         if (totalUnread > 0) {
             // Trigger a visual update to ensure changes are visible
             setTimeout(() => {
                 const allElement = document.getElementById('all-unread-count');
                 if (allElement && allElement.textContent === '0' && totalUnread > 0) {
-                    allElement.textContent = `${totalUnread} / ${totalArticles}`;
+                    allElement.textContent = totalUnread;
                     allElement.dataset.count = totalUnread;
-                    allElement.dataset.total = totalArticles;
                 }
             }, 100);
         }
-    }
-
-    // Keep backward compatibility method that calls applyFeedCounts
-    applyUnreadCounts(unreadCounts) {
-        // Convert old format to new format
-        const feedCounts = {};
-        for (const [feedId, count] of Object.entries(unreadCounts || {})) {
-            feedCounts[feedId] = { unread: count, total: count };
-        }
-        this.applyFeedCounts(feedCounts);
     }
 
     updateUnreadCountsOptimistically(feedId, countChange) {
