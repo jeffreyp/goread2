@@ -120,8 +120,11 @@ func (m *mockDBAdminHandler) BatchSetUserArticleStatus(int, []database.Article, 
 }
 func (m *mockDBAdminHandler) MarkUserArticleRead(int, int, bool) error      { return nil }
 func (m *mockDBAdminHandler) ToggleUserArticleStar(int, int) error          { return nil }
-func (m *mockDBAdminHandler) GetUserUnreadCounts(int) (map[int]int, error)  { return nil, nil }
-func (m *mockDBAdminHandler) CleanupOrphanedUserArticles(int) (int, error)  { return 0, nil }
+func (m *mockDBAdminHandler) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
+func (m *mockDBAdminHandler) GetUserFeedCounts(int) (map[int]database.FeedCounts, error) {
+	return nil, nil
+}
+func (m *mockDBAdminHandler) CleanupOrphanedUserArticles(int) (int, error) { return 0, nil }
 func (m *mockDBAdminHandler) UpdateFeedLastFetch(int, time.Time) error      { return nil }
 func (m *mockDBAdminHandler) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
 func (m *mockDBAdminHandler) CreateSession(*database.Session) error         { return nil }
