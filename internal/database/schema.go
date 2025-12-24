@@ -1173,15 +1173,16 @@ func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
 }
 
 func (db *DB) getFeedTotalCountForUser(userID, feedID int) (int, error) {
-	// Count total articles in feed (regardless of read status)
+	// Count total articles for this user in this feed (regardless of read status)
 	query := `
 		SELECT COUNT(*)
-		FROM articles a
-		WHERE a.feed_id = ?
+		FROM user_articles ua
+		INNER JOIN articles a ON ua.article_id = a.id
+		WHERE ua.user_id = ? AND a.feed_id = ?
 	`
 
 	var count int
-	err := db.QueryRow(query, feedID).Scan(&count)
+	err := db.QueryRow(query, userID, feedID).Scan(&count)
 	if err != nil {
 		return 0, err
 	}

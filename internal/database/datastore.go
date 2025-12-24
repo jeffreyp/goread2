@@ -1444,19 +1444,20 @@ func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, fe
 	return unreadCount, nil
 }
 
-// getFeedTotalCountForUser returns the total number of articles in a feed
+// getFeedTotalCountForUser returns the total number of articles for this user in a feed
 func (db *DatastoreDB) getFeedTotalCountForUser(ctx context.Context, userID, feedID int) (int, error) {
-	// Get all articles for this feed with eventual consistency retry
-	var articleKeys []*datastore.Key
+	// Query UserArticle entities to get count of articles this user has in this feed
+	var userArticleKeys []*datastore.Key
 	var err error
 
 	// Retry logic to handle eventual consistency issues with newly added feeds
 	for attempt := 0; attempt < 3; attempt++ {
-		articleQuery := datastore.NewQuery("Article").
+		userArticleQuery := datastore.NewQuery("UserArticle").
+			FilterField("user_id", "=", int64(userID)).
 			FilterField("feed_id", "=", int64(feedID)).
 			KeysOnly()
 
-		articleKeys, err = db.client.GetAll(ctx, articleQuery, nil)
+		userArticleKeys, err = db.client.GetAll(ctx, userArticleQuery, nil)
 		if err != nil {
 			if attempt < 2 {
 				time.Sleep(500 * time.Millisecond)
@@ -1466,7 +1467,7 @@ func (db *DatastoreDB) getFeedTotalCountForUser(ctx context.Context, userID, fee
 		}
 
 		// If we got articles or this isn't the first attempt, use the result
-		if len(articleKeys) > 0 || attempt > 0 {
+		if len(userArticleKeys) > 0 || attempt > 0 {
 			break
 		}
 
@@ -1474,7 +1475,7 @@ func (db *DatastoreDB) getFeedTotalCountForUser(ctx context.Context, userID, fee
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	return len(articleKeys), nil
+	return len(userArticleKeys), nil
 }
 
 // CleanupOrphanedUserArticles removes UserArticle entities that reference articles from feeds
