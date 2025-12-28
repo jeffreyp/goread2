@@ -129,6 +129,7 @@ func (ah *AuthHandler) Me(c *gin.Context) {
 			"email":                    user.Email,
 			"name":                     user.Name,
 			"avatar":                   user.Avatar,
+			"created_at":               user.CreatedAt,
 			"max_articles_on_feed_add": user.MaxArticlesOnFeedAdd,
 		},
 		"csrf_token": csrfToken,
