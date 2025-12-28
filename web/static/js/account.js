@@ -193,7 +193,7 @@ class AccountApp {
             statusText = 'GoRead2 Pro';
             detailsHTML = `
                 <p class="subscription-details-text">
-                    You have an active Pro subscription with unlimited feeds.
+                    You have an active Pro subscription.
                 </p>
                 <p class="subscription-details-text">
                     <strong>Next billing date:</strong> ${this.formatDate(info.next_billing_date)}
