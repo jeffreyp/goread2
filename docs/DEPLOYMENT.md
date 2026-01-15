@@ -155,15 +155,11 @@ handlers:
   script: auto
   secure: always
 
+instance_class: F2  # 512MB RAM - good balance of cost and performance
+
 automatic_scaling:
   min_instances: 0
   max_instances: 10
-  target_cpu_utilization: 0.6
-
-resources:
-  cpu: 1
-  memory_gb: 0.5
-  disk_size_gb: 10
 ```
 
 ### cron.yaml Configuration
