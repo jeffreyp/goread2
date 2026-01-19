@@ -106,7 +106,7 @@ func (sm *SessionManager) GetSession(sessionID string) (*Session, bool) {
 
 	// Check if session is expired
 	if time.Now().After(dbSession.ExpiresAt) {
-		sm.DeleteSession(sessionID)
+		go sm.DeleteSession(sessionID) // Delete asynchronously to avoid blocking the request
 		return nil, false
 	}
 

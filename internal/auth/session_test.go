@@ -319,6 +319,9 @@ func TestSessionExpiration(t *testing.T) {
 		t.Error("GetSession should return nil for expired session")
 	}
 
+	// Wait briefly for async deletion to complete
+	time.Sleep(10 * time.Millisecond)
+
 	// Verify the expired session was deleted from the database
 	dbSession, err = db.GetSession(expiredSessionID)
 	if err != nil {
