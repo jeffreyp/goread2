@@ -158,3 +158,45 @@ For more details, see README.md and QUICKSTART.md.
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
+
+## Multi-Agent Orchestration
+
+When running in a multi-agent environment via CLI Agent Orchestrator (CAO).
+
+### Detecting Supervisor Mode
+
+Check if `CAO_TERMINAL_ID` environment variable is set to determine if you're in a multi-agent session.
+
+### Agent Roles
+
+**Supervisor Agent:**
+- Coordinates work across developer and reviewer agents
+- **NEVER writes code directly**—delegates all implementation
+- Creates beads issues as task specifications
+
+**Developer Agent:**
+- Receives tasks via beads issue references (e.g., `bd show gr-42`)
+- Implements code, tests, and documentation
+- Iterates on reviewer feedback until approved
+
+**Reviewer Agent:**
+- Reviews code changes from developer
+- Provides specific feedback: approve or request changes
+
+### Iteration Workflow
+
+```
+Supervisor → Developer → Reviewer
+                ↑            ↓
+                └── iterate until approved
+```
+
+### Beads as Task Specs
+
+Beads issues contain all task details—no separate task files needed:
+- **Title/Description**: What to do
+- **Acceptance criteria**: Definition of done
+- **Design notes**: Implementation guidance
+- **Dependencies**: Blockers and related work
+
+Reference the issue ID and agents fetch details via `bd show <id>`.
