@@ -3,6 +3,7 @@ package auth
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 // mockDB implements database.Database interface for testing
 type mockDB struct {
+	mu       sync.RWMutex
 	sessions map[string]*database.Session
 	users    map[int]*database.User
 }
@@ -74,11 +76,15 @@ func (m *mockDB) GetAccountStats(int) (map[string]interface{}, error) {
 }
 
 func (m *mockDB) CreateSession(s *database.Session) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.sessions[s.ID] = s
 	return nil
 }
 
 func (m *mockDB) GetSession(id string) (*database.Session, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if s, exists := m.sessions[id]; exists {
 		return s, nil
 	}
@@ -86,6 +92,8 @@ func (m *mockDB) GetSession(id string) (*database.Session, error) {
 }
 
 func (m *mockDB) UpdateSessionExpiry(sessionID string, newExpiry time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if s, exists := m.sessions[sessionID]; exists {
 		s.ExpiresAt = newExpiry
 	}
@@ -93,11 +101,15 @@ func (m *mockDB) UpdateSessionExpiry(sessionID string, newExpiry time.Time) erro
 }
 
 func (m *mockDB) DeleteSession(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.sessions, id)
 	return nil
 }
 
 func (m *mockDB) DeleteExpiredSessions() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for id, s := range m.sessions {
 		if time.Now().After(s.ExpiresAt) {
 			delete(m.sessions, id)
