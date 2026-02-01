@@ -44,14 +44,9 @@ func NewSessionManager(db database.Database) *SessionManager {
 		oauthStates: make(map[string]time.Time),
 	}
 
-	// Start cleanup goroutine for database sessions
-	go sm.cleanupExpiredSessions()
-
-	// Start cleanup goroutine for cache
-	go sm.cleanupExpiredCache()
-
-	// Start cleanup goroutine for OAuth states
-	go sm.cleanupExpiredOAuthStates()
+	// Note: Cleanup is now handled by cron jobs instead of background goroutines
+	// to prevent keeping instances alive 24/7 on App Engine Standard.
+	// See /cron/cleanup-sessions endpoint.
 
 	return sm
 }
@@ -106,7 +101,7 @@ func (sm *SessionManager) GetSession(sessionID string) (*Session, bool) {
 
 	// Check if session is expired
 	if time.Now().After(dbSession.ExpiresAt) {
-		go sm.DeleteSession(sessionID) // Delete asynchronously to avoid blocking the request
+		sm.DeleteSession(sessionID)
 		return nil, false
 	}
 
@@ -218,35 +213,24 @@ func (sm *SessionManager) GetSessionFromRequest(r *http.Request) (*Session, bool
 	return sm.GetSession(cookie.Value)
 }
 
-func (sm *SessionManager) cleanupExpiredSessions() {
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if err := sm.db.DeleteExpiredSessions(); err != nil {
-			log.Printf("Error cleaning up expired sessions: %v", err)
-		}
-	}
+// CleanupExpiredSessions removes expired sessions from the database
+// This should be called by cron jobs, not background goroutines
+func (sm *SessionManager) CleanupExpiredSessions() error {
+	return sm.db.DeleteExpiredSessions()
 }
 
-// cleanupExpiredCache periodically removes expired entries from the session cache
-// This prevents memory from growing unbounded and ensures cache stays fresh
-func (sm *SessionManager) cleanupExpiredCache() {
-	ticker := time.NewTicker(5 * time.Minute) // Clean up every 5 minutes
-	defer ticker.Stop()
+// CleanupExpiredCache removes expired entries from the session cache
+// This is called opportunistically during GetSession to keep memory usage low
+func (sm *SessionManager) CleanupExpiredCache() {
+	now := time.Now()
+	sm.cacheMu.Lock()
+	defer sm.cacheMu.Unlock()
 
-	for range ticker.C {
-		now := time.Now()
-		sm.cacheMu.Lock()
-
-		// Remove expired cache entries
-		for sessionID, cached := range sm.cache {
-			if now.After(cached.CacheExpires) {
-				delete(sm.cache, sessionID)
-			}
+	// Remove expired cache entries
+	for sessionID, cached := range sm.cache {
+		if now.After(cached.CacheExpires) {
+			delete(sm.cache, sessionID)
 		}
-
-		sm.cacheMu.Unlock()
 	}
 }
 
@@ -317,19 +301,16 @@ func (sm *SessionManager) ValidateAndConsumeOAuthState(state string) bool {
 	return true
 }
 
-// cleanupExpiredOAuthStates periodically removes expired OAuth states
-func (sm *SessionManager) cleanupExpiredOAuthStates() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
+// CleanupExpiredOAuthStates removes expired OAuth states from memory
+// This is called opportunistically during ValidateAndConsumeOAuthState to keep memory usage low
+func (sm *SessionManager) CleanupExpiredOAuthStates() {
+	sm.stateMu.Lock()
+	defer sm.stateMu.Unlock()
 
-	for range ticker.C {
-		sm.stateMu.Lock()
-		now := time.Now()
-		for state, expiry := range sm.oauthStates {
-			if now.After(expiry) {
-				delete(sm.oauthStates, state)
-			}
+	now := time.Now()
+	for state, expiry := range sm.oauthStates {
+		if now.After(expiry) {
+			delete(sm.oauthStates, state)
 		}
-		sm.stateMu.Unlock()
 	}
 }

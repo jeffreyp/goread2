@@ -32,3 +32,4 @@ instance_class: F2  # 512MB RAM - matches previous Flex config
 automatic_scaling:
   min_instances: 0
   max_instances: 10
+  target_cpu_utilization: 0.65  # Scale up when CPU > 65% (vs default ~50%)

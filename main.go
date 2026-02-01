@@ -192,6 +192,8 @@ func main() {
 	{
 		cronRoutes.GET("/refresh-feeds", feedHandler.RefreshFeeds)
 		cronRoutes.POST("/refresh-feeds", feedHandler.RefreshFeeds)
+		cronRoutes.GET("/cleanup-sessions", authHandler.CleanupExpiredSessions)
+		cronRoutes.POST("/cleanup-sessions", authHandler.CleanupExpiredSessions)
 		cronRoutes.GET("/cleanup-orphaned-articles", feedHandler.CleanupOrphanedUserArticles)
 		cronRoutes.POST("/cleanup-orphaned-articles", feedHandler.CleanupOrphanedUserArticles)
 	}
