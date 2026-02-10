@@ -136,13 +136,19 @@ func (uc *UnreadCache) GetStats() CacheStats {
 	uc.mu.RLock()
 	defer uc.mu.RUnlock()
 
+	now := time.Now()
+	activeUsers := 0
 	totalFeeds := 0
-	for _, counts := range uc.counts {
-		totalFeeds += len(counts)
+
+	for userID, counts := range uc.counts {
+		if now.Before(uc.refreshAt[userID]) { // Only count valid entries
+			activeUsers++
+			totalFeeds += len(counts)
+		}
 	}
 
 	return CacheStats{
-		CachedUsers: len(uc.counts),
+		CachedUsers: activeUsers,
 		TotalFeeds:  totalFeeds,
 	}
 }

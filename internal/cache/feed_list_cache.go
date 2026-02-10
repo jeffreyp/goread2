@@ -86,9 +86,15 @@ func (fc *FeedListCache) GetStats() FeedListCacheStats {
 	fc.mu.RLock()
 	defer fc.mu.RUnlock()
 
+	isValid := fc.feeds != nil && time.Now().Before(fc.refreshAt)
+	cachedFeeds := 0
+	if isValid {
+		cachedFeeds = len(fc.feeds)
+	}
+
 	return FeedListCacheStats{
-		CachedFeeds: len(fc.feeds),
-		IsValid:     fc.feeds != nil && time.Now().Before(fc.refreshAt),
+		CachedFeeds: cachedFeeds,
+		IsValid:     isValid,
 	}
 }
 
