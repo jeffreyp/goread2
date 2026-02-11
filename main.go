@@ -121,6 +121,9 @@ func main() {
 	// Add gzip compression for all responses
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 
+	// Security headers (CSP, HSTS, X-Frame-Options, etc.)
+	r.Use(middleware.SecurityHeaders())
+
 	// Simple caching: only cache static assets aggressively, nothing else
 	r.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
