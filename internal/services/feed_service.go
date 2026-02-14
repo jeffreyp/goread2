@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -109,11 +110,19 @@ type AtomAuthor struct {
 	Name string `xml:"name"`
 }
 
+// FetchOptions provides HTTP conditional request headers for bandwidth optimization
+type FetchOptions struct {
+	ETag         string
+	LastModified string
+}
+
 // Unified feed data structure
 type FeedData struct {
-	Title       string
-	Description string
-	Articles    []ArticleData
+	Title                string
+	Description          string
+	Articles             []ArticleData
+	ResponseETag         string // ETag from the HTTP response
+	ResponseLastModified string // Last-Modified from the HTTP response
 }
 
 type ArticleData struct {
@@ -484,7 +493,7 @@ func (fs *FeedService) UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles int) e
 	return fs.db.UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles)
 }
 
-func (fs *FeedService) fetchFeed(ctx context.Context, url string) (*FeedData, error) {
+func (fs *FeedService) fetchFeed(ctx context.Context, url string, opts ...*FetchOptions) (*FeedData, error) {
 	// Validate URL for SSRF protection (skip if using mock HTTP client for testing)
 	if fs.httpClient == nil {
 		if err := fs.urlValidator.ValidateURL(ctx, url); err != nil {
@@ -512,6 +521,16 @@ func (fs *FeedService) fetchFeed(ctx context.Context, url string) (*FeedData, er
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; GoRead/2.0)")
 
+	// Add conditional request headers if options provided
+	if len(opts) > 0 && opts[0] != nil {
+		if opts[0].ETag != "" {
+			req.Header.Set("If-None-Match", opts[0].ETag)
+		}
+		if opts[0].LastModified != "" {
+			req.Header.Set("If-Modified-Since", opts[0].LastModified)
+		}
+	}
+
 	// Use injected HTTP client if available, otherwise create secure client
 	var client HTTPClient
 	if fs.httpClient != nil {
@@ -527,6 +546,9 @@ func (fs *FeedService) fetchFeed(ctx context.Context, url string) (*FeedData, er
 	defer func() { _ = resp.Body.Close() }()
 
 	// Check HTTP status code
+	if resp.StatusCode == http.StatusNotModified {
+		return nil, ErrFeedNotModified
+	}
 	if resp.StatusCode == 404 {
 		return nil, fmt.Errorf("%w: feed URL returned 404 Not Found", ErrFeedNotFound)
 	}
@@ -552,13 +574,20 @@ func (fs *FeedService) fetchFeed(ctx context.Context, url string) (*FeedData, er
 		return nil, fmt.Errorf("%w: failed to convert encoding: %v", ErrInvalidFeedFormat, err)
 	}
 
+	// Capture response cache headers for conditional requests
+	responseETag := resp.Header.Get("ETag")
+	responseLastModified := resp.Header.Get("Last-Modified")
+
 	// Special handling for feeds with media namespace conflicts
 	body = fs.preprocessXMLForMediaConflicts(body)
 
 	// Try parsing as RSS 2.0 first
 	var rss RSS
 	if err := xml.Unmarshal(body, &rss); err == nil && rss.XMLName.Local == "rss" {
-		return fs.convertRSSToFeedData(&rss, url), nil
+		feedData := fs.convertRSSToFeedData(&rss, url)
+		feedData.ResponseETag = responseETag
+		feedData.ResponseLastModified = responseLastModified
+		return feedData, nil
 	}
 
 	// Try parsing as RDF/RSS 1.0
@@ -566,14 +595,20 @@ func (fs *FeedService) fetchFeed(ctx context.Context, url string) (*FeedData, er
 	rdfErr := xml.Unmarshal(body, &rdf)
 	if rdfErr == nil {
 		if rdf.XMLName.Local == "RDF" {
-			return fs.convertRDFToFeedData(&rdf, url), nil
+			feedData := fs.convertRDFToFeedData(&rdf, url)
+			feedData.ResponseETag = responseETag
+			feedData.ResponseLastModified = responseLastModified
+			return feedData, nil
 		}
 	}
 
 	// Try parsing as Atom
 	var atom Atom
 	if err := xml.Unmarshal(body, &atom); err == nil && atom.XMLName.Local == "feed" {
-		return fs.convertAtomToFeedData(&atom, url), nil
+		feedData := fs.convertAtomToFeedData(&atom, url)
+		feedData.ResponseETag = responseETag
+		feedData.ResponseLastModified = responseLastModified
+		return feedData, nil
 	}
 
 	return nil, fmt.Errorf("%w: unsupported feed format or invalid XML", ErrInvalidFeedFormat)
@@ -770,6 +805,7 @@ func (fs *FeedService) RefreshFeeds() error {
 	checked := 0
 	skipped := 0
 	hasNewContent := 0
+	notModified := 0
 
 	for _, feed := range feedMap {
 		// Smart feed prioritization: only check feeds that are due
@@ -778,18 +814,40 @@ func (fs *FeedService) RefreshFeeds() error {
 			continue
 		}
 
+		// Build conditional request options from stored cache headers
+		var fetchOpts *FetchOptions
+		if feed.ETag != "" || feed.LastModified != "" {
+			fetchOpts = &FetchOptions{
+				ETag:         feed.ETag,
+				LastModified: feed.LastModified,
+			}
+		}
+
 		// Fetch and save articles
 		ctx := context.Background()
-		feedData, err := fs.fetchFeed(ctx, feed.URL)
+		feedData, err := fs.fetchFeed(ctx, feed.URL, fetchOpts)
 		checked++
 
 		// Update last_checked regardless of success/failure
 		feed.LastChecked = now
 
+		if errors.Is(err, ErrFeedNotModified) {
+			notModified++
+			_ = fs.updateFeedTracking(feed, false)
+			continue
+		}
+
 		if err != nil {
 			log.Printf("Failed to fetch feed %s: %v", feed.URL, err)
 			_ = fs.updateFeedTracking(feed, false)
 			continue
+		}
+
+		// Persist response cache headers for next conditional request
+		if feedData.ResponseETag != "" || feedData.ResponseLastModified != "" {
+			if updateErr := fs.db.UpdateFeedCacheHeaders(feed.ID, feedData.ResponseETag, feedData.ResponseLastModified); updateErr != nil {
+				log.Printf("Failed to update cache headers for feed %s: %v", feed.URL, updateErr)
+			}
 		}
 
 		// Save articles and get count of newly saved articles
@@ -812,7 +870,7 @@ func (fs *FeedService) RefreshFeeds() error {
 		_ = fs.db.UpdateFeedLastFetch(feed.ID, now)
 	}
 
-	log.Printf("Feed refresh complete: checked=%d, skipped=%d, had_new_content=%d", checked, skipped, hasNewContent)
+	log.Printf("Feed refresh complete: checked=%d, skipped=%d, not_modified=%d, had_new_content=%d", checked, skipped, notModified, hasNewContent)
 
 	return nil
 }

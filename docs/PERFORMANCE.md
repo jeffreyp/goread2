@@ -117,9 +117,32 @@ Our pricing model ($2.99/month unlimited feeds) requires aggressive cost optimiz
 - Better user experience (instant unsubscribe)
 - Expected savings: $20-50/month
 
+#### 6. HTTP Conditional Requests (ETag/If-Modified-Since) ($40-80/month savings)
+
+**Problem:** Every hourly feed refresh downloads the full feed content even when nothing has changed. Most feeds update infrequently, wasting bandwidth and processing time.
+
+**Solution:**
+- Store `ETag` and `Last-Modified` response headers from feed servers
+- Send `If-None-Match` and `If-Modified-Since` headers on subsequent requests
+- Handle `304 Not Modified` responses to skip re-downloading and re-parsing unchanged feeds
+- New `FetchOptions` struct enables conditional request headers
+
+**Implementation:**
+- Database fields: `Feed.ETag`, `Feed.LastModified` (both SQLite and Datastore)
+- Schema migration: `internal/database/schema.go` (idempotent ALTER TABLE)
+- Conditional request logic: `internal/services/feed_service.go` (`fetchFeed` with `FetchOptions`)
+- Cache header persistence: `Database.UpdateFeedCacheHeaders()`
+- Integration in `RefreshFeeds()`: builds `FetchOptions` from stored headers, handles 304
+
+**Impact:**
+- Estimated ~90% bandwidth reduction for unchanged feeds
+- Faster refresh cycles (304 responses are instant, no body parsing needed)
+- Reduced CPU usage from skipped XML parsing
+- Expected savings: $40-80/month in bandwidth and compute costs
+
 ### Total Cost Savings
 
-**Estimated total: $550-1,010/month**
+**Estimated total: $590-1,090/month**
 
 This reduces per-user costs by approximately $6-12/month, making the $2.99/month pricing sustainable and profitable.
 
@@ -234,7 +257,7 @@ Enable detailed logging for cost analysis:
 
 ```bash
 # Feed refresh stats
-2025-11-02 12:00:00 Feed refresh completed: checked=45, skipped=23, has_new=12, duration=8.5s
+2025-11-02 12:00:00 Feed refresh complete: checked=45, skipped=23, not_modified=18, had_new_content=12
 
 # Cache hit rates
 2025-11-02 12:00:00 Unread cache stats: users=15, feeds=120, hit_rate=73%
@@ -302,7 +325,7 @@ Set up Google Cloud budget alerts:
 
 ## Summary
 
-Through careful optimization, we've reduced operational costs by $550-1,010/month while maintaining excellent performance and user experience. Key strategies:
+Through careful optimization, we've reduced operational costs by $590-1,090/month while maintaining excellent performance and user experience. Key strategies:
 
 1. ✅ Smart feed update prioritization
 2. ✅ Remove unbounded queries
@@ -310,5 +333,6 @@ Through careful optimization, we've reduced operational costs by $550-1,010/mont
 4. ✅ Cache expensive operations
 5. ✅ Deferred cleanup for unsubscribe operations
 6. ✅ Concurrent processing where safe
+7. ✅ HTTP conditional requests (ETag/If-Modified-Since)
 
 These optimizations make the $2.99/month pricing sustainable and profitable.

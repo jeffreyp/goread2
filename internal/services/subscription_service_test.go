@@ -146,6 +146,9 @@ func (m *mockDBForSub) GetAuditLogs(int, int, map[string]interface{}) ([]databas
 func (m *mockDBForSub) GetAccountStats(int) (map[string]interface{}, error) {
 	return map[string]interface{}{}, nil
 }
+func (m *mockDBForSub) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
+	return nil
+}
 
 func TestNewSubscriptionService(t *testing.T) {
 	db := newMockDBForSub()

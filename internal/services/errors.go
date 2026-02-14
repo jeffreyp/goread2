@@ -25,6 +25,9 @@ var (
 	// ErrDatabaseError indicates a database operation failed
 	ErrDatabaseError = errors.New("database error")
 
+	// ErrFeedNotModified indicates the feed has not changed since the last fetch (HTTP 304)
+	ErrFeedNotModified = errors.New("feed not modified")
+
 	// Existing subscription-related errors (already defined elsewhere, documented here for reference)
 	// ErrFeedLimitReached - user has reached their feed limit
 	// ErrTrialExpired - user's trial has expired

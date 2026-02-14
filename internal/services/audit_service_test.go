@@ -140,6 +140,9 @@ func (m *mockDBAudit) DeleteExpiredSessions() error                  { return ni
 func (m *mockDBAudit) GetAccountStats(int) (map[string]interface{}, error) {
 	return map[string]interface{}{}, nil
 }
+func (m *mockDBAudit) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
+	return nil
+}
 
 func TestNewAuditService(t *testing.T) {
 	db := newMockDBAudit()

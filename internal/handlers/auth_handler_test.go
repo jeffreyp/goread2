@@ -73,6 +73,9 @@ func (m *mockDBAuthHandler) GetAccountStats(int) (map[string]interface{}, error)
 }
 func (m *mockDBAuthHandler) UpdateFeedLastFetch(int, time.Time) error { return nil }
 func (m *mockDBAuthHandler) Close() error                             { return nil }
+func (m *mockDBAuthHandler) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
+	return nil
+}
 
 func TestNewAuthHandler(t *testing.T) {
 	// Create mock services

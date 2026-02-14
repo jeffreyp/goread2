@@ -1175,3 +1175,128 @@ func TestFetchFeed_SizeLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestFetchFeed_ConditionalRequest_304NotModified(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return 304 Not Modified if conditional headers are present
+		if r.Header.Get("If-None-Match") != "" || r.Header.Get("If-Modified-Since") != "" {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title></channel></rss>`))
+	}))
+	defer server.Close()
+
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := NewFeedService(db, nil)
+	service.SetHTTPClient(&mockHTTPClient{Server: server})
+
+	opts := &FetchOptions{
+		ETag:         `"abc123"`,
+		LastModified: "Wed, 01 Jan 2025 00:00:00 GMT",
+	}
+
+	_, err := service.fetchFeed(context.Background(), server.URL, opts)
+	if !errors.Is(err, ErrFeedNotModified) {
+		t.Errorf("Expected ErrFeedNotModified, got: %v", err)
+	}
+}
+
+func TestFetchFeed_ConditionalHeaders_Sent(t *testing.T) {
+	var receivedETag, receivedLastModified string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedETag = r.Header.Get("If-None-Match")
+		receivedLastModified = r.Header.Get("If-Modified-Since")
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title></channel></rss>`))
+	}))
+	defer server.Close()
+
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := NewFeedService(db, nil)
+	service.SetHTTPClient(&mockHTTPClient{Server: server})
+
+	etag := `"xyz789"`
+	lastMod := "Thu, 15 Jan 2025 12:00:00 GMT"
+	opts := &FetchOptions{
+		ETag:         etag,
+		LastModified: lastMod,
+	}
+
+	_, err := service.fetchFeed(context.Background(), server.URL, opts)
+	if err != nil {
+		t.Fatalf("fetchFeed failed: %v", err)
+	}
+
+	if receivedETag != etag {
+		t.Errorf("Expected If-None-Match %q, got %q", etag, receivedETag)
+	}
+	if receivedLastModified != lastMod {
+		t.Errorf("Expected If-Modified-Since %q, got %q", lastMod, receivedLastModified)
+	}
+}
+
+func TestFetchFeed_ResponseCacheHeaders_Captured(t *testing.T) {
+	respETag := `"response-etag-456"`
+	respLastMod := "Fri, 10 Jan 2025 08:00:00 GMT"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", respETag)
+		w.Header().Set("Last-Modified", respLastMod)
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>Test Feed</title><description>A feed</description></channel></rss>`))
+	}))
+	defer server.Close()
+
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := NewFeedService(db, nil)
+	service.SetHTTPClient(&mockHTTPClient{Server: server})
+
+	feedData, err := service.fetchFeed(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("fetchFeed failed: %v", err)
+	}
+
+	if feedData.ResponseETag != respETag {
+		t.Errorf("Expected ResponseETag %q, got %q", respETag, feedData.ResponseETag)
+	}
+	if feedData.ResponseLastModified != respLastMod {
+		t.Errorf("Expected ResponseLastModified %q, got %q", respLastMod, feedData.ResponseLastModified)
+	}
+}
+
+func TestFetchFeed_NilOptions_NoConditionalHeaders(t *testing.T) {
+	var receivedETag, receivedLastModified string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedETag = r.Header.Get("If-None-Match")
+		receivedLastModified = r.Header.Get("If-Modified-Since")
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title></channel></rss>`))
+	}))
+	defer server.Close()
+
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := NewFeedService(db, nil)
+	service.SetHTTPClient(&mockHTTPClient{Server: server})
+
+	// Call without options (variadic empty)
+	_, err := service.fetchFeed(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("fetchFeed failed: %v", err)
+	}
+
+	if receivedETag != "" {
+		t.Errorf("Expected no If-None-Match header, got %q", receivedETag)
+	}
+	if receivedLastModified != "" {
+		t.Errorf("Expected no If-Modified-Since header, got %q", receivedLastModified)
+	}
+}

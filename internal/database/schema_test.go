@@ -1410,3 +1410,76 @@ func TestAuditLogTableExists(t *testing.T) {
 		t.Errorf("Error checking audit_logs table: %v", err)
 	}
 }
+
+func TestUpdateFeedCacheHeaders(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Run migration to ensure etag/last_modified columns exist
+	if err := db.migrateDatabase(); err != nil {
+		t.Fatalf("migrateDatabase failed: %v", err)
+	}
+
+	feed := &Feed{
+		Title:       "Cache Header Test Feed",
+		URL:         "https://example.com/cache-test.xml",
+		Description: "A test feed for cache headers",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	if err := db.AddFeed(feed); err != nil {
+		t.Fatalf("AddFeed failed: %v", err)
+	}
+
+	// Verify initial values are empty
+	retrieved, err := db.GetFeedByURL(feed.URL)
+	if err != nil {
+		t.Fatalf("GetFeedByURL failed: %v", err)
+	}
+	if retrieved.ETag != "" {
+		t.Errorf("Expected empty ETag initially, got %q", retrieved.ETag)
+	}
+	if retrieved.LastModified != "" {
+		t.Errorf("Expected empty LastModified initially, got %q", retrieved.LastModified)
+	}
+
+	// Update cache headers
+	etag := `"abc123"`
+	lastModified := "Wed, 01 Jan 2025 00:00:00 GMT"
+	err = db.UpdateFeedCacheHeaders(feed.ID, etag, lastModified)
+	if err != nil {
+		t.Fatalf("UpdateFeedCacheHeaders failed: %v", err)
+	}
+
+	// Verify round-trip persistence
+	updated, err := db.GetFeedByURL(feed.URL)
+	if err != nil {
+		t.Fatalf("GetFeedByURL after update failed: %v", err)
+	}
+	if updated.ETag != etag {
+		t.Errorf("Expected ETag %q, got %q", etag, updated.ETag)
+	}
+	if updated.LastModified != lastModified {
+		t.Errorf("Expected LastModified %q, got %q", lastModified, updated.LastModified)
+	}
+
+	// Verify GetFeeds also returns cache headers
+	allFeeds, err := db.GetFeeds()
+	if err != nil {
+		t.Fatalf("GetFeeds failed: %v", err)
+	}
+	found := false
+	for _, f := range allFeeds {
+		if f.URL == feed.URL {
+			found = true
+			if f.ETag != etag {
+				t.Errorf("GetFeeds: Expected ETag %q, got %q", etag, f.ETag)
+			}
+			if f.LastModified != lastModified {
+				t.Errorf("GetFeeds: Expected LastModified %q, got %q", lastModified, f.LastModified)
+			}
+		}
+	}
+	if !found {
+		t.Error("Feed not found in GetFeeds results")
+	}
+}

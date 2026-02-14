@@ -128,6 +128,9 @@ func (m *mockDBFeedHandler) GetAccountStats(userID int) (map[string]interface{},
 }
 func (m *mockDBFeedHandler) UpdateFeedLastFetch(int, time.Time) error { return nil }
 func (m *mockDBFeedHandler) Close() error                             { return nil }
+func (m *mockDBFeedHandler) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
+	return nil
+}
 
 func TestNewFeedHandler(t *testing.T) {
 	// Create mock services

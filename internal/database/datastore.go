@@ -100,6 +100,8 @@ type FeedEntity struct {
 	LastChecked           time.Time `datastore:"last_checked"`
 	LastHadNewContent     time.Time `datastore:"last_had_new_content"`
 	AverageUpdateInterval int       `datastore:"average_update_interval"`
+	ETag                  string    `datastore:"etag"`
+	LastModified          string    `datastore:"last_modified"`
 }
 
 type ArticleEntity struct {
@@ -153,6 +155,8 @@ func (db *DatastoreDB) AddFeed(feed *Feed) error {
 		LastChecked:           feed.LastChecked,
 		LastHadNewContent:     feed.LastHadNewContent,
 		AverageUpdateInterval: feed.AverageUpdateInterval,
+		ETag:                  feed.ETag,
+		LastModified:          feed.LastModified,
 	}
 
 	key := datastore.IncompleteKey("Feed", nil)
@@ -215,6 +219,26 @@ func (db *DatastoreDB) UpdateFeedTracking(feedID int, lastChecked, lastHadNewCon
 	return nil
 }
 
+func (db *DatastoreDB) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	key := datastore.IDKey("Feed", int64(feedID), nil)
+	var entity FeedEntity
+	if err := db.client.Get(ctx, key, &entity); err != nil {
+		return fmt.Errorf("failed to get feed: %w", err)
+	}
+
+	entity.ETag = etag
+	entity.LastModified = lastModified
+
+	if _, err := db.client.Put(ctx, key, &entity); err != nil {
+		return fmt.Errorf("failed to update feed cache headers: %w", err)
+	}
+
+	return nil
+}
+
 func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
@@ -240,6 +264,8 @@ func (db *DatastoreDB) GetFeeds() ([]Feed, error) {
 			LastChecked:           entity.LastChecked,
 			LastHadNewContent:     entity.LastHadNewContent,
 			AverageUpdateInterval: entity.AverageUpdateInterval,
+			ETag:                  entity.ETag,
+			LastModified:          entity.LastModified,
 		}
 	}
 
@@ -274,6 +300,8 @@ func (db *DatastoreDB) GetFeedByURL(url string) (*Feed, error) {
 		LastChecked:           entity.LastChecked,
 		LastHadNewContent:     entity.LastHadNewContent,
 		AverageUpdateInterval: entity.AverageUpdateInterval,
+		ETag:                  entity.ETag,
+		LastModified:          entity.LastModified,
 	}
 
 	return feed, nil
@@ -305,6 +333,8 @@ func (db *DatastoreDB) GetFeedByID(feedID int) (*Feed, error) {
 		LastChecked:           entity.LastChecked,
 		LastHadNewContent:     entity.LastHadNewContent,
 		AverageUpdateInterval: entity.AverageUpdateInterval,
+		ETag:                  entity.ETag,
+		LastModified:          entity.LastModified,
 	}
 
 	return feed, nil
@@ -628,6 +658,8 @@ func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
 						LastChecked:           entity.LastChecked,
 						LastHadNewContent:     entity.LastHadNewContent,
 						AverageUpdateInterval: entity.AverageUpdateInterval,
+						ETag:                  entity.ETag,
+						LastModified:          entity.LastModified,
 					})
 				}
 			}
@@ -650,6 +682,8 @@ func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
 			LastChecked:           entity.LastChecked,
 			LastHadNewContent:     entity.LastHadNewContent,
 			AverageUpdateInterval: entity.AverageUpdateInterval,
+			ETag:                  entity.ETag,
+			LastModified:          entity.LastModified,
 		}
 	}
 

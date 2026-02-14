@@ -70,6 +70,9 @@ func (m *mockDB) GetAccountStats(int) (map[string]interface{}, error) {
 }
 func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error { return nil }
 func (m *mockDB) Close() error                             { return nil }
+func (m *mockDB) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
+	return nil
+}
 
 func TestRequestCacheMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)

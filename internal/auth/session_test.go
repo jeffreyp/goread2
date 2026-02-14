@@ -118,6 +118,10 @@ func (m *mockDB) DeleteExpiredSessions() error {
 	return nil
 }
 
+func (m *mockDB) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
+	return nil
+}
+
 func TestNewSessionManager(t *testing.T) {
 	db := newMockDB()
 	defer func() { _ = db.Close() }()

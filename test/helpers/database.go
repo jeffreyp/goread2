@@ -56,7 +56,9 @@ func createTestTables(db *database.DB) error {
 			last_fetch DATETIME DEFAULT CURRENT_TIMESTAMP,
 			last_checked DATETIME DEFAULT CURRENT_TIMESTAMP,
 			last_had_new_content DATETIME DEFAULT CURRENT_TIMESTAMP,
-			average_update_interval INTEGER DEFAULT 0
+			average_update_interval INTEGER DEFAULT 0,
+			etag TEXT DEFAULT '',
+			last_modified TEXT DEFAULT ''
 		)`,
 		`CREATE TABLE articles (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
