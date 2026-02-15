@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
@@ -24,6 +25,8 @@ type SessionManager struct {
 	cache       map[string]*CachedSession // sessionID -> cached session
 	cacheMu     sync.RWMutex
 	cacheTTL    time.Duration // How long to cache sessions (default: 10 minutes)
+	cacheHits   int64
+	cacheMisses int64
 	oauthStates map[string]time.Time // OAuth state -> expiry time (for one-time use)
 	stateMu     sync.RWMutex
 }
@@ -87,13 +90,13 @@ func (sm *SessionManager) GetSession(sessionID string) (*Session, bool) {
 		// Check if cache entry is still valid
 		if time.Now().Before(cached.CacheExpires) {
 			sm.cacheMu.RUnlock()
-			// Cache hit! Return cached session without database read
+			atomic.AddInt64(&sm.cacheHits, 1)
 			return cached.Session, true
 		}
 	}
 	sm.cacheMu.RUnlock()
 
-	// Cache miss or expired - fetch from database
+	atomic.AddInt64(&sm.cacheMisses, 1)
 	dbSession, err := sm.db.GetSession(sessionID)
 	if err != nil || dbSession == nil {
 		return nil, false
@@ -248,10 +251,20 @@ func (sm *SessionManager) GetCacheStats() map[string]int {
 		}
 	}
 
+	hits := atomic.LoadInt64(&sm.cacheHits)
+	misses := atomic.LoadInt64(&sm.cacheMisses)
+	var hitRate int64
+	if total := hits + misses; total > 0 {
+		hitRate = hits * 100 / total
+	}
+
 	return map[string]int{
-		"total":   len(sm.cache),
-		"expired": expired,
-		"active":  len(sm.cache) - expired,
+		"total":    len(sm.cache),
+		"expired":  expired,
+		"active":   len(sm.cache) - expired,
+		"hits":     int(hits),
+		"misses":   int(misses),
+		"hit_rate": int(hitRate),
 	}
 }
 

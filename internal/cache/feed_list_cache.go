@@ -2,6 +2,7 @@ package cache
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
@@ -15,6 +16,8 @@ type FeedListCache struct {
 	refreshAt time.Time
 	mu        sync.RWMutex
 	ttl       time.Duration
+	hits      int64
+	misses    int64
 }
 
 // NewFeedListCache creates a new feed list cache with the specified TTL.
@@ -38,11 +41,13 @@ func (fc *FeedListCache) Get() ([]database.Feed, bool) {
 	defer fc.mu.RUnlock()
 
 	if fc.feeds == nil {
+		atomic.AddInt64(&fc.misses, 1)
 		return nil, false
 	}
 
 	// Check if cache has expired
 	if time.Now().After(fc.refreshAt) {
+		atomic.AddInt64(&fc.misses, 1)
 		return nil, false
 	}
 
@@ -50,6 +55,7 @@ func (fc *FeedListCache) Get() ([]database.Feed, bool) {
 	result := make([]database.Feed, len(fc.feeds))
 	copy(result, fc.feeds)
 
+	atomic.AddInt64(&fc.hits, 1)
 	return result, true
 }
 
@@ -79,6 +85,9 @@ func (fc *FeedListCache) Invalidate() {
 type FeedListCacheStats struct {
 	CachedFeeds int
 	IsValid     bool
+	Hits        int64
+	Misses      int64
+	HitRate     float64
 }
 
 // GetStats returns current cache statistics.
@@ -92,9 +101,19 @@ func (fc *FeedListCache) GetStats() FeedListCacheStats {
 		cachedFeeds = len(fc.feeds)
 	}
 
+	hits := atomic.LoadInt64(&fc.hits)
+	misses := atomic.LoadInt64(&fc.misses)
+	var hitRate float64
+	if total := hits + misses; total > 0 {
+		hitRate = float64(hits) / float64(total)
+	}
+
 	return FeedListCacheStats{
 		CachedFeeds: cachedFeeds,
 		IsValid:     isValid,
+		Hits:        hits,
+		Misses:      misses,
+		HitRate:     hitRate,
 	}
 }
 

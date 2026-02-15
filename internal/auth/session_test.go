@@ -755,6 +755,22 @@ func TestCacheStats(t *testing.T) {
 	if stats["active"] != 2 {
 		t.Errorf("Cache active should be 2, got %d", stats["active"])
 	}
+
+	// Verify hit/miss metrics: 2 GetSession calls above were misses (not yet cached),
+	// then the sessions got cached. Now do hits.
+	sm.GetSession(session1.ID) // hit
+	sm.GetSession(session2.ID) // hit
+
+	stats = sm.GetCacheStats()
+	if stats["hits"] != 2 {
+		t.Errorf("Expected 2 hits, got %d", stats["hits"])
+	}
+	if stats["misses"] != 2 {
+		t.Errorf("Expected 2 misses, got %d", stats["misses"])
+	}
+	if stats["hit_rate"] != 50 {
+		t.Errorf("Expected hit_rate 50, got %d", stats["hit_rate"])
+	}
 }
 
 // TestInvalidateCache verifies InvalidateCache clears all cached sessions

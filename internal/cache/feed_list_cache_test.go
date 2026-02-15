@@ -135,6 +135,42 @@ func TestFeedListCache_GetStats(t *testing.T) {
 	}
 }
 
+func TestFeedListCache_HitMissMetrics(t *testing.T) {
+	cache := NewFeedListCache(60 * time.Second)
+
+	// Miss on empty cache
+	cache.Get()
+	cache.Get()
+
+	stats := cache.GetStats()
+	if stats.Hits != 0 {
+		t.Errorf("Expected 0 hits, got %d", stats.Hits)
+	}
+	if stats.Misses != 2 {
+		t.Errorf("Expected 2 misses, got %d", stats.Misses)
+	}
+
+	// Set and hit
+	feeds := []database.Feed{
+		{ID: 1, Title: "Feed 1", URL: "https://example.com/feed1"},
+	}
+	cache.Set(feeds)
+	cache.Get() // hit
+	cache.Get() // hit
+
+	stats = cache.GetStats()
+	if stats.Hits != 2 {
+		t.Errorf("Expected 2 hits, got %d", stats.Hits)
+	}
+	if stats.Misses != 2 {
+		t.Errorf("Expected 2 misses, got %d", stats.Misses)
+	}
+	// 2 hits out of 4 total = 0.5
+	if stats.HitRate < 0.49 || stats.HitRate > 0.51 {
+		t.Errorf("Expected HitRate ~0.5, got %f", stats.HitRate)
+	}
+}
+
 func TestFeedListCache_GetReturnsCopy(t *testing.T) {
 	cache := NewFeedListCache(60 * time.Second)
 

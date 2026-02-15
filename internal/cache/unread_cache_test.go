@@ -253,6 +253,59 @@ func TestUnreadCache_GetStats(t *testing.T) {
 	}
 }
 
+func TestUnreadCache_HitMissMetrics(t *testing.T) {
+	cache := NewUnreadCache(60 * time.Second)
+
+	// Miss on empty cache
+	cache.Get(1)
+	cache.Get(2)
+
+	stats := cache.GetStats()
+	if stats.Hits != 0 {
+		t.Errorf("Expected 0 hits, got %d", stats.Hits)
+	}
+	if stats.Misses != 2 {
+		t.Errorf("Expected 2 misses, got %d", stats.Misses)
+	}
+
+	// Set and hit
+	cache.Set(1, map[int]int{10: 5})
+	cache.Get(1) // hit
+	cache.Get(1) // hit
+	cache.Get(2) // miss
+
+	stats = cache.GetStats()
+	if stats.Hits != 2 {
+		t.Errorf("Expected 2 hits, got %d", stats.Hits)
+	}
+	if stats.Misses != 3 {
+		t.Errorf("Expected 3 misses, got %d", stats.Misses)
+	}
+	// 2 hits out of 5 total = 0.4
+	if stats.HitRate < 0.39 || stats.HitRate > 0.41 {
+		t.Errorf("Expected HitRate ~0.4, got %f", stats.HitRate)
+	}
+}
+
+func TestUnreadCache_HitMissExpiration(t *testing.T) {
+	cache := NewUnreadCache(100 * time.Millisecond)
+
+	cache.Set(1, map[int]int{10: 5})
+	cache.Get(1) // hit
+
+	time.Sleep(150 * time.Millisecond)
+
+	cache.Get(1) // miss (expired)
+
+	stats := cache.GetStats()
+	if stats.Hits != 1 {
+		t.Errorf("Expected 1 hit, got %d", stats.Hits)
+	}
+	if stats.Misses != 1 {
+		t.Errorf("Expected 1 miss, got %d", stats.Misses)
+	}
+}
+
 func TestUnreadCache_ConcurrentAccess(t *testing.T) {
 	cache := NewUnreadCache(60 * time.Second)
 	userID := 1

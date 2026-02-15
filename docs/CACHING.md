@@ -209,13 +209,18 @@ Check cache statistics:
 ```go
 // Unread cache stats
 stats := unreadCache.GetStats()
-fmt.Printf("Cached users: %d, Total feeds: %d\n",
-    stats.CachedUsers, stats.TotalFeeds)
+fmt.Printf("Cached users: %d, Total feeds: %d, Hits: %d, Misses: %d, HitRate: %.2f\n",
+    stats.CachedUsers, stats.TotalFeeds, stats.Hits, stats.Misses, stats.HitRate)
 
 // Feed list cache stats
-stats := feedListCache.GetStats()
-fmt.Printf("Cached feeds: %d, Is valid: %v\n",
-    stats.CachedFeeds, stats.IsValid)
+flStats := feedListCache.GetStats()
+fmt.Printf("Cached feeds: %d, Is valid: %v, Hits: %d, Misses: %d, HitRate: %.2f\n",
+    flStats.CachedFeeds, flStats.IsValid, flStats.Hits, flStats.Misses, flStats.HitRate)
+
+// Session cache stats
+sessionStats := sm.GetCacheStats()
+fmt.Printf("Sessions: %d active, Hits: %d, Misses: %d, HitRate: %d%%\n",
+    sessionStats["active"], sessionStats["hits"], sessionStats["misses"], sessionStats["hit_rate"])
 ```
 
 ---

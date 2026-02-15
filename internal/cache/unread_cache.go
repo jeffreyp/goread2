@@ -2,6 +2,7 @@ package cache
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -13,6 +14,8 @@ type UnreadCache struct {
 	refreshAt map[int]time.Time   // userID → cache expiry time
 	mu        sync.RWMutex
 	ttl       time.Duration
+	hits      int64
+	misses    int64
 }
 
 // NewUnreadCache creates a new unread count cache with the specified TTL.
@@ -38,11 +41,13 @@ func (uc *UnreadCache) Get(userID int) (map[int]int, bool) {
 
 	counts, exists := uc.counts[userID]
 	if !exists {
+		atomic.AddInt64(&uc.misses, 1)
 		return nil, false
 	}
 
 	// Check if cache has expired
 	if time.Now().After(uc.refreshAt[userID]) {
+		atomic.AddInt64(&uc.misses, 1)
 		return nil, false
 	}
 
@@ -52,6 +57,7 @@ func (uc *UnreadCache) Get(userID int) (map[int]int, bool) {
 		result[feedID] = count
 	}
 
+	atomic.AddInt64(&uc.hits, 1)
 	return result, true
 }
 
@@ -129,6 +135,9 @@ func (uc *UnreadCache) InvalidateAll() {
 type CacheStats struct {
 	CachedUsers int
 	TotalFeeds  int
+	Hits        int64
+	Misses      int64
+	HitRate     float64
 }
 
 // GetStats returns current cache statistics.
@@ -147,9 +156,19 @@ func (uc *UnreadCache) GetStats() CacheStats {
 		}
 	}
 
+	hits := atomic.LoadInt64(&uc.hits)
+	misses := atomic.LoadInt64(&uc.misses)
+	var hitRate float64
+	if total := hits + misses; total > 0 {
+		hitRate = float64(hits) / float64(total)
+	}
+
 	return CacheStats{
 		CachedUsers: activeUsers,
 		TotalFeeds:  totalFeeds,
+		Hits:        hits,
+		Misses:      misses,
+		HitRate:     hitRate,
 	}
 }
 
