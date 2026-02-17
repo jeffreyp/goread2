@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -261,6 +262,21 @@ func main() {
 	if err := authService.InitializeAdminUsers(); err != nil {
 		log.Printf("Warning: Failed to initialize admin users: %v", err)
 	}
+
+	// Periodic cache stats logging (every 5 minutes)
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		for range ticker.C {
+			unread, feedList := feedService.GetCacheStats()
+			log.Printf("Cache stats - unread: hits=%d misses=%d hitRate=%.1f%% users=%d",
+				unread.Hits, unread.Misses, unread.HitRate, unread.CachedUsers)
+			log.Printf("Cache stats - feedList: hits=%d misses=%d hitRate=%.1f%% feeds=%d valid=%v",
+				feedList.Hits, feedList.Misses, feedList.HitRate, feedList.CachedFeeds, feedList.IsValid)
+			sessionStats := sessionManager.GetCacheStats()
+			log.Printf("Cache stats - session: hits=%d misses=%d hitRate=%d%% active=%d",
+				sessionStats["hits"], sessionStats["misses"], sessionStats["hit_rate"], sessionStats["active"])
+		}
+	}()
 
 	// Get port from configuration
 	port := cfg.Port

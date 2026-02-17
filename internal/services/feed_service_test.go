@@ -1300,3 +1300,42 @@ func TestFetchFeed_NilOptions_NoConditionalHeaders(t *testing.T) {
 		t.Errorf("Expected no If-Modified-Since header, got %q", receivedLastModified)
 	}
 }
+
+func TestGetCacheStats(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+
+	unread, feedList := fs.GetCacheStats()
+
+	// Fresh caches should have zero hits and misses
+	if unread.Hits != 0 || unread.Misses != 0 {
+		t.Errorf("Expected zero unread stats, got hits=%d misses=%d", unread.Hits, unread.Misses)
+	}
+	if feedList.Hits != 0 || feedList.Misses != 0 {
+		t.Errorf("Expected zero feedList stats, got hits=%d misses=%d", feedList.Hits, feedList.Misses)
+	}
+
+	// Create a test user so GetUserUnreadCounts can work
+	user := &database.User{Email: "test@example.com", Name: "Test"}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Trigger a cache miss on unread cache
+	_, _ = fs.GetUserUnreadCounts(user.ID, []database.Feed{})
+
+	unread, _ = fs.GetCacheStats()
+	if unread.Misses != 1 {
+		t.Errorf("Expected 1 unread miss after first lookup, got %d", unread.Misses)
+	}
+
+	// Second call should be a cache hit
+	_, _ = fs.GetUserUnreadCounts(user.ID, []database.Feed{})
+
+	unread, _ = fs.GetCacheStats()
+	if unread.Hits != 1 {
+		t.Errorf("Expected 1 unread hit after second lookup, got %d", unread.Hits)
+	}
+}

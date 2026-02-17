@@ -1324,6 +1324,11 @@ func (fs *FeedService) preprocessXMLForMediaConflicts(body []byte) []byte {
 	return []byte(content)
 }
 
+// GetCacheStats returns statistics from both the unread and feed list caches.
+func (fs *FeedService) GetCacheStats() (unread cache.CacheStats, feedList cache.FeedListCacheStats) {
+	return fs.unreadCache.GetStats(), fs.feedListCache.GetStats()
+}
+
 func (fs *FeedService) convertToUTF8(body []byte) ([]byte, error) {
 	// Check if content declares a specific encoding
 	content := string(body)
