@@ -2,7 +2,9 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -1557,22 +1559,58 @@ func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
 		return nil, fmt.Errorf("failed to query user feeds: %w", err)
 	}
 
-	// Get unique feed IDs
-	feedIDMap := make(map[int64]bool)
+	// Collect unique feed IDs preserving insertion order for deterministic output
+	seen := make(map[int64]bool)
+	var uniqueIDs []int64
 	for _, userFeed := range userFeedEntities {
-		feedIDMap[userFeed.FeedID] = true
+		if !seen[userFeed.FeedID] {
+			seen[userFeed.FeedID] = true
+			uniqueIDs = append(uniqueIDs, userFeed.FeedID)
+		}
 	}
 
-	// Fetch all unique feeds
+	if len(uniqueIDs) == 0 {
+		return nil, nil
+	}
+
+	// Build keys and fetch all feeds in a single batch read instead of N round trips
+	keys := make([]*datastore.Key, len(uniqueIDs))
+	entities := make([]FeedEntity, len(uniqueIDs))
+	for i, id := range uniqueIDs {
+		keys[i] = datastore.IDKey("Feed", id, nil)
+	}
+
+	errs := db.client.GetMulti(ctx, keys, entities)
+	// GetMulti returns a MultiError when some (but not all) keys are missing.
+	// Treat individual ErrNoSuchEntity as non-fatal; propagate other errors.
+	var multiErr datastore.MultiError
+	if errs != nil && !errors.As(errs, &multiErr) {
+		return nil, fmt.Errorf("failed to batch-get user feeds: %w", errs)
+	}
+
 	var feeds []Feed
-	for feedID := range feedIDMap {
-		feed, err := db.GetFeedByID(int(feedID))
-		if err != nil {
+	for i, entity := range entities {
+		if multiErr != nil && multiErr[i] != nil {
+			if multiErr[i] != datastore.ErrNoSuchEntity {
+				log.Printf("Error fetching feed %d: %v", uniqueIDs[i], multiErr[i])
+			}
 			continue
 		}
-		if feed != nil {
-			feeds = append(feeds, *feed)
-		}
+		entity.ID = keys[i].ID
+		feeds = append(feeds, Feed{
+			ID:                    int(entity.ID),
+			Title:                 entity.Title,
+			URL:                   entity.URL,
+			Description:           entity.Description,
+			CreatedAt:             entity.CreatedAt,
+			UpdatedAt:             entity.UpdatedAt,
+			LastFetch:             entity.LastFetch,
+			LastChecked:           entity.LastChecked,
+			LastHadNewContent:     entity.LastHadNewContent,
+			AverageUpdateInterval: entity.AverageUpdateInterval,
+			ETag:                  entity.ETag,
+			LastModified:          entity.LastModified,
+		})
 	}
 
 	return feeds, nil

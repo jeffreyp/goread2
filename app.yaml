@@ -27,9 +27,9 @@ handlers:
   script: auto
   secure: always
 
-instance_class: F2  # 512MB RAM - matches previous Flex config
+instance_class: F1  # 256MB RAM - sufficient for RSS reader, half the cost of F2
 
 automatic_scaling:
   min_instances: 0
   max_instances: 10
-  target_cpu_utilization: 0.65  # Scale up when CPU > 65% (vs default ~50%)
+  target_cpu_utilization: 0.65  # Scale up when CPU > 65% (vs default ~60%)

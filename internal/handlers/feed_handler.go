@@ -293,12 +293,29 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 				return
 			}
 		}
-		log.Printf("Cron feed refresh started at %v", time.Now())
+		// Cron path: return immediately so GAE doesn't hold the instance.
+		// Feed refresh runs in the background; cron retries handle failures.
+		log.Printf("Cron feed refresh started at %v (background)", time.Now())
+		go func() {
+			var err error
+			if fh.feedScheduler != nil {
+				err = fh.feedScheduler.RefreshFeedsStaggered()
+			} else {
+				err = fh.feedService.RefreshFeeds()
+			}
+			if err != nil {
+				log.Printf("Cron feed refresh failed: %v", err)
+			} else {
+				log.Printf("Cron feed refresh completed at %v", time.Now())
+			}
+		}()
+		c.JSON(http.StatusAccepted, gin.H{"message": "Feed refresh started"})
+		return
 	} else {
 		log.Printf("Manual feed refresh started at %v", time.Now())
 	}
 
-	// Use staggered refresh if scheduler is available, otherwise fallback to regular refresh
+	// Manual (API) path: run synchronously so the caller gets a result.
 	var err error
 	if fh.feedScheduler != nil {
 		err = fh.feedScheduler.RefreshFeedsStaggered()
