@@ -28,7 +28,9 @@ func doRequest(r *gin.Engine) *httptest.ResponseRecorder {
 }
 
 func TestSecurityHeaders_AlwaysPresent(t *testing.T) {
-	os.Unsetenv("CSP_ENFORCE")
+	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+		t.Fatal(err)
+	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
@@ -54,7 +56,9 @@ func TestSecurityHeaders_AlwaysPresent(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSPReportOnlyByDefault(t *testing.T) {
-	os.Unsetenv("CSP_ENFORCE")
+	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+		t.Fatal(err)
+	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
@@ -71,8 +75,7 @@ func TestSecurityHeaders_CSPReportOnlyByDefault(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSPEnforced(t *testing.T) {
-	os.Setenv("CSP_ENFORCE", "true")
-	defer os.Unsetenv("CSP_ENFORCE")
+	t.Setenv("CSP_ENFORCE", "true")
 
 	r := setupSecurityRouter()
 	w := doRequest(r)
@@ -89,7 +92,9 @@ func TestSecurityHeaders_CSPEnforced(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSPDirectives(t *testing.T) {
-	os.Unsetenv("CSP_ENFORCE")
+	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+		t.Fatal(err)
+	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
@@ -114,7 +119,9 @@ func TestSecurityHeaders_CSPDirectives(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSPAllowsGoogleAnalytics(t *testing.T) {
-	os.Unsetenv("CSP_ENFORCE")
+	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+		t.Fatal(err)
+	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
@@ -131,7 +138,9 @@ func TestSecurityHeaders_CSPAllowsGoogleAnalytics(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSPAllowsDOMPurifyCDN(t *testing.T) {
-	os.Unsetenv("CSP_ENFORCE")
+	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+		t.Fatal(err)
+	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
@@ -142,7 +151,9 @@ func TestSecurityHeaders_CSPAllowsDOMPurifyCDN(t *testing.T) {
 }
 
 func TestSecurityHeaders_HSTSOnlyInProduction(t *testing.T) {
-	os.Unsetenv("GAE_ENV")
+	if err := os.Unsetenv("GAE_ENV"); err != nil {
+		t.Fatal(err)
+	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
@@ -152,8 +163,7 @@ func TestSecurityHeaders_HSTSOnlyInProduction(t *testing.T) {
 }
 
 func TestSecurityHeaders_HSTSInProduction(t *testing.T) {
-	os.Setenv("GAE_ENV", "standard")
-	defer os.Unsetenv("GAE_ENV")
+	t.Setenv("GAE_ENV", "standard")
 
 	r := setupSecurityRouter()
 	w := doRequest(r)
