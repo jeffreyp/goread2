@@ -47,6 +47,7 @@ type Database interface {
 
 	// Article methods
 	AddArticle(article *Article) error
+	FilterExistingArticleURLs(feedID int, urls []string) (map[string]bool, error)
 	GetArticles(feedID int) ([]Article, error)
 	FindArticleByURL(url string) (*Article, error)
 	GetUserArticles(userID int) ([]Article, error)
@@ -75,6 +76,7 @@ type Database interface {
 	GetAuditLogs(limit, offset int, filters map[string]interface{}) ([]AuditLog, error)
 
 	UpdateFeedLastFetch(feedID int, lastFetch time.Time) error
+	UpdateFeedAfterRefresh(feedID int, lastChecked, lastHadNewContent time.Time, averageUpdateInterval int, lastFetch time.Time, etag, lastModified string) error
 	Close() error
 }
 
@@ -639,6 +641,41 @@ func (db *DB) FindArticleByURL(url string) (*Article, error) {
 func (db *DB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) error {
 	query := `UPDATE feeds SET last_fetch = ? WHERE id = ?`
 	_, err := db.Exec(query, lastFetch, feedID)
+	return err
+}
+
+func (db *DB) FilterExistingArticleURLs(feedID int, urls []string) (map[string]bool, error) {
+	if len(urls) == 0 {
+		return map[string]bool{}, nil
+	}
+	placeholders := make([]string, len(urls))
+	args := make([]interface{}, 0, len(urls)+1)
+	args = append(args, feedID)
+	for i, url := range urls {
+		placeholders[i] = "?"
+		args = append(args, url)
+	}
+	query := fmt.Sprintf(`SELECT url FROM articles WHERE feed_id = ? AND url IN (%s)`,
+		strings.Join(placeholders, ","))
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	existing := make(map[string]bool)
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			return nil, err
+		}
+		existing[u] = true
+	}
+	return existing, rows.Err()
+}
+
+func (db *DB) UpdateFeedAfterRefresh(feedID int, lastChecked, lastHadNewContent time.Time, averageUpdateInterval int, lastFetch time.Time, etag, lastModified string) error {
+	query := `UPDATE feeds SET last_checked = ?, last_had_new_content = ?, average_update_interval = ?, last_fetch = ?, etag = ?, last_modified = ? WHERE id = ?`
+	_, err := db.Exec(query, lastChecked, lastHadNewContent, averageUpdateInterval, lastFetch, etag, lastModified, feedID)
 	return err
 }
 

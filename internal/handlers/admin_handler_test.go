@@ -132,6 +132,12 @@ func (m *mockDBAdminHandler) DeleteExpiredSessions() error                  { re
 func (m *mockDBAdminHandler) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
 	return nil
 }
+func (m *mockDBAdminHandler) FilterExistingArticleURLs(int, []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+func (m *mockDBAdminHandler) UpdateFeedAfterRefresh(int, time.Time, time.Time, int, time.Time, string, string) error {
+	return nil
+}
 
 func TestNewAdminHandler(t *testing.T) {
 	// Create mock services

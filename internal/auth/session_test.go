@@ -121,6 +121,12 @@ func (m *mockDB) DeleteExpiredSessions() error {
 func (m *mockDB) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
 	return nil
 }
+func (m *mockDB) FilterExistingArticleURLs(int, []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+func (m *mockDB) UpdateFeedAfterRefresh(int, time.Time, time.Time, int, time.Time, string, string) error {
+	return nil
+}
 
 func TestNewSessionManager(t *testing.T) {
 	db := newMockDB()

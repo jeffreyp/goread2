@@ -728,7 +728,22 @@ func (fs *FeedService) saveArticlesFromFeedWithLimit(feedID int, feedData *FeedD
 			feedID, maxArticles, len(articles))
 	}
 
+	// Batch-check which URLs already exist so we skip them without an
+	// individual Datastore query per article.
+	urls := make([]string, 0, len(articlesToSave))
+	for _, a := range articlesToSave {
+		urls = append(urls, a.Link)
+	}
+	existingURLs, err := fs.db.FilterExistingArticleURLs(feedID, urls)
+	if err != nil {
+		log.Printf("Feed %d: batch URL check failed, falling back to per-article check: %v", feedID, err)
+		existingURLs = map[string]bool{}
+	}
+
 	for _, articleData := range articlesToSave {
+		if existingURLs[articleData.Link] {
+			continue
+		}
 		article := &database.Article{
 			FeedID:      feedID,
 			Title:       articleData.Title,
@@ -843,13 +858,6 @@ func (fs *FeedService) RefreshFeeds() error {
 			continue
 		}
 
-		// Persist response cache headers for next conditional request
-		if feedData.ResponseETag != "" || feedData.ResponseLastModified != "" {
-			if updateErr := fs.db.UpdateFeedCacheHeaders(feed.ID, feedData.ResponseETag, feedData.ResponseLastModified); updateErr != nil {
-				log.Printf("Failed to update cache headers for feed %s: %v", feed.URL, updateErr)
-			}
-		}
-
 		// Save articles and get count of newly saved articles
 		savedCount, err := fs.saveArticlesFromFeed(feed.ID, feedData)
 		if err != nil {
@@ -865,9 +873,18 @@ func (fs *FeedService) RefreshFeeds() error {
 			hasNewContent++
 		}
 
-		// Update tracking fields
-		_ = fs.updateFeedTracking(feed, hadNewContent)
-		_ = fs.db.UpdateFeedLastFetch(feed.ID, now)
+		// Resolve cache headers: use new values from response, else keep existing.
+		etag := feed.ETag
+		lastModified := feed.LastModified
+		if feedData.ResponseETag != "" {
+			etag = feedData.ResponseETag
+		}
+		if feedData.ResponseLastModified != "" {
+			lastModified = feedData.ResponseLastModified
+		}
+
+		// Write all tracking fields in a single database call (was 2-3 separate writes).
+		_ = fs.updateFeedAfterRefreshSuccess(feed, hadNewContent, now, etag, lastModified)
 	}
 
 	log.Printf("Feed refresh complete: checked=%d, skipped=%d, not_modified=%d, had_new_content=%d", checked, skipped, notModified, hasNewContent)
@@ -919,7 +936,8 @@ func (fs *FeedService) shouldCheckFeed(feed database.Feed, now time.Time) bool {
 	return false
 }
 
-// updateFeedTracking updates the smart tracking fields for a feed
+// updateFeedTracking updates the smart tracking fields for a feed.
+// Used for error and not-modified cases where only tracking fields need updating.
 func (fs *FeedService) updateFeedTracking(feed database.Feed, hadNewContent bool) error {
 	now := time.Now()
 	lastHadNewContent := feed.LastHadNewContent
@@ -943,6 +961,31 @@ func (fs *FeedService) updateFeedTracking(feed database.Feed, hadNewContent bool
 
 	// Update the feed tracking in database
 	return fs.db.UpdateFeedTracking(feed.ID, now, lastHadNewContent, feed.AverageUpdateInterval)
+}
+
+// updateFeedAfterRefreshSuccess consolidates all post-refresh writes (tracking fields,
+// last_fetch, and cache headers) into a single database call, replacing three separate
+// Get+Put round-trips with one.
+func (fs *FeedService) updateFeedAfterRefreshSuccess(feed database.Feed, hadNewContent bool, lastFetch time.Time, etag, lastModified string) error {
+	now := time.Now()
+	lastHadNewContent := feed.LastHadNewContent
+
+	if hadNewContent {
+		if !feed.LastHadNewContent.IsZero() {
+			intervalSeconds := int(now.Sub(feed.LastHadNewContent).Seconds())
+			if feed.AverageUpdateInterval > 0 {
+				feed.AverageUpdateInterval = (feed.AverageUpdateInterval*7 + intervalSeconds*3) / 10
+			} else {
+				feed.AverageUpdateInterval = intervalSeconds
+			}
+		}
+		lastHadNewContent = now
+	}
+
+	return fs.db.UpdateFeedAfterRefresh(
+		feed.ID, now, lastHadNewContent, feed.AverageUpdateInterval,
+		lastFetch, etag, lastModified,
+	)
 }
 
 func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {

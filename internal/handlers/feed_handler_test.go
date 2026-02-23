@@ -131,6 +131,12 @@ func (m *mockDBFeedHandler) Close() error                             { return n
 func (m *mockDBFeedHandler) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
 	return nil
 }
+func (m *mockDBFeedHandler) FilterExistingArticleURLs(int, []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+func (m *mockDBFeedHandler) UpdateFeedAfterRefresh(int, time.Time, time.Time, int, time.Time, string, string) error {
+	return nil
+}
 
 func TestNewFeedHandler(t *testing.T) {
 	// Create mock services

@@ -798,6 +798,74 @@ func TestAddArticleDuplicateURL(t *testing.T) {
 	}
 }
 
+func TestFilterExistingArticleURLs(t *testing.T) {
+	db := setupTestDB(t)
+	feed := createTestFeed(t, db)
+
+	// Insert two articles.
+	a1 := &Article{FeedID: feed.ID, Title: "A1", URL: "https://example.com/a1", PublishedAt: time.Now(), CreatedAt: time.Now()}
+	a2 := &Article{FeedID: feed.ID, Title: "A2", URL: "https://example.com/a2", PublishedAt: time.Now(), CreatedAt: time.Now()}
+	if err := db.AddArticle(a1); err != nil {
+		t.Fatalf("AddArticle a1 failed: %v", err)
+	}
+	if err := db.AddArticle(a2); err != nil {
+		t.Fatalf("AddArticle a2 failed: %v", err)
+	}
+
+	incoming := []string{
+		"https://example.com/a1",  // exists
+		"https://example.com/a2",  // exists
+		"https://example.com/new", // new
+	}
+	existing, err := db.FilterExistingArticleURLs(feed.ID, incoming)
+	if err != nil {
+		t.Fatalf("FilterExistingArticleURLs failed: %v", err)
+	}
+	if !existing["https://example.com/a1"] {
+		t.Error("Expected a1 to be reported as existing")
+	}
+	if !existing["https://example.com/a2"] {
+		t.Error("Expected a2 to be reported as existing")
+	}
+	if existing["https://example.com/new"] {
+		t.Error("Expected new URL to not be reported as existing")
+	}
+}
+
+func TestFilterExistingArticleURLsEmpty(t *testing.T) {
+	db := setupTestDB(t)
+	feed := createTestFeed(t, db)
+
+	existing, err := db.FilterExistingArticleURLs(feed.ID, []string{})
+	if err != nil {
+		t.Fatalf("FilterExistingArticleURLs with empty slice failed: %v", err)
+	}
+	if len(existing) != 0 {
+		t.Errorf("Expected empty map, got %v", existing)
+	}
+}
+
+func TestFilterExistingArticleURLsCrossFeed(t *testing.T) {
+	db := setupTestDB(t)
+	feed1 := createTestFeed(t, db)
+	feed2 := createTestFeed(t, db)
+
+	// Insert article in feed1.
+	a := &Article{FeedID: feed1.ID, Title: "A", URL: "https://example.com/shared", PublishedAt: time.Now(), CreatedAt: time.Now()}
+	if err := db.AddArticle(a); err != nil {
+		t.Fatalf("AddArticle failed: %v", err)
+	}
+
+	// Query from feed2's perspective — should not find feed1's article.
+	existing, err := db.FilterExistingArticleURLs(feed2.ID, []string{"https://example.com/shared"})
+	if err != nil {
+		t.Fatalf("FilterExistingArticleURLs failed: %v", err)
+	}
+	if existing["https://example.com/shared"] {
+		t.Error("URL from a different feed should not appear as existing for feed2")
+	}
+}
+
 func TestGetArticles(t *testing.T) {
 	db := setupTestDB(t)
 

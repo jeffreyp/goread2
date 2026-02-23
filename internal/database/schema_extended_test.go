@@ -60,6 +60,58 @@ func TestUpdateFeedTrackingNonExistent(t *testing.T) {
 	}
 }
 
+// UpdateFeedAfterRefresh tests
+
+func TestUpdateFeedAfterRefresh(t *testing.T) {
+	db := setupTestDB(t)
+	feed := createTestFeed(t, db)
+
+	lastChecked := time.Now()
+	lastHadNewContent := time.Now().Add(-30 * time.Minute)
+	avgInterval := 7200
+	lastFetch := time.Now().Add(-1 * time.Minute)
+	etag := `"abc123"`
+	lastModified := "Mon, 02 Jan 2006 15:04:05 GMT"
+
+	err := db.UpdateFeedAfterRefresh(feed.ID, lastChecked, lastHadNewContent, avgInterval, lastFetch, etag, lastModified)
+	if err != nil {
+		t.Fatalf("UpdateFeedAfterRefresh failed: %v", err)
+	}
+
+	updated, err := db.GetFeedByURL(feed.URL)
+	if err != nil || updated == nil {
+		t.Fatalf("GetFeedByURL failed: %v", err)
+	}
+
+	if updated.LastChecked.Sub(lastChecked).Abs() > time.Second {
+		t.Errorf("LastChecked mismatch: got %v, want %v", updated.LastChecked, lastChecked)
+	}
+	if updated.LastHadNewContent.Sub(lastHadNewContent).Abs() > time.Second {
+		t.Errorf("LastHadNewContent mismatch: got %v, want %v", updated.LastHadNewContent, lastHadNewContent)
+	}
+	if updated.AverageUpdateInterval != avgInterval {
+		t.Errorf("AverageUpdateInterval mismatch: got %d, want %d", updated.AverageUpdateInterval, avgInterval)
+	}
+	if updated.LastFetch.Sub(lastFetch).Abs() > time.Second {
+		t.Errorf("LastFetch mismatch: got %v, want %v", updated.LastFetch, lastFetch)
+	}
+	if updated.ETag != etag {
+		t.Errorf("ETag mismatch: got %q, want %q", updated.ETag, etag)
+	}
+	if updated.LastModified != lastModified {
+		t.Errorf("LastModified mismatch: got %q, want %q", updated.LastModified, lastModified)
+	}
+}
+
+func TestUpdateFeedAfterRefreshNonExistent(t *testing.T) {
+	db := setupTestDB(t)
+
+	err := db.UpdateFeedAfterRefresh(99999, time.Now(), time.Now(), 3600, time.Now(), "", "")
+	if err != nil {
+		t.Errorf("UpdateFeedAfterRefresh should not error for non-existent feed: %v", err)
+	}
+}
+
 // UpdateSessionExpiry tests
 
 func TestUpdateSessionExpiry(t *testing.T) {

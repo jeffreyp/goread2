@@ -493,6 +493,75 @@ func (db *DatastoreDB) UpdateFeedLastFetch(feedID int, lastFetch time.Time) erro
 	return nil
 }
 
+// articleURLProjection is used for projection queries that retrieve only the url field.
+type articleURLProjection struct {
+	URL string `datastore:"url"`
+}
+
+// FilterExistingArticleURLs returns a map of which URLs in the given slice already exist
+// for the specified feed. Uses a single projection query per feed instead of one query
+// per article, reducing Datastore reads from N to 1 per feed refresh cycle.
+func (db *DatastoreDB) FilterExistingArticleURLs(feedID int, urls []string) (map[string]bool, error) {
+	if len(urls) == 0 {
+		return map[string]bool{}, nil
+	}
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	// Build a set of incoming URLs for fast membership testing.
+	urlSet := make(map[string]struct{}, len(urls))
+	for _, u := range urls {
+		urlSet[u] = struct{}{}
+	}
+
+	// One projection query returns all stored URLs for this feed.
+	// Projection queries are billed as small operations (cheaper than full reads).
+	query := datastore.NewQuery("Article").
+		FilterField("feed_id", "=", int64(feedID)).
+		Project("url")
+	var projections []articleURLProjection
+	if _, err := db.client.GetAll(ctx, query, &projections); err != nil {
+		return nil, fmt.Errorf("failed to check existing article URLs: %w", err)
+	}
+
+	existing := make(map[string]bool)
+	for _, p := range projections {
+		if _, ok := urlSet[p.URL]; ok {
+			existing[p.URL] = true
+		}
+	}
+	return existing, nil
+}
+
+// UpdateFeedAfterRefresh writes all post-refresh tracking fields in a single Get+Put,
+// replacing the three separate UpdateFeedTracking / UpdateFeedLastFetch /
+// UpdateFeedCacheHeaders calls that previously ran on every successful feed refresh.
+func (db *DatastoreDB) UpdateFeedAfterRefresh(feedID int, lastChecked, lastHadNewContent time.Time, averageUpdateInterval int, lastFetch time.Time, etag, lastModified string) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	key := datastore.IDKey("Feed", int64(feedID), nil)
+	var entity FeedEntity
+	if err := db.client.Get(ctx, key, &entity); err != nil {
+		return fmt.Errorf("failed to get feed: %w", err)
+	}
+
+	entity.LastChecked = lastChecked
+	if !lastHadNewContent.IsZero() {
+		entity.LastHadNewContent = lastHadNewContent
+	}
+	entity.AverageUpdateInterval = averageUpdateInterval
+	entity.LastFetch = lastFetch
+	entity.ETag = etag
+	entity.LastModified = lastModified
+
+	if _, err := db.client.Put(ctx, key, &entity); err != nil {
+		return fmt.Errorf("failed to update feed after refresh: %w", err)
+	}
+
+	return nil
+}
+
 // User methods for Datastore
 func (db *DatastoreDB) CreateUser(user *User) error {
 	ctx, cancel := newDatastoreContext()

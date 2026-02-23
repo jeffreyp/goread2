@@ -89,6 +89,12 @@ func (m *mockDBForAuth) DeleteExpiredSessions() error                    { retur
 func (m *mockDBForAuth) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
 	return nil
 }
+func (m *mockDBForAuth) FilterExistingArticleURLs(int, []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+func (m *mockDBForAuth) UpdateFeedAfterRefresh(int, time.Time, time.Time, int, time.Time, string, string) error {
+	return nil
+}
 
 func TestNewAuthService(t *testing.T) {
 	db := newMockDBForAuth()

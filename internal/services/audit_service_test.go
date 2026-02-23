@@ -143,6 +143,12 @@ func (m *mockDBAudit) GetAccountStats(int) (map[string]interface{}, error) {
 func (m *mockDBAudit) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
 	return nil
 }
+func (m *mockDBAudit) FilterExistingArticleURLs(int, []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}
+func (m *mockDBAudit) UpdateFeedAfterRefresh(int, time.Time, time.Time, int, time.Time, string, string) error {
+	return nil
+}
 
 func TestNewAuditService(t *testing.T) {
 	db := newMockDBAudit()
