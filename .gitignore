@@ -73,3 +73,6 @@ node_modules/
 .beads/*.db-wal
 .beads/.local_version
 .beads/*.migrated
+
+# Dolt database files (added by bd init)
+.dolt/
