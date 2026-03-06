@@ -238,24 +238,32 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 func (fs *FeedService) addFeedForUserInternal(ctx context.Context, userID int, inputURL string) (*database.Feed, error) {
 	var feedURL string
 
-	// Normalize the input URL first
-	discovery := NewFeedDiscovery()
-	normalizedURL, err := discovery.NormalizeURL(ctx, inputURL)
-	if err != nil {
-		// Errors from NormalizeURL are already wrapped with custom types
-		return nil, err
+	// Do a simple structural normalization (no DNS) to check for known sites.
+	// This avoids an unnecessary DNS lookup for sites whose feed URLs are hardcoded.
+	simpleNormalized := strings.TrimSpace(inputURL)
+	if !strings.HasPrefix(simpleNormalized, "http://") && !strings.HasPrefix(simpleNormalized, "https://") {
+		simpleNormalized = "https://" + simpleNormalized
 	}
 
-	// Check for known sites first
-	if strings.Contains(normalizedURL, "slashdot.org") {
+	// Check for known sites before doing full DNS-based URL validation.
+	// For these sites the feed URL is hardcoded, so DNS validation of the input is unnecessary.
+	if strings.Contains(simpleNormalized, "slashdot.org") {
 		feedURL = "https://rss.slashdot.org/Slashdot/slashdotMain"
-	} else if strings.Contains(normalizedURL, "nytimes.com") {
+	} else if strings.Contains(simpleNormalized, "nytimes.com") {
 		feedURL = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
-	} else if strings.Contains(normalizedURL, "seattletimes.com") {
+	} else if strings.Contains(simpleNormalized, "seattletimes.com") {
 		feedURL = "https://www.seattletimes.com/feed/"
 	} else {
-		// Use feed discovery for other sites
-		feedURLs, err := discovery.DiscoverFeedURL(ctx, inputURL)
+		// For unknown sites, do full URL normalization (includes DNS-based SSRF validation)
+		// and then discover the feed URL.
+		discovery := NewFeedDiscovery()
+		normalizedURL, err := discovery.NormalizeURL(ctx, inputURL)
+		if err != nil {
+			// Errors from NormalizeURL are already wrapped with custom types
+			return nil, err
+		}
+
+		feedURLs, err := discovery.DiscoverFeedURL(ctx, normalizedURL)
 		if err != nil {
 			// Errors from DiscoverFeedURL are already wrapped with custom types
 			return nil, err
