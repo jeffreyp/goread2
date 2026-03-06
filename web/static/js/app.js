@@ -1560,7 +1560,7 @@ class GoReadApp {
                 // No need to hide it during session navigation
                 
                 // Make the API call
-                await this.markAsRead(currentArticle.id, true);
+                await this.markAsRead(currentArticle.id, true, currentArticle.feed_id, false);
             } catch (error) {
                 console.error('Failed to mark article as read:', error);
                 // Revert on error
@@ -1690,7 +1690,7 @@ class GoReadApp {
             // Articles are only completely filtered out when the page loads/refreshes
             
             // Then make the API call
-            await this.markAsRead(article.id, newReadState);
+            await this.markAsRead(article.id, newReadState, article.feed_id, oldReadState);
         } catch (error) {
             // If API call failed, revert the optimistic changes
             console.error('Failed to toggle article read status, reverting UI state');
@@ -1793,12 +1793,12 @@ class GoReadApp {
         this.toggleStar(article.id);
     }
 
-    async markAsRead(articleId, isRead) {
+    async markAsRead(articleId, isRead, feedId, wasRead) {
         try {
             const response = await fetch(`/api/articles/${articleId}/read`, {
                 method: 'POST',
                 headers: this.getAuthHeaders(),
-                body: JSON.stringify({ is_read: isRead })
+                body: JSON.stringify({ is_read: isRead, feed_id: feedId || 0, was_read: wasRead || false })
             });
 
             if (!response.ok) {

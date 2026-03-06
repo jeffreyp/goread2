@@ -216,7 +216,9 @@ func (fh *FeedHandler) MarkRead(c *gin.Context) {
 	}
 
 	var req struct {
-		IsRead bool `json:"is_read"`
+		IsRead  bool `json:"is_read"`
+		FeedID  int  `json:"feed_id"`
+		WasRead bool `json:"was_read"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -224,7 +226,7 @@ func (fh *FeedHandler) MarkRead(c *gin.Context) {
 		return
 	}
 
-	if err := fh.feedService.MarkUserArticleRead(user.ID, id, req.IsRead); err != nil {
+	if err := fh.feedService.MarkUserArticleRead(user.ID, id, req.IsRead, req.FeedID, req.WasRead); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

@@ -380,14 +380,18 @@ func (fs *FeedService) GetUserFeedArticles(userID, feedID int) ([]database.Artic
 // 	return fmt.Errorf("deprecated: use ToggleUserArticleStar instead")
 // }
 
-func (fs *FeedService) MarkUserArticleRead(userID, articleID int, isRead bool) error {
+func (fs *FeedService) MarkUserArticleRead(userID, articleID int, isRead bool, feedID int, wasRead bool) error {
 	err := fs.db.MarkUserArticleRead(userID, articleID, isRead)
 	if err != nil {
 		return err
 	}
 
-	// Invalidate cache to ensure accurate counts on next request
-	fs.unreadCache.Invalidate(userID)
+	if feedID > 0 {
+		fs.unreadCache.UpdateCount(userID, feedID, wasRead, isRead)
+	} else {
+		// feedID unknown: fall back to full invalidation
+		fs.unreadCache.Invalidate(userID)
+	}
 
 	return nil
 }
