@@ -121,9 +121,11 @@ type ArticleEntity struct {
 }
 
 func NewDatastoreDB(projectID string) (*DatastoreDB, error) {
-	ctx, cancel := newDatastoreContext()
-	defer cancel()
-	client, err := datastore.NewClient(ctx, projectID)
+	// Use context.Background() here (not a timeout context) because gRPC dials
+	// lazily and stores the dial context internally. A cancelled dial context
+	// causes OAuth2 token refresh failures ("context canceled") on first use
+	// after the access token expires.
+	client, err := datastore.NewClient(context.Background(), projectID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create datastore client: %w", err)
 	}
