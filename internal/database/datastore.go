@@ -500,9 +500,15 @@ type articleURLProjection struct {
 	URL string `datastore:"url"`
 }
 
+// articleURLDeduplicationWindow is how far back we check for duplicate article URLs.
+// Feed articles never reuse URLs older than this, so there's no need to scan the
+// full article history. This dramatically reduces Firestore read costs.
+const articleURLDeduplicationWindow = 90 * 24 * time.Hour
+
 // FilterExistingArticleURLs returns a map of which URLs in the given slice already exist
 // for the specified feed. Uses a single projection query per feed instead of one query
-// per article, reducing Datastore reads from N to 1 per feed refresh cycle.
+// per article, reducing Firestore reads from N to 1 per feed refresh cycle.
+// Only checks articles created within the last 90 days to bound read costs.
 func (db *DatastoreDB) FilterExistingArticleURLs(feedID int, urls []string) (map[string]bool, error) {
 	if len(urls) == 0 {
 		return map[string]bool{}, nil
@@ -516,10 +522,13 @@ func (db *DatastoreDB) FilterExistingArticleURLs(feedID int, urls []string) (map
 		urlSet[u] = struct{}{}
 	}
 
-	// One projection query returns all stored URLs for this feed.
-	// Projection queries are billed as small operations (cheaper than full reads).
+	// One projection query returns recent stored URLs for this feed.
+	// The 90-day cutoff prevents scanning the full article history on every
+	// cron run — the primary driver of Firestore read costs.
+	cutoff := time.Now().Add(-articleURLDeduplicationWindow)
 	query := datastore.NewQuery("Article").
 		FilterField("feed_id", "=", int64(feedID)).
+		FilterField("created_at", ">=", cutoff).
 		Project("url")
 	var projections []articleURLProjection
 	if _, err := db.client.GetAll(ctx, query, &projections); err != nil {

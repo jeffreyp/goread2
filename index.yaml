@@ -1,11 +1,12 @@
 indexes:
 
-# Index for batch URL duplicate check (projection query)
+# Index for batch URL duplicate check (projection query with time cutoff)
 # Used in: FilterExistingArticleURLs(feedID, urls)
-# Query: Article.FilterField("feed_id", "=", feedID).Project("url")
+# Query: Article.FilterField("feed_id", "=", feedID).FilterField("created_at", ">=", cutoff).Project("url")
 - kind: Article
   properties:
   - name: feed_id
+  - name: created_at
   - name: url
 
 # Index for getting articles by feed_id ordered by published_at descending
