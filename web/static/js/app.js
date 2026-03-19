@@ -2583,7 +2583,6 @@ class GoReadApp {
     updateSubscriptionPanel() {
         const panel = document.getElementById('subscription-panel');
         if (!panel) {
-            console.log('ERROR: subscription-panel element not found in DOM');
             return;
         }
 

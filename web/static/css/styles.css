@@ -336,10 +336,15 @@ body.app-body {
     color: #3c4043;
 }
 
+.article-pane .pane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
 .article-filter {
     display: flex;
     gap: 16px;
-    margin-top: 8px;
 }
 
 .article-filter label {
