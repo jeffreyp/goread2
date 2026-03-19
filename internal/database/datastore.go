@@ -20,6 +20,10 @@ const (
 	// This prevents OOM errors when users subscribe to many active feeds
 	// With this limit, even 1000 feeds would only load ~200KB of articles
 	maxArticlesPerFeed = 200
+
+	// unreadCountWindowDays is the lookback window for unread count queries.
+	// Articles older than this are excluded from badge counts to cap read costs.
+	unreadCountWindowDays = 90
 )
 
 type DatastoreDB struct {
@@ -1405,16 +1409,20 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 	return stats, nil
 }
 
-// Helper function to efficiently count unread articles for a specific feed
+// Helper function to efficiently count unread articles for a specific feed.
+// Only considers articles published within unreadCountWindowDays to cap Firestore read costs.
 func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, feedID int) (int, error) {
-	// Get all articles for this feed with eventual consistency retry
+	// Get recent articles for this feed with eventual consistency retry
 	var articleKeys []*datastore.Key
 	var err error
+
+	cutoff := time.Now().UTC().Add(-unreadCountWindowDays * 24 * time.Hour)
 
 	// Retry logic to handle eventual consistency issues with newly added feeds
 	for attempt := 0; attempt < 3; attempt++ {
 		articleQuery := datastore.NewQuery("Article").
 			FilterField("feed_id", "=", int64(feedID)).
+			FilterField("published_at", ">=", cutoff).
 			KeysOnly()
 
 		articleKeys, err = db.client.GetAll(ctx, articleQuery, nil)

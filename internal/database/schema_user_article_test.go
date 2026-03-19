@@ -450,6 +450,57 @@ func TestGetUserUnreadCounts(t *testing.T) {
 	_ = article3
 }
 
+func TestGetUserUnreadCountsExcludesOldArticles(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed := createTestFeed(t, db)
+
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+
+	// Add a recent article (should count as unread)
+	recentArticle := &Article{
+		FeedID:      feed.ID,
+		Title:       "Recent Article",
+		URL:         fmt.Sprintf("https://example.com/recent_%d", time.Now().UnixNano()),
+		Content:     "content",
+		Description: "desc",
+		Author:      "author",
+		PublishedAt: time.Now(),
+		CreatedAt:   time.Now(),
+	}
+	if err := db.AddArticle(recentArticle); err != nil {
+		t.Fatalf("AddArticle failed: %v", err)
+	}
+
+	// Add an old article (>90 days, should be excluded from unread counts)
+	oldArticle := &Article{
+		FeedID:      feed.ID,
+		Title:       "Old Article",
+		URL:         fmt.Sprintf("https://example.com/old_%d", time.Now().UnixNano()),
+		Content:     "content",
+		Description: "desc",
+		Author:      "author",
+		PublishedAt: time.Now().Add(-100 * 24 * time.Hour),
+		CreatedAt:   time.Now().Add(-100 * 24 * time.Hour),
+	}
+	if err := db.AddArticle(oldArticle); err != nil {
+		t.Fatalf("AddArticle failed: %v", err)
+	}
+
+	unreadCounts, err := db.GetUserUnreadCounts(user.ID)
+	if err != nil {
+		t.Fatalf("GetUserUnreadCounts failed: %v", err)
+	}
+
+	// Only the recent article should count; the old one is excluded
+	if unreadCounts[feed.ID] != 1 {
+		t.Errorf("Expected 1 unread (recent only), got %d", unreadCounts[feed.ID])
+	}
+}
+
 func TestGetUserUnreadCountsNoFeeds(t *testing.T) {
 	db := setupTestDB(t)
 

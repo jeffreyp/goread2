@@ -1137,12 +1137,14 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 // GetAccountStats retrieves user account statistics in a single batched query
 // Returns total articles, total unread, and active feeds count
 func (db *DB) GetAccountStats(userID int) (map[string]interface{}, error) {
-	// Single query to get all stats at once - avoids N+1 problem
+	// Single query to get all stats at once - avoids N+1 problem.
+	// Unread/active counts are limited to the last 90 days to match getFeedUnreadCountForUser.
 	query := `
 		SELECT
 			COUNT(DISTINCT a.id) as total_articles,
 			COUNT(DISTINCT CASE
-				WHEN NOT EXISTS (
+				WHEN a.published_at >= datetime('now', '-90 days')
+				AND NOT EXISTS (
 					SELECT 1 FROM user_articles ua
 					WHERE ua.article_id = a.id
 					AND ua.user_id = ?
@@ -1150,7 +1152,8 @@ func (db *DB) GetAccountStats(userID int) (map[string]interface{}, error) {
 				) THEN a.id
 			END) as total_unread,
 			COUNT(DISTINCT CASE
-				WHEN NOT EXISTS (
+				WHEN a.published_at >= datetime('now', '-90 days')
+				AND NOT EXISTS (
 					SELECT 1 FROM user_articles ua
 					WHERE ua.article_id = a.id
 					AND ua.user_id = ?
@@ -1178,17 +1181,19 @@ func (db *DB) GetAccountStats(userID int) (map[string]interface{}, error) {
 	return stats, nil
 }
 
-// Helper function to get unread count for a specific feed efficiently
+// Helper function to get unread count for a specific feed efficiently.
+// Only considers articles published within the last 90 days to cap read costs.
 func (db *DB) getFeedUnreadCountForUser(userID, feedID int) (int, error) {
-	// Count articles in feed that are NOT marked as read by user
+	// Count recent articles in feed that are NOT marked as read by user
 	query := `
 		SELECT COUNT(*)
 		FROM articles a
 		WHERE a.feed_id = ?
+		AND a.published_at >= datetime('now', '-90 days')
 		AND NOT EXISTS (
-			SELECT 1 FROM user_articles ua 
-			WHERE ua.article_id = a.id 
-			AND ua.user_id = ? 
+			SELECT 1 FROM user_articles ua
+			WHERE ua.article_id = a.id
+			AND ua.user_id = ?
 			AND ua.is_read = 1
 		)
 	`
