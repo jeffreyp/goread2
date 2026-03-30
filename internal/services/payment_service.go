@@ -266,7 +266,7 @@ func (ps *PaymentService) CreateProductAndPrice() (*stripe.Price, error) {
 	// Create price (monthly subscription)
 	priceParams := &stripe.PriceParams{
 		Product:    stripe.String(prod.ID),
-		UnitAmount: stripe.Int64(299), // $2.99 in cents
+		UnitAmount: stripe.Int64(999), // $9.99 in cents
 		Currency:   stripe.String(string(stripe.CurrencyUSD)),
 		Recurring: &stripe.PriceRecurringParams{
 			Interval: stripe.String(string(stripe.PriceRecurringIntervalMonth)),

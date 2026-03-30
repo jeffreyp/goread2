@@ -222,7 +222,7 @@ class AccountApp {
                 `;
                 actionsHTML = `
                     <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
-                        Subscribe to Pro ($2.99/month)
+                        Subscribe to Pro ($9.99/month)
                     </button>
                 `;
             } else {
@@ -242,7 +242,7 @@ class AccountApp {
                 `;
                 actionsHTML = `
                     <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
-                        Upgrade to Pro ($2.99/month)
+                        Upgrade to Pro ($9.99/month)
                     </button>
                 `;
             }
@@ -261,7 +261,7 @@ class AccountApp {
             `;
             actionsHTML = info.feed_limit > 0 ? `
                 <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
-                    Subscribe to Pro ($2.99/month)
+                    Subscribe to Pro ($9.99/month)
                 </button>
             ` : '';
         }

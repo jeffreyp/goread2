@@ -2307,7 +2307,7 @@ class GoReadApp {
                     <li>Priority support</li>
                     <li>Advanced features</li>
                 </ul>
-                <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $2.99/month</p>
+                <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $9.99/month</p>
                 <div class="form-actions">
                     <button id="upgrade-btn" class="btn btn-primary">Upgrade to Pro</button>
                     <button id="cancel-upgrade" class="btn btn-secondary">Cancel</button>
@@ -2349,7 +2349,7 @@ class GoReadApp {
                     <li>Continued access to all articles</li>
                     <li>Priority support</li>
                 </ul>
-                <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $2.99/month</p>
+                <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $9.99/month</p>
                 <div class="form-actions">
                     <button id="subscribe-btn" class="btn btn-primary">Subscribe Now</button>
                     <button id="cancel-subscribe" class="btn btn-secondary">Cancel</button>
