@@ -3,5 +3,6 @@
   "backend": "dolt",
   "dolt_mode": "server",
   "dolt_database": "gr",
+  "project_id": "24496586-e746-4de9-8111-81cfb6970e71",
   "last_bd_version": "0.28.0"
 }
