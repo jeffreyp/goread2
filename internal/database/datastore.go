@@ -837,24 +837,32 @@ func (db *DatastoreDB) GetUserArticles(userID int) ([]Article, error) {
 	return result.Articles, nil
 }
 
+// articleRef is a lightweight projection result used for global sorting before fetching full entities.
+type articleRef struct {
+	key         *datastore.Key
+	feedID      int64
+	publishedAt time.Time
+}
+
+// articlePublishedAtProjection holds only the published_at field for projection queries.
+// Using a projection query on indexed fields is a Datastore "small operation" (~1/6 the cost
+// of a full entity read), so we use this to sort across feeds before fetching full articles.
+type articlePublishedAtProjection struct {
+	PublishedAt time.Time `datastore:"published_at"`
+}
+
 func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
-	// Get user's subscribed feeds
 	feeds, err := db.GetUserFeeds(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user feeds: %w", err)
 	}
-
 	if len(feeds) == 0 {
-		return &ArticlePaginationResult{
-			Articles:   []Article{},
-			NextCursor: "",
-		}, nil
+		return &ArticlePaginationResult{Articles: []Article{}, NextCursor: ""}, nil
 	}
 
-	// Create a map of feed IDs to feed titles for efficient lookup
 	feedTitleMap := make(map[int]string)
 	feedIDs := make([]int64, len(feeds))
 	for i, feed := range feeds {
@@ -862,193 +870,189 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor st
 		feedTitleMap[feed.ID] = feed.Title
 	}
 
-	// For Datastore, we need a different approach since we're querying across multiple feeds
-	// We'll query each feed and merge results, then apply cursor-based pagination in memory
-	// This is still more efficient than the old approach because we fetch less data per feed
-	var allArticles []Article
+	// How many refs to project per feed. Same ceiling as before to preserve pagination depth.
+	articlesPerFeed := limit * 2
+	if articlesPerFeed > maxArticlesPerFeed {
+		articlesPerFeed = maxArticlesPerFeed
+	}
 
-	// Query articles from all feeds in parallel batches
-	batchSize := 5 // Process 5 feeds at a time
+	// Pass 1: projection queries — fetch only published_at (an indexed field) per feed.
+	// These are Datastore "small operations" (~1/6 the cost of full entity reads), so we can
+	// project the same number of refs as before without significantly increasing cost, while
+	// deferring full entity reads until we know exactly which articles we need.
+	allRefs := make([]articleRef, 0, len(feedIDs)*articlesPerFeed)
+
+	batchSize := 5
 	for i := 0; i < len(feedIDs); i += batchSize {
 		end := i + batchSize
 		if end > len(feedIDs) {
 			end = len(feedIDs)
 		}
-
-		// Process this batch of feeds in parallel
 		batch := feedIDs[i:end]
-		batchArticles := make(chan []Article, len(batch))
+		results := make(chan []articleRef, len(batch))
 
-		for _, feedID := range batch {
+		for _, fid := range batch {
 			go func(fid int64) {
-				// Get recent articles from this feed
-				// We fetch more than limit since we need to merge and sort across feeds
-				// But cap it at maxArticlesPerFeed to prevent unbounded memory usage
-				articlesPerFeed := limit * 2
-				if articlesPerFeed > maxArticlesPerFeed {
-					articlesPerFeed = maxArticlesPerFeed
-				}
-
 				query := datastore.NewQuery("Article").
 					FilterField("feed_id", "=", fid).
 					Order("-published_at").
-					Limit(articlesPerFeed)
+					Limit(articlesPerFeed).
+					Project("published_at")
 
-				var feedArticles []ArticleEntity
-				keys, err := db.client.GetAll(ctx, query, &feedArticles)
+				var projs []articlePublishedAtProjection
+				keys, err := db.client.GetAll(ctx, query, &projs)
 				if err != nil {
-					batchArticles <- []Article{} // Empty result on error
+					results <- nil
 					return
 				}
-
-				// Convert to Article structs
-				articles := make([]Article, len(feedArticles))
-				for j, entity := range feedArticles {
-					entity.ID = keys[j].ID
-					feedID := int(entity.FeedID)
-					articles[j] = Article{
-						ID:          int(entity.ID),
-						FeedID:      feedID,
-						FeedTitle:   feedTitleMap[feedID],
-						Title:       entity.Title,
-						URL:         entity.URL,
-						Content:     entity.Content,
-						Description: entity.Description,
-						Author:      entity.Author,
-						PublishedAt: entity.PublishedAt,
-						CreatedAt:   entity.CreatedAt,
-						IsRead:      false, // Default, will be updated in bulk below
-						IsStarred:   false, // Default, will be updated in bulk below
+				refs := make([]articleRef, len(projs))
+				for j := range projs {
+					refs[j] = articleRef{
+						key:         keys[j],
+						feedID:      fid,
+						publishedAt: projs[j].PublishedAt,
 					}
 				}
-				batchArticles <- articles
-			}(feedID)
+				results <- refs
+			}(fid)
 		}
 
-		// Collect results from this batch
-		for j := 0; j < len(batch); j++ {
-			articles := <-batchArticles
-			allArticles = append(allArticles, articles...)
+		for range batch {
+			if refs := <-results; refs != nil {
+				allRefs = append(allRefs, refs...)
+			}
 		}
 	}
 
-	// Sort all articles by published_at desc, then by id desc for deterministic ordering
-	sort.Slice(allArticles, func(i, j int) bool {
-		if allArticles[i].PublishedAt.Equal(allArticles[j].PublishedAt) {
-			return allArticles[i].ID > allArticles[j].ID
+	// Sort refs globally by published_at desc, then by key ID desc for determinism.
+	sort.Slice(allRefs, func(i, j int) bool {
+		if allRefs[i].publishedAt.Equal(allRefs[j].publishedAt) {
+			return allRefs[i].key.ID > allRefs[j].key.ID
 		}
-		return allArticles[i].PublishedAt.After(allArticles[j].PublishedAt)
+		return allRefs[i].publishedAt.After(allRefs[j].publishedAt)
 	})
 
-	// Get user status for articles using efficient batch key lookup
-	// Only fetch UserArticle entities for the articles we have, not all user's articles
-	if len(allArticles) > 0 {
-		// Build keys for only the articles we're working with
-		statusMap := make(map[int]UserArticleEntity)
-		chunkSize := 1000 // Datastore GetMulti limit
-
-		for i := 0; i < len(allArticles); i += chunkSize {
-			end := i + chunkSize
-			if end > len(allArticles) {
-				end = len(allArticles)
-			}
-
-			// Build keys for this chunk
-			chunk := allArticles[i:end]
-			userArticleKeys := make([]*datastore.Key, len(chunk))
-			for j, article := range chunk {
-				userArticleKeys[j] = datastore.NameKey("UserArticle",
-					fmt.Sprintf("%d_%d", userID, article.ID), nil)
-			}
-
-			// Batch fetch UserArticle entities for this chunk
-			userArticles := make([]UserArticleEntity, len(userArticleKeys))
-			err := db.client.GetMulti(ctx, userArticleKeys, userArticles)
-
-			// Process results - handle missing entities gracefully
-			if multiErr, ok := err.(datastore.MultiError); ok {
-				// Some UserArticle entities may not exist (article never read/starred)
-				for j, singleErr := range multiErr {
-					if singleErr == nil {
-						// Entity exists, add to map
-						statusMap[int(userArticles[j].ArticleID)] = userArticles[j]
-					}
-					// If singleErr != nil, entity doesn't exist - skip (defaults to unread/unstarred)
-				}
-			} else if err == nil {
-				// All entities exist
-				for _, ua := range userArticles {
-					statusMap[int(ua.ArticleID)] = ua
-				}
-			}
-			// If err is a different error, skip this chunk (defaults to unread/unstarred)
-		}
-
-		// Update articles with user status from map
-		for i := range allArticles {
-			if userStatus, exists := statusMap[allArticles[i].ID]; exists {
-				allArticles[i].IsRead = userStatus.IsRead
-				allArticles[i].IsStarred = userStatus.IsStarred
-			}
-		}
-	}
-
-	// Filter for unread articles if requested
-	if unreadOnly {
-		filteredArticles := make([]Article, 0, len(allArticles))
-		for _, article := range allArticles {
-			if !article.IsRead {
-				filteredArticles = append(filteredArticles, article)
-			}
-		}
-		allArticles = filteredArticles
-	}
-
-	// Apply cursor-based pagination
+	// Apply cursor to find where the next page starts.
 	startIdx := 0
 	if cursor != "" {
-		// Decode cursor to find start position
-		cursorData, err := decodeSQLiteCursor(cursor) // Reuse same cursor format
+		cursorData, err := decodeSQLiteCursor(cursor)
 		if err != nil {
 			return nil, fmt.Errorf("invalid cursor: %w", err)
 		}
-
-		// Find the position of the cursor in our sorted list
-		for i, article := range allArticles {
-			if article.PublishedAt.Before(cursorData.PublishedAt) ||
-				(article.PublishedAt.Equal(cursorData.PublishedAt) && article.ID < cursorData.ID) {
+		for i, ref := range allRefs {
+			if ref.publishedAt.Before(cursorData.PublishedAt) ||
+				(ref.publishedAt.Equal(cursorData.PublishedAt) && ref.key.ID < int64(cursorData.ID)) {
 				startIdx = i
 				break
 			}
 		}
 	}
+	remainingRefs := allRefs[startIdx:]
 
-	// Calculate end index
-	endIdx := startIdx + limit
-	if endIdx > len(allArticles) {
-		endIdx = len(allArticles)
+	// For unreadOnly we need extra candidates because some will be filtered out.
+	// For all-articles we need exactly limit candidates.
+	candidateCount := limit
+	if unreadOnly {
+		candidateCount = limit * 2
+		if candidateCount > maxArticlesPerFeed {
+			candidateCount = maxArticlesPerFeed
+		}
 	}
+	if candidateCount > len(remainingRefs) {
+		candidateCount = len(remainingRefs)
+	}
+	candidates := remainingRefs[:candidateCount]
 
-	// Check if we have a full page (more results exist beyond this page)
-	var nextCursor string
-	if endIdx < len(allArticles) {
-		// More results exist, create cursor from the last article we're returning
-		if endIdx > startIdx {
-			lastArticle := allArticles[endIdx-1]
-			nextCursor = encodeSQLiteCursor(lastArticle.ID, lastArticle.PublishedAt)
+	// Pass 2a: batch-fetch UserArticle status for candidates only (not all projected refs).
+	statusMap := make(map[int64]UserArticleEntity)
+	if len(candidates) > 0 {
+		userArticleKeys := make([]*datastore.Key, len(candidates))
+		for i, ref := range candidates {
+			userArticleKeys[i] = datastore.NameKey("UserArticle",
+				fmt.Sprintf("%d_%d", userID, ref.key.ID), nil)
+		}
+		userArticles := make([]UserArticleEntity, len(userArticleKeys))
+		uaErr := db.client.GetMulti(ctx, userArticleKeys, userArticles)
+		if multiErr, ok := uaErr.(datastore.MultiError); ok {
+			for i, singleErr := range multiErr {
+				if singleErr == nil {
+					statusMap[userArticles[i].ArticleID] = userArticles[i]
+				}
+			}
+		} else if uaErr == nil {
+			for _, ua := range userArticles {
+				statusMap[ua.ArticleID] = ua
+			}
 		}
 	}
 
-	// Get the page of articles
-	var paginatedArticles []Article
-	if startIdx < len(allArticles) {
-		paginatedArticles = allArticles[startIdx:endIdx]
-	} else {
-		paginatedArticles = []Article{}
+	// Determine the page refs, filtering for unread if requested.
+	pageRefs := make([]articleRef, 0, limit)
+	for _, ref := range candidates {
+		if unreadOnly {
+			ua, exists := statusMap[ref.key.ID]
+			if exists && ua.IsRead {
+				continue
+			}
+		}
+		pageRefs = append(pageRefs, ref)
+		if len(pageRefs) == limit {
+			break
+		}
+	}
+
+	// Set next cursor if there are more results beyond this page.
+	var nextCursor string
+	if len(pageRefs) == limit {
+		// Check if any refs remain after this page (in candidates or in remainingRefs).
+		if candidateCount > len(pageRefs) || len(remainingRefs) > candidateCount {
+			last := pageRefs[len(pageRefs)-1]
+			nextCursor = encodeSQLiteCursor(int(last.key.ID), last.publishedAt)
+		}
+	}
+
+	if len(pageRefs) == 0 {
+		return &ArticlePaginationResult{Articles: []Article{}, NextCursor: nextCursor}, nil
+	}
+
+	// Pass 2b: fetch full article entities for only the page we're returning.
+	articleKeys := make([]*datastore.Key, len(pageRefs))
+	for i, ref := range pageRefs {
+		articleKeys[i] = ref.key
+	}
+	articleEntities := make([]ArticleEntity, len(articleKeys))
+	fetchErr := db.client.GetMulti(ctx, articleKeys, articleEntities)
+	multiErr, isME := fetchErr.(datastore.MultiError)
+
+	articles := make([]Article, 0, len(pageRefs))
+	for i, entity := range articleEntities {
+		if isME && multiErr[i] != nil {
+			continue
+		}
+		entity.ID = pageRefs[i].key.ID
+		feedID := int(entity.FeedID)
+		ua := statusMap[entity.ID]
+		articles = append(articles, Article{
+			ID:          int(entity.ID),
+			FeedID:      feedID,
+			FeedTitle:   feedTitleMap[feedID],
+			Title:       entity.Title,
+			URL:         entity.URL,
+			Content:     entity.Content,
+			Description: entity.Description,
+			Author:      entity.Author,
+			PublishedAt: entity.PublishedAt,
+			CreatedAt:   entity.CreatedAt,
+			IsRead:      ua.IsRead,
+			IsStarred:   ua.IsStarred,
+		})
+	}
+	if !isME && fetchErr != nil {
+		return nil, fmt.Errorf("failed to fetch article entities: %w", fetchErr)
 	}
 
 	return &ArticlePaginationResult{
-		Articles:   paginatedArticles,
+		Articles:   articles,
 		NextCursor: nextCursor,
 	}, nil
 }
