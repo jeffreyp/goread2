@@ -366,6 +366,94 @@ func TestGetSecret_MissingProjectID(t *testing.T) {
 	})
 }
 
+func TestGetOAuthCredentials_EmptyValidation(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("empty client ID from env returns error", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLIENT_ID", "")
+		t.Setenv("GOOGLE_CLIENT_SECRET", "some-secret")
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+		_, _, err := GetOAuthCredentials(ctx)
+		if err == nil {
+			t.Error("Expected error for empty GOOGLE_CLIENT_ID, got nil")
+		}
+	})
+
+	t.Run("empty client secret from env returns error", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLIENT_ID", "some-client-id")
+		t.Setenv("GOOGLE_CLIENT_SECRET", "")
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+		_, _, err := GetOAuthCredentials(ctx)
+		if err == nil {
+			t.Error("Expected error for empty GOOGLE_CLIENT_SECRET, got nil")
+		}
+	})
+}
+
+func TestGetStripeCredentials_EmptyValidation(t *testing.T) {
+	ctx := context.Background()
+
+	setAllStripe := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("STRIPE_SECRET_KEY", "sk_test_valid")
+		t.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_valid")
+		t.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_valid")
+		t.Setenv("STRIPE_PRICE_ID", "price_valid")
+	}
+
+	t.Run("empty secret key returns error", func(t *testing.T) {
+		ResetCacheForTesting()
+		setAllStripe(t)
+		t.Setenv("STRIPE_SECRET_KEY", "")
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+		_, _, _, _, err := GetStripeCredentials(ctx)
+		if err == nil {
+			t.Error("Expected error for empty STRIPE_SECRET_KEY, got nil")
+		}
+	})
+
+	t.Run("empty publishable key returns error", func(t *testing.T) {
+		ResetCacheForTesting()
+		setAllStripe(t)
+		t.Setenv("STRIPE_PUBLISHABLE_KEY", "")
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+		_, _, _, _, err := GetStripeCredentials(ctx)
+		if err == nil {
+			t.Error("Expected error for empty STRIPE_PUBLISHABLE_KEY, got nil")
+		}
+	})
+
+	t.Run("empty webhook secret returns error", func(t *testing.T) {
+		ResetCacheForTesting()
+		setAllStripe(t)
+		t.Setenv("STRIPE_WEBHOOK_SECRET", "")
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+		_, _, _, _, err := GetStripeCredentials(ctx)
+		if err == nil {
+			t.Error("Expected error for empty STRIPE_WEBHOOK_SECRET, got nil")
+		}
+	})
+
+	t.Run("empty price ID returns error", func(t *testing.T) {
+		ResetCacheForTesting()
+		setAllStripe(t)
+		t.Setenv("STRIPE_PRICE_ID", "")
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+		_, _, _, _, err := GetStripeCredentials(ctx)
+		if err == nil {
+			t.Error("Expected error for empty STRIPE_PRICE_ID, got nil")
+		}
+	})
+}
+
 func TestGetOAuthCredentials_CustomSecretNames(t *testing.T) {
 	// Note: This test verifies the logic but can't test actual Secret Manager
 	// without mocking the API client

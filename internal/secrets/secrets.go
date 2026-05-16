@@ -144,6 +144,15 @@ func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, er
 				return
 			}
 		}
+
+		if oauthClientID == "" {
+			oauthErr = fmt.Errorf("GOOGLE_CLIENT_ID is empty")
+			return
+		}
+		if oauthClientSecret == "" {
+			oauthErr = fmt.Errorf("GOOGLE_CLIENT_SECRET is empty")
+			return
+		}
 	})
 
 	return oauthClientID, oauthClientSecret, oauthErr
@@ -192,6 +201,23 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 				stripeErr = fmt.Errorf("failed to get Stripe price ID: %w", stripeErr)
 				return
 			}
+		}
+
+		if stripeSecretKey == "" {
+			stripeErr = fmt.Errorf("STRIPE_SECRET_KEY is empty")
+			return
+		}
+		if stripePublishableKey == "" {
+			stripeErr = fmt.Errorf("STRIPE_PUBLISHABLE_KEY is empty")
+			return
+		}
+		if stripeWebhookSecret == "" {
+			stripeErr = fmt.Errorf("STRIPE_WEBHOOK_SECRET is empty")
+			return
+		}
+		if stripePriceID == "" {
+			stripeErr = fmt.Errorf("STRIPE_PRICE_ID is empty")
+			return
 		}
 	})
 

@@ -551,9 +551,12 @@ func (db *DB) DeleteFeed(id int) error {
 }
 
 func (db *DB) AddArticle(article *Article) error {
-	query := `INSERT OR IGNORE INTO articles 
-			  (feed_id, title, url, content, description, author, published_at, created_at) 
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	// ON CONFLICT DO UPDATE ensures last_insert_rowid() returns the existing row's ID
+	// for duplicate URLs, making the ID assignment atomic (no separate SELECT needed).
+	query := `INSERT INTO articles
+			  (feed_id, title, url, content, description, author, published_at, created_at)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			  ON CONFLICT(url) DO UPDATE SET id=id`
 
 	result, err := db.Exec(query, article.FeedID, article.Title, article.URL, article.Content,
 		article.Description, article.Author, article.PublishedAt, article.CreatedAt)
@@ -561,19 +564,12 @@ func (db *DB) AddArticle(article *Article) error {
 		return err
 	}
 
-	// Set the ID if this was a new insert
 	id, err := result.LastInsertId()
 	if err != nil {
 		return err
 	}
-	if id > 0 {
-		article.ID = int(id)
-	} else {
-		// Article already existed, fetch its ID
-		query = `SELECT id FROM articles WHERE url = ?`
-		err = db.QueryRow(query, article.URL).Scan(&article.ID)
-	}
-	return err
+	article.ID = int(id)
+	return nil
 }
 
 func (db *DB) GetArticles(feedID int) ([]Article, error) {
