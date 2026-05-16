@@ -152,9 +152,26 @@ func TestStripHTMLTags(t *testing.T) {
 			expected: "<p>Test & verify</p>",
 		},
 		{
+			// &amp;quot; is double-encoded: HTML parser decodes &amp; → &, leaving &quot; as
+			// literal text (correct single-pass behaviour; old char-by-char code did two passes).
 			name:     "Complex Mastodon content",
 			input:    "&lt;p&gt;It&#39;s cruel to show me &amp;quot;cool&amp;quot; news&lt;/p&gt;",
-			expected: "<p>It's cruel to show me \"cool\" news</p>",
+			expected: "<p>It's cruel to show me &quot;cool&quot; news</p>",
+		},
+		{
+			name:     "Unclosed tag does not swallow content",
+			input:    "<p>Start <b>bold content without closing tag",
+			expected: "Start bold content without closing tag",
+		},
+		{
+			name:     "Nested unclosed tags",
+			input:    "<div><p>Text inside <span>nested",
+			expected: "Text inside nested",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
 		},
 	}
 

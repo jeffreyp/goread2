@@ -15,6 +15,7 @@ import (
 
 	"github.com/jeffreyp/goread2/internal/cache"
 	"github.com/jeffreyp/goread2/internal/database"
+	"golang.org/x/net/html"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/language"
@@ -1323,31 +1324,23 @@ func (fs *FeedService) generateFallbackTitle(link, description string) string {
 }
 
 func (fs *FeedService) stripHTMLTags(s string) string {
-	// Simple HTML tag stripper - removes content between < and >
-	var result strings.Builder
-	inTag := false
-	for _, r := range s {
-		if r == '<' {
-			inTag = true
-			continue
+	doc, err := html.Parse(strings.NewReader(s))
+	if err != nil {
+		// Fall back to returning the raw string rather than losing content entirely.
+		return s
+	}
+	var buf strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			buf.WriteString(n.Data)
 		}
-		if r == '>' {
-			inTag = false
-			continue
-		}
-		if !inTag {
-			result.WriteRune(r)
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
 		}
 	}
-	// Decode common HTML entities
-	text := result.String()
-	text = strings.ReplaceAll(text, "&lt;", "<")
-	text = strings.ReplaceAll(text, "&gt;", ">")
-	text = strings.ReplaceAll(text, "&amp;", "&")
-	text = strings.ReplaceAll(text, "&quot;", "\"")
-	text = strings.ReplaceAll(text, "&#39;", "'")
-	text = strings.ReplaceAll(text, "&apos;", "'")
-	return text
+	walk(doc)
+	return strings.TrimSpace(buf.String())
 }
 
 func (fs *FeedService) cleanTitle(title string) string {
