@@ -124,6 +124,11 @@ func main() {
 	// Security headers (CSP, HSTS, X-Frame-Options, etc.)
 	r.Use(middleware.SecurityHeaders())
 
+	// Limit request body size to prevent memory exhaustion; OPML uploads get 10MB.
+	r.Use(middleware.RequestBodyLimit(1*1024*1024, map[string]int64{
+		"/api/feeds/import": 10 * 1024 * 1024,
+	}))
+
 	// Simple caching: only cache static assets aggressively, nothing else
 	r.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
