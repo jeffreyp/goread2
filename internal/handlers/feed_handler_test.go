@@ -793,6 +793,7 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("successful cleanup as admin in local environment", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
 		db := newMockDBFeedHandler()
 		db.articlesDeleted = 42
 		handler := NewFeedHandler(nil, nil, nil, db)
@@ -807,6 +808,7 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/cron/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
 		c.Set("user", adminUser)
 
 		handler.CleanupOrphanedUserArticles(c)
@@ -826,6 +828,7 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 	})
 
 	t.Run("unauthorized without admin in local environment", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
 		db := newMockDBFeedHandler()
 		handler := NewFeedHandler(nil, nil, nil, db)
 
@@ -839,6 +842,7 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/cron/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
 		c.Set("user", regularUser)
 
 		handler.CleanupOrphanedUserArticles(c)
@@ -849,6 +853,7 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 	})
 
 	t.Run("unauthorized without authentication in local environment", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
 		db := newMockDBFeedHandler()
 		handler := NewFeedHandler(nil, nil, nil, db)
 
@@ -863,7 +868,67 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 		}
 	})
 
+	t.Run("unauthorized admin without X-Admin-Token header", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		db := newMockDBFeedHandler()
+		handler := NewFeedHandler(nil, nil, nil, db)
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-orphaned-articles", nil)
+		c.Set("user", adminUser)
+
+		handler.CleanupOrphanedUserArticles(c)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected status 403, got %d", w.Code)
+		}
+	})
+
+	t.Run("unauthorized admin with wrong X-Admin-Token header", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		db := newMockDBFeedHandler()
+		handler := NewFeedHandler(nil, nil, nil, db)
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "wrong-token")
+		c.Set("user", adminUser)
+
+		handler.CleanupOrphanedUserArticles(c)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected status 403, got %d", w.Code)
+		}
+	})
+
+	t.Run("unauthorized when ADMIN_TOKEN not configured", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "")
+		db := newMockDBFeedHandler()
+		handler := NewFeedHandler(nil, nil, nil, db)
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "any-token")
+		c.Set("user", adminUser)
+
+		handler.CleanupOrphanedUserArticles(c)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected status 403, got %d", w.Code)
+		}
+	})
+
 	t.Run("database error returns 500", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
 		db := newMockDBFeedHandler()
 		db.shouldFailCleanupOrphaned = true
 		handler := NewFeedHandler(nil, nil, nil, db)
@@ -878,6 +943,7 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/cron/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
 		c.Set("user", adminUser)
 
 		handler.CleanupOrphanedUserArticles(c)

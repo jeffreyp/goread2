@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/auth"
 	"github.com/jeffreyp/goread2/internal/database"
 )
@@ -139,4 +142,104 @@ func TestOAuthStateInvalidState(t *testing.T) {
 	if sessionManager.ValidateAndConsumeOAuthState("unknown-state") {
 		t.Error("Unknown state should be invalid")
 	}
+}
+
+func TestCleanupExpiredSessions_CronAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newHandler := func() *AuthHandler {
+		db := &mockDBAuthHandler{}
+		sessionManager := auth.NewSessionManager(db)
+		csrfManager := auth.NewCSRFManager()
+		return NewAuthHandler(nil, sessionManager, csrfManager)
+	}
+
+	t.Run("admin with valid token succeeds", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-cron-token")
+		handler := newHandler()
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-sessions", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-cron-token")
+		c.Set("user", adminUser)
+
+		handler.CleanupExpiredSessions(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("admin without X-Admin-Token header is rejected", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-cron-token")
+		handler := newHandler()
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-sessions", nil)
+		c.Set("user", adminUser)
+
+		handler.CleanupExpiredSessions(c)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected 403, got %d", w.Code)
+		}
+	})
+
+	t.Run("admin with wrong X-Admin-Token is rejected", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-cron-token")
+		handler := newHandler()
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-sessions", nil)
+		c.Request.Header.Set("X-Admin-Token", "wrong-token")
+		c.Set("user", adminUser)
+
+		handler.CleanupExpiredSessions(c)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected 403, got %d", w.Code)
+		}
+	})
+
+	t.Run("non-admin is rejected even with valid token", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-cron-token")
+		handler := newHandler()
+
+		regularUser := &database.User{ID: 2, Email: "user@example.com", IsAdmin: false}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-sessions", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-cron-token")
+		c.Set("user", regularUser)
+
+		handler.CleanupExpiredSessions(c)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected 403, got %d", w.Code)
+		}
+	})
+
+	t.Run("blocked when ADMIN_TOKEN not configured", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "")
+		handler := newHandler()
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-sessions", nil)
+		c.Request.Header.Set("X-Admin-Token", "any-token")
+		c.Set("user", adminUser)
+
+		handler.CleanupExpiredSessions(c)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected 403, got %d", w.Code)
+		}
+	})
 }

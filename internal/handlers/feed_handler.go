@@ -287,11 +287,18 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 				return
 			}
 		} else {
-			// In non-App Engine environments, require authentication with admin privileges
+			// In non-App Engine environments, require admin session + ADMIN_TOKEN header.
+			// Checking only IsAdmin is insufficient: any admin could trigger expensive ops.
 			user, exists := auth.GetUserFromContext(c)
 			if !exists || !user.IsAdmin {
 				log.Printf("Unauthorized cron request - requires admin authentication")
 				c.JSON(http.StatusForbidden, gin.H{"error": "Admin authentication required"})
+				return
+			}
+			expectedToken := os.Getenv("ADMIN_TOKEN")
+			if expectedToken == "" || c.GetHeader("X-Admin-Token") != expectedToken {
+				log.Printf("Unauthorized cron request - invalid or missing X-Admin-Token from IP: %s", auth.GetSecureClientIP(c))
+				c.JSON(http.StatusForbidden, gin.H{"error": "Valid X-Admin-Token header required"})
 				return
 			}
 		}
@@ -347,11 +354,17 @@ func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 				return
 			}
 		} else {
-			// In non-App Engine environments, require authentication with admin privileges
+			// In non-App Engine environments, require admin session + ADMIN_TOKEN header.
 			user, exists := auth.GetUserFromContext(c)
 			if !exists || !user.IsAdmin {
 				log.Printf("Unauthorized cron request - requires admin authentication")
 				c.JSON(http.StatusForbidden, gin.H{"error": "Admin authentication required"})
+				return
+			}
+			expectedToken := os.Getenv("ADMIN_TOKEN")
+			if expectedToken == "" || c.GetHeader("X-Admin-Token") != expectedToken {
+				log.Printf("Unauthorized cron request - invalid or missing X-Admin-Token from IP: %s", auth.GetSecureClientIP(c))
+				c.JSON(http.StatusForbidden, gin.H{"error": "Valid X-Admin-Token header required"})
 				return
 			}
 		}
