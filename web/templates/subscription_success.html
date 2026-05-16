@@ -17,28 +17,26 @@
 </head>
 <body>
     <div class="privacy-container">
-        <h1>🎉 Welcome to GoRead2 Pro!</h1>
-        
+        <h1>Subscription activated</h1>
+
         <div class="privacy-content">
-            <p><strong>Your subscription has been successfully activated!</strong></p>
-            
-            <p>You now have access to:</p>
+            <p>Your GoRead2 Pro subscription is now active.</p>
+
+            <p>Your account now includes:</p>
             <ul>
-                <li>✅ Unlimited RSS feeds</li>
-                <li>✅ Priority support</li>
-                <li>✅ Advanced features</li>
-                <li>✅ No more feed limits</li>
+                <li>Unlimited RSS feeds</li>
+                <li>No feed limits</li>
+                <li>Priority support</li>
+                <li>Advanced features</li>
             </ul>
-            
-            <p>You can now add as many RSS feeds as you want and enjoy the full GoRead2 experience.</p>
-            
+
             {{if .session_id}}
             <p><small>Session ID: {{.session_id}}</small></p>
             {{end}}
         </div>
-        
+
         <div class="privacy-actions">
-            <a href="/" class="btn btn-primary">Start Using GoRead2 Pro</a>
+            <a href="/" class="btn btn-primary">Go to GoRead2</a>
             <a href="/subscription" class="btn btn-secondary">Manage Subscription</a>
         </div>
     </div>
