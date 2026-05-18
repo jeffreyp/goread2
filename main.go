@@ -54,6 +54,8 @@ func main() {
 	authRateLimiter := auth.NewRateLimiter(10, 20)
 	// API: 30 requests per second with burst of 50
 	apiRateLimiter := auth.NewRateLimiter(30, 50)
+	// Webhook: 5 requests per second with burst of 10 (Stripe traffic is low-volume)
+	webhookRateLimiter := auth.NewRateLimiter(5, 10)
 
 	// Initialize feed scheduler for staggered updates
 	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{
@@ -259,7 +261,7 @@ func main() {
 
 	// Webhook routes (public - no auth required) - only if subscriptions are enabled
 	if cfg.SubscriptionEnabled && paymentHandler != nil {
-		r.POST("/webhooks/stripe", paymentHandler.WebhookHandler)
+		r.POST("/webhooks/stripe", auth.RateLimitMiddleware(webhookRateLimiter), paymentHandler.WebhookHandler)
 	}
 
 	// Initialize admin users from environment configuration
