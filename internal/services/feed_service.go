@@ -15,6 +15,7 @@ import (
 
 	"github.com/jeffreyp/goread2/internal/cache"
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/microcosm-cc/bluemonday"
 	"golang.org/x/net/html"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/encoding/charmap"
@@ -39,6 +40,7 @@ type FeedService struct {
 	unreadCache   *cache.UnreadCache
 	feedListCache *cache.FeedListCache
 	httpClient    HTTPClient // Optional: if nil, creates client using urlValidator
+	htmlPolicy    *bluemonday.Policy
 }
 
 type RSS struct {
@@ -166,6 +168,7 @@ func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedS
 		urlValidator:  NewURLValidator(),
 		unreadCache:   cache.NewUnreadCache(5 * time.Minute),    // 5 minute TTL
 		feedListCache: cache.NewFeedListCache(20 * time.Minute), // 20 minute TTL
+		htmlPolicy:    bluemonday.UGCPolicy(),
 	}
 }
 
@@ -638,8 +641,8 @@ func (fs *FeedService) convertRSSToFeedData(rss *RSS, feedURL string) *FeedData 
 		articles[i] = ArticleData{
 			Title:       fs.sanitizeArticleTitle(item.Title, item.Link, item.Description),
 			Link:        item.Link,
-			Description: item.Description,
-			Content:     item.Content,
+			Description: fs.sanitizeHTML(item.Description),
+			Content:     fs.sanitizeHTML(item.Content),
 			Author:      item.Author,
 			PublishedAt: publishedAt,
 		}
@@ -663,8 +666,8 @@ func (fs *FeedService) convertRDFToFeedData(rdf *RDF, feedURL string) *FeedData 
 		articles[i] = ArticleData{
 			Title:       fs.sanitizeArticleTitle(item.Title, item.Link, item.Description),
 			Link:        item.Link,
-			Description: item.Description,
-			Content:     item.Description, // RDF doesn't usually have separate content
+			Description: fs.sanitizeHTML(item.Description),
+			Content:     fs.sanitizeHTML(item.Description), // RDF doesn't usually have separate content
 			Author:      item.Creator,
 			PublishedAt: publishedAt,
 		}
@@ -697,8 +700,8 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom, feedURL string) *FeedDa
 		articles[i] = ArticleData{
 			Title:       fs.sanitizeArticleTitle(entry.Title, entry.Link.Href, entry.Summary),
 			Link:        entry.Link.Href,
-			Description: entry.Summary,
-			Content:     content,
+			Description: fs.sanitizeHTML(entry.Summary),
+			Content:     fs.sanitizeHTML(content),
 			Author:      entry.Author.Name,
 			PublishedAt: publishedAt,
 		}
@@ -1321,6 +1324,10 @@ func (fs *FeedService) generateFallbackTitle(link, description string) string {
 	}
 
 	return "Untitled Article"
+}
+
+func (fs *FeedService) sanitizeHTML(s string) string {
+	return fs.htmlPolicy.Sanitize(s)
 }
 
 func (fs *FeedService) stripHTMLTags(s string) string {
