@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+var feedLinkPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)<link[^>]*type="application/rss\+xml"[^>]*href="([^"]*)"[^>]*>`),
+	regexp.MustCompile(`(?i)<link[^>]*href="([^"]*)"[^>]*type="application/rss\+xml"[^>]*>`),
+	regexp.MustCompile(`(?i)<link[^>]*type="application/atom\+xml"[^>]*href="([^"]*)"[^>]*>`),
+	regexp.MustCompile(`(?i)<link[^>]*href="([^"]*)"[^>]*type="application/atom\+xml"[^>]*>`),
+}
+
 // FeedDiscovery handles URL normalization and feed discovery
 type FeedDiscovery struct {
 	client       *http.Client
@@ -151,21 +158,12 @@ func (fd *FeedDiscovery) discoverFeedsFromHTML(ctx context.Context, urlStr strin
 func (fd *FeedDiscovery) extractFeedLinksFromHTML(html, baseURL string) ([]string, error) {
 	var feedURLs []string
 
-	// Simple regex to find any link tag with RSS/Atom type
-	patterns := []string{
-		`<link[^>]*type="application/rss\+xml"[^>]*href="([^"]*)"[^>]*>`,
-		`<link[^>]*href="([^"]*)"[^>]*type="application/rss\+xml"[^>]*>`,
-		`<link[^>]*type="application/atom\+xml"[^>]*href="([^"]*)"[^>]*>`,
-		`<link[^>]*href="([^"]*)"[^>]*type="application/atom\+xml"[^>]*>`,
-	}
-
 	baseURLParsed, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, pattern := range patterns {
-		regex := regexp.MustCompile(`(?i)` + pattern)
+	for _, regex := range feedLinkPatterns {
 		matches := regex.FindAllStringSubmatch(html, -1)
 
 		for _, match := range matches {
