@@ -11,7 +11,6 @@ import (
 )
 
 func setupSimpleCacheTestRouter() *gin.Engine {
-	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))

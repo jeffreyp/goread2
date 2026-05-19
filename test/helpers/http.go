@@ -28,7 +28,6 @@ type TestServer struct {
 
 // SetupTestServer creates a test server with all dependencies
 func SetupTestServer(t *testing.T) *TestServer {
-	gin.SetMode(gin.TestMode)
 
 	db := CreateTestDB(t)
 
