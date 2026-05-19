@@ -4,12 +4,16 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
 	_ "github.com/mattn/go-sqlite3"
 )
+
+var cleanupMu sync.Mutex
 
 // CreateTestDB creates an in-memory SQLite database for testing
 func CreateTestDB(t *testing.T) database.Database {
@@ -179,50 +183,53 @@ func CleanupTestEnv(t *testing.T) {
 	_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
 }
 
-// CleanupTestUsers removes all test users from the main database
-// This should be called at the start and end of integration tests to ensure clean state
+// findProjectRoot walks up from the current directory to find the go.mod file.
+func findProjectRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("go.mod not found")
+		}
+		dir = parent
+	}
+}
+
+// CleanupTestUsers removes all test users from the main database.
+// Safe to call from parallel tests — uses an absolute DB path, no os.Chdir.
 func CleanupTestUsers(t *testing.T) {
 	t.Helper()
 
-	// Change to project root directory to ensure we use the same database
-	originalDir, err := os.Getwd()
+	cleanupMu.Lock()
+	defer cleanupMu.Unlock()
+
+	projectRoot, err := findProjectRoot()
 	if err != nil {
-		t.Logf("Failed to get current directory for cleanup: %v", err)
+		t.Logf("Failed to find project root for cleanup: %v", err)
 		return
 	}
 
-	// Determine how many levels up to go based on current path
-	projectRoot := "../.."
-	if _, err := os.Stat(projectRoot + "/go.mod"); err != nil {
-		// We might already be in test/integration or test/helpers
-		// Try different path
-		projectRoot = ".."
-		if _, err := os.Stat(projectRoot + "/go.mod"); err != nil {
-			// Try current directory
-			projectRoot = "."
-		}
-	}
-
-	err = os.Chdir(projectRoot)
+	dbPath := filepath.Join(projectRoot, "goread2.db") + "?_loc=auto"
+	sqlDB, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		t.Logf("Failed to change to project root for cleanup: %v", err)
+		t.Logf("Failed to open database for cleanup: %v", err)
 		return
 	}
-	defer func() {
-		if err := os.Chdir(originalDir); err != nil {
-			t.Logf("Failed to restore original directory: %v", err)
-		}
-	}()
+	defer func() { _ = sqlDB.Close() }()
 
-	db, err := database.InitDB()
-	if err != nil {
-		t.Logf("Failed to initialize database for cleanup: %v", err)
+	db := &database.DB{DB: sqlDB}
+	if err := db.CreateTables(); err != nil {
+		t.Logf("Failed to ensure tables exist for cleanup: %v", err)
 		return
 	}
-	defer func() { _ = db.Close() }()
 
 	// Delete test users and admin tokens
-	sqliteDB := db.(*database.DB)
 	testEmails := []string{
 		// Admin integration test users
 		"main@example.com", "edge@example.com", "admin@test.com",
@@ -238,7 +245,7 @@ func CleanupTestUsers(t *testing.T) {
 	}
 
 	for _, email := range testEmails {
-		result, err := sqliteDB.Exec("DELETE FROM users WHERE email = ?", email)
+		result, err := db.Exec("DELETE FROM users WHERE email = ?", email)
 		if err != nil {
 			t.Logf("Failed to cleanup user %s: %v", email, err)
 		} else {
@@ -250,14 +257,14 @@ func CleanupTestUsers(t *testing.T) {
 	}
 
 	// Clean up admin tokens
-	_, err = sqliteDB.Exec("DELETE FROM admin_tokens")
+	_, err = db.Exec("DELETE FROM admin_tokens")
 	if err != nil {
 		t.Logf("Failed to cleanup admin tokens: %v", err)
 	}
 
 	// For bootstrap security tests, also remove admin privileges from all users
 	// This ensures a clean state for security testing
-	_, err = sqliteDB.Exec("UPDATE users SET is_admin = 0")
+	_, err = db.Exec("UPDATE users SET is_admin = 0")
 	if err != nil {
 		t.Logf("Failed to remove admin privileges: %v", err)
 	}
