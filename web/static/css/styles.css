@@ -929,10 +929,6 @@ body.app-body {
     will-change: background-color;
 }
 
-/* Lazy loading improvements */
-.article-content img {
-    loading: lazy;
-}
 
 .button-spinner-overlay {
     position: absolute !important;

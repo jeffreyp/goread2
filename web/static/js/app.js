@@ -1508,6 +1508,11 @@ class GoReadApp {
             </div>
         `;
 
+        contentPane.querySelectorAll('img').forEach(img => {
+            img.loading = 'lazy';
+            img.decoding = 'async';
+        });
+
         // Scroll the content pane to the top to ensure the new article is displayed from its beginning
         contentPane.scrollTop = 0;
 
