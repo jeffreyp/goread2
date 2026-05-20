@@ -189,7 +189,7 @@ func main() {
 	{
 		authRoutes.GET("/login", authHandler.Login)
 		authRoutes.GET("/callback", authHandler.Callback)
-		authRoutes.POST("/logout", authHandler.Logout)
+		authRoutes.POST("/logout", authMiddleware.CSRFMiddleware(csrfManager), authHandler.Logout)
 		authRoutes.GET("/me", authMiddleware.OptionalAuth(), authHandler.Me)
 	}
 

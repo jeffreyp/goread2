@@ -62,7 +62,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 	{
 		authGroup.GET("/login", authHandler.Login)
 		authGroup.GET("/callback", authHandler.Callback)
-		authGroup.POST("/logout", authHandler.Logout)
+		authGroup.POST("/logout", authMiddleware.CSRFMiddleware(csrfManager), authHandler.Logout)
 		authGroup.GET("/me", authMiddleware.OptionalAuth(), authHandler.Me)
 	}
 
