@@ -1250,38 +1250,38 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
-	// Batch process articles in chunks to avoid datastore limits
-	chunkSize := 100
-	for i := 0; i < len(articles); i += chunkSize {
-		end := i + chunkSize
-		if end > len(articles) {
-			end = len(articles)
-		}
-
-		chunk := articles[i:end]
-		entities := make([]*UserArticleEntity, len(chunk))
-		keys := make([]*datastore.Key, len(chunk))
-
-		for j, article := range chunk {
-			entities[j] = &UserArticleEntity{
-				UserID:    int64(userID),
-				ArticleID: int64(article.ID),
-				IsRead:    isRead,
-				IsStarred: isStarred,
+	// Wrap all chunk writes in a single transaction so a failure in any chunk
+	// rolls back the entire operation instead of leaving a partial update committed.
+	_, err := db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		chunkSize := 100
+		for i := 0; i < len(articles); i += chunkSize {
+			end := i + chunkSize
+			if end > len(articles) {
+				end = len(articles)
 			}
 
-			// Create composite key
-			keyStr := fmt.Sprintf("%d_%d", userID, article.ID)
-			keys[j] = datastore.NameKey("UserArticle", keyStr, nil)
-		}
+			chunk := articles[i:end]
+			entities := make([]*UserArticleEntity, len(chunk))
+			keys := make([]*datastore.Key, len(chunk))
 
-		_, err := db.client.PutMulti(ctx, keys, entities)
-		if err != nil {
-			return err
-		}
-	}
+			for j, article := range chunk {
+				entities[j] = &UserArticleEntity{
+					UserID:    int64(userID),
+					ArticleID: int64(article.ID),
+					IsRead:    isRead,
+					IsStarred: isStarred,
+				}
+				keyStr := fmt.Sprintf("%d_%d", userID, article.ID)
+				keys[j] = datastore.NameKey("UserArticle", keyStr, nil)
+			}
 
-	return nil
+			if _, err := tx.PutMulti(keys, entities); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return err
 }
 
 func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
