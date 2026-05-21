@@ -54,9 +54,7 @@ func NewPaymentService(db database.Database, subscriptionService *SubscriptionSe
 	} else if len(secretKey) < 10 {
 		fmt.Printf("ERROR: Stripe secret key appears to be too short: %d characters\n", len(secretKey))
 	} else {
-		// Log first and last 4 characters for debugging (safe)
-		fmt.Printf("INFO: Using Stripe key: %s...%s (%d chars total)\n",
-			secretKey[:4], secretKey[len(secretKey)-4:], len(secretKey))
+		fmt.Printf("INFO: Stripe secret key loaded (%d chars)\n", len(secretKey))
 	}
 	stripe.Key = secretKey
 
