@@ -383,6 +383,10 @@ func (fs *FeedService) GetUserFeedArticles(userID, feedID int) ([]database.Artic
 	return fs.db.GetUserFeedArticles(userID, feedID)
 }
 
+func (fs *FeedService) GetArticleByID(userID, articleID int) (*database.Article, error) {
+	return fs.db.GetArticleByID(userID, articleID)
+}
+
 // Legacy methods removed - use multi-user methods instead
 // func (fs *FeedService) MarkRead(articleID int, isRead bool) error {
 // 	return fmt.Errorf("deprecated: use MarkUserArticleRead instead")

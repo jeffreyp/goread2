@@ -81,6 +81,7 @@ func (m *mockDBFeedHandler) GetUserArticlesPaginated(userID, limit int, cursor s
 func (m *mockDBFeedHandler) GetUserFeedArticles(int, int) ([]database.Article, error) {
 	return nil, nil
 }
+func (m *mockDBFeedHandler) GetArticleByID(int, int) (*database.Article, error) { return nil, nil }
 func (m *mockDBFeedHandler) GetUserArticleStatus(int, int) (*database.UserArticle, error) {
 	return nil, nil
 }

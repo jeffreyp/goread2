@@ -111,6 +111,7 @@ func (m *mockDBAdminHandler) GetUserArticlesPaginated(int, int, string, bool) (*
 func (m *mockDBAdminHandler) GetUserFeedArticles(int, int) ([]database.Article, error) {
 	return nil, nil
 }
+func (m *mockDBAdminHandler) GetArticleByID(int, int) (*database.Article, error) { return nil, nil }
 func (m *mockDBAdminHandler) GetUserArticleStatus(int, int) (*database.UserArticle, error) {
 	return nil, nil
 }

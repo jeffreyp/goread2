@@ -96,6 +96,7 @@ func main() {
 
 	// Initialize handlers
 	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler, db)
+	articleHandler := handlers.NewArticleHandler(feedService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
 	var paymentHandler *handlers.PaymentHandler
@@ -225,6 +226,7 @@ func main() {
 		api.GET("/subscription", feedHandler.GetSubscriptionInfo)
 		api.GET("/account/stats", feedHandler.GetAccountStats)
 		api.PUT("/account/max-articles", feedHandler.UpdateMaxArticlesOnFeedAdd)
+		api.GET("/articles/:id", articleHandler.GetArticle)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
 		api.POST("/articles/mark-all-read", feedHandler.MarkAllRead)

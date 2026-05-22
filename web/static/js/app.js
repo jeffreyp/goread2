@@ -1444,6 +1444,19 @@ class GoReadApp {
         articleItem.classList.add('active');
 
         const article = this.articles[index];
+
+        if (!article.content) {
+            try {
+                const response = await fetch(`/api/articles/${article.id}`);
+                if (response.ok) {
+                    const full = await response.json();
+                    article.content = full.content || '';
+                }
+            } catch (_) {
+                // fall through — displayArticle falls back to description
+            }
+        }
+
         this.displayArticle(article);
 
         // Update mobile navigation to show content pane when article is selected (phones only)

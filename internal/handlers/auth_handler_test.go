@@ -44,6 +44,7 @@ func (m *mockDBAuthHandler) GetUserArticlesPaginated(int, int, string, bool) (*d
 	return &database.ArticlePaginationResult{}, nil
 }
 func (m *mockDBAuthHandler) GetUserFeedArticles(int, int) ([]database.Article, error) { return nil, nil }
+func (m *mockDBAuthHandler) GetArticleByID(int, int) (*database.Article, error)       { return nil, nil }
 func (m *mockDBAuthHandler) GetUserArticleStatus(int, int) (*database.UserArticle, error) {
 	return nil, nil
 }

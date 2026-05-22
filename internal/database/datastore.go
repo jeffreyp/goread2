@@ -1038,7 +1038,6 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor st
 			FeedTitle:   feedTitleMap[feedID],
 			Title:       entity.Title,
 			URL:         entity.URL,
-			Content:     entity.Content,
 			Description: entity.Description,
 			Author:      entity.Author,
 			PublishedAt: entity.PublishedAt,
@@ -1161,7 +1160,6 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 			FeedTitle:   feed.Title,
 			Title:       entity.Title,
 			URL:         entity.URL,
-			Content:     entity.Content,
 			Description: entity.Description,
 			Author:      entity.Author,
 			PublishedAt: entity.PublishedAt,
@@ -1172,6 +1170,63 @@ func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error
 	}
 
 	return articles, nil
+}
+
+func (db *DatastoreDB) GetArticleByID(userID, articleID int) (*Article, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	key := datastore.IDKey("Article", int64(articleID), nil)
+	var entity ArticleEntity
+	if err := db.client.Get(ctx, key, &entity); err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get article: %w", err)
+	}
+	entity.ID = int64(articleID)
+
+	// Verify user is subscribed to this feed
+	subQuery := datastore.NewQuery("UserFeed").
+		FilterField("user_id", "=", int64(userID)).
+		FilterField("feed_id", "=", entity.FeedID).
+		KeysOnly().
+		Limit(1)
+	subKeys, err := db.client.GetAll(ctx, subQuery, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check user subscription: %w", err)
+	}
+	if len(subKeys) == 0 {
+		return nil, nil
+	}
+
+	feed, err := db.GetFeedByID(int(entity.FeedID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get feed: %w", err)
+	}
+
+	uaKey := datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
+	var ua UserArticleEntity
+	isRead, isStarred := false, false
+	if err := db.client.Get(ctx, uaKey, &ua); err == nil {
+		isRead = ua.IsRead
+		isStarred = ua.IsStarred
+	}
+
+	return &Article{
+		ID:          int(entity.ID),
+		FeedID:      int(entity.FeedID),
+		FeedTitle:   feed.Title,
+		Title:       entity.Title,
+		URL:         entity.URL,
+		Content:     entity.Content,
+		Description: entity.Description,
+		Author:      entity.Author,
+		PublishedAt: entity.PublishedAt,
+		CreatedAt:   entity.CreatedAt,
+		IsRead:      isRead,
+		IsStarred:   isStarred,
+	}, nil
 }
 
 func (db *DatastoreDB) GetUserArticleStatus(userID, articleID int) (*UserArticle, error) {

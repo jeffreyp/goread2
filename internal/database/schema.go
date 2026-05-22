@@ -53,6 +53,7 @@ type Database interface {
 	GetUserArticles(userID int) ([]Article, error)
 	GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error)
 	GetUserFeedArticles(userID, feedID int) ([]Article, error)
+	GetArticleByID(userID, articleID int) (*Article, error)
 
 	// User article status methods
 	GetUserArticleStatus(userID, articleID int) (*UserArticle, error)
@@ -876,7 +877,7 @@ func (db *DB) GetUserArticles(userID int) ([]Article, error) {
 // GetUserArticlesPaginated fetches user articles with cursor-based pagination
 // Uses keyset pagination for efficient querying without scanning skipped rows
 func (db *DB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
-	baseQuery := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.content, a.description, a.author,
+	baseQuery := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.description, a.author,
 			  a.published_at, a.created_at,
 			  COALESCE(ua.is_read, 0) as is_read,
 			  COALESCE(ua.is_starred, 0) as is_starred
@@ -920,7 +921,7 @@ func (db *DB) GetUserArticlesPaginated(userID int, limit int, cursor string, unr
 	for rows.Next() {
 		var article Article
 		err := rows.Scan(&article.ID, &article.FeedID, &article.FeedTitle, &article.Title, &article.URL,
-			&article.Content, &article.Description, &article.Author,
+			&article.Description, &article.Author,
 			&article.PublishedAt, &article.CreatedAt, &article.IsRead, &article.IsStarred)
 		if err != nil {
 			return nil, err
@@ -984,7 +985,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 		return []Article{}, nil
 	}
 
-	query := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.content, a.description, a.author,
+	query := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.description, a.author,
 			  a.published_at, a.created_at,
 			  COALESCE(ua.is_read, 0) as is_read,
 			  COALESCE(ua.is_starred, 0) as is_starred
@@ -1004,7 +1005,7 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 	for rows.Next() {
 		var article Article
 		err := rows.Scan(&article.ID, &article.FeedID, &article.FeedTitle, &article.Title, &article.URL,
-			&article.Content, &article.Description, &article.Author,
+			&article.Description, &article.Author,
 			&article.PublishedAt, &article.CreatedAt, &article.IsRead, &article.IsStarred)
 		if err != nil {
 			return nil, err
@@ -1013,6 +1014,31 @@ func (db *DB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
 	}
 
 	return articles, nil
+}
+
+func (db *DB) GetArticleByID(userID, articleID int) (*Article, error) {
+	query := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.content, a.description, a.author,
+			  a.published_at, a.created_at,
+			  COALESCE(ua.is_read, 0) as is_read,
+			  COALESCE(ua.is_starred, 0) as is_starred
+			  FROM articles a
+			  JOIN feeds f ON a.feed_id = f.id
+			  JOIN user_feeds uf ON a.feed_id = uf.feed_id AND uf.user_id = ?
+			  LEFT JOIN user_articles ua ON a.id = ua.article_id AND ua.user_id = ?
+			  WHERE a.id = ?`
+
+	var article Article
+	err := db.QueryRow(query, userID, userID, articleID).Scan(
+		&article.ID, &article.FeedID, &article.FeedTitle, &article.Title, &article.URL,
+		&article.Content, &article.Description, &article.Author,
+		&article.PublishedAt, &article.CreatedAt, &article.IsRead, &article.IsStarred)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &article, nil
 }
 
 // User article status methods
