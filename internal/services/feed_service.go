@@ -240,45 +240,21 @@ func (fs *FeedService) AddFeedForUser(userID int, inputURL string) (*database.Fe
 }
 
 func (fs *FeedService) addFeedForUserInternal(ctx context.Context, userID int, inputURL string) (*database.Feed, error) {
-	var feedURL string
-
-	// Do a simple structural normalization (no DNS) to check for known sites.
-	// This avoids an unnecessary DNS lookup for sites whose feed URLs are hardcoded.
-	simpleNormalized := strings.TrimSpace(inputURL)
-	if !strings.HasPrefix(simpleNormalized, "http://") && !strings.HasPrefix(simpleNormalized, "https://") {
-		simpleNormalized = "https://" + simpleNormalized
-	}
-
-	// Check for known sites before doing full DNS-based URL validation.
-	// For these sites the feed URL is hardcoded, so DNS validation of the input is unnecessary.
-	if strings.Contains(simpleNormalized, "slashdot.org") {
-		feedURL = "https://rss.slashdot.org/Slashdot/slashdotMain"
-	} else if strings.Contains(simpleNormalized, "nytimes.com") {
-		feedURL = "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"
-	} else if strings.Contains(simpleNormalized, "seattletimes.com") {
-		feedURL = "https://www.seattletimes.com/feed/"
+	var discovery *FeedDiscovery
+	if fs.httpClient != nil {
+		discovery = NewFeedDiscoveryWithClient(fs.httpClient)
 	} else {
-		// For unknown sites, do full URL normalization (includes DNS-based SSRF validation)
-		// and then discover the feed URL.
-		discovery := NewFeedDiscovery()
-		normalizedURL, err := discovery.NormalizeURL(ctx, inputURL)
-		if err != nil {
-			// Errors from NormalizeURL are already wrapped with custom types
-			return nil, err
-		}
-
-		feedURLs, err := discovery.DiscoverFeedURL(ctx, normalizedURL)
-		if err != nil {
-			// Errors from DiscoverFeedURL are already wrapped with custom types
-			return nil, err
-		}
-
-		if len(feedURLs) == 0 {
-			return nil, fmt.Errorf("%w: %s", ErrFeedNotFound, inputURL)
-		}
-
-		feedURL = feedURLs[0]
+		discovery = NewFeedDiscovery()
 	}
+
+	feedURLs, err := discovery.DiscoverFeedURL(ctx, inputURL)
+	if err != nil {
+		return nil, err
+	}
+	if len(feedURLs) == 0 {
+		return nil, fmt.Errorf("%w: %s", ErrFeedNotFound, inputURL)
+	}
+	feedURL := feedURLs[0]
 
 	// First check if feed already exists
 	existingFeed, err := fs.db.GetFeedByURL(feedURL)

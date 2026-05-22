@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -978,8 +979,8 @@ func TestAddFeedForUserTimeout(t *testing.T) {
 	}
 	fs.SetHTTPClient(mockClient)
 
-	// Run AddFeedForUser with a URL that will skip discovery and go straight to fetchFeed
-	// Using slashdot.org which is a known site (skips feed discovery)
+	// Run AddFeedForUser with any URL; because the mock client is set, skipValidation
+	// is true and the first HTTP call (isValidFeed) blocks immediately on the mock.
 	start := time.Now()
 	feed, err := fs.AddFeedForUser(1, "https://slashdot.org/")
 	duration := time.Since(start)
@@ -1006,6 +1007,124 @@ func TestAddFeedForUserTimeout(t *testing.T) {
 		// Good - request was made
 	case <-time.After(1 * time.Second):
 		t.Error("HTTP request was never made - goroutine didn't start")
+	}
+}
+
+// redirectingMockClient routes every HTTP request to a local test server,
+// rewriting scheme+host while preserving path and query. This lets tests use
+// realistic domain names (e.g. "https://slashdot.org/") while keeping all
+// traffic local.
+type redirectingMockClient struct {
+	server *httptest.Server
+}
+
+func (m *redirectingMockClient) Do(req *http.Request) (*http.Response, error) {
+	serverURL, _ := url.Parse(m.server.URL)
+	cloned := req.Clone(req.Context())
+	cloned.URL.Scheme = serverURL.Scheme
+	cloned.URL.Host = serverURL.Host
+	return m.server.Client().Do(cloned)
+}
+
+// TestAddFeedForUserKnownSites verifies that slashdot.org, nytimes.com, and
+// seattletimes.com can be subscribed to via standard feed discovery now that
+// the hardcoded URL shortcuts have been removed. A redirecting mock client
+// sends all HTTP traffic to a local test server so no real network calls are
+// made.
+func TestAddFeedForUserKnownSites(t *testing.T) {
+	sampleRSS := `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <description>A test feed</description>
+    <link>https://example.com</link>
+    <item>
+      <title>Test Article</title>
+      <link>https://example.com/article1</link>
+      <description>Test content</description>
+      <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>`
+
+	// Mock server: /feed returns RSS, / returns HTML with feed link, everything else 404.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/feed":
+			w.Header().Set("Content-Type", "application/rss+xml")
+			w.WriteHeader(http.StatusOK)
+			if r.Method != http.MethodHead {
+				_, _ = w.Write([]byte(sampleRSS))
+			}
+		case "/":
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><head><link rel="alternate" type="application/rss+xml" href="/feed"></head></html>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer mockServer.Close()
+
+	sites := []struct {
+		name  string
+		input string // what a user would type
+	}{
+		{"slashdot.org", "https://slashdot.org/"},
+		{"nytimes.com", "https://nytimes.com/"},
+		{"seattletimes.com", "https://seattletimes.com/"},
+	}
+
+	for _, site := range sites {
+		t.Run(site.name, func(t *testing.T) {
+			db := setupTestDB(t)
+			defer func() { _ = db.Close() }()
+
+			fs := NewFeedService(db, nil)
+			fs.SetHTTPClient(&redirectingMockClient{server: mockServer})
+
+			user := &database.User{
+				GoogleID: "test-known-site-" + site.name,
+				Email:    "test-" + site.name + "@example.com",
+				Name:     "Test User",
+			}
+			if err := db.CreateUser(user); err != nil {
+				t.Fatalf("CreateUser: %v", err)
+			}
+
+			feed, err := fs.AddFeedForUser(user.ID, site.input)
+			if err != nil {
+				t.Fatalf("AddFeedForUser(%q): %v", site.input, err)
+			}
+			if feed == nil {
+				t.Fatal("expected non-nil feed")
+			}
+			if feed.Title == "" {
+				t.Error("expected non-empty feed title")
+			}
+
+			articles, err := db.GetArticles(feed.ID)
+			if err != nil {
+				t.Fatalf("GetArticles: %v", err)
+			}
+			if len(articles) == 0 {
+				t.Error("expected at least one article after subscription")
+			}
+
+			// Verify unsubscribe works too
+			if err := fs.UnsubscribeUserFromFeed(user.ID, feed.ID); err != nil {
+				t.Fatalf("UnsubscribeUserFromFeed: %v", err)
+			}
+			userFeeds, err := db.GetUserFeeds(user.ID)
+			if err != nil {
+				t.Fatalf("GetUserFeeds: %v", err)
+			}
+			for _, uf := range userFeeds {
+				if uf.ID == feed.ID {
+					t.Error("feed still present after unsubscribe")
+				}
+			}
+		})
 	}
 }
 

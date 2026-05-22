@@ -22,7 +22,11 @@ func TestNewFeedDiscovery(t *testing.T) {
 		t.Error("HTTP client not initialized")
 	}
 
-	if fd.client.Timeout == 0 {
+	httpClient, ok := fd.client.(*http.Client)
+	if !ok {
+		t.Fatal("expected fd.client to be *http.Client from NewFeedDiscovery")
+	}
+	if httpClient.Timeout == 0 {
 		t.Error("HTTP client timeout not set")
 	}
 }

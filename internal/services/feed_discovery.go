@@ -21,8 +21,9 @@ var feedLinkPatterns = []*regexp.Regexp{
 
 // FeedDiscovery handles URL normalization and feed discovery
 type FeedDiscovery struct {
-	client       *http.Client
-	urlValidator *URLValidator
+	client         HTTPClient
+	urlValidator   *URLValidator
+	skipValidation bool // true when a test client is injected; skips SSRF/DNS checks
 }
 
 func NewFeedDiscovery() *FeedDiscovery {
@@ -33,8 +34,31 @@ func NewFeedDiscovery() *FeedDiscovery {
 	}
 }
 
-// NormalizeURL adds protocol if missing and validates the URL with SSRF protection
+// NewFeedDiscoveryWithClient returns a FeedDiscovery that uses the provided HTTP
+// client and skips SSRF/DNS validation. Intended for tests only.
+func NewFeedDiscoveryWithClient(client HTTPClient) *FeedDiscovery {
+	return &FeedDiscovery{
+		client:         client,
+		urlValidator:   NewURLValidator(),
+		skipValidation: true,
+	}
+}
+
+// NormalizeURL adds protocol if missing and validates the URL with SSRF protection.
+// When skipValidation is true (injected test client), only structural normalization
+// is performed — no DNS lookup or SSRF check.
 func (fd *FeedDiscovery) NormalizeURL(ctx context.Context, rawURL string) (string, error) {
+	if fd.skipValidation {
+		normalized := strings.TrimSpace(rawURL)
+		if !strings.HasPrefix(normalized, "http://") && !strings.HasPrefix(normalized, "https://") {
+			normalized = "https://" + normalized
+		}
+		if _, err := url.Parse(normalized); err != nil {
+			return "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		}
+		return normalized, nil
+	}
+
 	// Use the URL validator which includes SSRF protection
 	normalizedURL, err := fd.urlValidator.ValidateAndNormalizeURL(ctx, rawURL)
 	if err != nil {
@@ -365,9 +389,10 @@ func (fd *FeedDiscovery) tryMastodonFeedPaths(ctx context.Context, baseURL strin
 
 // isValidFeed checks if a given URL is a valid RSS/Atom feed
 func (fd *FeedDiscovery) isValidFeed(ctx context.Context, feedURL string) bool {
-	// Validate URL for SSRF protection
-	if err := fd.urlValidator.ValidateURL(ctx, feedURL); err != nil {
-		return false
+	if !fd.skipValidation {
+		if err := fd.urlValidator.ValidateURL(ctx, feedURL); err != nil {
+			return false
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
