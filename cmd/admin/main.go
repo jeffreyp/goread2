@@ -77,9 +77,12 @@ func main() {
 	// Only 'create-token' bypasses validation for bootstrap scenarios
 	if command != "create-token" {
 		valid, err := subscriptionService.ValidateAdminToken(adminToken)
-		if err != nil {
+		if err != nil && !valid {
 			fmt.Printf("ERROR: Failed to validate admin token: %v\n", err)
 			os.Exit(1)
+		}
+		if err != nil {
+			fmt.Printf("WARNING: Admin token is valid but usage tracking failed: %v\n", err)
 		}
 		if !valid {
 			fmt.Println("ERROR: Invalid ADMIN_TOKEN - token not found in database or inactive")

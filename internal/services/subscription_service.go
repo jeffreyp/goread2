@@ -281,8 +281,7 @@ func (ss *SubscriptionService) ValidateAdminToken(token string) (bool, error) {
 		updateQuery := `UPDATE admin_tokens SET last_used_at = ? WHERE id = ?`
 		_, err = sqliteDB.Exec(updateQuery, time.Now(), adminToken.ID)
 		if err != nil {
-			// Log error but don't fail validation
-			fmt.Printf("Warning: Failed to update last_used_at for admin token: %v\n", err)
+			return true, fmt.Errorf("failed to update last_used_at for admin token: %w", err)
 		}
 
 		return true, nil
@@ -311,8 +310,7 @@ func (ss *SubscriptionService) ValidateAdminToken(token string) (bool, error) {
 
 		_, err = datastoreDB.GetClient().Put(ctx, keys[0], entity)
 		if err != nil {
-			// Log error but don't fail validation
-			fmt.Printf("Warning: Failed to update last_used_at for admin token: %v\n", err)
+			return true, fmt.Errorf("failed to update last_used_at for admin token: %w", err)
 		}
 
 		return true, nil
