@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/auth"
@@ -15,11 +16,20 @@ import (
 
 type PaymentHandler struct {
 	paymentService *services.PaymentService
+	baseURL        string
 }
 
-func NewPaymentHandler(paymentService *services.PaymentService) *PaymentHandler {
+// NewPaymentHandler creates a PaymentHandler. redirectURL is the configured
+// GOOGLE_REDIRECT_URL; the scheme+host is extracted as the app's base URL for
+// Stripe success/cancel/return URLs, preventing Host-header spoofing.
+func NewPaymentHandler(paymentService *services.PaymentService, redirectURL string) *PaymentHandler {
+	base := ""
+	if u, err := url.Parse(redirectURL); err == nil {
+		base = u.Scheme + "://" + u.Host
+	}
 	return &PaymentHandler{
 		paymentService: paymentService,
+		baseURL:        base,
 	}
 }
 
@@ -31,17 +41,10 @@ func (ph *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 		return
 	}
 
-	// Get the base URL for success/cancel URLs
-	scheme := "https"
-	if c.Request.Header.Get("X-Forwarded-Proto") == "" && c.Request.TLS == nil {
-		scheme = "http"
-	}
-	baseURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
-
 	req := services.CheckoutSessionRequest{
 		UserID:     user.ID,
-		SuccessURL: baseURL + "/subscription/success?session_id={CHECKOUT_SESSION_ID}",
-		CancelURL:  baseURL + "/subscription/cancel",
+		SuccessURL: ph.baseURL + "/subscription/success?session_id={CHECKOUT_SESSION_ID}",
+		CancelURL:  ph.baseURL + "/subscription/cancel",
 	}
 
 	session, err := ph.paymentService.CreateCheckoutSession(req)
@@ -196,12 +199,7 @@ func (ph *PaymentHandler) CreateCustomerPortal(c *gin.Context) {
 		return
 	}
 
-	// Get the base URL for return URL
-	scheme := "https"
-	if c.Request.Header.Get("X-Forwarded-Proto") == "" && c.Request.TLS == nil {
-		scheme = "http"
-	}
-	returnURL := fmt.Sprintf("%s://%s/subscription", scheme, c.Request.Host)
+	returnURL := ph.baseURL + "/subscription"
 
 	portalURL, err := ph.paymentService.CreateCustomerPortalSession(user.ID, returnURL)
 	if err != nil {

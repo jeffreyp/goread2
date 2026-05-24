@@ -101,7 +101,7 @@ func main() {
 	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
 	var paymentHandler *handlers.PaymentHandler
 	if cfg.SubscriptionEnabled && paymentService != nil {
-		paymentHandler = handlers.NewPaymentHandler(paymentService)
+		paymentHandler = handlers.NewPaymentHandler(paymentService, cfg.GoogleRedirectURL)
 	}
 
 	// Initialize middleware

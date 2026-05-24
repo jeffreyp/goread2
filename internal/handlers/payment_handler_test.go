@@ -14,7 +14,7 @@ func TestNewPaymentHandler(t *testing.T) {
 	// Create mock service
 	mockPaymentService := &services.PaymentService{}
 
-	handler := NewPaymentHandler(mockPaymentService)
+	handler := NewPaymentHandler(mockPaymentService, "https://example.com/auth/callback")
 
 	if handler == nil {
 		t.Fatal("NewPaymentHandler returned nil")
@@ -23,6 +23,10 @@ func TestNewPaymentHandler(t *testing.T) {
 
 	if handler.paymentService != mockPaymentService {
 		t.Error("PaymentHandler payment service not set correctly")
+	}
+
+	if handler.baseURL != "https://example.com" {
+		t.Errorf("PaymentHandler baseURL not set correctly: got %q", handler.baseURL)
 	}
 }
 
@@ -35,7 +39,7 @@ func TestWebhookHandler_MissingSecret(t *testing.T) {
 	// The PaymentService's GetStripeWebhookSecret() will return an empty string
 	paymentService := &services.PaymentService{}
 
-	handler := NewPaymentHandler(paymentService)
+	handler := NewPaymentHandler(paymentService, "https://example.com/auth/callback")
 
 	// Create test request
 	w := httptest.NewRecorder()
