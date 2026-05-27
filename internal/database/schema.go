@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,8 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+var ErrSelfDemotion = errors.New("cannot remove your own admin privileges")
 
 // ArticlePaginationResult contains paginated articles and a cursor for the next page
 type ArticlePaginationResult struct {
@@ -29,6 +32,7 @@ type Database interface {
 
 	// Admin methods
 	SetUserAdmin(userID int, isAdmin bool) error
+	SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error
 	GrantFreeMonths(userID int, months int) error
 	GetUserByEmail(email string) (*User, error)
 
@@ -1363,6 +1367,23 @@ func (db *DB) SetUserAdmin(userID int, isAdmin bool) error {
 	query := `UPDATE users SET is_admin = ? WHERE id = ?`
 	_, err := db.Exec(query, isAdmin, userID)
 	return err
+}
+
+func (db *DB) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if targetID == callerID && !isAdmin {
+		return ErrSelfDemotion
+	}
+
+	if _, err = tx.Exec(`UPDATE users SET is_admin = ? WHERE id = ?`, isAdmin, targetID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (db *DB) GrantFreeMonths(userID int, months int) error {

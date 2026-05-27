@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/auth"
+	"github.com/jeffreyp/goread2/internal/database"
 	"github.com/jeffreyp/goread2/internal/services"
 )
 
@@ -62,15 +64,13 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 		return
 	}
 
-	// Prevent self-demotion (admin removing their own admin status)
-	if user.ID == currentUser.ID && !request.IsAdmin {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot remove your own admin privileges"})
-		return
-	}
-
-	// Set admin status
-	err = ah.subscriptionService.SetUserAdmin(user.ID, request.IsAdmin)
+	// Set admin status (self-demotion check is enforced atomically in the DB layer)
+	err = ah.subscriptionService.SetUserAdmin(user.ID, currentUser.ID, request.IsAdmin)
 	if err != nil {
+		if errors.Is(err, database.ErrSelfDemotion) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Cannot remove your own admin privileges"})
+			return
+		}
 		// Log failure
 		_ = ah.auditService.LogFailure(
 			currentUser.ID,

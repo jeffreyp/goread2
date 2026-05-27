@@ -1836,6 +1836,26 @@ func (db *DatastoreDB) GetUserFeedCount(userID int) (int, error) {
 }
 
 // Admin management methods
+func (db *DatastoreDB) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	_, err := db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		if targetID == callerID && !isAdmin {
+			return ErrSelfDemotion
+		}
+		userKey := datastore.IDKey("User", int64(targetID), nil)
+		var user UserEntity
+		if err := tx.Get(userKey, &user); err != nil {
+			return fmt.Errorf("failed to get user: %w", err)
+		}
+		user.IsAdmin = isAdmin
+		_, err := tx.Put(userKey, &user)
+		return err
+	})
+	return err
+}
+
 func (db *DatastoreDB) SetUserAdmin(userID int, isAdmin bool) error {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()

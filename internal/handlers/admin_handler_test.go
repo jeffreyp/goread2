@@ -53,6 +53,12 @@ func (m *mockDBAdminHandler) SetUserAdmin(userID int, isAdmin bool) error {
 	}
 	return nil
 }
+func (m *mockDBAdminHandler) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
+	if targetID == callerID && !isAdmin {
+		return database.ErrSelfDemotion
+	}
+	return m.SetUserAdmin(targetID, isAdmin)
+}
 
 func (m *mockDBAdminHandler) GrantFreeMonths(userID int, months int) error {
 	if m.shouldFailGrantFree {

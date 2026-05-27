@@ -38,6 +38,7 @@ func (m *mockDB) UpdateUserSubscription(int, string, string, time.Time, time.Tim
 func (m *mockDB) IsUserSubscriptionActive(int) (bool, error)                             { return false, nil }
 func (m *mockDB) GetUserFeedCount(int) (int, error)                                      { return 0, nil }
 func (m *mockDB) SetUserAdmin(int, bool) error                                           { return nil }
+func (m *mockDB) SetUserAdminAtomic(int, int, bool) error                                { return nil }
 func (m *mockDB) GrantFreeMonths(int, int) error                                         { return nil }
 func (m *mockDB) GetUserByEmail(string) (*database.User, error)                          { return nil, nil }
 func (m *mockDB) AddFeed(*database.Feed) error                                           { return nil }

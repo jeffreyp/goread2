@@ -293,7 +293,7 @@ func setAdminStatus(subscriptionService *services.SubscriptionService, auditServ
 	}
 
 	// Set admin status
-	err = subscriptionService.SetUserAdmin(user.ID, isAdmin)
+	err = subscriptionService.SetUserAdmin(user.ID, 0, isAdmin)
 	if err != nil {
 		// Log failure
 		_ = auditService.LogFailure(

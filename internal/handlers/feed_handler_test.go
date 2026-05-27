@@ -50,8 +50,9 @@ func (m *mockDBFeedHandler) UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles i
 	}
 	return nil
 }
-func (m *mockDBFeedHandler) SetUserAdmin(int, bool) error       { return nil }
-func (m *mockDBFeedHandler) GrantFreeMonths(int, int) error     { return nil }
+func (m *mockDBFeedHandler) SetUserAdmin(int, bool) error            { return nil }
+func (m *mockDBFeedHandler) SetUserAdminAtomic(int, int, bool) error { return nil }
+func (m *mockDBFeedHandler) GrantFreeMonths(int, int) error          { return nil }
 func (m *mockDBFeedHandler) GetUserByEmail(string) (*database.User, error) { return nil, nil }
 func (m *mockDBFeedHandler) AddFeed(*database.Feed) error                            { return nil }
 func (m *mockDBFeedHandler) UpdateFeed(*database.Feed) error                         { return nil }

@@ -165,8 +165,8 @@ func (ss *SubscriptionService) UpdateUserSubscription(userID int, status, subscr
 }
 
 // Admin management methods
-func (ss *SubscriptionService) SetUserAdmin(userID int, isAdmin bool) error {
-	return ss.db.SetUserAdmin(userID, isAdmin)
+func (ss *SubscriptionService) SetUserAdmin(targetID, callerID int, isAdmin bool) error {
+	return ss.db.SetUserAdminAtomic(targetID, callerID, isAdmin)
 }
 
 func (ss *SubscriptionService) GrantFreeMonths(userID int, months int) error {

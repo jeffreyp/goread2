@@ -86,6 +86,12 @@ func (m *mockDBForSub) SetUserAdmin(userID int, isAdmin bool) error {
 	}
 	return nil
 }
+func (m *mockDBForSub) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
+	if targetID == callerID && !isAdmin {
+		return database.ErrSelfDemotion
+	}
+	return m.SetUserAdmin(targetID, isAdmin)
+}
 func (m *mockDBForSub) GrantFreeMonths(userID int, months int) error {
 	if m.shouldFailGrant {
 		return errors.New("failed to grant free months")
@@ -432,7 +438,7 @@ func TestSetUserAdmin(t *testing.T) {
 
 	service := NewSubscriptionService(db)
 
-	err := service.SetUserAdmin(1, true)
+	err := service.SetUserAdmin(1, 0, true)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -614,7 +620,7 @@ func TestSetUserAdmin_Error(t *testing.T) {
 	db.shouldFailSetAdmin = true
 
 	service := NewSubscriptionService(db)
-	err := service.SetUserAdmin(1, true)
+	err := service.SetUserAdmin(1, 0, true)
 
 	if err == nil {
 		t.Error("Expected error when SetUserAdmin fails")

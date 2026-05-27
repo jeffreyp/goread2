@@ -24,6 +24,7 @@ func (m *mockDBAuthHandler) IsUserSubscriptionActive(int) (bool, error)         
 func (m *mockDBAuthHandler) GetUserFeedCount(int) (int, error)                       { return 0, nil }
 func (m *mockDBAuthHandler) UpdateUserMaxArticlesOnFeedAdd(int, int) error           { return nil }
 func (m *mockDBAuthHandler) SetUserAdmin(int, bool) error                            { return nil }
+func (m *mockDBAuthHandler) SetUserAdminAtomic(int, int, bool) error                 { return nil }
 func (m *mockDBAuthHandler) GrantFreeMonths(int, int) error                          { return nil }
 func (m *mockDBAuthHandler) GetUserByEmail(string) (*database.User, error)           { return nil, nil }
 func (m *mockDBAuthHandler) AddFeed(*database.Feed) error                            { return nil }

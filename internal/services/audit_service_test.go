@@ -102,6 +102,7 @@ func (m *mockDBAudit) UpdateUserSubscription(int, string, string, time.Time, tim
 func (m *mockDBAudit) IsUserSubscriptionActive(int) (bool, error)              { return false, nil }
 func (m *mockDBAudit) GetUserFeedCount(int) (int, error)                       { return 0, nil }
 func (m *mockDBAudit) SetUserAdmin(int, bool) error                            { return nil }
+func (m *mockDBAudit) SetUserAdminAtomic(int, int, bool) error                 { return nil }
 func (m *mockDBAudit) GrantFreeMonths(int, int) error                          { return nil }
 func (m *mockDBAudit) AddFeed(*database.Feed) error                            { return nil }
 func (m *mockDBAudit) UpdateFeed(*database.Feed) error                         { return nil }
