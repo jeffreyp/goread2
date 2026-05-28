@@ -1374,7 +1374,7 @@ func (db *DB) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	if targetID == callerID && !isAdmin {
 		return ErrSelfDemotion
