@@ -1471,35 +1471,16 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 // Helper function to efficiently count unread articles for a specific feed.
 // Only considers articles published within unreadCountWindowDays to cap Firestore read costs.
 func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, feedID int) (int, error) {
-	// Get recent articles for this feed with eventual consistency retry
-	var articleKeys []*datastore.Key
-	var err error
-
 	cutoff := time.Now().UTC().Add(-unreadCountWindowDays * 24 * time.Hour)
 
-	// Retry logic to handle eventual consistency issues with newly added feeds
-	for attempt := 0; attempt < 3; attempt++ {
-		articleQuery := datastore.NewQuery("Article").
-			FilterField("feed_id", "=", int64(feedID)).
-			FilterField("published_at", ">=", cutoff).
-			KeysOnly()
+	articleQuery := datastore.NewQuery("Article").
+		FilterField("feed_id", "=", int64(feedID)).
+		FilterField("published_at", ">=", cutoff).
+		KeysOnly()
 
-		articleKeys, err = db.client.GetAll(ctx, articleQuery, nil)
-		if err != nil {
-			if attempt < 2 {
-				time.Sleep(500 * time.Millisecond)
-				continue
-			}
-			return 0, err
-		}
-
-		// If we got articles or this isn't the first attempt, use the result
-		if len(articleKeys) > 0 || attempt > 0 {
-			break
-		}
-
-		// If no articles found on first attempt, wait and retry (might be consistency lag)
-		time.Sleep(500 * time.Millisecond)
+	articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
+	if err != nil {
+		return 0, err
 	}
 
 	if len(articleKeys) == 0 {
