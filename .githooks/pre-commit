@@ -1,0 +1,49 @@
+#!/bin/sh
+# Pre-commit hook: beads flush + golangci-lint
+#
+# Install for this repo:
+#   git config core.hooksPath .githooks
+#
+# If you use beads (bd), its hook installer will write to .git/hooks/pre-commit
+# instead; that file already includes the lint check.
+
+# ── beads flush ─────────────────────────────────────────────────────────────
+if command -v bd >/dev/null 2>&1 && [ -d .beads ]; then
+    SYNC_BRANCH="${BEADS_SYNC_BRANCH:-}"
+    if [ -z "$SYNC_BRANCH" ] && [ -f .beads/config.yaml ]; then
+        SYNC_BRANCH=$(grep -E '^sync-branch:' .beads/config.yaml 2>/dev/null | head -1 \
+            | sed 's/^sync-branch:[[:space:]]*//' | sed "s/^[\"']//" | sed "s/[\"']$//")
+    fi
+
+    if [ -z "$SYNC_BRANCH" ]; then
+        if ! bd sync --flush-only >/dev/null 2>&1; then
+            echo "Error: Failed to flush bd changes to JSONL" >&2
+            exit 1
+        fi
+        if [ "$(git rev-parse --git-dir)" = "$(git rev-parse --git-common-dir)" ]; then
+            for f in .beads/beads.jsonl .beads/issues.jsonl .beads/deletions.jsonl; do
+                [ -f "$f" ] && git add "$f" 2>/dev/null || true
+            done
+        fi
+    fi
+fi
+
+# ── golangci-lint ────────────────────────────────────────────────────────────
+GOLANGCI_LINT=""
+if command -v golangci-lint >/dev/null 2>&1; then
+    GOLANGCI_LINT="golangci-lint"
+elif [ -x "$HOME/go/bin/golangci-lint" ]; then
+    GOLANGCI_LINT="$HOME/go/bin/golangci-lint"
+fi
+
+if [ -n "$GOLANGCI_LINT" ]; then
+    echo "Running golangci-lint..." >&2
+    if ! $GOLANGCI_LINT run --timeout=5m; then
+        echo "Lint failed — commit aborted. Fix the issues above and try again." >&2
+        exit 1
+    fi
+else
+    echo "Warning: golangci-lint not found, skipping lint check" >&2
+fi
+
+exit 0
