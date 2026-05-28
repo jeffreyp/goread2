@@ -56,6 +56,7 @@ func (m *mockDBAuthHandler) BatchSetUserArticleStatus(int, []database.Article, b
 func (m *mockDBAuthHandler) MarkUserArticleRead(int, int, bool) error         { return nil }
 func (m *mockDBAuthHandler) ToggleUserArticleStar(int, int) error             { return nil }
 func (m *mockDBAuthHandler) GetUserUnreadCounts(int) (map[int]int, error)     { return nil, nil }
+func (m *mockDBAuthHandler) GetTotalArticleCount(int) (int, error)            { return 0, nil }
 func (m *mockDBAuthHandler) CleanupOrphanedUserArticles(int) (int, error)     { return 0, nil }
 func (m *mockDBAuthHandler) GetUserArticlesByIDs(int, []int) ([]database.Article, error) {
 	return nil, nil

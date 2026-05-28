@@ -674,8 +674,7 @@ func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 		return
 	}
 
-	// Get account stats efficiently in a single batched query
-	accountStats, err := fh.db.GetAccountStats(user.ID)
+	accountStats, err := fh.feedService.GetAccountStats(user.ID, feeds)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

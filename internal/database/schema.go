@@ -66,6 +66,7 @@ type Database interface {
 	MarkUserArticleRead(userID, articleID int, isRead bool) error
 	ToggleUserArticleStar(userID, articleID int) error
 	GetUserUnreadCounts(userID int) (map[int]int, error)
+	GetTotalArticleCount(userID int) (int, error)
 	GetAccountStats(userID int) (map[string]interface{}, error)
 	CleanupOrphanedUserArticles(olderThanDays int) (int, error)
 
@@ -1158,6 +1159,18 @@ func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	}
 
 	return unreadCounts, nil
+}
+
+func (db *DB) GetTotalArticleCount(userID int) (int, error) {
+	query := `
+		SELECT COUNT(DISTINCT a.id)
+		FROM articles a
+		INNER JOIN user_feeds uf ON a.feed_id = uf.feed_id
+		WHERE uf.user_id = ?
+	`
+	var count int
+	err := db.QueryRow(query, userID).Scan(&count)
+	return count, err
 }
 
 // GetAccountStats retrieves user account statistics in a single batched query

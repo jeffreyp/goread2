@@ -103,6 +103,7 @@ func (m *mockDBFeedHandler) ToggleUserArticleStar(userID, articleID int) error {
 	return nil
 }
 func (m *mockDBFeedHandler) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
+func (m *mockDBFeedHandler) GetTotalArticleCount(int) (int, error)        { return 0, nil }
 func (m *mockDBFeedHandler) CleanupOrphanedUserArticles(days int) (int, error) {
 	if m.shouldFailCleanupOrphaned {
 		return 0, errors.New("database error")

@@ -454,6 +454,31 @@ func (fs *FeedService) GetUserUnreadCounts(userID int, userFeeds []database.Feed
 	return filteredCounts, nil
 }
 
+// GetAccountStats returns account statistics, using cached unread counts when available
+// to avoid re-running expensive per-feed queries on the Datastore backend.
+func (fs *FeedService) GetAccountStats(userID int, userFeeds []database.Feed) (map[string]interface{}, error) {
+	if cached, hit := fs.unreadCache.Get(userID); hit {
+		totalUnread := 0
+		activeFeeds := 0
+		for _, count := range cached {
+			totalUnread += count
+			if count > 0 {
+				activeFeeds++
+			}
+		}
+		totalArticles, err := fs.db.GetTotalArticleCount(userID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{
+			"total_articles": totalArticles,
+			"total_unread":   totalUnread,
+			"active_feeds":   activeFeeds,
+		}, nil
+	}
+	return fs.db.GetAccountStats(userID)
+}
+
 func (fs *FeedService) markExistingArticlesAsUnreadForUser(userID, feedID int) error {
 	// Get user's preference for max articles on feed addition
 	user, err := fs.db.GetUserByID(userID)

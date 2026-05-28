@@ -1384,6 +1384,44 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	return unreadCounts, nil
 }
 
+func (db *DatastoreDB) GetTotalArticleCount(userID int) (int, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
+	if err != nil {
+		return 0, err
+	}
+	if len(userFeeds) == 0 {
+		return 0, nil
+	}
+
+	type countResult struct {
+		count int
+		err   error
+	}
+	results := make(chan countResult, len(userFeeds))
+	for _, feed := range userFeeds {
+		go func(feedID int) {
+			q := datastore.NewQuery("Article").
+				FilterField("feed_id", "=", int64(feedID)).
+				KeysOnly()
+			keys, err := db.client.GetAll(ctx, q, nil)
+			results <- countResult{count: len(keys), err: err}
+		}(feed.ID)
+	}
+
+	total := 0
+	for range userFeeds {
+		r := <-results
+		if r.err != nil {
+			return 0, r.err
+		}
+		total += r.count
+	}
+	return total, nil
+}
+
 // GetAccountStats retrieves user account statistics using parallel queries
 // Returns total articles, total unread, and active feeds count
 func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, error) {
