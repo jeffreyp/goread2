@@ -1343,7 +1343,6 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
-	// Get all user feeds with strong consistency retry for recent changes
 	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
 	if err != nil {
 		return nil, err
@@ -1353,32 +1352,79 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 		return make(map[int]int), nil
 	}
 
-	unreadCounts := make(map[int]int)
+	cutoff := time.Now().UTC().Add(-unreadCountWindowDays * 24 * time.Hour)
 
-	// Process feeds in parallel for better performance
-	type feedResult struct {
+	// Phase 1: fan out one keys-only Article query per feed in parallel.
+	type feedArticleResult struct {
 		feedID int
-		count  int
+		keys   []*datastore.Key
 		err    error
 	}
 
-	results := make(chan feedResult, len(userFeeds))
-
-	// Start goroutines for each feed
+	articleResults := make(chan feedArticleResult, len(userFeeds))
 	for _, feed := range userFeeds {
 		go func(feedID int) {
-			count, err := db.getFeedUnreadCountForUser(ctx, userID, feedID)
-			results <- feedResult{feedID: feedID, count: count, err: err}
+			q := datastore.NewQuery("Article").
+				FilterField("feed_id", "=", int64(feedID)).
+				FilterField("published_at", ">=", cutoff).
+				KeysOnly()
+			keys, err := db.client.GetAll(ctx, q, nil)
+			articleResults <- feedArticleResult{feedID: feedID, keys: keys, err: err}
 		}(feed.ID)
 	}
 
-	// Collect results
+	// Collect article keys, seeding each feed's count as "all recent = unread".
+	unreadCounts := make(map[int]int)
+	var allArticleKeys []*datastore.Key
+	var articleFeedIDs []int
+
 	for i := 0; i < len(userFeeds); i++ {
-		result := <-results
-		if result.err != nil {
-			return nil, result.err
+		r := <-articleResults
+		if r.err != nil {
+			return nil, r.err
 		}
-		unreadCounts[result.feedID] = result.count
+		unreadCounts[r.feedID] = len(r.keys)
+		for _, k := range r.keys {
+			allArticleKeys = append(allArticleKeys, k)
+			articleFeedIDs = append(articleFeedIDs, r.feedID)
+		}
+	}
+
+	if len(allArticleKeys) == 0 {
+		return unreadCounts, nil
+	}
+
+	// Phase 2: one merged GetMulti for all UserArticle entities across every feed.
+	// Articles with no UserArticle record (or IsRead=false) stay unread; IsRead=true subtracts one.
+	userArticleKeys := make([]*datastore.Key, len(allArticleKeys))
+	for i, ak := range allArticleKeys {
+		userArticleKeys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, ak.ID), nil)
+	}
+
+	chunkSize := 1000
+	for i := 0; i < len(userArticleKeys); i += chunkSize {
+		end := i + chunkSize
+		if end > len(userArticleKeys) {
+			end = len(userArticleKeys)
+		}
+		chunk := userArticleKeys[i:end]
+		userArticles := make([]UserArticleEntity, len(chunk))
+		chunkErr := db.client.GetMulti(ctx, chunk, userArticles)
+
+		if multiErr, ok := chunkErr.(datastore.MultiError); ok {
+			for j, singleErr := range multiErr {
+				if singleErr == nil && userArticles[j].IsRead {
+					unreadCounts[articleFeedIDs[i+j]]--
+				}
+			}
+		} else if chunkErr == nil {
+			for j, ua := range userArticles {
+				if ua.IsRead {
+					unreadCounts[articleFeedIDs[i+j]]--
+				}
+			}
+		}
+		// On complete chunk failure leave all as unread (conservative).
 	}
 
 	return unreadCounts, nil
@@ -1422,13 +1468,12 @@ func (db *DatastoreDB) GetTotalArticleCount(userID int) (int, error) {
 	return total, nil
 }
 
-// GetAccountStats retrieves user account statistics using parallel queries
-// Returns total articles, total unread, and active feeds count
+// GetAccountStats retrieves user account statistics using parallel queries.
+// Returns total articles, total unread, and active feeds count.
 func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, error) {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
-	// Get all user feeds with strong consistency retry
 	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
 	if err != nil {
 		return nil, err
@@ -1442,143 +1487,109 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 		}, nil
 	}
 
-	// Use goroutines to fetch stats in parallel for better performance
-	type feedStats struct {
-		totalArticles int
-		unreadCount   int
-		err           error
+	cutoff := time.Now().UTC().Add(-unreadCountWindowDays * 24 * time.Hour)
+
+	// Phase 1: per-feed goroutines fetch total article count + recent article keys in parallel.
+	type feedData struct {
+		feedID     int
+		totalCount int
+		recentKeys []*datastore.Key
+		err        error
 	}
 
-	results := make(chan feedStats, len(userFeeds))
-
-	// Process each feed in parallel
+	feedResults := make(chan feedData, len(userFeeds))
 	for _, feed := range userFeeds {
 		go func(feedID int) {
-			// Get article count for this feed
-			articleQuery := datastore.NewQuery("Article").
+			totalQ := datastore.NewQuery("Article").
 				FilterField("feed_id", "=", int64(feedID)).
 				KeysOnly()
-			articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
+			totalKeys, err := db.client.GetAll(ctx, totalQ, nil)
 			if err != nil {
-				results <- feedStats{err: err}
+				feedResults <- feedData{err: err}
 				return
 			}
 
-			totalArticles := len(articleKeys)
-
-			// Get unread count for this feed
-			unreadCount, err := db.getFeedUnreadCountForUser(ctx, userID, feedID)
+			recentQ := datastore.NewQuery("Article").
+				FilterField("feed_id", "=", int64(feedID)).
+				FilterField("published_at", ">=", cutoff).
+				KeysOnly()
+			recentKeys, err := db.client.GetAll(ctx, recentQ, nil)
 			if err != nil {
-				results <- feedStats{err: err}
+				feedResults <- feedData{err: err}
 				return
 			}
 
-			results <- feedStats{
-				totalArticles: totalArticles,
-				unreadCount:   unreadCount,
-			}
+			feedResults <- feedData{feedID: feedID, totalCount: len(totalKeys), recentKeys: recentKeys}
 		}(feed.ID)
 	}
 
-	// Aggregate results
 	totalArticles := 0
-	totalUnread := 0
-	activeFeeds := 0
+	feedUnreadCounts := make(map[int]int)
+	var allRecentKeys []*datastore.Key
+	var recentKeyFeedIDs []int
 
 	for i := 0; i < len(userFeeds); i++ {
-		result := <-results
-		if result.err != nil {
-			return nil, result.err
+		r := <-feedResults
+		if r.err != nil {
+			return nil, r.err
 		}
-		totalArticles += result.totalArticles
-		totalUnread += result.unreadCount
-		if result.unreadCount > 0 {
+		totalArticles += r.totalCount
+		feedUnreadCounts[r.feedID] = len(r.recentKeys)
+		for _, k := range r.recentKeys {
+			allRecentKeys = append(allRecentKeys, k)
+			recentKeyFeedIDs = append(recentKeyFeedIDs, r.feedID)
+		}
+	}
+
+	// Phase 2: one merged GetMulti for all UserArticle entities across every feed.
+	if len(allRecentKeys) > 0 {
+		userArticleKeys := make([]*datastore.Key, len(allRecentKeys))
+		for i, ak := range allRecentKeys {
+			userArticleKeys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, ak.ID), nil)
+		}
+
+		chunkSize := 1000
+		for i := 0; i < len(userArticleKeys); i += chunkSize {
+			end := i + chunkSize
+			if end > len(userArticleKeys) {
+				end = len(userArticleKeys)
+			}
+			chunk := userArticleKeys[i:end]
+			userArticles := make([]UserArticleEntity, len(chunk))
+			chunkErr := db.client.GetMulti(ctx, chunk, userArticles)
+
+			if multiErr, ok := chunkErr.(datastore.MultiError); ok {
+				for j, singleErr := range multiErr {
+					if singleErr == nil && userArticles[j].IsRead {
+						feedUnreadCounts[recentKeyFeedIDs[i+j]]--
+					}
+				}
+			} else if chunkErr == nil {
+				for j, ua := range userArticles {
+					if ua.IsRead {
+						feedUnreadCounts[recentKeyFeedIDs[i+j]]--
+					}
+				}
+			}
+		}
+	}
+
+	totalUnread := 0
+	activeFeeds := 0
+	for _, count := range feedUnreadCounts {
+		totalUnread += count
+		if count > 0 {
 			activeFeeds++
 		}
 	}
 
-	stats := map[string]interface{}{
+	return map[string]interface{}{
 		"total_articles": totalArticles,
 		"total_unread":   totalUnread,
 		"active_feeds":   activeFeeds,
-	}
-
-	return stats, nil
+	}, nil
 }
 
-// Helper function to efficiently count unread articles for a specific feed.
-// Only considers articles published within unreadCountWindowDays to cap Firestore read costs.
-func (db *DatastoreDB) getFeedUnreadCountForUser(ctx context.Context, userID, feedID int) (int, error) {
-	cutoff := time.Now().UTC().Add(-unreadCountWindowDays * 24 * time.Hour)
-
-	articleQuery := datastore.NewQuery("Article").
-		FilterField("feed_id", "=", int64(feedID)).
-		FilterField("published_at", ">=", cutoff).
-		KeysOnly()
-
-	articleKeys, err := db.client.GetAll(ctx, articleQuery, nil)
-	if err != nil {
-		return 0, err
-	}
-
-	if len(articleKeys) == 0 {
-		return 0, nil
-	}
-
-	// Batch check which articles are read by this user
-	// Process in chunks to handle feeds with >1000 articles (Datastore GetMulti limit)
-	unreadCount := 0
-	chunkSize := 1000
-
-	for i := 0; i < len(articleKeys); i += chunkSize {
-		end := i + chunkSize
-		if end > len(articleKeys) {
-			end = len(articleKeys)
-		}
-
-		// Create keys for this chunk
-		chunkArticleKeys := articleKeys[i:end]
-		userArticleKeys := make([]*datastore.Key, len(chunkArticleKeys))
-		for j, articleKey := range chunkArticleKeys {
-			articleID := articleKey.ID
-			userArticleKeys[j] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, articleID), nil)
-		}
-
-		// Use GetMulti for efficient batch read of this chunk
-		userArticles := make([]UserArticleEntity, len(userArticleKeys))
-		err = db.client.GetMulti(ctx, userArticleKeys, userArticles)
-
-		// Process results from this chunk
-		if multiErr, ok := err.(datastore.MultiError); ok {
-			// Handle partial results - some UserArticle entities may not exist
-			for j, singleErr := range multiErr {
-				switch singleErr {
-				case datastore.ErrNoSuchEntity:
-					// No UserArticle record means unread
-					unreadCount++
-				case nil:
-					// UserArticle exists, check if it's read
-					if !userArticles[j].IsRead {
-						unreadCount++
-					}
-				}
-				// Other errors are ignored (treated as read to be conservative)
-			}
-		} else if err == nil {
-			// All UserArticle entities exist in this chunk, count unread ones
-			for _, userArticle := range userArticles {
-				if !userArticle.IsRead {
-					unreadCount++
-				}
-			}
-		} else {
-			// Complete failure for this chunk - treat all as unread to be safe
-			unreadCount += len(chunkArticleKeys)
-		}
-	}
-
-	return unreadCount, nil
-}
 
 // CleanupOrphanedUserArticles removes UserArticle entities that reference articles from feeds
 // the user is no longer subscribed to. Only cleans up articles older than the specified number of days.
