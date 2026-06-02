@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -65,7 +66,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 	if err := fh.subscriptionService.CanUserAddFeed(user.ID); err != nil {
 		if errors.Is(err, services.ErrFeedLimitReached) {
 			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error":         "You've reached the limit of 20 feeds for free users. Upgrade to Pro for unlimited feeds.",
+				"error":         fmt.Sprintf("You've reached the limit of %d feeds for free users. Upgrade to Pro for unlimited feeds.", services.FreeTrialFeedLimit),
 				"limit_reached": true,
 				"current_limit": services.FreeTrialFeedLimit,
 			})
@@ -596,7 +597,7 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, services.ErrFeedLimitReached) {
 			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error":          "Import would exceed your feed limit of 20 feeds. Upgrade to Pro for unlimited feeds.",
+				"error":          fmt.Sprintf("Import would exceed your feed limit of %d feeds. Upgrade to Pro for unlimited feeds.", services.FreeTrialFeedLimit),
 				"limit_reached":  true,
 				"current_limit":  services.FreeTrialFeedLimit,
 				"imported_count": importedCount,
