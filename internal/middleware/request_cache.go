@@ -7,6 +7,8 @@ import (
 	"github.com/jeffreyp/goread2/internal/database"
 )
 
+const requestCacheKey = "request_cache"
+
 // RequestCache provides request-scoped caching to eliminate duplicate database calls
 // within a single HTTP request. Cache is automatically cleared when the request completes.
 type RequestCache struct {
@@ -21,7 +23,7 @@ func RequestCacheMiddleware() gin.HandlerFunc {
 		cache := &RequestCache{
 			userFeeds: make(map[int][]database.Feed),
 		}
-		c.Set("request_cache", cache)
+		c.Set(requestCacheKey, cache)
 		c.Next()
 	}
 }
@@ -35,7 +37,7 @@ func RequestCacheMiddleware() gin.HandlerFunc {
 //	feeds, err := middleware.GetCachedUserFeeds(c, userID, db)
 func GetCachedUserFeeds(c *gin.Context, userID int, db database.Database) ([]database.Feed, error) {
 	// Try to get the cache from context
-	cacheInterface, exists := c.Get("request_cache")
+	cacheInterface, exists := c.Get(requestCacheKey)
 	if !exists {
 		// No cache middleware - fetch directly
 		return db.GetUserFeeds(userID)
