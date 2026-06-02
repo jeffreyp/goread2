@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,9 @@ const (
 	// secretManagerTimeout is the timeout for Secret Manager API calls
 	// This prevents indefinite hangs if the service is slow or unavailable
 	secretManagerTimeout = 10 * time.Second
+
+	// secretPrefix is the marker indicating a value is a Secret Manager reference
+	secretPrefix = "_secret:"
 )
 
 // Singleton Secret Manager client (reused across all calls)
@@ -119,7 +123,7 @@ func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, er
 		oauthClientSecret = os.Getenv("GOOGLE_CLIENT_SECRET")
 
 		// If they contain secret references, or are empty, fetch from Secret Manager
-		if oauthClientID == "" || (len(oauthClientID) >= 8 && oauthClientID[:8] == "_secret:") {
+		if oauthClientID == "" || (strings.HasPrefix(oauthClientID, secretPrefix)) {
 			secretName := os.Getenv("SECRET_CLIENT_ID_NAME")
 			if secretName == "" {
 				secretName = "google-client-id"
@@ -132,7 +136,7 @@ func GetOAuthCredentials(ctx context.Context) (clientID, clientSecret string, er
 			}
 		}
 
-		if oauthClientSecret == "" || (len(oauthClientSecret) >= 8 && oauthClientSecret[:8] == "_secret:") {
+		if oauthClientSecret == "" || (strings.HasPrefix(oauthClientSecret, secretPrefix)) {
 			secretName := os.Getenv("SECRET_CLIENT_SECRET_NAME")
 			if secretName == "" {
 				secretName = "google-client-secret"
@@ -165,7 +169,7 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 	stripeOnce.Do(func() {
 		// Get Stripe secret key
 		stripeSecretKey = os.Getenv("STRIPE_SECRET_KEY")
-		if stripeSecretKey == "" || (len(stripeSecretKey) >= 8 && stripeSecretKey[:8] == "_secret:") {
+		if stripeSecretKey == "" || (strings.HasPrefix(stripeSecretKey, secretPrefix)) {
 			stripeSecretKey, stripeErr = GetSecret(ctx, "stripe-secret-key")
 			if stripeErr != nil {
 				stripeErr = fmt.Errorf("failed to get Stripe secret key: %w", stripeErr)
@@ -175,7 +179,7 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 
 		// Get Stripe publishable key
 		stripePublishableKey = os.Getenv("STRIPE_PUBLISHABLE_KEY")
-		if stripePublishableKey == "" || (len(stripePublishableKey) >= 8 && stripePublishableKey[:8] == "_secret:") {
+		if stripePublishableKey == "" || (strings.HasPrefix(stripePublishableKey, secretPrefix)) {
 			stripePublishableKey, stripeErr = GetSecret(ctx, "stripe-publishable-key")
 			if stripeErr != nil {
 				stripeErr = fmt.Errorf("failed to get Stripe publishable key: %w", stripeErr)
@@ -185,7 +189,7 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 
 		// Get Stripe webhook secret
 		stripeWebhookSecret = os.Getenv("STRIPE_WEBHOOK_SECRET")
-		if stripeWebhookSecret == "" || (len(stripeWebhookSecret) >= 8 && stripeWebhookSecret[:8] == "_secret:") {
+		if stripeWebhookSecret == "" || (strings.HasPrefix(stripeWebhookSecret, secretPrefix)) {
 			stripeWebhookSecret, stripeErr = GetSecret(ctx, "stripe-webhook-secret")
 			if stripeErr != nil {
 				stripeErr = fmt.Errorf("failed to get Stripe webhook secret: %w", stripeErr)
@@ -195,7 +199,7 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 
 		// Get Stripe price ID
 		stripePriceID = os.Getenv("STRIPE_PRICE_ID")
-		if stripePriceID == "" || (len(stripePriceID) >= 8 && stripePriceID[:8] == "_secret:") {
+		if stripePriceID == "" || (strings.HasPrefix(stripePriceID, secretPrefix)) {
 			stripePriceID, stripeErr = GetSecret(ctx, "stripe-price-id")
 			if stripeErr != nil {
 				stripeErr = fmt.Errorf("failed to get Stripe price ID: %w", stripeErr)
