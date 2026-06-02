@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -159,6 +160,7 @@ func parseInt(value string, defaultValue int) int {
 	if parsed, err := strconv.Atoi(value); err == nil {
 		return parsed
 	}
+	log.Printf("WARNING: Failed to parse integer config value %q, using default %d", value, defaultValue)
 	return defaultValue
 }
 
@@ -171,5 +173,6 @@ func parseDuration(value string, defaultValue time.Duration) time.Duration {
 	if parsed, err := time.ParseDuration(value); err == nil {
 		return parsed
 	}
+	log.Printf("WARNING: Failed to parse duration config value %q, using default %s", value, defaultValue)
 	return defaultValue
 }

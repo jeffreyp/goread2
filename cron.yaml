@@ -10,7 +10,7 @@ cron:
 
 - description: "Cleanup expired sessions"
   url: /cron/cleanup-sessions
-  schedule: every 6 hours
+  schedule: every 24 hours
   target: default
   retry_parameters:
     min_backoff_seconds: 10
