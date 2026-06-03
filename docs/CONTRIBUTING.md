@@ -486,117 +486,63 @@ func validateFeedURL(url string) error {
 When adding user-facing features:
 
 - **Update README.md** with new capabilities
-- **Add API documentation** to `docs/API.md`
+- **Add API documentation** to `docs/api.md`
 - **Include troubleshooting** in `docs/TROUBLESHOOTING.md`
 - **Provide examples** and use cases
 
 ## Issue Tracking with Beads
 
-GoRead2 uses [Beads](https://github.com/steveyegge/beads) for issue tracking, as specified in `CLAUDE.md`. Beads provides a lightweight, command-line issue tracker that stores issues in the `.beads/` directory.
+GoRead2 uses **bd (beads)** for all issue tracking. Beads is a lightweight, Git-backed issue tracker; issues live in `.beads/issues.jsonl` alongside the code.
 
-### Getting Started with Beads
-
-1. **Install Beads**:
-
-   See the [Beads installation instructions](https://github.com/steveyegge/beads#installation) for your platform.
-
-2. **Quick start**:
-   ```bash
-   # See quick tutorial and examples
-   bd quickstart
-   ```
-
-### Common Beads Commands
+### Common Commands
 
 ```bash
-# List all issues
-bd list
+# Find work with no blockers
+bd ready
 
-# List only open issues
-bd list --open
-
-# Create a new bug
-bd new "Description of the bug" --type bug --priority P2
-
-# Create a new feature request
-bd new "Feature description" --type feature --priority P3
+# Create a new issue
+bd create --title="Description" --type=bug|feature|task --priority=2
 
 # Show issue details
-bd show goread2-1
+bd show gr-42
 
-# Close an issue
-bd close goread2-1
+# Claim and start working
+bd update gr-42 --claim
 
-# Search for issues
+# Close when done
+bd close gr-42
+
+# Search
 bd search "keyword"
 ```
 
-### Issue Types and Priorities
+### Issue Types
 
-**Issue Types:**
-- `bug` - Something isn't working correctly
-- `feature` - New functionality or enhancement
-- `task` - Maintenance, refactoring, or documentation
-- `question` - Need clarification or discussion
+| Type | Use |
+|------|-----|
+| `bug` | Something broken |
+| `feature` | New functionality |
+| `task` | Tests, docs, refactoring |
+| `epic` | Large feature with subtasks |
+| `chore` | Maintenance, tooling |
 
-**Priority Levels:**
-- `P0` - Critical (blocking production)
-- `P1` - High (important bugs or features)
-- `P2` - Medium (normal priority)
-- `P3` - Low (nice to have)
+### Priority Levels
 
-### Beads Directory Structure
+| Priority | Meaning |
+|----------|---------|
+| `0` / P0 | Critical (security, data loss, broken build) |
+| `1` / P1 | High |
+| `2` / P2 | Medium (default) |
+| `3` / P3 | Low |
+| `4` / P4 | Backlog |
+
+### Directory Structure
 
 ```
 .beads/
-├── issues.jsonl      # Issue tracking data (committed to git)
-└── goread2.db        # SQLite database (not committed)
+├── issues.jsonl      # Issue data — committed to git
+└── goread2.db        # SQLite database — gitignored
 ```
-
-The `issues.jsonl` file is committed to version control, allowing issue history to be tracked alongside code changes. The database file is gitignored.
-
-### Workflow Example
-
-```bash
-# Create an issue for a bug you found
-bd new "Load more articles pagination is broken" --type bug --priority P2
-
-# Work on the fix...
-git checkout -b fix/pagination-bug
-
-# Make your changes, commit, and reference the issue
-git commit -m "Fix Load More pagination with offset adjustment
-
-Resolves: goread2-3"
-
-# Close the issue when fixed
-bd close goread2-3
-```
-
-### Integration with Git Workflow
-
-When referencing Beads issues in commits:
-
-```bash
-# Reference an issue
-git commit -m "Add feature X
-
-Related to: goread2-5"
-
-# Close an issue
-git commit -m "Fix bug Y
-
-Resolves: goread2-12
-Closes: goread2-12"
-```
-
-### Why Beads?
-
-- **Lightweight** - No external services required
-- **Git-native** - Issues tracked alongside code
-- **CLI-friendly** - Fast and scriptable
-- **Developer-focused** - Built for command-line workflows
-- **Privacy** - All data stays in your repository
 
 ## Issue Reporting
 
@@ -691,7 +637,7 @@ Contributors are recognized through:
 ### Resources
 
 - **Documentation**: Start with [Setup Guide](SETUP.md)
-- **API Reference**: Complete API documentation in [API Guide](API.md)
+- **API Reference**: Complete API documentation in [API Guide](api.md)
 - **Testing**: How to run and write tests in [Testing Guide](TESTING.md)
 - **Troubleshooting**: Common issues in [Troubleshooting Guide](TROUBLESHOOTING.md)
 

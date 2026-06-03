@@ -186,7 +186,7 @@ Make yourself an admin user:
 ./admin.sh admin your-email@gmail.com on
 ```
 
-See [Admin Guide](admin.md) for complete user management.
+See [Admin Guide](ADMIN.md) for complete user management.
 
 ## Troubleshooting
 
