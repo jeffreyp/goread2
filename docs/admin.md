@@ -29,11 +29,11 @@ GoRead2 provides several ways to grant users unlimited access:
 
 ## Security Requirements
 
-**CRITICAL:** All admin operations now require database-based token authentication to prevent unauthorized access.
+All admin operations require database-based token authentication.
 
 ### Admin Token Security System
 
-The GoRead2 admin system uses a secure database-based token authentication system:
+The GoRead2 admin system uses database-based token authentication:
 
 **Security Features:**
 - Cryptographically secure 64-character (32-byte) random tokens
@@ -41,8 +41,6 @@ The GoRead2 admin system uses a secure database-based token authentication syste
 - Token validation against database records
 - Token revocation and usage tracking
 - Bootstrap protection with security warnings
-
-**Previous Vulnerability Fixed:** The original system only required environment variables, allowing anyone with server access to create admin tokens. The new system uses database-validated tokens with cryptographic hashing.
 
 ### Database Compatibility
 
@@ -170,26 +168,6 @@ ADMIN_TOKEN="your_token" go run cmd/admin/main.go list-tokens
 # Revoke token by ID (from list-tokens output)
 ADMIN_TOKEN="your_token" go run cmd/admin/main.go revoke-token 2
 ```
-
-### Migration from Previous System
-
-If you were using the old environment variable system:
-
-1. **Remove old variables**:
-   ```bash
-   unset ADMIN_TOKEN_VERIFY
-   unset SERVER_SECRET_KEY
-   ```
-
-2. **Bootstrap new system**:
-   ```bash
-   ADMIN_TOKEN="bootstrap" go run cmd/admin/main.go create-token "Migration to secure system"
-   ```
-
-3. **Set new secure token**:
-   ```bash
-   export ADMIN_TOKEN="new_generated_64_char_token_from_step_2"
-   ```
 
 ## Admin Commands
 
@@ -423,7 +401,7 @@ curl -X POST "https://yourdomain.com/admin/users/user@example.com/free-months" \
 ### Free Months (`free_months_remaining > 0`)
 
 - **Temporary unlimited access**: Works like a Pro subscription
-- **Automatic decrement**: Months decrease over time (when implemented)
+- **Manual grant, no auto-expiry**: months do not decrement automatically; adjust the field directly to expire access early
 - **Status display**: Shows "Free Months" in the UI
 - **Stackable**: Additional months can be added
 - **Use case**: Beta testers, temporary promotions, trial extensions
@@ -604,7 +582,7 @@ go run cmd/admin/main.go user-info user@example.com
 
 - **Admin users have unlimited access** - only grant to trusted individuals
 - **No billing bypass**: Admin users still see upgrade prompts (but can ignore limits)
-- **Audit trail**: Consider logging admin actions in production
+- **Audit trail**: All admin actions are logged automatically (see [Audit Logging](#audit-logging))
 - **Revocation**: Admin status can be revoked at any time
 
 ### Free Months
@@ -670,10 +648,7 @@ sudo systemctl restart goread2
 
 ### Stripe Integration Conflicts
 
-Admin and free month users still see Stripe UI elements:
-- This is by design - they can ignore payment prompts
-- Consider hiding payment UI for admin users in future updates
-- Admin status overrides subscription requirements
+Admin and free month users may still see Stripe UI elements. This is by design — admin status overrides subscription requirements, so any payment prompts can be ignored.
 
 ### Error Messages Guide
 
@@ -822,29 +797,6 @@ Monitor admin user activity:
 - System resource usage
 - Support ticket trends
 
-## Future Enhancements
-
-### Planned Features
-
-- **Automatic free month expiration**: Decrement monthly via cron job
-- **Admin dashboard**: Web UI for user management
-- **Usage analytics**: Track admin and free user activity
-- **Bulk operations**: Import/export admin user lists
-- **Audit log export**: Export audit logs to CSV/JSON for archival
-- **Audit log cleanup**: Automatic expiration of old audit logs
-- **Token expiration dates**: Automatic cleanup of expired tokens
-- **Multi-factor authentication**: For token creation
-- **Role-based permissions**: Read-only vs full admin
-- **External identity providers**: Integration support
-
-### Customization Ideas
-
-- **Organization admin**: Company-wide admin access
-- **Temporary admin**: Time-limited admin privileges
-- **Feed quotas**: Custom feed limits per user
-- **Feature flags**: Enable/disable features per user
-- **Role-based access**: Different permission levels
-
 ## Migration and Backup
 
 ### Backup Admin Settings
@@ -878,7 +830,7 @@ if err != nil {
 }
 ```
 
-See [API Reference](API.md) for complete endpoint documentation.
+See [API Reference](api.md) for complete endpoint documentation.
 
 ---
 
