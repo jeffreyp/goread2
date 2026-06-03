@@ -1308,7 +1308,7 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 	// Wrap all chunk writes in a single transaction so a failure in any chunk
 	// rolls back the entire operation instead of leaving a partial update committed.
 	_, err := db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
-		chunkSize := 100
+		chunkSize := 500 // Cloud Datastore supports up to 500 entities per batch commit
 		for i := 0; i < len(articles); i += chunkSize {
 			end := i + chunkSize
 			if end > len(articles) {

@@ -331,10 +331,13 @@ func TestRateLimiter_CleanupBehavior(t *testing.T) {
 		t.Errorf("Expected 3 limiters, got %d", len(limiter.limiters))
 	}
 
-	// Wait for refill to complete
-	time.Sleep(2 * time.Second)
+	// Backdate all limiters beyond the idle threshold.
+	limiter.mu.Lock()
+	for domain := range limiter.lastAccessed {
+		limiter.lastAccessed[domain] = time.Now().Add(-(cleanupIdleThreshold + time.Minute))
+	}
+	limiter.mu.Unlock()
 
-	// Cleanup should remove all limiters at full capacity
 	limiter.CleanupOldLimiters()
 
 	if len(limiter.limiters) != 0 {

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -189,34 +190,43 @@ func TestDomainRateLimiter_GetDomainStats(t *testing.T) {
 }
 
 func TestDomainRateLimiter_CleanupOldLimiters(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping time-dependent test in short mode")
-	}
-
-	// Use higher rate for faster testing
 	limiter := NewDomainRateLimiter(RateLimiterConfig{
-		RequestsPerMinute: 3600, // 1 per second for fast refill
+		RequestsPerMinute: 60,
 		BurstSize:         1,
 	})
 
-	// Add some limiters
+	// Add two limiters
 	limiter.Allow("https://example.com/feed.xml")
 	limiter.Allow("https://test.com/feed.xml")
 
-	// Should have 2 limiters
 	if len(limiter.limiters) != 2 {
 		t.Errorf("expected 2 limiters before cleanup, got %d", len(limiter.limiters))
 	}
 
-	// Wait for tokens to refill to full capacity
-	time.Sleep(2 * time.Second)
+	// Backdate one limiter to beyond the idle threshold; leave the other recent.
+	limiter.mu.Lock()
+	limiter.lastAccessed["example.com"] = time.Now().Add(-(cleanupIdleThreshold + time.Minute))
+	limiter.mu.Unlock()
 
-	// Cleanup should remove limiters at full capacity
 	limiter.CleanupOldLimiters()
 
-	// Should have 0 limiters after cleanup
+	// Only the stale limiter should be removed.
+	if len(limiter.limiters) != 1 {
+		t.Errorf("expected 1 limiter after cleanup, got %d", len(limiter.limiters))
+	}
+	if _, ok := limiter.limiters["test.com"]; !ok {
+		t.Error("expected test.com limiter to survive cleanup")
+	}
+
+	// Backdate the remaining limiter and verify full cleanup.
+	limiter.mu.Lock()
+	limiter.lastAccessed["test.com"] = time.Now().Add(-(cleanupIdleThreshold + time.Minute))
+	limiter.mu.Unlock()
+
+	limiter.CleanupOldLimiters()
+
 	if len(limiter.limiters) != 0 {
-		t.Errorf("expected 0 limiters after cleanup, got %d", len(limiter.limiters))
+		t.Errorf("expected 0 limiters after full cleanup, got %d", len(limiter.limiters))
 	}
 }
 
@@ -239,14 +249,14 @@ func TestDomainRateLimiter_Wait(t *testing.T) {
 	})
 
 	t.Run("wait succeeds for valid URL", func(t *testing.T) {
-		err := limiter.Wait("https://example.com/feed.xml")
+		err := limiter.Wait(context.Background(), "https://example.com/feed.xml")
 		if err != nil {
 			t.Errorf("wait should succeed for valid URL, got error: %v", err)
 		}
 	})
 
 	t.Run("wait fails for invalid URL", func(t *testing.T) {
-		err := limiter.Wait("invalid-url")
+		err := limiter.Wait(context.Background(), "invalid-url")
 		if err == nil {
 			t.Error("wait should fail for invalid URL")
 		}

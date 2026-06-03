@@ -12,8 +12,9 @@ import (
 
 // DomainRateLimiter provides per-domain rate limiting to prevent DDoS attacks on feed servers
 type DomainRateLimiter struct {
-	limiters map[string]*rate.Limiter
-	mu       sync.RWMutex
+	limiters     map[string]*rate.Limiter
+	lastAccessed map[string]time.Time
+	mu           sync.RWMutex
 
 	// Configuration
 	requestsPerMinute int
@@ -38,6 +39,7 @@ func NewDomainRateLimiter(config RateLimiterConfig) *DomainRateLimiter {
 
 	return &DomainRateLimiter{
 		limiters:          make(map[string]*rate.Limiter),
+		lastAccessed:      make(map[string]time.Time),
 		requestsPerMinute: config.RequestsPerMinute,
 		burstSize:         config.BurstSize,
 	}
@@ -54,15 +56,15 @@ func (d *DomainRateLimiter) Allow(feedURL string) bool {
 	return limiter.Allow()
 }
 
-// Wait blocks until a request to the given URL is allowed, or returns an error if context is cancelled
-func (d *DomainRateLimiter) Wait(feedURL string) error {
+// Wait blocks until a request to the given URL is allowed, or returns an error if ctx is cancelled.
+func (d *DomainRateLimiter) Wait(ctx context.Context, feedURL string) error {
 	domain := d.extractDomain(feedURL)
 	if domain == "" {
 		return &RateLimitError{Domain: domain, Message: "invalid URL"}
 	}
 
 	limiter := d.getLimiterForDomain(domain)
-	return limiter.Wait(context.Background())
+	return limiter.Wait(ctx)
 }
 
 // getLimiterForDomain gets or creates a rate limiter for a specific domain
@@ -72,6 +74,9 @@ func (d *DomainRateLimiter) getLimiterForDomain(domain string) *rate.Limiter {
 	d.mu.RUnlock()
 
 	if exists {
+		d.mu.Lock()
+		d.lastAccessed[domain] = time.Now()
+		d.mu.Unlock()
 		return limiter
 	}
 
@@ -81,6 +86,7 @@ func (d *DomainRateLimiter) getLimiterForDomain(domain string) *rate.Limiter {
 
 	// Double-check in case another goroutine created it
 	if limiter, exists := d.limiters[domain]; exists {
+		d.lastAccessed[domain] = time.Now()
 		return limiter
 	}
 
@@ -88,6 +94,7 @@ func (d *DomainRateLimiter) getLimiterForDomain(domain string) *rate.Limiter {
 	interval := time.Minute / time.Duration(d.requestsPerMinute)
 	limiter = rate.NewLimiter(rate.Every(interval), d.burstSize)
 	d.limiters[domain] = limiter
+	d.lastAccessed[domain] = time.Now()
 
 	return limiter
 }
@@ -125,15 +132,19 @@ func (d *DomainRateLimiter) GetDomainStats() map[string]DomainStats {
 	return stats
 }
 
-// CleanupOldLimiters removes limiters that haven't been used recently to prevent memory leaks
+// cleanupIdleThreshold is the duration after which an unused limiter is evicted.
+const cleanupIdleThreshold = time.Hour
+
+// CleanupOldLimiters removes limiters that haven't been accessed within cleanupIdleThreshold.
 func (d *DomainRateLimiter) CleanupOldLimiters() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Remove limiters that are at full capacity (haven't been used recently)
-	for domain, limiter := range d.limiters {
-		if limiter.Tokens() >= float64(d.burstSize) {
+	cutoff := time.Now().Add(-cleanupIdleThreshold)
+	for domain, last := range d.lastAccessed {
+		if last.Before(cutoff) {
 			delete(d.limiters, domain)
+			delete(d.lastAccessed, domain)
 		}
 	}
 }
