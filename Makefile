@@ -1,7 +1,7 @@
-.PHONY: all build lint test validate-config deploy-dev deploy-prod clean build-js build-css build-frontend deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
+.PHONY: all build lint test test-quick validate-config deploy-dev deploy-prod clean build-js build-css build-frontend deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
 
 # Default target - build everything
-all: build-frontend build test
+all: build-frontend build test-quick
 	@echo "✅ Complete build finished successfully!"
 
 # Default target when just typing 'make'
@@ -18,7 +18,8 @@ help:
 	@echo "  build-js           Build minified JavaScript files"
 	@echo "  build-css          Build minified CSS files"
 	@echo "  build-frontend     Build all frontend assets (JS + CSS)"
-	@echo "  test               Run all tests"
+	@echo "  test               Run all tests with coverage (CI/pre-deploy)"
+	@echo "  test-quick         Run tests using Go cache — fast for dev iteration"
 	@echo "  validate-config    Validate application configuration"
 	@echo "  validate-build     Validate config + build frontend + build app"
 	@echo "  deploy-dev         Deploy to development environment"
@@ -75,6 +76,16 @@ build-frontend: build-js build-css
 test:
 	@echo "🧪 Running tests..."
 	./test.sh
+
+# Run tests quickly using Go's test cache (no coverage output)
+# Uses same env vars as test.sh; sub-second when nothing has changed.
+test-quick:
+	@echo "⚡ Running tests (cached)..."
+	@GOOGLE_CLOUD_PROJECT="" \
+	GOOGLE_CLIENT_ID="test_client_id" \
+	GOOGLE_CLIENT_SECRET="test_client_secret" \
+	GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback" \
+	go test ./...
 
 # Validate configuration
 validate-config:
