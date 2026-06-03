@@ -113,6 +113,7 @@ make validate-config  # Validate application configuration
 make clean           # Remove build artifacts
 make test-quick      # Run tests using Go cache — fast for dev iteration
 make test            # Run full test suite with coverage (CI/pre-deploy)
+make test-race       # Run Go tests with race detector (CI also runs this automatically)
 ```
 
 ### Frontend Tests Only
@@ -1174,7 +1175,7 @@ func TestWithDebugging(t *testing.T) {
 go test -v ./internal/config/
 go test -v ./test/integration/
 
-# Run tests with race detection
+# Run tests with race detection (or use: make test-race)
 go test -race ./internal/... ./test/integration/...
 
 # Frontend tests with coverage and debugging

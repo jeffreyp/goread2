@@ -1,4 +1,4 @@
-.PHONY: all build lint test test-quick validate-config deploy-dev deploy-prod clean build-js build-css build-frontend deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
+.PHONY: all build lint test test-quick test-race validate-config deploy-dev deploy-prod clean build-js build-css build-frontend deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
 
 # Default target - build everything
 all: build-frontend build test-quick
@@ -20,6 +20,7 @@ help:
 	@echo "  build-frontend     Build all frontend assets (JS + CSS)"
 	@echo "  test               Run all tests with coverage (CI/pre-deploy)"
 	@echo "  test-quick         Run tests using Go cache — fast for dev iteration"
+	@echo "  test-race          Run Go tests with race detector — use before merging concurrent code changes"
 	@echo "  validate-config    Validate application configuration"
 	@echo "  validate-build     Validate config + build frontend + build app"
 	@echo "  deploy-dev         Deploy to development environment"
@@ -86,6 +87,18 @@ test-quick:
 	GOOGLE_CLIENT_SECRET="test_client_secret" \
 	GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback" \
 	go test ./...
+
+# Run tests with the Go race detector enabled.
+# Slower than test-quick (~2x), but catches data races in concurrent code.
+# CI already runs with -race; use this locally before merging changes to
+# FeedScheduler, DomainRateLimiter, RequestCache, or any other shared state.
+test-race:
+	@echo "🏁 Running tests with race detector..."
+	@GOOGLE_CLOUD_PROJECT="" \
+	GOOGLE_CLIENT_ID="test_client_id" \
+	GOOGLE_CLIENT_SECRET="test_client_secret" \
+	GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback" \
+	go test -race ./...
 
 # Validate configuration
 validate-config:

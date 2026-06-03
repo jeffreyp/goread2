@@ -183,6 +183,12 @@ func CleanupTestEnv(t *testing.T) {
 	_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
 }
 
+// FindProjectRoot walks up from the current directory to find the go.mod file.
+// Safe to call from parallel tests — does not mutate working directory.
+func FindProjectRoot() (string, error) {
+	return findProjectRoot()
+}
+
 // findProjectRoot walks up from the current directory to find the go.mod file.
 func findProjectRoot() (string, error) {
 	dir, err := os.Getwd()

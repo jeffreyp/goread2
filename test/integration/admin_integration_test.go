@@ -1,8 +1,10 @@
 package integration
 
 import (
+	"database/sql"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,34 +16,47 @@ import (
 // Global test token for integration tests
 var testAdminToken string
 
-// setupLocalAdminToken creates a valid admin token for a specific test
+// openProjectDB opens goread2.db at an absolute project-root path.
+// Safe to call from parallel tests — does not mutate the process working directory.
+func openProjectDB(t *testing.T) *database.DB {
+	t.Helper()
+	projectRoot, err := helpers.FindProjectRoot()
+	if err != nil {
+		t.Fatalf("openProjectDB: cannot find project root: %v", err)
+	}
+	sqlDB, err := sql.Open("sqlite3", filepath.Join(projectRoot, "goread2.db")+"?_loc=auto")
+	if err != nil {
+		t.Fatalf("openProjectDB: cannot open database: %v", err)
+	}
+	db := &database.DB{DB: sqlDB}
+	if err := db.CreateTables(); err != nil {
+		t.Fatalf("openProjectDB: cannot create tables: %v", err)
+	}
+	return db
+}
+
+// setupLocalAdminToken creates a valid admin token for a specific test.
+// Uses absolute paths — safe to call concurrently with parallel tests.
 func setupLocalAdminToken(t *testing.T, googleID, email, name string) string {
+	t.Helper()
 	// Create admin user first
 	setupMainTestUser(t, googleID, email, name)
 
-	// Change to project root directory to ensure we use the same database
-	originalDir, err := os.Getwd()
+	projectRoot, err := helpers.FindProjectRoot()
 	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
+		t.Fatalf("Failed to find project root: %v", err)
 	}
 
-	err = os.Chdir("../..")
+	// Set user as admin via direct DB access (no os.Chdir needed).
+	sqlDB, err := sql.Open("sqlite3", filepath.Join(projectRoot, "goread2.db")+"?_loc=auto")
 	if err != nil {
-		t.Fatalf("Failed to change to project root: %v", err)
+		t.Fatalf("Failed to open database for admin setup: %v", err)
 	}
-	defer func() {
-		if err := os.Chdir(originalDir); err != nil {
-			t.Logf("Failed to restore original directory: %v", err)
-		}
-	}()
-
-	// Set user as admin
-	db, err := database.InitDB()
-	if err != nil {
-		t.Fatalf("Failed to initialize database for admin setup: %v", err)
+	sqliteDB := &database.DB{DB: sqlDB}
+	if err := sqliteDB.CreateTables(); err != nil {
+		t.Fatalf("Failed to create tables: %v", err)
 	}
 
-	sqliteDB := db.(*database.DB)
 	result, err := sqliteDB.Exec("UPDATE users SET is_admin = 1 WHERE email = ?", email)
 	if err != nil {
 		t.Fatalf("Failed to set user as admin: %v", err)
@@ -68,13 +83,15 @@ func setupLocalAdminToken(t *testing.T, googleID, email, name string) string {
 	t.Logf("Successfully set user as admin: %t", isAdmin)
 
 	// Close the database connection to ensure changes are flushed
-	err = db.Close()
+	err = sqliteDB.Close()
 	if err != nil {
 		t.Fatalf("Failed to close database connection: %v", err)
 	}
 
-	// Create admin token using bootstrap (we're already in project root)
+	// Create admin token using bootstrap; run from absolute project root so the
+	// subprocess opens the same goread2.db regardless of the process's cwd.
 	cmd := exec.Command("go", "run", "cmd/admin/main.go", "create-token", "Local test token")
+	cmd.Dir = projectRoot
 	cmd.Env = append(os.Environ(), "ADMIN_TOKEN=bootstrap")
 
 	output, err := cmd.CombinedOutput()
@@ -110,40 +127,36 @@ func setupTestAdminToken(t *testing.T) {
 	testAdminToken = setupLocalAdminToken(t, "admin123", "admin@test.com", "Admin User")
 }
 
-// createAdminCommand creates an exec.Command for admin commands with proper working directory and security
+// createAdminCommand creates an exec.Command for admin commands with proper working directory and security.
+// Uses an absolute project root path — safe to call while parallel tests are running.
 func createAdminCommand(args ...string) *exec.Cmd {
+	projectRoot, err := helpers.FindProjectRoot()
+	if err != nil {
+		panic("createAdminCommand: cannot find project root: " + err.Error())
+	}
+
 	cmdArgs := append([]string{"run", "cmd/admin/main.go"}, args...)
 	cmd := exec.Command("go", cmdArgs...)
-
-	cmd.Dir = "../.." // Set working directory to project root
-
-	// SECURITY: Set required admin token (must be valid 64-char token)
+	cmd.Dir = projectRoot
 	cmd.Env = append(os.Environ(), "ADMIN_TOKEN="+testAdminToken)
-
 	return cmd
 }
 
-// setupMainTestUser creates a test user in the main database
+// setupMainTestUser creates a test user in the main database.
+// Uses an absolute DB path — safe to call from tests that run in parallel.
 func setupMainTestUser(t *testing.T, googleID, email, name string) {
-	// Change to project root directory to ensure we use the same database
-	originalDir, err := os.Getwd()
+	t.Helper()
+	projectRoot, err := helpers.FindProjectRoot()
 	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
+		t.Fatalf("Failed to find project root: %v", err)
 	}
-
-	err = os.Chdir("../..")
+	sqlDB, err := sql.Open("sqlite3", filepath.Join(projectRoot, "goread2.db")+"?_loc=auto")
 	if err != nil {
-		t.Fatalf("Failed to change to project root: %v", err)
+		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer func() {
-		if err := os.Chdir(originalDir); err != nil {
-			t.Logf("Failed to restore original directory: %v", err)
-		}
-	}()
-
-	db, err := database.InitDB()
-	if err != nil {
-		t.Fatalf("Failed to initialize database: %v", err)
+	db := &database.DB{DB: sqlDB}
+	if err := db.CreateTables(); err != nil {
+		t.Fatalf("Failed to create tables: %v", err)
 	}
 	defer func() { _ = db.Close() }()
 
@@ -390,6 +403,11 @@ func TestAdminTokenCommands(t *testing.T) {
 	// Clean up the main database before test
 	cleanupDatabase(t)
 
+	projectRoot, err := helpers.FindProjectRoot()
+	if err != nil {
+		t.Fatalf("Failed to find project root: %v", err)
+	}
+
 	// Set up local admin token for this test
 	localAdminToken := setupLocalAdminToken(t, "tokentest123", "tokentest@test.com", "Token Test Admin")
 
@@ -397,7 +415,7 @@ func TestAdminTokenCommands(t *testing.T) {
 	createLocalAdminCommand := func(args ...string) *exec.Cmd {
 		cmdArgs := append([]string{"run", "cmd/admin/main.go"}, args...)
 		cmd := exec.Command("go", cmdArgs...)
-		cmd.Dir = "../.."
+		cmd.Dir = projectRoot
 		cmd.Env = append(os.Environ(), "ADMIN_TOKEN="+localAdminToken)
 		return cmd
 	}
@@ -493,6 +511,11 @@ func TestAdminCommandEdgeCases(t *testing.T) {
 	// Clean up the main database before test
 	cleanupDatabase(t)
 
+	projectRoot, err := helpers.FindProjectRoot()
+	if err != nil {
+		t.Fatalf("Failed to find project root: %v", err)
+	}
+
 	// Set up local admin token for this test
 	localAdminToken := setupLocalAdminToken(t, "edgetest123", "edgetest@test.com", "Edge Test Admin")
 
@@ -500,7 +523,7 @@ func TestAdminCommandEdgeCases(t *testing.T) {
 	createLocalAdminCommand := func(args ...string) *exec.Cmd {
 		cmdArgs := append([]string{"run", "cmd/admin/main.go"}, args...)
 		cmd := exec.Command("go", cmdArgs...)
-		cmd.Dir = "../.."
+		cmd.Dir = projectRoot
 		cmd.Env = append(os.Environ(), "ADMIN_TOKEN="+localAdminToken)
 		return cmd
 	}
@@ -590,6 +613,11 @@ func TestAuditLogging(t *testing.T) {
 	// Clean up the main database before test
 	cleanupDatabase(t)
 
+	projectRoot, err := helpers.FindProjectRoot()
+	if err != nil {
+		t.Fatalf("Failed to find project root: %v", err)
+	}
+
 	// Set up local admin token for this test
 	localAdminToken := setupLocalAdminToken(t, "auditadmin123", "auditadmin@test.com", "Audit Test Admin")
 
@@ -597,7 +625,7 @@ func TestAuditLogging(t *testing.T) {
 	createLocalAdminCommand := func(args ...string) *exec.Cmd {
 		cmdArgs := append([]string{"run", "cmd/admin/main.go"}, args...)
 		cmd := exec.Command("go", cmdArgs...)
-		cmd.Dir = "../.."
+		cmd.Dir = projectRoot
 		cmd.Env = append(os.Environ(), "ADMIN_TOKEN="+localAdminToken)
 		return cmd
 	}
@@ -615,25 +643,7 @@ func TestAuditLogging(t *testing.T) {
 		}
 
 		// Query database for audit logs
-		originalDir, err := os.Getwd()
-		if err != nil {
-			t.Fatalf("Failed to get current directory: %v", err)
-		}
-
-		err = os.Chdir("../..")
-		if err != nil {
-			t.Fatalf("Failed to change to project root: %v", err)
-		}
-		defer func() {
-			if err := os.Chdir(originalDir); err != nil {
-				t.Logf("Failed to restore original directory: %v", err)
-			}
-		}()
-
-		db, err := database.InitDB()
-		if err != nil {
-			t.Fatalf("Failed to initialize database: %v", err)
-		}
+		db := openProjectDB(t)
 		defer func() { _ = db.Close() }()
 
 		// Get audit logs
@@ -681,25 +691,7 @@ func TestAuditLogging(t *testing.T) {
 		}
 
 		// Query database for audit logs
-		originalDir, err := os.Getwd()
-		if err != nil {
-			t.Fatalf("Failed to get current directory: %v", err)
-		}
-
-		err = os.Chdir("../..")
-		if err != nil {
-			t.Fatalf("Failed to change to project root: %v", err)
-		}
-		defer func() {
-			if err := os.Chdir(originalDir); err != nil {
-				t.Logf("Failed to restore original directory: %v", err)
-			}
-		}()
-
-		db, err := database.InitDB()
-		if err != nil {
-			t.Fatalf("Failed to initialize database: %v", err)
-		}
+		db := openProjectDB(t)
 		defer func() { _ = db.Close() }()
 
 		// Get audit logs
