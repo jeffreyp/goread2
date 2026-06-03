@@ -164,7 +164,16 @@ func WarnAboutUnhandledEnvVars() {
 		"STRIPE_PUBLISHABLE_KEY":    true,
 		"STRIPE_WEBHOOK_SECRET":     true,
 		"STRIPE_PRICE_ID":           true,
-		"SESSION_SECRET":            true,
+		"SESSION_SECRET":                    true,
+		"CSRF_SECRET":                       true,
+		"ENVIRONMENT":                       true,
+		"DATABASE_PATH":                     true,
+		"RATE_LIMIT_REQUESTS_PER_MINUTE":    true,
+		"RATE_LIMIT_BURST_SIZE":             true,
+		"SCHEDULER_UPDATE_WINDOW":           true,
+		"SCHEDULER_MIN_INTERVAL":            true,
+		"SCHEDULER_MAX_CONCURRENT":          true,
+		"SCHEDULER_CLEANUP_INTERVAL":        true,
 	}
 
 	// Check all environment variables
