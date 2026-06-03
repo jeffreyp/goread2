@@ -131,7 +131,7 @@ history/
 - ❌ Do NOT duplicate tracking systems
 - ❌ Do NOT clutter repo root with planning documents
 
-For more details, see README.md and QUICKSTART.md.
+For more details, see README.md.
 
 ## Landing the Plane (Session Completion)
 
@@ -284,7 +284,7 @@ bd automatically syncs via Dolt:
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
 
-For more details, see README.md and docs/QUICKSTART.md.
+For more details, see README.md.
 
 ## Landing the Plane (Session Completion)
 

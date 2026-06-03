@@ -74,6 +74,7 @@ The project includes a Makefile with the following targets:
 make help              # Show all available commands
 make build             # Build the Go application binary
 make build-frontend    # Build minified JS and CSS assets
+make lint              # Run golangci-lint code quality checks
 make test              # Run all tests
 make validate-build    # Validate config + build frontend + build app
 make deploy-dev        # Deploy to development environment
@@ -85,15 +86,15 @@ make clean             # Remove all build artifacts
 
 | Guide | Purpose |
 |-------|---------|
-| [**Features Guide**](docs/FEATURES.md) | Complete feature overview and usage tips |
+| [**Features Guide**](docs/features.md) | Complete feature overview and usage tips |
 | [**Setup Guide**](docs/SETUP.md) | Complete installation and configuration |
 | [**Authentication Guide**](docs/AUTHENTICATION.md) | OAuth flow, session management, and security |
 | [**Deployment Guide**](docs/DEPLOYMENT.md) | Production deployment options (includes Google Secret Manager setup) |
 | [**Admin Guide**](docs/ADMIN.md) | User management and admin commands |
-| [**Stripe Setup**](docs/STRIPE.md) | Payment processing configuration |
+| [**Stripe Setup**](docs/stripe.md) | Payment processing configuration |
 | [**Testing Guide**](docs/TESTING.md) | Running and writing tests |
-| [**API Reference**](docs/API.md) | API endpoints and usage |
-| [**Feature Flags**](docs/FEATURE-FLAGS.md) | Configuration and feature toggles |
+| [**API Reference**](docs/api.md) | API endpoints and usage |
+| [**Feature Flags**](docs/feature-flags.md) | Configuration and feature toggles |
 | [**Security Guide**](docs/SECURITY.md) | Security features and best practices |
 | [**Performance & Cost**](docs/PERFORMANCE.md) | Optimization strategies and cost savings |
 | [**Monitoring**](docs/MONITORING.md) | Cloud Monitoring dashboards and cost tracking |

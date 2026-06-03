@@ -704,12 +704,13 @@ When trial has expired:
 
 ## Rate Limiting
 
-Currently, no rate limiting is implemented, but consider implementing for production:
+Rate limiting is enforced per IP address (as described in the Overview section):
 
-- **Authentication endpoints**: 5 requests per minute
-- **Feed operations**: 10 requests per minute
-- **Article operations**: 30 requests per minute
-- **General API**: 100 requests per minute
+- **Authentication endpoints**: 10 requests/second (burst: 20)
+- **API endpoints**: 30 requests/second (burst: 50)
+- **Webhook endpoint**: 5 requests/second (burst: 10)
+
+Exceeded requests return `429 Too Many Requests`.
 
 ## CORS Policy
 
