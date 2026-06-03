@@ -636,10 +636,10 @@ Contributors are recognized through:
 
 ### Resources
 
-- **Documentation**: Start with [Setup Guide](setup.md)
-- **API Reference**: Complete API documentation in [API Guide](api.md)
-- **Testing**: How to run and write tests in [Testing Guide](testing.md)
-- **Troubleshooting**: Common issues in [Troubleshooting Guide](troubleshooting.md)
+- **Documentation**: Start with [Setup Guide](docs/setup.md)
+- **API Reference**: Complete API documentation in [API Guide](docs/api.md)
+- **Testing**: How to run and write tests in [Testing Guide](docs/testing.md)
+- **Troubleshooting**: Common issues in [Troubleshooting Guide](docs/troubleshooting.md)
 
 ### Ask for Help
 

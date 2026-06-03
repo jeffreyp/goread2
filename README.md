@@ -100,7 +100,7 @@ make clean             # Remove all build artifacts
 | [**Monitoring**](docs/monitoring.md) | Cloud Monitoring dashboards and cost tracking |
 | [**Caching Strategy**](docs/caching.md) | HTTP and application-level caching |
 | [**Troubleshooting**](docs/troubleshooting.md) | Common issues and solutions |
-| [**Contributing**](docs/contributing.md) | Development and contribution guide |
+| [**Contributing**](CONTRIBUTING.md) | Development and contribution guide |
 
 ## 🏗️ Architecture
 
@@ -152,7 +152,7 @@ make test  # Runs both backend and frontend tests
 4. Ensure `make test` passes
 5. Submit a pull request
 
-See [docs/contributing.md](docs/contributing.md) for detailed guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## 📄 License
 
