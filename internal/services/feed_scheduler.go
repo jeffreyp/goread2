@@ -20,6 +20,7 @@ type FeedScheduler struct {
 	mu          sync.RWMutex
 	isRunning   bool
 	stopChan    chan struct{}
+	wg          sync.WaitGroup // tracks schedulerLoop and cleanupLoop goroutines
 
 	// Configuration
 	updateWindow    time.Duration // Time window to spread updates across
@@ -80,8 +81,9 @@ func (fs *FeedScheduler) Start() error {
 	}
 
 	fs.isRunning = true
-	go fs.schedulerLoop()
-	go fs.cleanupLoop()
+	fs.wg.Add(2)
+	go func() { defer fs.wg.Done(); fs.schedulerLoop() }()
+	go func() { defer fs.wg.Done(); fs.cleanupLoop() }()
 
 	log.Printf("Feed scheduler started with %v update window, %d max concurrent updates",
 		fs.updateWindow, fs.maxConcurrent)
@@ -99,6 +101,9 @@ func (fs *FeedScheduler) Stop() {
 
 	fs.isRunning = false
 	close(fs.stopChan)
+	fs.mu.Unlock()
+	fs.wg.Wait()
+	fs.mu.Lock()
 	log.Printf("Feed scheduler stopped")
 }
 

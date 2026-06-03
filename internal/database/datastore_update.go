@@ -8,6 +8,10 @@ import (
 )
 
 func (db *DatastoreDB) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles int) error {
+	if maxArticles <= 0 || maxArticles > 10000 {
+		return fmt.Errorf("maxArticles must be between 1 and 10000, got %d", maxArticles)
+	}
+
 	ctx := context.Background()
 
 	// Get the user key
