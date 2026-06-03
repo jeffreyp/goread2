@@ -17,7 +17,26 @@ Run `make test` and `make lint` after any Go changes before committing.
 
 ## Documentation Conventions
 
-Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `LICENSE`) — this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `feature-flags.md`).
+Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`) — this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `feature-flags.md`).
+
+### Feature area → doc mapping
+
+Before working in a feature area, read the corresponding doc for context. If your change alters behaviour, configuration, or APIs, update the doc in the same commit.
+
+| When touching… | Read/update… |
+|----------------|--------------|
+| `internal/auth/`, OAuth flow, sessions | `docs/authentication.md` |
+| `internal/handlers/admin*`, `cmd/admin/` | `docs/admin.md` |
+| `internal/services/subscription*`, Stripe webhooks | `docs/stripe.md`, `docs/feature-flags.md` |
+| `internal/cache/`, HTTP cache headers | `docs/caching.md` |
+| `internal/database/`, schema migrations | `docs/setup.md` (schema section) |
+| API endpoints (`internal/handlers/`) | `docs/api.md` |
+| Deployment config (`app.yaml`, `cron.yaml`, secrets) | `docs/deployment.md` |
+| Monitoring (`monitoring/`) | `docs/monitoring.md` |
+| Performance, query optimisation | `docs/performance.md` |
+| Security controls, input validation | `docs/security.md` |
+| Test infrastructure, `test.sh` | `docs/testing.md` |
+| User-facing features (UI, keyboard shortcuts) | `docs/features.md` |
 
 ## Commit Conventions
 
