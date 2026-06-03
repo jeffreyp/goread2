@@ -77,7 +77,7 @@ The test script runs:
 ### Complete Build and Test
 
 ```bash
-# Run complete build with frontend assets, build, and tests
+# Run complete build with frontend assets, build, and tests (uses test-quick)
 make all
 ```
 
@@ -111,6 +111,8 @@ make build            # Build the Go application
 make build-frontend   # Build minified JS/CSS assets
 make validate-config  # Validate application configuration
 make clean           # Remove build artifacts
+make test-quick      # Run tests using Go cache — fast for dev iteration
+make test            # Run full test suite with coverage (CI/pre-deploy)
 ```
 
 ### Frontend Tests Only
@@ -1226,7 +1228,8 @@ When adding new features:
 
 ### Pull Request Requirements
 
-- All tests must pass: `./test.sh`
+- All tests must pass: `make test` (full coverage run) or `./test.sh`
+- Use `make test-quick` during development for fast cached feedback
 - Package-level coverage should not decrease
 - Include integration tests for API changes
 - Update documentation for user-facing changes
