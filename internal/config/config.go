@@ -3,10 +3,13 @@ package config
 import (
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 // Config holds application configuration
 type Config struct {
@@ -143,9 +146,14 @@ func parseEmailList(value string) []string {
 
 	for _, email := range emails {
 		email = strings.TrimSpace(email)
-		if email != "" {
-			result = append(result, email)
+		if email == "" {
+			continue
 		}
+		if !emailRegex.MatchString(email) {
+			log.Printf("WARNING: invalid email format in INITIAL_ADMIN_EMAILS, skipping: %s", email)
+			continue
+		}
+		result = append(result, email)
 	}
 
 	return result

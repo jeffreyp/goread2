@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -49,7 +50,7 @@ func (ph *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 
 	session, err := ph.paymentService.CreateCheckoutSession(req)
 	if err != nil {
-		if err.Error() == "user already has an active subscription" {
+		if errors.Is(err, services.ErrAlreadySubscribed) {
 			c.JSON(http.StatusConflict, gin.H{"error": "You already have an active subscription"})
 			return
 		}

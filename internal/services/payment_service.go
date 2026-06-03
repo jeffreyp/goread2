@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -16,6 +17,9 @@ import (
 	"github.com/stripe/stripe-go/v78/product"
 	"github.com/stripe/stripe-go/v78/subscription"
 )
+
+// ErrAlreadySubscribed is returned when a user attempts to subscribe but already has an active subscription.
+var ErrAlreadySubscribed = errors.New("user already has an active subscription")
 
 type PaymentService struct {
 	db                   database.Database
@@ -97,7 +101,7 @@ func (ps *PaymentService) CreateCheckoutSession(req CheckoutSessionRequest) (*Ch
 	// Check if user already has an active paid subscription
 	// Note: Admin users should be able to subscribe even though they have unlimited access
 	if user.SubscriptionStatus == "active" {
-		return nil, fmt.Errorf("user already has an active subscription")
+		return nil, ErrAlreadySubscribed
 	}
 
 	// Create or get Stripe customer

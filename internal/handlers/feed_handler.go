@@ -162,7 +162,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 		unreadOnly := false // Default to showing all articles
 
 		if limitStr := c.Query("limit"); limitStr != "" {
-			if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 200 {
+			if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {
 				limit = parsedLimit
 			}
 		}
