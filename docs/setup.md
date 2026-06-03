@@ -186,7 +186,7 @@ Make yourself an admin user:
 ./admin.sh admin your-email@gmail.com on
 ```
 
-See [Admin Guide](ADMIN.md) for complete user management.
+See [Admin Guide](admin.md) for complete user management.
 
 ## Troubleshooting
 
@@ -259,7 +259,7 @@ See [Admin Guide](ADMIN.md) for complete user management.
 
 ## Next Steps
 
-- Read the [Deployment Guide](DEPLOYMENT.md) for production setup
+- Read the [Deployment Guide](deployment.md) for production setup
 - Configure [Stripe payments](STRIPE.md) for subscriptions
-- Set up [admin access](ADMIN.md) for user management
+- Set up [admin access](admin.md) for user management
 - Review the [API documentation](API.md) for integration

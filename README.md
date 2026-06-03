@@ -87,20 +87,20 @@ make clean             # Remove all build artifacts
 | Guide | Purpose |
 |-------|---------|
 | [**Features Guide**](docs/features.md) | Complete feature overview and usage tips |
-| [**Setup Guide**](docs/SETUP.md) | Complete installation and configuration |
-| [**Authentication Guide**](docs/AUTHENTICATION.md) | OAuth flow, session management, and security |
-| [**Deployment Guide**](docs/DEPLOYMENT.md) | Production deployment options (includes Google Secret Manager setup) |
-| [**Admin Guide**](docs/ADMIN.md) | User management and admin commands |
+| [**Setup Guide**](docs/setup.md) | Complete installation and configuration |
+| [**Authentication Guide**](docs/authentication.md) | OAuth flow, session management, and security |
+| [**Deployment Guide**](docs/deployment.md) | Production deployment options (includes Google Secret Manager setup) |
+| [**Admin Guide**](docs/admin.md) | User management and admin commands |
 | [**Stripe Setup**](docs/stripe.md) | Payment processing configuration |
-| [**Testing Guide**](docs/TESTING.md) | Running and writing tests |
+| [**Testing Guide**](docs/testing.md) | Running and writing tests |
 | [**API Reference**](docs/api.md) | API endpoints and usage |
 | [**Feature Flags**](docs/feature-flags.md) | Configuration and feature toggles |
-| [**Security Guide**](docs/SECURITY.md) | Security features and best practices |
-| [**Performance & Cost**](docs/PERFORMANCE.md) | Optimization strategies and cost savings |
-| [**Monitoring**](docs/MONITORING.md) | Cloud Monitoring dashboards and cost tracking |
-| [**Caching Strategy**](docs/CACHING.md) | HTTP and application-level caching |
-| [**Troubleshooting**](docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [**Contributing**](docs/CONTRIBUTING.md) | Development and contribution guide |
+| [**Security Guide**](docs/security.md) | Security features and best practices |
+| [**Performance & Cost**](docs/performance.md) | Optimization strategies and cost savings |
+| [**Monitoring**](docs/monitoring.md) | Cloud Monitoring dashboards and cost tracking |
+| [**Caching Strategy**](docs/caching.md) | HTTP and application-level caching |
+| [**Troubleshooting**](docs/troubleshooting.md) | Common issues and solutions |
+| [**Contributing**](docs/contributing.md) | Development and contribution guide |
 
 ## 🏗️ Architecture
 
@@ -152,7 +152,7 @@ make test  # Runs both backend and frontend tests
 4. Ensure `make test` passes
 5. Submit a pull request
 
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for detailed guidelines.
+See [docs/contributing.md](docs/contributing.md) for detailed guidelines.
 
 ## 📄 License
 
@@ -160,4 +160,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-**Need help?** Check the [Setup Guide](docs/SETUP.md) for detailed instructions or the [Troubleshooting section](docs/TROUBLESHOOTING.md) for common issues.
+**Need help?** Check the [Setup Guide](docs/setup.md) for detailed instructions or the [Troubleshooting section](docs/troubleshooting.md) for common issues.

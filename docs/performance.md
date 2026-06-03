@@ -162,7 +162,7 @@ This reduces per-user costs by approximately $6-12/month, making the $2.99/month
 - Instant feedback when marking articles read
 - Better user experience
 
-See [CACHING.md](CACHING.md) for details.
+See [CACHING.md](caching.md) for details.
 
 ### 2. Concurrent Feed Fetching
 

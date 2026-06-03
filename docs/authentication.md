@@ -188,7 +188,7 @@ State-changing operations (POST, PUT, DELETE, PATCH) require CSRF tokens:
 2. Token included in request headers: `X-CSRF-Token`
 3. Middleware validates token before processing request
 
-See [SECURITY.md](SECURITY.md) for more details on security implementation.
+See [SECURITY.md](security.md) for more details on security implementation.
 
 ## Implementation Details
 
@@ -249,10 +249,10 @@ api.Use(authMiddleware.CSRFMiddleware(csrfManager))
 
 ## Related Documentation
 
-- [SECURITY.md](SECURITY.md) - Security implementation and best practices
+- [SECURITY.md](security.md) - Security implementation and best practices
 - [API.md](API.md) - API endpoints and usage
-- [SETUP.md](SETUP.md) - Initial setup and configuration
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common authentication issues
+- [SETUP.md](setup.md) - Initial setup and configuration
+- [TROUBLESHOOTING.md](troubleshooting.md) - Common authentication issues
 
 ## Troubleshooting
 

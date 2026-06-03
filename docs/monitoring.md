@@ -364,6 +364,6 @@ Required IAM roles:
 
 ## Related Documentation
 
-- [Performance Optimization](PERFORMANCE.md) - Performance tuning based on metrics
-- [Deployment](DEPLOYMENT.md) - App deployment process
+- [Performance Optimization](performance.md) - Performance tuning based on metrics
+- [Deployment](deployment.md) - App deployment process
 - [Google Cloud Monitoring Docs](https://cloud.google.com/monitoring/docs)

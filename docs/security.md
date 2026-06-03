@@ -15,7 +15,7 @@ This document outlines the security measures implemented in GoRead2 and how to u
 
 ### CLI Tool Security (CRITICAL)
 
-The admin CLI tool uses database-based token authentication to prevent privilege escalation attacks. See [ADMIN.md](ADMIN.md) for complete details on the admin token system.
+The admin CLI tool uses database-based token authentication to prevent privilege escalation attacks. See [ADMIN.md](admin.md) for complete details on the admin token system.
 
 **Required for all admin commands:**
 ```bash
@@ -138,7 +138,7 @@ To prevent authentication state conflicts between local development and producti
 - Prevents accidental logout when switching between environments
 - Reduces confusion during development and testing
 
-The environment is automatically detected via `GAE_ENV` or `ENVIRONMENT` environment variables. See [AUTHENTICATION.md](AUTHENTICATION.md) for complete implementation details.
+The environment is automatically detected via `GAE_ENV` or `ENVIRONMENT` environment variables. See [AUTHENTICATION.md](authentication.md) for complete implementation details.
 
 ### CSRF Protection
 
@@ -375,8 +375,8 @@ This release addressed five critical security vulnerabilities and implemented co
 #### Documentation Updates
 
 **Backend Documentation:**
-1. **docs/SECURITY.md** - Added comprehensive security feature documentation (this file)
-2. **docs/ADMIN.md** - Added admin token security system details
+1. **docs/security.md** - Added comprehensive security feature documentation (this file)
+2. **docs/admin.md** - Added admin token security system details
 3. **docs/API.md** - Updated with CSRF requirements and rate limiting info
 4. **test/helpers/http.go** - Updated test helpers to support CSRF
 

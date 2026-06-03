@@ -487,7 +487,7 @@ When adding user-facing features:
 
 - **Update README.md** with new capabilities
 - **Add API documentation** to `docs/api.md`
-- **Include troubleshooting** in `docs/TROUBLESHOOTING.md`
+- **Include troubleshooting** in `docs/troubleshooting.md`
 - **Provide examples** and use cases
 
 ## Issue Tracking with Beads
@@ -636,10 +636,10 @@ Contributors are recognized through:
 
 ### Resources
 
-- **Documentation**: Start with [Setup Guide](SETUP.md)
+- **Documentation**: Start with [Setup Guide](setup.md)
 - **API Reference**: Complete API documentation in [API Guide](api.md)
-- **Testing**: How to run and write tests in [Testing Guide](TESTING.md)
-- **Troubleshooting**: Common issues in [Troubleshooting Guide](TROUBLESHOOTING.md)
+- **Testing**: How to run and write tests in [Testing Guide](testing.md)
+- **Troubleshooting**: Common issues in [Troubleshooting Guide](troubleshooting.md)
 
 ### Ask for Help
 

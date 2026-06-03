@@ -65,7 +65,7 @@ gcloud alpha monitoring policies create --policy-from-file=monitoring/alert-poli
 
 ## Documentation
 
-See [docs/MONITORING.md](../docs/MONITORING.md) for complete documentation including:
+See [docs/monitoring.md](../docs/monitoring.md) for complete documentation including:
 - Dashboard metrics explanation
 - Alert threshold details
 - Updating and maintaining monitoring resources

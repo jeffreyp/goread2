@@ -15,6 +15,10 @@ make dev            # start local dev server (validates config first)
 
 Run `make test` and `make lint` after any Go changes before committing.
 
+## Documentation Conventions
+
+Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `LICENSE`) — this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `feature-flags.md`).
+
 ## Commit Conventions
 
 Every commit message must include both trailers:
