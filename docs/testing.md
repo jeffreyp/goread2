@@ -919,7 +919,7 @@ jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.23]
+        go-version: [1.24]
         
     steps:
       - uses: actions/checkout@v4
@@ -938,7 +938,7 @@ jobs:
 ```
 
 **Pipeline features:**
-- Go 1.23 testing
+- Go 1.24 testing
 - Package-level unit tests (`./internal/...`)
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov

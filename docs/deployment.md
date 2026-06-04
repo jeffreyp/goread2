@@ -101,7 +101,7 @@ All deployment methods require:
 
 **Option 1: Using Secret Manager References (Recommended)**
 ```yaml
-runtime: go123
+runtime: go124
 
 env_variables:
   GIN_MODE: release
@@ -118,7 +118,7 @@ env_variables:
 
 **Option 2: Direct Secret Manager Integration**
 ```yaml
-runtime: go123
+runtime: go124
 
 env_variables:
   GIN_MODE: release
@@ -132,7 +132,7 @@ env_variables:
 **Option 3: Manual Configuration (Less Secure)**
 ```yaml
 # Only use this for development - not recommended for production
-runtime: go123
+runtime: go124
 
 env_variables:
   GIN_MODE: release
@@ -235,7 +235,7 @@ cron:
 ### Dockerfile
 
 ```dockerfile
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -352,9 +352,9 @@ http {
 ### Prerequisites
 
 ```bash
-# Install Go 1.23+
-wget https://golang.org/dl/go1.23.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.23.linux-amd64.tar.gz
+# Install Go 1.24+
+wget https://golang.org/dl/go1.24.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.24.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # Install dependencies

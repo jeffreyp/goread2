@@ -21,7 +21,7 @@ A modern, multi-user RSS reader inspired by Google Reader and perhaps equally if
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Go 1.23+
+- Go 1.24+
 - Google Cloud Project (for OAuth)
 - Stripe Account (optional, for subscriptions)
 
