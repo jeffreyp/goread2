@@ -196,7 +196,7 @@ func TestWebhookRejectsInvalidSignature(t *testing.T) {
 	defer helpers.CleanupTestEnv(t)
 
 	// Set a webhook secret so the handler proceeds to signature verification.
-	_ = os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_dGVzdHNlY3JldGtleWZvcnRlc3Rpbmc=")
+	_ = os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_only_not_a_real_secret")
 	defer func() { _ = os.Unsetenv("STRIPE_WEBHOOK_SECRET") }()
 
 	db := helpers.CreateTestDB(t)
