@@ -14,6 +14,7 @@ import (
 	"github.com/jeffreyp/goread2/internal/config"
 	"github.com/jeffreyp/goread2/internal/database"
 	"github.com/jeffreyp/goread2/internal/handlers"
+	"github.com/jeffreyp/goread2/internal/secrets"
 	"github.com/jeffreyp/goread2/internal/services"
 	"github.com/jeffreyp/goread2/test/helpers"
 )
@@ -195,9 +196,14 @@ func TestWebhookRejectsInvalidSignature(t *testing.T) {
 	helpers.SetupTestEnv(t)
 	defer helpers.CleanupTestEnv(t)
 
-	// Set a webhook secret so the handler proceeds to signature verification.
-	_ = os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_only_not_a_real_secret")
-	defer func() { _ = os.Unsetenv("STRIPE_WEBHOOK_SECRET") }()
+	// Provide all Stripe env vars before creating the PaymentService so the
+	// secrets.sync.Once succeeds without contacting Google Secret Manager.
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_fake_for_testing")
+	t.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_fake_for_testing")
+	t.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_only_not_a_real_secret")
+	t.Setenv("STRIPE_PRICE_ID", "price_test_fake_for_testing")
+	secrets.ResetCacheForTesting()
+	t.Cleanup(secrets.ResetCacheForTesting)
 
 	db := helpers.CreateTestDB(t)
 	rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{RequestsPerMinute: 60, BurstSize: 10})
