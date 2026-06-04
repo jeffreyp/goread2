@@ -2,84 +2,228 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jeffreyp/goread2/internal/database"
 	"github.com/jeffreyp/goread2/internal/services"
 )
 
-func TestNewPaymentHandler(t *testing.T) {
-	// Create mock service
-	mockPaymentService := &services.PaymentService{}
+// mockPaymentService implements paymentServicer for unit tests.
+type mockPaymentService struct {
+	publishableKey     string
+	webhookSecret      string
+	checkoutSession    *services.CheckoutSessionResponse
+	checkoutErr        error
+	portalURL          string
+	portalErr          error
+	subscriptionErr    error
+}
 
-	handler := NewPaymentHandler(mockPaymentService, "https://example.com/auth/callback")
+func (m *mockPaymentService) CreateCheckoutSession(req services.CheckoutSessionRequest) (*services.CheckoutSessionResponse, error) {
+	return m.checkoutSession, m.checkoutErr
+}
+func (m *mockPaymentService) GetStripePublishableKey() string { return m.publishableKey }
+func (m *mockPaymentService) GetStripeWebhookSecret() string  { return m.webhookSecret }
+func (m *mockPaymentService) HandleSubscriptionUpdate(subscriptionID string) error {
+	return m.subscriptionErr
+}
+func (m *mockPaymentService) CreateCustomerPortalSession(userID int, returnURL string) (string, error) {
+	return m.portalURL, m.portalErr
+}
+
+// newPaymentHandlerWithMock creates a PaymentHandler backed by the mock service.
+func newPaymentHandlerWithMock(svc paymentServicer) *PaymentHandler {
+	return &PaymentHandler{paymentService: svc, baseURL: "https://example.com"}
+}
+
+func TestNewPaymentHandler(t *testing.T) {
+	handler := NewPaymentHandler(&services.PaymentService{}, "https://example.com/auth/callback")
 
 	if handler == nil {
 		t.Fatal("NewPaymentHandler returned nil")
-		return
 	}
-
-	if handler.paymentService != mockPaymentService {
-		t.Error("PaymentHandler payment service not set correctly")
-	}
-
 	if handler.baseURL != "https://example.com" {
-		t.Errorf("PaymentHandler baseURL not set correctly: got %q", handler.baseURL)
+		t.Errorf("baseURL not extracted correctly: got %q", handler.baseURL)
 	}
 }
 
-func TestWebhookHandler_MissingSecret(t *testing.T) {
-	// Set up test environment
+func TestGetStripeConfig(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Create payment service with empty webhook secret
-	// This simulates the security vulnerability where STRIPE_WEBHOOK_SECRET is not set
-	// The PaymentService's GetStripeWebhookSecret() will return an empty string
-	paymentService := &services.PaymentService{}
+	svc := &mockPaymentService{publishableKey: "pk_test_abc123"}
+	handler := newPaymentHandlerWithMock(svc)
 
-	handler := NewPaymentHandler(paymentService, "https://example.com/auth/callback")
-
-	// Create test request
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/api/stripe-config", nil)
 
-	// Create a fake Stripe webhook payload
-	payload := []byte(`{
-		"id": "evt_test",
-		"type": "customer.subscription.created",
-		"data": {
-			"object": {
-				"id": "sub_test"
-			}
+	handler.GetStripeConfig(c)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp["publishable_key"] != "pk_test_abc123" {
+		t.Errorf("expected publishable_key 'pk_test_abc123', got %q", resp["publishable_key"])
+	}
+}
+
+func TestCreateCheckoutSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		handler := newPaymentHandlerWithMock(&mockPaymentService{})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/subscription/checkout", nil)
+
+		handler.CreateCheckoutSession(c)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
 		}
-	}`)
-	c.Request = httptest.NewRequest("POST", "/webhooks/stripe", bytes.NewReader(payload))
-	c.Request.Header.Set("Content-Type", "application/json")
-	c.Request.Header.Set("Stripe-Signature", "t=1,v1=fake_signature")
+	})
 
-	// Call the webhook handler
+	t.Run("already subscribed returns 409", func(t *testing.T) {
+		svc := &mockPaymentService{checkoutErr: services.ErrAlreadySubscribed}
+		handler := newPaymentHandlerWithMock(svc)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/subscription/checkout", nil)
+		c.Set("user", testUser)
+
+		handler.CreateCheckoutSession(c)
+
+		if w.Code != http.StatusConflict {
+			t.Errorf("expected 409, got %d", w.Code)
+		}
+		var resp map[string]string
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp["error"] == "" {
+			t.Error("expected error message in response")
+		}
+	})
+
+	t.Run("happy path returns 200 with session", func(t *testing.T) {
+		svc := &mockPaymentService{
+			checkoutSession: &services.CheckoutSessionResponse{
+				SessionID:  "cs_test_abc",
+				SessionURL: "https://checkout.stripe.com/pay/cs_test_abc",
+			},
+		}
+		handler := newPaymentHandlerWithMock(svc)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/subscription/checkout", nil)
+		c.Set("user", testUser)
+
+		handler.CreateCheckoutSession(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp services.CheckoutSessionResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if resp.SessionID != "cs_test_abc" {
+			t.Errorf("expected session_id 'cs_test_abc', got %q", resp.SessionID)
+		}
+	})
+}
+
+func TestCreateCustomerPortal(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		handler := newPaymentHandlerWithMock(&mockPaymentService{})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/subscription/portal", nil)
+
+		handler.CreateCustomerPortal(c)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("happy path returns portal URL", func(t *testing.T) {
+		svc := &mockPaymentService{portalURL: "https://billing.stripe.com/p/session/test"}
+		handler := newPaymentHandlerWithMock(svc)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/subscription/portal", nil)
+		c.Set("user", testUser)
+
+		handler.CreateCustomerPortal(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]string
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp["portal_url"] != "https://billing.stripe.com/p/session/test" {
+			t.Errorf("unexpected portal_url: %q", resp["portal_url"])
+		}
+	})
+}
+
+func TestWebhookHandler_MissingSecret(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	svc := &mockPaymentService{webhookSecret: ""}
+	handler := newPaymentHandlerWithMock(svc)
+
+	payload := []byte(`{"id":"evt_test","type":"customer.subscription.created","data":{"object":{"id":"sub_test"}}}`)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/webhooks/stripe", bytes.NewReader(payload))
+	c.Request.Header.Set("Stripe-Signature", "t=1,v1=fake")
+
 	handler.WebhookHandler(c)
 
-	// Verify that the request was rejected with 500 Internal Server Error
 	if w.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d when webhook secret is missing, got %d", http.StatusInternalServerError, w.Code)
+		t.Errorf("expected 500 when webhook secret missing, got %d", w.Code)
 	}
-
-	// Verify error message contains indication that webhook is not configured
 	if !bytes.Contains(w.Body.Bytes(), []byte("not properly configured")) {
-		t.Errorf("Expected error message about webhook not being configured, got: %s", w.Body.String())
+		t.Errorf("expected 'not properly configured' error, got: %s", w.Body.String())
 	}
 }
 
 func TestWebhookHandler_InvalidSignature(t *testing.T) {
-	// This test would require mocking the Stripe webhook verification
-	// Since webhook.ConstructEventWithOptions validates against a real secret,
-	// we'd need to either:
-	// 1. Use a real Stripe test secret and generate a valid signature
-	// 2. Mock the webhook verification layer
-	// For now, we'll skip this test as it requires integration with Stripe's signing
+	gin.SetMode(gin.TestMode)
 
-	t.Skip("Skipping webhook signature validation test - requires Stripe integration or mocking")
+	svc := &mockPaymentService{webhookSecret: "whsec_testsecret123"}
+	handler := newPaymentHandlerWithMock(svc)
+
+	payload := []byte(`{"id":"evt_test","type":"customer.subscription.created","data":{"object":{"id":"sub_test"}}}`)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/webhooks/stripe", bytes.NewReader(payload))
+	c.Request.Header.Set("Stripe-Signature", "t=1,v1=invalidsignature")
+
+	handler.WebhookHandler(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid signature, got %d", w.Code)
+	}
 }

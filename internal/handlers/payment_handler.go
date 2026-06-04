@@ -15,8 +15,16 @@ import (
 	"github.com/stripe/stripe-go/v78/webhook"
 )
 
+type paymentServicer interface {
+	CreateCheckoutSession(req services.CheckoutSessionRequest) (*services.CheckoutSessionResponse, error)
+	GetStripePublishableKey() string
+	GetStripeWebhookSecret() string
+	HandleSubscriptionUpdate(subscriptionID string) error
+	CreateCustomerPortalSession(userID int, returnURL string) (string, error)
+}
+
 type PaymentHandler struct {
-	paymentService *services.PaymentService
+	paymentService paymentServicer
 	baseURL        string
 }
 

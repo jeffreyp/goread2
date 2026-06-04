@@ -22,6 +22,8 @@ type mockDBFeedHandler struct {
 	shouldFailCleanupOrphaned   bool
 	shouldFailGetAccountStats   bool
 	shouldFailUpdateMaxArticles bool
+	shouldFailGetArticle        bool
+	mockArticle                 *database.Article
 	articlesDeleted             int
 }
 
@@ -82,7 +84,12 @@ func (m *mockDBFeedHandler) GetUserArticlesPaginated(userID, limit int, cursor s
 func (m *mockDBFeedHandler) GetUserFeedArticles(int, int) ([]database.Article, error) {
 	return nil, nil
 }
-func (m *mockDBFeedHandler) GetArticleByID(int, int) (*database.Article, error) { return nil, nil }
+func (m *mockDBFeedHandler) GetArticleByID(int, int) (*database.Article, error) {
+	if m.shouldFailGetArticle {
+		return nil, errors.New("database error")
+	}
+	return m.mockArticle, nil
+}
 func (m *mockDBFeedHandler) GetUserArticleStatus(int, int) (*database.UserArticle, error) {
 	return nil, nil
 }
