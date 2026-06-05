@@ -42,7 +42,7 @@ build:
 # Run linter
 lint:
 	@echo "🔍 Running linter..."
-	golangci-lint run
+	golangci-lint run --timeout=3m
 
 # Install npm dependencies if needed
 node_modules: package.json package-lock.json
