@@ -601,6 +601,12 @@ body.app-body {
     gap: 8px;
 }
 
+.article-feed-source {
+    color: #1a73e8;
+    font-size: 11px;
+    font-weight: 500;
+}
+
 .article-actions {
     display: flex;
     gap: 4px;
@@ -646,6 +652,8 @@ body.app-body {
     padding: 20px;
     line-height: 1.6;
     font-family: var(--font-reading);
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 .article-content h1 {

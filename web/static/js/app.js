@@ -1170,7 +1170,7 @@ class GoReadApp {
 
             const button = document.createElement('button');
             button.className = 'btn btn-secondary';
-            button.textContent = 'Load More Articles';
+            button.textContent = `Load More Articles (${this.articles.length} loaded)`;
             button.onclick = () => this.loadMoreArticles();
 
             loadMoreDiv.appendChild(button);
@@ -1338,6 +1338,7 @@ class GoReadApp {
                             <div class="article-meta">
                                 <span>${publishedDate}</span>
                                 ${article.author ? `<span>by ${this.escapeHtml(article.author)}</span>` : ''}
+                                ${this.currentFeed === 'all' && article.feed_title ? `<span class="article-feed-source">${this.escapeHtml(article.feed_title)}</span>` : ''}
                             </div>
                         </div>
                         <div class="article-actions">
@@ -1411,6 +1412,7 @@ class GoReadApp {
                         <div class="article-meta">
                             <span>${publishedDate}</span>
                             ${article.author ? `<span>by ${this.escapeHtml(article.author)}</span>` : ''}
+                            ${this.currentFeed === 'all' && article.feed_title ? `<span class="article-feed-source">${this.escapeHtml(article.feed_title)}</span>` : ''}
                         </div>
                     </div>
                     <div class="article-actions">
