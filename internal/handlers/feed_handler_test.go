@@ -25,6 +25,7 @@ type mockDBFeedHandler struct {
 	shouldFailGetArticle        bool
 	mockArticle                 *database.Article
 	articlesDeleted             int
+	capturedPaginationLimit     int
 }
 
 func newMockDBFeedHandler() *mockDBFeedHandler {
@@ -76,6 +77,7 @@ func (m *mockDBFeedHandler) GetArticles(int) ([]database.Article, error)        
 func (m *mockDBFeedHandler) FindArticleByURL(string) (*database.Article, error) { return nil, nil }
 func (m *mockDBFeedHandler) GetUserArticles(int) ([]database.Article, error)    { return nil, nil }
 func (m *mockDBFeedHandler) GetUserArticlesPaginated(userID, limit int, cursor string, unreadOnly bool) (*database.ArticlePaginationResult, error) {
+	m.capturedPaginationLimit = limit
 	return &database.ArticlePaginationResult{
 		Articles:   []database.Article{},
 		NextCursor: "",
@@ -416,6 +418,114 @@ func TestGetArticlesPagination(t *testing.T) {
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("Expected status 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("limit above max is clamped to default", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
+			RequestsPerMinute: 10,
+			BurstSize:         1,
+		})
+		feedService := services.NewFeedService(db, rateLimiter)
+		handler := NewFeedHandler(feedService, nil, nil, db)
+
+		testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds/all/articles?limit=200", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "all"}}
+		c.Set("user", testUser)
+
+		handler.GetArticles(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		if db.capturedPaginationLimit != 50 {
+			t.Errorf("Expected default limit 50 when limit=200 is rejected, got %d", db.capturedPaginationLimit)
+		}
+	})
+
+	t.Run("limit=0 uses default", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
+			RequestsPerMinute: 10,
+			BurstSize:         1,
+		})
+		feedService := services.NewFeedService(db, rateLimiter)
+		handler := NewFeedHandler(feedService, nil, nil, db)
+
+		testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds/all/articles?limit=0", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "all"}}
+		c.Set("user", testUser)
+
+		handler.GetArticles(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		if db.capturedPaginationLimit != 50 {
+			t.Errorf("Expected default limit 50 when limit=0, got %d", db.capturedPaginationLimit)
+		}
+	})
+
+	t.Run("negative limit uses default", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
+			RequestsPerMinute: 10,
+			BurstSize:         1,
+		})
+		feedService := services.NewFeedService(db, rateLimiter)
+		handler := NewFeedHandler(feedService, nil, nil, db)
+
+		testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds/all/articles?limit=-1", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "all"}}
+		c.Set("user", testUser)
+
+		handler.GetArticles(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		if db.capturedPaginationLimit != 50 {
+			t.Errorf("Expected default limit 50 when limit=-1, got %d", db.capturedPaginationLimit)
+		}
+	})
+
+	t.Run("non-numeric limit uses default", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
+			RequestsPerMinute: 10,
+			BurstSize:         1,
+		})
+		feedService := services.NewFeedService(db, rateLimiter)
+		handler := NewFeedHandler(feedService, nil, nil, db)
+
+		testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds/all/articles?limit=abc", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "all"}}
+		c.Set("user", testUser)
+
+		handler.GetArticles(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+		if db.capturedPaginationLimit != 50 {
+			t.Errorf("Expected default limit 50 when limit=abc, got %d", db.capturedPaginationLimit)
 		}
 	})
 }
