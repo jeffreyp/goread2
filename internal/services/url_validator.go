@@ -78,7 +78,7 @@ func (v *URLValidator) ValidateURL(ctx context.Context, rawURL string) error {
 
 	// Check scheme
 	if !v.AllowedSchemes[parsedURL.Scheme] {
-		return fmt.Errorf("URL scheme '%s' not allowed (only http/https permitted)", parsedURL.Scheme)
+		return fmt.Errorf("%w: URL scheme '%s' not allowed (only http/https permitted)", ErrSSRFBlocked, parsedURL.Scheme)
 	}
 
 	// Check host is present
@@ -107,11 +107,11 @@ func (v *URLValidator) ValidateURL(ctx context.Context, rawURL string) error {
 	resolver := &net.Resolver{}
 	ips, err := resolver.LookupIP(dnsCtx, "ip", hostname)
 	if err != nil {
-		return fmt.Errorf("DNS lookup failed for %s: %w", hostname, err)
+		return fmt.Errorf("%w: DNS lookup failed for %s: %v", ErrNetworkError, hostname, err)
 	}
 
 	if len(ips) == 0 {
-		return fmt.Errorf("no IP addresses found for hostname %s", hostname)
+		return fmt.Errorf("%w: no IP addresses found for hostname %s", ErrNetworkError, hostname)
 	}
 
 	// Check all resolved IPs
@@ -129,7 +129,7 @@ func (v *URLValidator) isBlockedIP(ip net.IP) error {
 	// Check against all blocked networks
 	for _, network := range v.BlockedNetworks {
 		if network.Contains(ip) {
-			return fmt.Errorf("IP address %s is in blocked network range %s (SSRF protection)", ip, network)
+			return fmt.Errorf("%w: IP address %s is in blocked network range %s", ErrSSRFBlocked, ip, network)
 		}
 	}
 	return nil

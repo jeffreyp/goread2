@@ -518,10 +518,7 @@ func (fs *FeedService) fetchFeed(ctx context.Context, url string, opts ...*Fetch
 	// Validate URL for SSRF protection (skip if using mock HTTP client for testing)
 	if fs.httpClient == nil {
 		if err := fs.urlValidator.ValidateURL(ctx, url); err != nil {
-			// Check if it's an SSRF protection error
-			if strings.Contains(err.Error(), "SSRF protection") ||
-				strings.Contains(err.Error(), "blocked network") ||
-				strings.Contains(err.Error(), "not allowed") {
+			if errors.Is(err, ErrSSRFBlocked) {
 				return nil, fmt.Errorf("%w: %v", ErrSSRFBlocked, err)
 			}
 			return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)

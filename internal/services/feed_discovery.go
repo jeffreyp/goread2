@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -62,19 +63,14 @@ func (fd *FeedDiscovery) NormalizeURL(ctx context.Context, rawURL string) (strin
 	// Use the URL validator which includes SSRF protection
 	normalizedURL, err := fd.urlValidator.ValidateAndNormalizeURL(ctx, rawURL)
 	if err != nil {
-		// Check if it's an SSRF protection error
-		if strings.Contains(err.Error(), "SSRF protection") ||
-			strings.Contains(err.Error(), "blocked network") ||
-			strings.Contains(err.Error(), "not allowed") {
+		switch {
+		case errors.Is(err, ErrSSRFBlocked):
 			return "", fmt.Errorf("%w: %v", ErrSSRFBlocked, err)
-		}
-		// Check if it's a DNS/network error
-		if strings.Contains(err.Error(), "DNS lookup failed") ||
-			strings.Contains(err.Error(), "no IP addresses found") {
+		case errors.Is(err, ErrNetworkError):
 			return "", fmt.Errorf("%w: %v", ErrNetworkError, err)
+		default:
+			return "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
 		}
-		// Otherwise it's an invalid URL
-		return "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
 	}
 	return normalizedURL, nil
 }
