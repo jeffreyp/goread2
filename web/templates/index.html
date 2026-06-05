@@ -31,6 +31,8 @@
     </script>
 </head>
 <body class="app-body">
+    <a href="#article-content" class="skip-to-content">Skip to content</a>
+
     <!-- Loading screen shown during cold starts and initial page load -->
     <div id="app-loading-screen">
         <div class="loading-content">
@@ -43,7 +45,7 @@
         <header class="header">
             <div class="header-content">
                 <h1 class="logo">GoRead2</h1>
-                <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+                <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open navigation menu">☰</button>
                 <div class="header-actions" id="header-actions">
                     <button id="refresh-btn" class="btn btn-primary">Refresh</button>
                     <button id="add-feed-btn" class="btn btn-secondary">Add Feed</button>
@@ -94,7 +96,7 @@
 
             <!-- Right Pane: Article Content -->
             <div class="content-pane">
-                <div class="article-content" id="article-content">
+                <div class="article-content" id="article-content" tabindex="-1">
                     <div class="placeholder">
                         <p>Welcome to GoRead2!</p>
                         <p>Select a feed from the left panel to view articles, then click on an article to read it here.</p>
@@ -135,10 +137,10 @@
     </div>
 
     <!-- Add Feed Modal -->
-    <div id="add-feed-modal" class="modal">
+    <div id="add-feed-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="add-feed-modal-heading">
         <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Add RSS Feed</h2>
+            <button class="close" aria-label="Close">&times;</button>
+            <h2 id="add-feed-modal-heading">Add RSS Feed</h2>
             <form id="add-feed-form">
                 <div class="form-group">
                     <label for="feed-url">Website or Feed URL:</label>
@@ -154,10 +156,10 @@
     </div>
 
     <!-- Help Modal -->
-    <div id="help-modal" class="modal">
+    <div id="help-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="help-modal-heading">
         <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Help & Shortcuts</h2>
+            <button class="close" aria-label="Close">&times;</button>
+            <h2 id="help-modal-heading">Help & Shortcuts</h2>
             <div class="help-content">
                 <div class="shortcut-section">
                     <h3>Getting Started</h3>
@@ -218,10 +220,10 @@
     </div>
 
     <!-- Import OPML Modal -->
-    <div id="import-opml-modal" class="modal">
+    <div id="import-opml-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="import-opml-modal-heading">
         <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Import OPML File</h2>
+            <button class="close" aria-label="Close">&times;</button>
+            <h2 id="import-opml-modal-heading">Import OPML File</h2>
             <form id="import-opml-form" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="opml-file">OPML File:</label>

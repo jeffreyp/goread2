@@ -749,10 +749,24 @@ class GoReadApp {
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', async (e) => {
             if (e.ctrlKey || e.metaKey) return;
-            
+
+            // Esc closes any open modal regardless of focused element
+            if (e.key === 'Escape') {
+                const openModal = document.querySelector('.modal[style*="display: block"]');
+                if (openModal) {
+                    e.preventDefault();
+                    const mm = this.modalManager;
+                    if (openModal.id === 'add-feed-modal' && mm) mm.hideAddFeedModal();
+                    else if (openModal.id === 'help-modal' && mm) mm.hideHelpModal();
+                    else if (openModal.id === 'import-opml-modal' && mm) mm.hideImportOpmlModal();
+                    else openModal.remove();
+                }
+                return;
+            }
+
             // Don't handle shortcuts when typing in input fields
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            
+
             switch(e.key) {
                 case 'j':
                     e.preventDefault();
@@ -2314,10 +2328,13 @@ class GoReadApp {
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.style.display = 'block';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.setAttribute('aria-labelledby', 'subscription-limit-heading');
         modal.innerHTML = `
             <div class="modal-content">
-                <span class="close">&times;</span>
-                <h2>Upgrade to Pro</h2>
+                <button class="close" aria-label="Close">&times;</button>
+                <h2 id="subscription-limit-heading">Upgrade to Pro</h2>
                 <p>You've reached the free limit of ${error.current_limit} feeds.</p>
                 <p>Upgrade to <strong>GoRead2 Pro</strong> for:</p>
                 <ul>
@@ -2356,10 +2373,13 @@ class GoReadApp {
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.style.display = 'block';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.setAttribute('aria-labelledby', 'trial-expired-heading');
         modal.innerHTML = `
             <div class="modal-content">
-                <span class="close">&times;</span>
-                <h2>Free Trial Expired</h2>
+                <button class="close" aria-label="Close">&times;</button>
+                <h2 id="trial-expired-heading">Free Trial Expired</h2>
                 <p>Your 30-day free trial has ended.</p>
                 <p>Subscribe to <strong>GoRead2 Pro</strong> to continue using the service with:</p>
                 <ul>
