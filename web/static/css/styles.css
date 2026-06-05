@@ -2040,11 +2040,6 @@ body.app-body {
         /* This is a marker class - actual sliding happens on sidebar-wrapper */
     }
 
-    .sidebar-wrapper:has(.feed-pane.active),
-    .sidebar-wrapper:has(.article-pane.active) {
-        transform: translateX(0);
-    }
-
     /* Sliding panels for phone portrait */
     .feed-pane,
     .article-pane {
@@ -2060,6 +2055,8 @@ body.app-body {
     .content-pane {
         width: 100%;
         height: 100%;
+        /* Prevent article content scrolling behind the fixed bottom nav bar */
+        padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
     }
 
     /* Mobile navigation - larger touch targets */

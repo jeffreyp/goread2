@@ -591,9 +591,11 @@ class GoReadApp {
         // Initialize mobile navigation - show content pane by default on phones in portrait only
         const isPortrait = window.matchMedia('(orientation: portrait)').matches;
         if (window.innerWidth < 768 && isPortrait) {
-            // Start with content pane visible
+            // Start with content pane visible (sidebar slid off screen)
             if (feedPane) feedPane.classList.remove('active');
             if (articlePane) articlePane.classList.remove('active');
+            const sidebarWrapper = document.querySelector('.sidebar-wrapper');
+            if (sidebarWrapper) sidebarWrapper.style.transform = 'translateX(-100%)';
 
             // Set content button as active
             const contentBtn = document.querySelector('[data-pane="content"]');
@@ -625,15 +627,16 @@ class GoReadApp {
                     if (feedPane) feedPane.classList.remove('active');
                     if (articlePane) articlePane.classList.remove('active');
 
-                    // Show selected pane
+                    // Show selected pane — drive sidebar transform directly (iOS 15 has no :has() support)
+                    const sidebarWrapper = document.querySelector('.sidebar-wrapper');
                     if (pane === 'feeds' && feedPane) {
                         feedPane.classList.add('active');
-                        console.log('Showing feeds pane');
+                        if (sidebarWrapper) sidebarWrapper.style.transform = 'translateX(0)';
                     } else if (pane === 'articles' && articlePane) {
                         articlePane.classList.add('active');
-                        console.log('Showing articles pane');
+                        if (sidebarWrapper) sidebarWrapper.style.transform = 'translateX(0)';
                     } else if (pane === 'content') {
-                        console.log('Showing content pane');
+                        if (sidebarWrapper) sidebarWrapper.style.transform = 'translateX(-100%)';
                     }
                     // Content pane is always visible as background
                 });
@@ -660,16 +663,20 @@ class GoReadApp {
         if (articlePane) articlePane.classList.remove('active');
 
         // Show selected pane and activate corresponding button
+        // Drive sidebar transform directly — iOS 15 has no CSS :has() support
+        const sidebarWrapper = document.querySelector('.sidebar-wrapper');
         if (pane === 'feeds' && feedPane) {
             feedPane.classList.add('active');
+            if (sidebarWrapper) sidebarWrapper.style.transform = 'translateX(0)';
             const feedsBtn = document.querySelector('[data-pane="feeds"]');
             if (feedsBtn) feedsBtn.classList.add('active');
         } else if (pane === 'articles' && articlePane) {
             articlePane.classList.add('active');
+            if (sidebarWrapper) sidebarWrapper.style.transform = 'translateX(0)';
             const articlesBtn = document.querySelector('[data-pane="articles"]');
             if (articlesBtn) articlesBtn.classList.add('active');
         } else if (pane === 'content') {
-            // Content pane is always visible as background, just activate the button
+            if (sidebarWrapper) sidebarWrapper.style.transform = 'translateX(-100%)';
             const contentBtn = document.querySelector('[data-pane="content"]');
             if (contentBtn) contentBtn.classList.add('active');
         }
