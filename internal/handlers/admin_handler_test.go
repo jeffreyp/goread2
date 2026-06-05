@@ -122,6 +122,7 @@ func (m *mockDBAdminHandler) GetUserArticleStatus(int, int) (*database.UserArtic
 	return nil, nil
 }
 func (m *mockDBAdminHandler) SetUserArticleStatus(int, int, bool, bool) error { return nil }
+func (m *mockDBAdminHandler) MarkAllUserArticlesRead(int) (int, error)                              { return 0, nil }
 func (m *mockDBAdminHandler) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }

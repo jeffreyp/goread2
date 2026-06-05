@@ -125,6 +125,7 @@ func (m *mockDBAudit) GetUserFeedArticles(int, int) ([]database.Article, error) 
 func (m *mockDBAudit) GetArticleByID(int, int) (*database.Article, error)           { return nil, nil }
 func (m *mockDBAudit) GetUserArticleStatus(int, int) (*database.UserArticle, error) { return nil, nil }
 func (m *mockDBAudit) SetUserArticleStatus(int, int, bool, bool) error              { return nil }
+func (m *mockDBAudit) MarkAllUserArticlesRead(int) (int, error)                              { return 0, nil }
 func (m *mockDBAudit) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }

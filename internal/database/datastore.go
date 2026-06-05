@@ -1339,6 +1339,62 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 	return err
 }
 
+func (db *DatastoreDB) MarkAllUserArticlesRead(userID int) (int, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	feeds, err := db.GetUserFeeds(userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get user feeds: %w", err)
+	}
+	if len(feeds) == 0 {
+		return 0, nil
+	}
+
+	// Collect all article IDs via keys-only queries (avoids loading article bodies).
+	var articleIDs []int64
+	for _, feed := range feeds {
+		q := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feed.ID)).KeysOnly()
+		keys, err := db.client.GetAll(ctx, q, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get article keys for feed %d: %w", feed.ID, err)
+		}
+		for _, k := range keys {
+			articleIDs = append(articleIDs, k.ID)
+		}
+	}
+	if len(articleIDs) == 0 {
+		return 0, nil
+	}
+
+	_, err = db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		chunkSize := 500
+		for i := 0; i < len(articleIDs); i += chunkSize {
+			end := i + chunkSize
+			if end > len(articleIDs) {
+				end = len(articleIDs)
+			}
+			chunk := articleIDs[i:end]
+			entities := make([]*UserArticleEntity, len(chunk))
+			keys := make([]*datastore.Key, len(chunk))
+			for j, aid := range chunk {
+				entities[j] = &UserArticleEntity{
+					UserID:    int64(userID),
+					ArticleID: aid,
+					IsRead:    true,
+					IsStarred: false,
+				}
+				keys[j] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, aid), nil)
+			}
+			if _, err := tx.PutMulti(keys, entities); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return len(articleIDs), err
+}
+
 func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()

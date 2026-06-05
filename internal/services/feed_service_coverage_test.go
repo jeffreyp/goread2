@@ -93,6 +93,12 @@ func (m *mockDBFeed) GetUserArticleStatus(int, int) (*database.UserArticle, erro
 	return nil, nil
 }
 func (m *mockDBFeed) SetUserArticleStatus(int, int, bool, bool) error { return nil }
+func (m *mockDBFeed) MarkAllUserArticlesRead(int) (int, error) {
+	if m.shouldFailArticle {
+		return 0, errors.New("db error")
+	}
+	return len(m.articles), nil
+}
 func (m *mockDBFeed) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	if m.shouldFailBatch {
 		return errors.New("batch error")
@@ -409,19 +415,7 @@ func TestFeedService_MarkAllArticlesRead_DBError(t *testing.T) {
 
 	_, err := fs.MarkAllArticlesRead(1)
 	if err == nil {
-		t.Error("expected error when GetUserArticles fails")
-	}
-}
-
-func TestFeedService_MarkAllArticlesRead_BatchError(t *testing.T) {
-	mock := newMockDBFeed()
-	mock.articles = []database.Article{{ID: 1}}
-	mock.shouldFailBatch = true
-	fs := NewFeedService(mock, nil)
-
-	_, err := fs.MarkAllArticlesRead(1)
-	if err == nil {
-		t.Error("expected error when BatchSetUserArticleStatus fails")
+		t.Error("expected error when MarkAllUserArticlesRead fails")
 	}
 }
 

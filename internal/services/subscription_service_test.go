@@ -132,6 +132,7 @@ func (m *mockDBForSub) GetUserFeedArticles(int, int) ([]database.Article, error)
 func (m *mockDBForSub) GetArticleByID(int, int) (*database.Article, error)           { return nil, nil }
 func (m *mockDBForSub) GetUserArticleStatus(int, int) (*database.UserArticle, error) { return nil, nil }
 func (m *mockDBForSub) SetUserArticleStatus(int, int, bool, bool) error              { return nil }
+func (m *mockDBForSub) MarkAllUserArticlesRead(int) (int, error)                              { return 0, nil }
 func (m *mockDBForSub) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }

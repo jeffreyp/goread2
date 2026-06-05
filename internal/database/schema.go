@@ -63,6 +63,7 @@ type Database interface {
 	GetUserArticleStatus(userID, articleID int) (*UserArticle, error)
 	SetUserArticleStatus(userID, articleID int, isRead, isStarred bool) error
 	BatchSetUserArticleStatus(userID int, articles []Article, isRead, isStarred bool) error
+	MarkAllUserArticlesRead(userID int) (int, error)
 	MarkUserArticleRead(userID, articleID int, isRead bool) error
 	ToggleUserArticleStar(userID, articleID int) error
 	GetUserUnreadCounts(userID int) (map[int]int, error)
@@ -1134,6 +1135,20 @@ func (db *DB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, 
 
 	_, err := db.Exec(query, args...)
 	return err
+}
+
+func (db *DB) MarkAllUserArticlesRead(userID int) (int, error) {
+	result, err := db.Exec(`
+		INSERT OR REPLACE INTO user_articles (user_id, article_id, is_read, is_starred)
+		SELECT ?, a.id, 1, 0
+		FROM articles a
+		JOIN user_feeds uf ON a.feed_id = uf.feed_id
+		WHERE uf.user_id = ?`, userID, userID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := result.RowsAffected()
+	return int(n), err
 }
 
 func (db *DB) GetUserUnreadCounts(userID int) (map[int]int, error) {

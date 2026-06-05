@@ -50,6 +50,7 @@ func (m *mockDBAuthHandler) GetUserArticleStatus(int, int) (*database.UserArticl
 	return nil, nil
 }
 func (m *mockDBAuthHandler) SetUserArticleStatus(int, int, bool, bool) error { return nil }
+func (m *mockDBAuthHandler) MarkAllUserArticlesRead(int) (int, error)                              { return 0, nil }
 func (m *mockDBAuthHandler) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }

@@ -96,6 +96,7 @@ func (m *mockDBFeedHandler) GetUserArticleStatus(int, int) (*database.UserArticl
 	return nil, nil
 }
 func (m *mockDBFeedHandler) SetUserArticleStatus(int, int, bool, bool) error { return nil }
+func (m *mockDBFeedHandler) MarkAllUserArticlesRead(int) (int, error)                              { return 0, nil }
 func (m *mockDBFeedHandler) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }
