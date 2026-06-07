@@ -114,8 +114,8 @@ func (m *Middleware) CSRFMiddleware(csrfManager *CSRFManager) gin.HandlerFunc {
 			return
 		}
 
-		// Get session
-		session, exists := m.sessionManager.GetSessionFromRequest(c.Request)
+		// Get session (uses request-scoped cache if already loaded by auth middleware)
+		session, exists := m.getOrLoadSession(c)
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 			c.Abort()

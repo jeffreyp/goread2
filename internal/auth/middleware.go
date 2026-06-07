@@ -10,7 +10,10 @@ import (
 
 type contextKey string
 
-const UserContextKey contextKey = "user"
+const (
+	UserContextKey    contextKey = "user"
+	sessionContextKey contextKey = "session"
+)
 
 type Middleware struct {
 	sessionManager *SessionManager
@@ -22,10 +25,29 @@ func NewMiddleware(sessionManager *SessionManager) *Middleware {
 	}
 }
 
+// getOrLoadSession returns the session for this request, loading it once and caching
+// in the gin context so subsequent middleware in the same request skip the store lookup.
+func (m *Middleware) getOrLoadSession(c *gin.Context) (*Session, bool) {
+	if cached, ok := c.Get(string(sessionContextKey)); ok {
+		if s, ok := cached.(*Session); ok {
+			return s, true
+		}
+		// nil sentinel stored by a prior call that found no session
+		return nil, false
+	}
+	session, exists := m.sessionManager.GetSessionFromRequest(c.Request)
+	if exists {
+		c.Set(string(sessionContextKey), session)
+	} else {
+		c.Set(string(sessionContextKey), (*Session)(nil))
+	}
+	return session, exists
+}
+
 // RequireAuth is a middleware that requires authentication
 func (m *Middleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		session, exists := m.sessionManager.GetSessionFromRequest(c.Request)
+		session, exists := m.getOrLoadSession(c)
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 			c.Abort()
@@ -45,7 +67,7 @@ func (m *Middleware) RequireAuth() gin.HandlerFunc {
 // Redirects to login instead of returning JSON error
 func (m *Middleware) RequireAuthPage() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		session, exists := m.sessionManager.GetSessionFromRequest(c.Request)
+		session, exists := m.getOrLoadSession(c)
 		if !exists {
 			c.Redirect(http.StatusFound, "/")
 			c.Abort()
@@ -64,7 +86,7 @@ func (m *Middleware) RequireAuthPage() gin.HandlerFunc {
 // OptionalAuth is a middleware that adds user to context if authenticated
 func (m *Middleware) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		session, exists := m.sessionManager.GetSessionFromRequest(c.Request)
+		session, exists := m.getOrLoadSession(c)
 		if exists {
 			// Refresh session to extend expiry for active users
 			_ = m.sessionManager.RefreshSession(session.ID)
@@ -77,7 +99,7 @@ func (m *Middleware) OptionalAuth() gin.HandlerFunc {
 // RequireAdmin is a middleware that requires admin privileges
 func (m *Middleware) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		session, exists := m.sessionManager.GetSessionFromRequest(c.Request)
+		session, exists := m.getOrLoadSession(c)
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 			c.Abort()
