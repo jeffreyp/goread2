@@ -85,7 +85,7 @@ func (a *AuthService) HandleCallback(code string) (*database.User, error) {
 	// Exchange code for token
 	token, err := a.config.Exchange(ctx, code)
 	if err != nil {
-		return nil, fmt.Errorf("failed to exchange code for token: %w", err)
+		return nil, fmt.Errorf("failed to exchange code for token (code length: %d): %w", len(code), err)
 	}
 
 	// Get user info from Google
@@ -93,6 +93,10 @@ func (a *AuthService) HandleCallback(code string) (*database.User, error) {
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)
+	}
+	if resp.StatusCode != 200 {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("failed to get user info: unexpected status %d", resp.StatusCode)
 	}
 	defer func() { _ = resp.Body.Close() }()
 

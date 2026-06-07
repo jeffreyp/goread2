@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"regexp"
@@ -89,7 +90,44 @@ func Load() *Config {
 		SchedulerCleanupInterval:   parseDuration(os.Getenv("SCHEDULER_CLEANUP_INTERVAL"), 1*time.Hour),
 	}
 
+	if err := validateConfig(globalConfig); err != nil {
+		log.Printf("WARNING: configuration validation failed: %v", err)
+	}
+
 	return globalConfig
+}
+
+// validateConfig checks that configuration values are within acceptable ranges.
+func validateConfig(cfg *Config) error {
+	if cfg.RateLimitRequestsPerMinute <= 0 {
+		return fmt.Errorf("RATE_LIMIT_REQUESTS_PER_MINUTE must be positive, got %d", cfg.RateLimitRequestsPerMinute)
+	}
+	if cfg.RateLimitBurstSize <= 0 {
+		return fmt.Errorf("RATE_LIMIT_BURST_SIZE must be positive, got %d", cfg.RateLimitBurstSize)
+	}
+	if cfg.RateLimitRequestsPerMinute > 10000 {
+		log.Printf("WARNING: very high RATE_LIMIT_REQUESTS_PER_MINUTE: %d", cfg.RateLimitRequestsPerMinute)
+	}
+	if cfg.SchedulerUpdateWindow <= 0 {
+		return fmt.Errorf("SCHEDULER_UPDATE_WINDOW must be positive, got %v", cfg.SchedulerUpdateWindow)
+	}
+	if cfg.SchedulerMinInterval <= 0 {
+		return fmt.Errorf("SCHEDULER_MIN_INTERVAL must be positive, got %v", cfg.SchedulerMinInterval)
+	}
+	if cfg.SchedulerMaxConcurrent <= 0 {
+		return fmt.Errorf("SCHEDULER_MAX_CONCURRENT must be positive, got %d", cfg.SchedulerMaxConcurrent)
+	}
+	if cfg.SchedulerCleanupInterval <= 0 {
+		return fmt.Errorf("SCHEDULER_CLEANUP_INTERVAL must be positive, got %v", cfg.SchedulerCleanupInterval)
+	}
+	if cfg.SchedulerMinInterval > cfg.SchedulerUpdateWindow {
+		return fmt.Errorf("SCHEDULER_MIN_INTERVAL (%v) must be less than SCHEDULER_UPDATE_WINDOW (%v)",
+			cfg.SchedulerMinInterval, cfg.SchedulerUpdateWindow)
+	}
+	if cfg.SchedulerMinInterval < time.Minute {
+		log.Printf("WARNING: very short SCHEDULER_MIN_INTERVAL: %v", cfg.SchedulerMinInterval)
+	}
+	return nil
 }
 
 // Get returns the current configuration
