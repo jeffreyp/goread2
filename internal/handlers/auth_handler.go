@@ -50,12 +50,14 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	queryState := c.Query("state")
 
 	if err != nil || storedState != queryState {
+		log.Printf("SECURITY: OAuth state mismatch from IP %s (cookie=%v query=%v)", auth.GetSecureClientIP(c), storedState != "", queryState != "")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter"})
 		return
 	}
 
 	// Validate and consume state (one-time use check)
 	if !ah.sessionManager.ValidateAndConsumeOAuthState(queryState) {
+		log.Printf("SECURITY: OAuth state expired or replayed from IP %s", auth.GetSecureClientIP(c))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "State parameter has expired or already been used"})
 		return
 	}

@@ -125,6 +125,7 @@ func (m *Middleware) CSRFMiddleware(csrfManager *CSRFManager) gin.HandlerFunc {
 		// Get CSRF token from header
 		csrfToken := c.GetHeader("X-CSRF-Token")
 		if csrfToken == "" {
+			log.Printf("SECURITY: CSRF token missing on %s %s from IP %s", c.Request.Method, c.Request.URL.Path, GetSecureClientIP(c))
 			c.JSON(http.StatusForbidden, gin.H{"error": "CSRF token required"})
 			c.Abort()
 			return
@@ -132,6 +133,7 @@ func (m *Middleware) CSRFMiddleware(csrfManager *CSRFManager) gin.HandlerFunc {
 
 		// Validate CSRF token
 		if !csrfManager.ValidateToken(session.ID, csrfToken) {
+			log.Printf("SECURITY: CSRF token invalid on %s %s from IP %s", c.Request.Method, c.Request.URL.Path, GetSecureClientIP(c))
 			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid CSRF token"})
 			c.Abort()
 			return

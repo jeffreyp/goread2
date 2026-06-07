@@ -3,6 +3,7 @@ package secrets
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -105,10 +106,13 @@ func GetSecret(ctx context.Context, secretName string) (string, error) {
 	}
 
 	// Call the API
+	log.Printf("secrets: fetching %q from Secret Manager (project=%s)", secretName, projectID)
 	result, err := client.AccessSecretVersion(ctx, req)
 	if err != nil {
+		log.Printf("secrets: failed to fetch %q: %v", secretName, err)
 		return "", fmt.Errorf("failed to access secret version: %w", err)
 	}
+	log.Printf("secrets: successfully fetched %q", secretName)
 
 	return string(result.Payload.Data), nil
 }

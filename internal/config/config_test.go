@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestConfigLoad(t *testing.T) {
@@ -395,6 +396,115 @@ func TestGetWithoutLoad(t *testing.T) {
 	// Should have default values
 	if cfg.Port != "8080" {
 		t.Errorf("Default port = %v, want 8080", cfg.Port)
+	}
+}
+
+func TestParseEmailListMalformed(t *testing.T) {
+	tests := []struct {
+		input         string
+		expectedLen   int
+		expectedFirst string
+		desc          string
+	}{
+		{",,,,", 0, "", "all-comma input returns empty"},
+		{"foo,bar,baz", 0, "", "no @ sign — all entries skipped"},
+		{"foo,user@example.com,bar", 1, "user@example.com", "mixed valid/invalid — only valid kept"},
+		{"@example.com", 0, "", "missing local part"},
+		{"user@", 0, "", "missing domain"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clearConfigEnvVars()
+			_ = os.Setenv("INITIAL_ADMIN_EMAILS", tt.input)
+			defer func() {
+				_ = os.Unsetenv("INITIAL_ADMIN_EMAILS")
+				clearConfigEnvVars()
+			}()
+
+			ResetForTesting()
+			Load()
+			cfg := Get()
+
+			if len(cfg.InitialAdminEmails) != tt.expectedLen {
+				t.Errorf("parseEmailList(%q) len = %d, want %d", tt.input, len(cfg.InitialAdminEmails), tt.expectedLen)
+			}
+			if tt.expectedLen > 0 && cfg.InitialAdminEmails[0] != tt.expectedFirst {
+				t.Errorf("parseEmailList(%q)[0] = %q, want %q", tt.input, cfg.InitialAdminEmails[0], tt.expectedFirst)
+			}
+		})
+	}
+}
+
+func TestParseDurationMalformed(t *testing.T) {
+	tests := []struct {
+		envVar   string
+		value    string
+		expected time.Duration
+		desc     string
+	}{
+		{"SCHEDULER_UPDATE_WINDOW", "not-a-duration", 15 * time.Minute, "bad duration falls back to default"},
+		{"SCHEDULER_UPDATE_WINDOW", "abc123", 15 * time.Minute, "alphanumeric falls back to default"},
+		{"SCHEDULER_MIN_INTERVAL", "???", 5 * time.Minute, "symbol string falls back to default"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clearConfigEnvVars()
+			_ = os.Setenv(tt.envVar, tt.value)
+			defer func() {
+				_ = os.Unsetenv(tt.envVar)
+				clearConfigEnvVars()
+			}()
+
+			ResetForTesting()
+			Load()
+			cfg := Get()
+
+			var got time.Duration
+			switch tt.envVar {
+			case "SCHEDULER_UPDATE_WINDOW":
+				got = cfg.SchedulerUpdateWindow
+			case "SCHEDULER_MIN_INTERVAL":
+				got = cfg.SchedulerMinInterval
+			}
+			if got != tt.expected {
+				t.Errorf("%s=%q: got %v, want %v", tt.envVar, tt.value, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseIntMalformed(t *testing.T) {
+	tests := []struct {
+		value    string
+		expected int
+		desc     string
+	}{
+		{"banana", 10, "non-numeric falls back to default"},
+		{"3.14", 10, "float string falls back to default"},
+		{"", 10, "empty string uses default"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clearConfigEnvVars()
+			if tt.value != "" {
+				_ = os.Setenv("SCHEDULER_MAX_CONCURRENT", tt.value)
+			}
+			defer func() {
+				_ = os.Unsetenv("SCHEDULER_MAX_CONCURRENT")
+				clearConfigEnvVars()
+			}()
+
+			ResetForTesting()
+			Load()
+			cfg := Get()
+
+			if cfg.SchedulerMaxConcurrent != tt.expected {
+				t.Errorf("SCHEDULER_MAX_CONCURRENT=%q: got %d, want %d", tt.value, cfg.SchedulerMaxConcurrent, tt.expected)
+			}
+		})
 	}
 }
 

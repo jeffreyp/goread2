@@ -114,6 +114,7 @@ func RateLimitMiddleware(limiter *RateLimiter) gin.HandlerFunc {
 
 		// Check if request is allowed
 		if !ipLimiter.Allow() {
+			log.Printf("SECURITY: rate limit exceeded for IP %s on %s %s", ip, c.Request.Method, c.Request.URL.Path)
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error": "Rate limit exceeded. Please try again later.",
 			})
