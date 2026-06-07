@@ -9,6 +9,9 @@ import (
 
 const requestCacheKey = "request_cache"
 
+// maxRequestCacheEntries limits cache growth for requests that touch many users (e.g. admin endpoints).
+const maxRequestCacheEntries = 100
+
 // RequestCache provides request-scoped caching to eliminate duplicate database calls
 // within a single HTTP request. Cache is automatically cleared when the request completes.
 type RequestCache struct {
@@ -74,8 +77,10 @@ func GetCachedUserFeeds(c *gin.Context, userID int, db database.Database) ([]dat
 		return nil, err
 	}
 
-	// Store in cache for next call
-	cache.userFeeds[userID] = feeds
+	// Store in cache only while under the entry limit.
+	if len(cache.userFeeds) < maxRequestCacheEntries {
+		cache.userFeeds[userID] = feeds
+	}
 
 	return feeds, nil
 }

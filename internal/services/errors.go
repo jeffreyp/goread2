@@ -97,7 +97,6 @@ func GetErrorDetails(err error) ErrorDetails {
 		return ErrorDetails{
 			ErrorCode: ErrorCodeSSRFBlocked,
 			Message:   "This URL cannot be accessed for security reasons. Please use a publicly accessible URL.",
-			Details:   err.Error(),
 		}
 	case errors.Is(err, ErrDatabaseError):
 		return ErrorDetails{

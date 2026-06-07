@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -279,29 +278,8 @@ func (fh *FeedHandler) MarkAllRead(c *gin.Context) {
 func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 	// If this is the cron endpoint, verify it's authorized
 	if c.Request.URL.Path == "/cron/refresh-feeds" {
-		// In App Engine, verify the X-Appengine-Cron header
-		if os.Getenv("GAE_ENV") == "standard" {
-			cronHeader := c.GetHeader("X-Appengine-Cron")
-			if cronHeader != "true" {
-				log.Printf("Unauthorized cron request from IP: %s", auth.GetSecureClientIP(c))
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-				return
-			}
-		} else {
-			// In non-App Engine environments, require admin session + ADMIN_TOKEN header.
-			// Checking only IsAdmin is insufficient: any admin could trigger expensive ops.
-			user, exists := auth.GetUserFromContext(c)
-			if !exists || !user.IsAdmin {
-				log.Printf("Unauthorized cron request - requires admin authentication")
-				c.JSON(http.StatusForbidden, gin.H{"error": "Admin authentication required"})
-				return
-			}
-			expectedToken := os.Getenv("ADMIN_TOKEN")
-			if expectedToken == "" || c.GetHeader("X-Admin-Token") != expectedToken {
-				log.Printf("Unauthorized cron request - invalid or missing X-Admin-Token from IP: %s", auth.GetSecureClientIP(c))
-				c.JSON(http.StatusForbidden, gin.H{"error": "Valid X-Admin-Token header required"})
-				return
-			}
+		if !auth.VerifyCronRequest(c) {
+			return
 		}
 		// Cron path: return immediately so GAE doesn't hold the instance.
 		// Feed refresh runs in the background; cron retries handle failures.
@@ -346,28 +324,8 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 	// If this is the cron endpoint, verify it's authorized
 	if c.Request.URL.Path == "/cron/cleanup-orphaned-articles" {
-		// In App Engine, verify the X-Appengine-Cron header
-		if os.Getenv("GAE_ENV") == "standard" {
-			cronHeader := c.GetHeader("X-Appengine-Cron")
-			if cronHeader != "true" {
-				log.Printf("Unauthorized cron request from IP: %s", auth.GetSecureClientIP(c))
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-				return
-			}
-		} else {
-			// In non-App Engine environments, require admin session + ADMIN_TOKEN header.
-			user, exists := auth.GetUserFromContext(c)
-			if !exists || !user.IsAdmin {
-				log.Printf("Unauthorized cron request - requires admin authentication")
-				c.JSON(http.StatusForbidden, gin.H{"error": "Admin authentication required"})
-				return
-			}
-			expectedToken := os.Getenv("ADMIN_TOKEN")
-			if expectedToken == "" || c.GetHeader("X-Admin-Token") != expectedToken {
-				log.Printf("Unauthorized cron request - invalid or missing X-Admin-Token from IP: %s", auth.GetSecureClientIP(c))
-				c.JSON(http.StatusForbidden, gin.H{"error": "Valid X-Admin-Token header required"})
-				return
-			}
+		if !auth.VerifyCronRequest(c) {
+			return
 		}
 		log.Printf("Cron cleanup started at %v", time.Now())
 	} else {

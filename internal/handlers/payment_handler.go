@@ -103,7 +103,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 	})
 	if err != nil {
 		fmt.Printf("ERROR: Webhook - Signature verification failed: %v\n", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Webhook signature verification failed: %v", err)})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Webhook signature verification failed."})
 		return
 	}
 
