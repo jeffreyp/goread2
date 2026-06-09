@@ -40,10 +40,19 @@ type Session struct {
 }
 
 func NewSessionManager(db database.Database) *SessionManager {
+	cacheTTL := 10 * time.Minute
+	if v := os.Getenv("SESSION_CACHE_TTL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cacheTTL = d
+		} else {
+			log.Printf("WARNING: invalid SESSION_CACHE_TTL %q, using default 10m", v)
+		}
+	}
+
 	sm := &SessionManager{
 		db:          db,
 		cache:       make(map[string]*CachedSession),
-		cacheTTL:    10 * time.Minute, // Cache sessions for 10 minutes
+		cacheTTL:    cacheTTL,
 		oauthStates: make(map[string]time.Time),
 	}
 

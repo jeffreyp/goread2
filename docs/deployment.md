@@ -435,6 +435,7 @@ WantedBy=multi-user.target
 - `GIN_MODE` - Set to "release" for production
 - `PORT` - Server port (default: 8080)
 - `SESSION_SECRET` - Custom session encryption key (auto-generated if not set)
+- `SESSION_CACHE_TTL` - In-memory session cache duration (default: 10m, e.g. "5m", "1h")
 - `SUBSCRIPTION_ENABLED` - Enable/disable subscription system (default: false)
 
 ### Stripe Variables (if using subscriptions)
