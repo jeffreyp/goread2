@@ -14,6 +14,10 @@ import (
 
 var ErrSelfDemotion = errors.New("cannot remove your own admin privileges")
 
+// paginationOverfetch is added to the requested limit to detect whether more results exist.
+// If len(results) > requested limit, there is a next page; results are then trimmed to limit.
+const paginationOverfetch = 1
+
 // ArticlePaginationResult contains paginated articles and a cursor for the next page
 type ArticlePaginationResult struct {
 	Articles   []Article
@@ -913,9 +917,9 @@ func (db *DB) GetUserArticlesPaginated(userID int, limit int, cursor string, unr
 		args = append(args, cursorData.PublishedAt, cursorData.PublishedAt, cursorData.ID)
 	}
 
-	// Fetch limit+1 to check if there are more results
+	// Fetch one extra row to detect whether more results exist
 	baseQuery += ` ORDER BY a.published_at DESC, a.id DESC LIMIT ?`
-	args = append(args, limit+1)
+	args = append(args, limit+paginationOverfetch)
 
 	rows, err := db.Query(baseQuery, args...)
 	if err != nil {

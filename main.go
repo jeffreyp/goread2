@@ -127,6 +127,9 @@ func main() {
 	// Security headers (CSP, HSTS, X-Frame-Options, etc.)
 	r.Use(middleware.SecurityHeaders())
 
+	// CORS: allow cross-origin requests only from ALLOWED_ORIGIN (if set)
+	r.Use(middleware.CORS())
+
 	// Limit request body size to prevent memory exhaustion; OPML uploads get 10MB.
 	r.Use(middleware.RequestBodyLimit(1*1024*1024, map[string]int64{
 		"/api/feeds/import": 10 * 1024 * 1024,

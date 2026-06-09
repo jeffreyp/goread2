@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/xml"
 	"errors"
@@ -26,6 +27,15 @@ const (
 	// maxFeedBodySize is the maximum size we'll read from a feed (10MB)
 	// This prevents memory exhaustion and high bandwidth costs from malicious/broken feeds
 	maxFeedBodySize = 10 * 1024 * 1024 // 10MB
+
+	// opmlMaxDepth is the maximum nesting depth allowed in an OPML document.
+	// Real-world OPML files are typically 2-3 levels deep; deeply nested documents
+	// could cause stack exhaustion in recursive outline parsing.
+	opmlMaxDepth = 50
+
+	// opmlMaxElements is the maximum number of XML start elements allowed in an OPML
+	// document. This bounds memory allocation from maliciously large flat documents.
+	opmlMaxElements = 50_000
 )
 
 // HTTPClient interface for making HTTP requests (allows mocking in tests)
@@ -985,7 +995,40 @@ func (fs *FeedService) updateFeedAfterRefreshSuccess(feed database.Feed, hadNewC
 	)
 }
 
+// validateOPMLComplexity streams XML tokens to detect deeply nested or excessively large
+// documents before full parsing. This guards against XML DoS (deep recursion, huge element counts).
+func validateOPMLComplexity(data []byte) error {
+	dec := xml.NewDecoder(bytes.NewReader(data))
+	depth, elements := 0, 0
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("invalid XML: %w", err)
+		}
+		switch tok.(type) {
+		case xml.StartElement:
+			depth++
+			elements++
+			if depth > opmlMaxDepth {
+				return fmt.Errorf("OPML nesting depth exceeds maximum of %d", opmlMaxDepth)
+			}
+			if elements > opmlMaxElements {
+				return fmt.Errorf("OPML element count exceeds maximum of %d", opmlMaxElements)
+			}
+		case xml.EndElement:
+			depth--
+		}
+	}
+	return nil
+}
+
 func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {
+	if err := validateOPMLComplexity(opmlData); err != nil {
+		return 0, err
+	}
 	var opml OPML
 	if err := xml.Unmarshal(opmlData, &opml); err != nil {
 		return 0, fmt.Errorf("failed to parse OPML: %w", err)
@@ -1019,6 +1062,9 @@ func (fs *FeedService) FindArticleByURL(url string) (*database.Article, error) {
 
 // ImportOPMLWithLimits imports OPML feeds while respecting subscription limits
 func (fs *FeedService) ImportOPMLWithLimits(userID int, opmlData []byte, subscriptionService *SubscriptionService) (int, error) {
+	if err := validateOPMLComplexity(opmlData); err != nil {
+		return 0, err
+	}
 	var opml OPML
 	if err := xml.Unmarshal(opmlData, &opml); err != nil {
 		return 0, fmt.Errorf("failed to parse OPML: %w", err)
