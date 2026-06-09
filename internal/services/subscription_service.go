@@ -241,7 +241,7 @@ func (ss *SubscriptionService) GenerateAdminToken(description string) (string, e
 			return "", fmt.Errorf("failed to store admin token in datastore: %w", err)
 		}
 	} else {
-		return "", errors.New("admin token storage not supported for this database type")
+		return "", fmt.Errorf("admin token storage not supported for database type %T", ss.db)
 	}
 
 	// Return the plain token (this is the only time it's visible)
@@ -316,7 +316,7 @@ func (ss *SubscriptionService) ValidateAdminToken(token string) (bool, error) {
 		return true, nil
 	}
 
-	return false, errors.New("admin token validation not supported for this database type")
+	return false, fmt.Errorf("admin token validation not supported for database type %T", ss.db)
 }
 
 // ListAdminTokens returns all admin tokens (without the actual token values)
@@ -374,7 +374,7 @@ func (ss *SubscriptionService) ListAdminTokens() ([]AdminToken, error) {
 		return tokens, nil
 	}
 
-	return nil, errors.New("admin token listing not supported for this database type")
+	return nil, fmt.Errorf("admin token listing not supported for database type %T", ss.db)
 }
 
 // RevokeAdminToken deactivates an admin token
@@ -427,7 +427,7 @@ func (ss *SubscriptionService) RevokeAdminToken(tokenID int) error {
 		return nil
 	}
 
-	return errors.New("admin token revocation not supported for this database type")
+	return fmt.Errorf("admin token revocation not supported for database type %T", ss.db)
 }
 
 // HasAdminTokens checks if any active admin tokens exist
@@ -455,5 +455,5 @@ func (ss *SubscriptionService) HasAdminTokens() (bool, error) {
 		return count > 0, nil
 	}
 
-	return false, errors.New("admin token check not supported for this database type")
+	return false, fmt.Errorf("admin token check not supported for database type %T", ss.db)
 }

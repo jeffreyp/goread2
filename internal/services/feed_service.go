@@ -1035,13 +1035,9 @@ func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {
 	}
 
 	importedCount := 0
-	feeds := fs.extractFeedsFromOutlines(opml.Body.Outlines)
+	feeds := deduplicateFeedURLs(fs.extractFeedsFromOutlines(opml.Body.Outlines))
 
 	for _, feedURL := range feeds {
-		if feedURL == "" {
-			continue
-		}
-
 		_, err := fs.AddFeedForUser(userID, feedURL)
 		if err != nil {
 			// Log error but continue with other feeds
@@ -1070,15 +1066,26 @@ func (fs *FeedService) ImportOPMLWithLimits(userID int, opmlData []byte, subscri
 		return 0, fmt.Errorf("failed to parse OPML: %w", err)
 	}
 
-	feeds := fs.extractFeedsFromOutlines(opml.Body.Outlines)
+	// Build a set of the user's existing feed URLs to skip duplicate quota checks
+	existingFeeds, err := fs.db.GetUserFeeds(userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get existing feeds: %w", err)
+	}
+	existingURLs := make(map[string]bool, len(existingFeeds))
+	for _, f := range existingFeeds {
+		existingURLs[f.URL] = true
+	}
+
+	feeds := deduplicateFeedURLs(fs.extractFeedsFromOutlines(opml.Body.Outlines))
 	importedCount := 0
 
 	for _, feedURL := range feeds {
-		if feedURL == "" {
+		// Skip feeds the user is already subscribed to — no quota consumed
+		if existingURLs[feedURL] {
 			continue
 		}
 
-		// Check if user can add more feeds before each import
+		// Check if user can add more feeds before each new import
 		if err := subscriptionService.CanUserAddFeed(userID); err != nil {
 			// Return partial import count and the error
 			return importedCount, err
@@ -1092,9 +1099,23 @@ func (fs *FeedService) ImportOPMLWithLimits(userID int, opmlData []byte, subscri
 		}
 
 		importedCount++
+		existingURLs[feedURL] = true // track newly added feeds within this import
 	}
 
 	return importedCount, nil
+}
+
+// deduplicateFeedURLs removes empty strings and duplicate URLs, preserving order.
+func deduplicateFeedURLs(urls []string) []string {
+	seen := make(map[string]bool, len(urls))
+	out := make([]string, 0, len(urls))
+	for _, u := range urls {
+		if u != "" && !seen[u] {
+			seen[u] = true
+			out = append(out, u)
+		}
+	}
+	return out
 }
 
 func (fs *FeedService) extractFeedsFromOutlines(outlines []OPMLOutline) []string {
