@@ -16,6 +16,21 @@ class AnimationManager {
     }
 
     /**
+     * Wrap a handler so it runs at most once per animation frame
+     */
+    rafThrottle(fn) {
+        let scheduled = false;
+        return (...args) => {
+            if (scheduled) return;
+            scheduled = true;
+            requestAnimationFrame(() => {
+                scheduled = false;
+                fn(...args);
+            });
+        };
+    }
+
+    /**
      * Add shadow to header on scroll
      */
     setupHeaderScrollShadow() {
@@ -26,35 +41,35 @@ class AnimationManager {
             // Observe content pane scroll for desktop
             const contentPane = document.querySelector('.content-pane');
             if (contentPane) {
-                contentPane.addEventListener('scroll', () => {
+                contentPane.addEventListener('scroll', this.rafThrottle(() => {
                     if (contentPane.scrollTop > 10) {
                         header.classList.add('scrolled');
                     } else {
                         header.classList.remove('scrolled');
                     }
-                });
+                }), { passive: true });
             }
 
             // Observe article pane scroll
             const articlePane = document.querySelector('.article-pane');
             if (articlePane) {
-                articlePane.addEventListener('scroll', () => {
+                articlePane.addEventListener('scroll', this.rafThrottle(() => {
                     if (articlePane.scrollTop > 10) {
                         header.classList.add('scrolled');
                     } else {
                         header.classList.remove('scrolled');
                     }
-                });
+                }), { passive: true });
             }
 
             // Observe main window scroll
-            window.addEventListener('scroll', () => {
+            window.addEventListener('scroll', this.rafThrottle(() => {
                 if (window.scrollY > 10) {
                     header.classList.add('scrolled');
                 } else {
                     header.classList.remove('scrolled');
                 }
-            });
+            }), { passive: true });
         };
 
         observeScrollPanes();
@@ -317,11 +332,12 @@ class AnimationManager {
         };
 
         // Listen to scroll events
+        const throttledShowScrollBtn = this.rafThrottle(showScrollBtn);
         const contentPane = document.querySelector('.content-pane');
         if (contentPane) {
-            contentPane.addEventListener('scroll', showScrollBtn);
+            contentPane.addEventListener('scroll', throttledShowScrollBtn, { passive: true });
         }
-        window.addEventListener('scroll', showScrollBtn);
+        window.addEventListener('scroll', throttledShowScrollBtn, { passive: true });
 
         // Scroll to top on click
         scrollBtn.addEventListener('click', () => {

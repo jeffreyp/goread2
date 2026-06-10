@@ -1607,8 +1607,8 @@ body.app-body {
         cursor: pointer;
         padding: 8px;
         color: #5f6368;
-        min-width: 44px;
-        min-height: 44px;
+        min-width: 48px;
+        min-height: 48px;
     }
 
     .header-actions {
@@ -1630,8 +1630,8 @@ body.app-body {
     }
 
     .btn {
-        min-height: 44px;
-        min-width: 44px;
+        min-height: 48px;
+        min-width: 48px;
         padding: 10px 16px;
         font-size: 14px;
     }
@@ -1780,9 +1780,10 @@ body.app-body {
         font-size: 15px;
     }
 
-    .action-btn {
-        min-width: 44px;
-        min-height: 44px;
+    .action-btn,
+    .delete-feed {
+        min-width: 48px;
+        min-height: 48px;
         padding: 10px;
         font-size: 18px;
     }
@@ -1803,7 +1804,7 @@ body.app-body {
 
     .article-filter label {
         padding: 8px;
-        min-height: 44px;
+        min-height: 48px;
         display: flex;
         align-items: center;
     }
@@ -1859,16 +1860,16 @@ body.app-body {
         cursor: pointer;
         padding: 6px;
         color: #5f6368;
-        min-width: 44px;
-        min-height: 44px;
+        min-width: 48px;
+        min-height: 48px;
         display: flex;
         align-items: center;
         justify-content: center;
     }
 
     .btn {
-        min-height: 44px;
-        min-width: 44px;
+        min-height: 48px;
+        min-width: 48px;
         padding: 10px 14px;
         font-size: 14px;
     }
@@ -1927,9 +1928,10 @@ body.app-body {
         font-size: 14px;
     }
 
-    .action-btn {
-        min-width: 44px;
-        min-height: 44px;
+    .action-btn,
+    .delete-feed {
+        min-width: 48px;
+        min-height: 48px;
         padding: 10px;
         font-size: 18px;
     }
@@ -2004,8 +2006,8 @@ body.app-body {
         cursor: pointer;
         padding: 8px;
         color: #5f6368;
-        min-width: 44px;
-        min-height: 44px;
+        min-width: 48px;
+        min-height: 48px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -2181,7 +2183,7 @@ body.app-body {
 
     .article-filter label {
         padding: 8px 12px;
-        min-height: 44px;
+        min-height: 48px;
         display: flex;
         align-items: center;
         border-radius: 4px;
@@ -2230,8 +2232,8 @@ body.app-body {
 
     /* Delete button needs better touch target */
     .delete-feed {
-        min-width: 44px;
-        min-height: 44px;
+        min-width: 48px;
+        min-height: 48px;
         padding: 10px;
         font-size: 20px;
     }
