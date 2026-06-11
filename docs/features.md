@@ -41,6 +41,9 @@ On tablets in portrait orientation, GoRead2 provides a reading-optimized layout:
 - Sidebar automatically hides when you select an article to maximize reading space
 - Tap the dimmed area outside the sidebar to close it
 
+#### Rotation
+When the device is rotated (or the window is resized across a layout breakpoint), pane state resets to the new layout's default — on phone portrait the content pane is shown with the bottom navigation bar; other layouts return to their standard multi-pane view.
+
 ## Feed Management
 
 ### Adding Feeds

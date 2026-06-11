@@ -642,6 +642,63 @@ class GoReadApp {
                 });
             });
         }
+
+        // Reset pane state when rotation or resize crosses a layout breakpoint
+        this.setupLayoutChangeHandler();
+    }
+
+    setupLayoutChangeHandler() {
+        // Phone portrait drives panes with .active classes and an inline sidebar
+        // transform; every other layout uses CSS grid. Without a reset, state from
+        // one mode persists into the other after rotation and conflicts with it.
+        const getLayoutMode = () => {
+            const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+            if (window.innerWidth < 768) return isPortrait ? 'phone-portrait' : 'phone-landscape';
+            if (window.innerWidth < 1024) return isPortrait ? 'tablet-portrait' : 'tablet-landscape';
+            return 'desktop';
+        };
+
+        let layoutMode = getLayoutMode();
+        let resetScheduled = false;
+
+        const handleLayoutChange = () => {
+            if (resetScheduled) return;
+            resetScheduled = true;
+            requestAnimationFrame(() => {
+                resetScheduled = false;
+                const newMode = getLayoutMode();
+                if (newMode === layoutMode) return;
+                layoutMode = newMode;
+                this.resetPaneState(newMode);
+            });
+        };
+
+        window.addEventListener('resize', handleLayoutChange);
+        window.addEventListener('orientationchange', handleLayoutChange);
+    }
+
+    resetPaneState(mode) {
+        const feedPane = document.querySelector('.feed-pane');
+        const articlePane = document.querySelector('.article-pane');
+        const sidebarWrapper = document.querySelector('.sidebar-wrapper');
+        const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+        const mobileNavButtons = document.querySelectorAll('.mobile-nav-btn');
+
+        if (feedPane) feedPane.classList.remove('active');
+        if (articlePane) articlePane.classList.remove('active');
+        if (sidebarWrapper) sidebarWrapper.classList.remove('show');
+        if (sidebarBackdrop) sidebarBackdrop.classList.remove('show');
+        mobileNavButtons.forEach(btn => btn.classList.remove('active'));
+
+        if (mode === 'phone-portrait') {
+            // Match the initial phone-portrait state: content visible, sidebar off-screen
+            if (sidebarWrapper) sidebarWrapper.style.transform = 'translateX(-100%)';
+            const contentBtn = document.querySelector('[data-pane="content"]');
+            if (contentBtn) contentBtn.classList.add('active');
+        } else if (sidebarWrapper) {
+            // Other layouts position the sidebar via CSS; clear the inline transform
+            sidebarWrapper.style.transform = '';
+        }
     }
 
     updateMobileNavigation(pane) {
