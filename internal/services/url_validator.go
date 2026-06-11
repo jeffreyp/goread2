@@ -16,12 +16,35 @@ const (
 	dnsLookupTimeout = 5 * time.Second
 )
 
+// HTTPClientTimeouts configures the transport-level timeouts used by
+// CreateSecureHTTPClient. NewURLValidator populates secure defaults;
+// override individual fields before creating a client to tune them.
+type HTTPClientTimeouts struct {
+	Dial           time.Duration
+	TLSHandshake   time.Duration
+	ResponseHeader time.Duration
+	ExpectContinue time.Duration
+}
+
+// DefaultHTTPClientTimeouts returns the standard timeouts used for feed fetching
+func DefaultHTTPClientTimeouts() HTTPClientTimeouts {
+	return HTTPClientTimeouts{
+		Dial:           30 * time.Second,
+		TLSHandshake:   10 * time.Second,
+		ResponseHeader: 10 * time.Second,
+		ExpectContinue: 1 * time.Second,
+	}
+}
+
 // URLValidator provides SSRF protection for feed URL validation
 type URLValidator struct {
 	// AllowedSchemes restricts the URL schemes that can be used
 	AllowedSchemes map[string]bool
 	// BlockedNetworks contains IP ranges that should not be accessed
 	BlockedNetworks []*net.IPNet
+	// Timeouts controls transport-level timeouts for clients created by
+	// CreateSecureHTTPClient
+	Timeouts HTTPClientTimeouts
 }
 
 // NewURLValidator creates a new URL validator with secure defaults
@@ -32,6 +55,7 @@ func NewURLValidator() *URLValidator {
 			"https": true,
 		},
 		BlockedNetworks: make([]*net.IPNet, 0),
+		Timeouts:        DefaultHTTPClientTimeouts(),
 	}
 
 	// Add blocked IP ranges for SSRF protection
@@ -155,12 +179,12 @@ func (v *URLValidator) CreateSecureHTTPClient(timeout time.Duration) *http.Clien
 		},
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
+				Timeout:   v.Timeouts.Dial,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
+			TLSHandshakeTimeout:   v.Timeouts.TLSHandshake,
+			ResponseHeaderTimeout: v.Timeouts.ResponseHeader,
+			ExpectContinueTimeout: v.Timeouts.ExpectContinue,
 			// Disable HTTP/2 for more predictable behavior
 			ForceAttemptHTTP2: false,
 		},

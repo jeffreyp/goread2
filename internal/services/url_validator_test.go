@@ -309,6 +309,38 @@ func TestCreateSecureHTTPClient(t *testing.T) {
 	}
 }
 
+func TestCreateSecureHTTPClient_ConfigurableTimeouts(t *testing.T) {
+	validator := NewURLValidator()
+
+	defaults := DefaultHTTPClientTimeouts()
+	if validator.Timeouts != defaults {
+		t.Errorf("NewURLValidator should use default timeouts, got %+v", validator.Timeouts)
+	}
+
+	validator.Timeouts = HTTPClientTimeouts{
+		Dial:           5 * time.Second,
+		TLSHandshake:   2 * time.Second,
+		ResponseHeader: 3 * time.Second,
+		ExpectContinue: 500 * time.Millisecond,
+	}
+
+	client := validator.CreateSecureHTTPClient(30 * time.Second)
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("client transport should be *http.Transport")
+	}
+
+	if transport.TLSHandshakeTimeout != 2*time.Second {
+		t.Errorf("TLSHandshakeTimeout = %v, want 2s", transport.TLSHandshakeTimeout)
+	}
+	if transport.ResponseHeaderTimeout != 3*time.Second {
+		t.Errorf("ResponseHeaderTimeout = %v, want 3s", transport.ResponseHeaderTimeout)
+	}
+	if transport.ExpectContinueTimeout != 500*time.Millisecond {
+		t.Errorf("ExpectContinueTimeout = %v, want 500ms", transport.ExpectContinueTimeout)
+	}
+}
+
 func TestSecureHTTPClient_RedirectLimit(t *testing.T) {
 	validator := NewURLValidator()
 
