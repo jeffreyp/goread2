@@ -2,11 +2,34 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/database"
 )
+
+// requestTraceID returns a trace/request ID for correlation in logs and error responses.
+// Prefers X-Cloud-Trace-Context (set by App Engine), then X-Request-ID, then a random fallback.
+func requestTraceID(c *gin.Context) string {
+	if trace := c.GetHeader("X-Cloud-Trace-Context"); trace != "" {
+		if i := strings.Index(trace, "/"); i > 0 {
+			return trace[:i]
+		}
+		return trace
+	}
+	if id := c.GetHeader("X-Request-ID"); id != "" {
+		return id
+	}
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err == nil {
+		return hex.EncodeToString(b)
+	}
+	return "unknown"
+}
 
 type contextKey string
 
@@ -49,7 +72,10 @@ func (m *Middleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session, exists := m.getOrLoadSession(c)
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			traceID := requestTraceID(c)
+			log.Printf("SECURITY: unauthenticated request to %s %s from IP %s (trace=%s)",
+				c.Request.Method, c.Request.URL.Path, GetSecureClientIP(c), traceID)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required", "request_id": traceID})
 			c.Abort()
 			return
 		}
@@ -101,13 +127,19 @@ func (m *Middleware) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session, exists := m.getOrLoadSession(c)
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			traceID := requestTraceID(c)
+			log.Printf("SECURITY: unauthenticated admin request to %s %s from IP %s (trace=%s)",
+				c.Request.Method, c.Request.URL.Path, GetSecureClientIP(c), traceID)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required", "request_id": traceID})
 			c.Abort()
 			return
 		}
 
 		if !session.User.IsAdmin {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Admin privileges required"})
+			traceID := requestTraceID(c)
+			log.Printf("SECURITY: non-admin access attempt to %s %s by user %d from IP %s (trace=%s)",
+				c.Request.Method, c.Request.URL.Path, session.User.ID, GetSecureClientIP(c), traceID)
+			c.JSON(http.StatusForbidden, gin.H{"error": "Admin privileges required", "request_id": traceID})
 			c.Abort()
 			return
 		}
