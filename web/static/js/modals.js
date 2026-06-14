@@ -4,6 +4,8 @@
 export class ModalManager {
     constructor(app) {
         this.app = app;
+        this._trapHandlers = new Map(); // modal element → keydown handler
+        this._returnFocus = new Map();  // modal element → element to restore focus to
     }
 
     // Helper to get auth headers from parent app
@@ -18,9 +20,53 @@ export class ModalManager {
         console.log('ModalManager initialized');
     }
 
+    _startFocusTrap(modal) {
+        this._returnFocus.set(modal, document.activeElement);
+
+        const focusable = modal.querySelectorAll(
+            'a[href], button:not(:disabled), input:not(:disabled), ' +
+            'select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        first.focus();
+
+        const handler = (e) => {
+            if (e.key !== 'Tab') return;
+            if (e.shiftKey) {
+                if (document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        };
+
+        modal.addEventListener('keydown', handler);
+        this._trapHandlers.set(modal, handler);
+    }
+
+    _stopFocusTrap(modal) {
+        const handler = this._trapHandlers.get(modal);
+        if (handler) {
+            modal.removeEventListener('keydown', handler);
+            this._trapHandlers.delete(modal);
+        }
+        const returnTo = this._returnFocus.get(modal);
+        if (returnTo && returnTo.focus) returnTo.focus();
+        this._returnFocus.delete(modal);
+    }
+
     showAddFeedModal() {
-        document.getElementById('add-feed-modal').style.display = 'block';
-        document.getElementById('feed-url').focus();
+        const modal = document.getElementById('add-feed-modal');
+        modal.style.display = 'block';
+        this._startFocusTrap(modal);
     }
 
     hideAddFeedModal() {
@@ -43,25 +89,33 @@ export class ModalManager {
         cancelButton.disabled = false;
         inputField.disabled = false;
 
+        this._stopFocusTrap(modal);
         modal.style.display = 'none';
         form.reset();
     }
 
     showHelpModal() {
-        document.getElementById('help-modal').style.display = 'block';
+        const modal = document.getElementById('help-modal');
+        modal.style.display = 'block';
+        this._startFocusTrap(modal);
     }
 
     hideHelpModal() {
-        document.getElementById('help-modal').style.display = 'none';
+        const modal = document.getElementById('help-modal');
+        this._stopFocusTrap(modal);
+        modal.style.display = 'none';
     }
 
     showImportOpmlModal() {
-        document.getElementById('import-opml-modal').style.display = 'block';
+        const modal = document.getElementById('import-opml-modal');
+        modal.style.display = 'block';
+        this._startFocusTrap(modal);
     }
 
     hideImportOpmlModal() {
         const modal = document.getElementById('import-opml-modal');
         const form = document.getElementById('import-opml-form');
+        this._stopFocusTrap(modal);
         modal.style.display = 'none';
         form.reset();
     }

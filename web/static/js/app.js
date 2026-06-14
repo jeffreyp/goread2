@@ -2390,6 +2390,33 @@ class GoReadApp {
     }
 
     // Subscription management methods
+
+    _applyFocusTrap(modal) {
+        const returnTo = document.activeElement;
+        const focusable = modal.querySelectorAll(
+            'a[href], button:not(:disabled), input:not(:disabled), ' +
+            'select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length) focusable[0].focus();
+
+        const trapHandler = (e) => {
+            if (e.key !== 'Tab' || !focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey) {
+                if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+            } else {
+                if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+            }
+        };
+
+        modal.addEventListener('keydown', trapHandler);
+        return () => {
+            modal.removeEventListener('keydown', trapHandler);
+            if (returnTo && returnTo.focus) returnTo.focus();
+        };
+    }
+
     showSubscriptionLimitModal(error) {
         const modal = document.createElement('div');
         modal.className = 'modal';
@@ -2401,7 +2428,7 @@ class GoReadApp {
             <div class="modal-content">
                 <button class="close" aria-label="Close">&times;</button>
                 <h2 id="subscription-limit-heading">Upgrade to Pro</h2>
-                <p>You've reached the free limit of ${error.current_limit} feeds.</p>
+                <p>You've reached the free limit of ${Number(error.current_limit)} feeds.</p>
                 <p>Upgrade to <strong>GoRead2 Pro</strong> for:</p>
                 <ul>
                     <li>Unlimited RSS feeds</li>
@@ -2417,8 +2444,10 @@ class GoReadApp {
         `;
 
         document.body.appendChild(modal);
+        const releaseTrap = this._applyFocusTrap(modal);
 
         const closeModal = () => {
+            releaseTrap();
             modal.remove();
         };
 
@@ -2462,8 +2491,10 @@ class GoReadApp {
         `;
 
         document.body.appendChild(modal);
+        const releaseTrap = this._applyFocusTrap(modal);
 
         const closeModal = () => {
+            releaseTrap();
             modal.remove();
         };
 

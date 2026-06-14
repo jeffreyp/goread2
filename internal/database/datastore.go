@@ -1331,12 +1331,15 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 			}
 
 			if _, err := tx.PutMulti(keys, entities); err != nil {
-				return err
+				return fmt.Errorf("failed to write article status batch: %w", err)
 			}
 		}
 		return nil
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to batch set article statuses: %w", err)
+	}
+	return nil
 }
 
 func (db *DatastoreDB) MarkAllUserArticlesRead(userID int) (int, error) {
@@ -1387,12 +1390,15 @@ func (db *DatastoreDB) MarkAllUserArticlesRead(userID int) (int, error) {
 				keys[j] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, aid), nil)
 			}
 			if _, err := tx.PutMulti(keys, entities); err != nil {
-				return err
+				return fmt.Errorf("failed to write read status batch: %w", err)
 			}
 		}
 		return nil
 	})
-	return len(articleIDs), err
+	if err != nil {
+		return 0, fmt.Errorf("failed to mark all articles read: %w", err)
+	}
+	return len(articleIDs), nil
 }
 
 func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
@@ -1401,7 +1407,7 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 
 	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user feeds: %w", err)
 	}
 
 	if len(userFeeds) == 0 {
@@ -1532,7 +1538,7 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 
 	userFeeds, err := db.getUserFeedsWithRetry(ctx, userID, 3, 500*time.Millisecond)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user feeds: %w", err)
 	}
 
 	if len(userFeeds) == 0 {
@@ -1936,10 +1942,15 @@ func (db *DatastoreDB) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) 
 			return fmt.Errorf("failed to get user: %w", err)
 		}
 		user.IsAdmin = isAdmin
-		_, err := tx.Put(userKey, &user)
-		return err
+		if _, err := tx.Put(userKey, &user); err != nil {
+			return fmt.Errorf("failed to save user: %w", err)
+		}
+		return nil
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to set user admin status: %w", err)
+	}
+	return nil
 }
 
 func (db *DatastoreDB) SetUserAdmin(userID int, isAdmin bool) error {
@@ -2047,8 +2058,10 @@ func (db *DatastoreDB) CreateSession(session *Session) error {
 	}
 
 	key := datastore.NameKey("Session", session.ID, nil)
-	_, err := db.client.Put(ctx, key, entity)
-	return err
+	if _, err := db.client.Put(ctx, key, entity); err != nil {
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+	return nil
 }
 
 func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
@@ -2063,7 +2076,7 @@ func (db *DatastoreDB) GetSession(sessionID string) (*Session, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
 	entity.ID = sessionID
@@ -2085,15 +2098,17 @@ func (db *DatastoreDB) UpdateSessionExpiry(sessionID string, newExpiry time.Time
 	// Get existing session first
 	var session Session
 	if err := db.client.Get(ctx, key, &session); err != nil {
-		return err
+		return fmt.Errorf("failed to get session for expiry update: %w", err)
 	}
 
 	// Update expiry
 	session.ExpiresAt = newExpiry
 
 	// Save back to Datastore
-	_, err := db.client.Put(ctx, key, &session)
-	return err
+	if _, err := db.client.Put(ctx, key, &session); err != nil {
+		return fmt.Errorf("failed to update session expiry: %w", err)
+	}
+	return nil
 }
 
 func (db *DatastoreDB) DeleteSession(sessionID string) error {
@@ -2101,7 +2116,10 @@ func (db *DatastoreDB) DeleteSession(sessionID string) error {
 	defer cancel()
 
 	key := datastore.NameKey("Session", sessionID, nil)
-	return db.client.Delete(ctx, key)
+	if err := db.client.Delete(ctx, key); err != nil {
+		return fmt.Errorf("failed to delete session: %w", err)
+	}
+	return nil
 }
 
 func (db *DatastoreDB) DeleteExpiredSessions() error {
@@ -2113,12 +2131,14 @@ func (db *DatastoreDB) DeleteExpiredSessions() error {
 
 	keys, err := db.client.GetAll(ctx, query, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to query expired sessions: %w", err)
 	}
 
 	// Delete expired sessions in batches
 	if len(keys) > 0 {
-		return db.client.DeleteMulti(ctx, keys)
+		if err := db.client.DeleteMulti(ctx, keys); err != nil {
+			return fmt.Errorf("failed to delete expired sessions: %w", err)
+		}
 	}
 
 	return nil
