@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,17 +21,18 @@ type UnreadCache struct {
 
 // NewUnreadCache creates a new unread count cache with the specified TTL.
 // Typical TTL is 90-120 seconds for background refresh of counts.
+// Call Start(ctx) to begin the background cleanup goroutine.
 func NewUnreadCache(ttl time.Duration) *UnreadCache {
-	uc := &UnreadCache{
+	return &UnreadCache{
 		counts:    make(map[int]map[int]int),
 		refreshAt: make(map[int]time.Time),
 		ttl:       ttl,
 	}
+}
 
-	// Start cleanup goroutine to prevent memory leak
-	go uc.cleanupExpiredEntries()
-
-	return uc
+// Start begins the background cleanup goroutine. The goroutine exits when ctx is cancelled.
+func (uc *UnreadCache) Start(ctx context.Context) {
+	go uc.cleanupExpiredEntries(ctx)
 }
 
 // Get retrieves cached unread counts for a user if they exist and are not expired.
@@ -174,19 +176,24 @@ func (uc *UnreadCache) GetStats() CacheStats {
 
 // cleanupExpiredEntries removes expired cache entries to prevent memory leak.
 // Runs every 5 minutes to clean up entries that have passed their expiry time.
-func (uc *UnreadCache) cleanupExpiredEntries() {
+func (uc *UnreadCache) cleanupExpiredEntries(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		uc.mu.Lock()
-		now := time.Now()
-		for userID, expiry := range uc.refreshAt {
-			if now.After(expiry) {
-				delete(uc.counts, userID)
-				delete(uc.refreshAt, userID)
+	for {
+		select {
+		case <-ticker.C:
+			uc.mu.Lock()
+			now := time.Now()
+			for userID, expiry := range uc.refreshAt {
+				if now.After(expiry) {
+					delete(uc.counts, userID)
+					delete(uc.refreshAt, userID)
+				}
 			}
+			uc.mu.Unlock()
+		case <-ctx.Done():
+			return
 		}
-		uc.mu.Unlock()
 	}
 }

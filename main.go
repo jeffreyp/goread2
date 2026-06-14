@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -42,7 +45,11 @@ func main() {
 	})
 
 	// Initialize services
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
 	feedService := services.NewFeedService(db, rateLimiter)
+	feedService.Start(ctx)
 	subscriptionService := services.NewSubscriptionService(db)
 	auditService := services.NewAuditService(db)
 	authService := auth.NewAuthService(db)

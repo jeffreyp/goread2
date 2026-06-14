@@ -182,6 +182,12 @@ func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedS
 	}
 }
 
+// Start begins the background cache cleanup goroutines. The goroutines exit when ctx is cancelled.
+func (fs *FeedService) Start(ctx context.Context) {
+	fs.unreadCache.Start(ctx)
+	fs.feedListCache.Start(ctx)
+}
+
 // SetHTTPClient sets a custom HTTP client for testing purposes
 func (fs *FeedService) SetHTTPClient(client HTTPClient) {
 	fs.httpClient = client

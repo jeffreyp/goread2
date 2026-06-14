@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,16 +23,17 @@ type FeedListCache struct {
 
 // NewFeedListCache creates a new feed list cache with the specified TTL.
 // Typical TTL is 15-30 minutes to balance freshness with cost savings.
+// Call Start(ctx) to begin the background cleanup goroutine.
 func NewFeedListCache(ttl time.Duration) *FeedListCache {
-	fc := &FeedListCache{
+	return &FeedListCache{
 		feeds: nil,
 		ttl:   ttl,
 	}
+}
 
-	// Start cleanup goroutine to prevent memory leak
-	go fc.cleanupIfExpired()
-
-	return fc
+// Start begins the background cleanup goroutine. The goroutine exits when ctx is cancelled.
+func (fc *FeedListCache) Start(ctx context.Context) {
+	go fc.cleanupIfExpired(ctx)
 }
 
 // Get retrieves the cached feed list if it exists and is not expired.
@@ -119,15 +121,20 @@ func (fc *FeedListCache) GetStats() FeedListCacheStats {
 
 // cleanupIfExpired removes expired cache entry to prevent memory leak.
 // Runs every 5 minutes to clean up the feed list if it has passed its expiry time.
-func (fc *FeedListCache) cleanupIfExpired() {
+func (fc *FeedListCache) cleanupIfExpired(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		fc.mu.Lock()
-		if fc.feeds != nil && time.Now().After(fc.refreshAt) {
-			fc.feeds = nil
+	for {
+		select {
+		case <-ticker.C:
+			fc.mu.Lock()
+			if fc.feeds != nil && time.Now().After(fc.refreshAt) {
+				fc.feeds = nil
+			}
+			fc.mu.Unlock()
+		case <-ctx.Done():
+			return
 		}
-		fc.mu.Unlock()
 	}
 }
