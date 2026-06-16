@@ -24,7 +24,18 @@ const (
 	// unreadCountWindowDays is the lookback window for unread count queries.
 	// Articles older than this are excluded from badge counts to cap read costs.
 	unreadCountWindowDays = 90
+
+	// slowQueryThreshold is the minimum duration before a datastore operation is logged as slow.
+	slowQueryThreshold = 200 * time.Millisecond
 )
+
+// logSlowQuery logs a warning when a datastore operation exceeds slowQueryThreshold.
+// Usage: defer logSlowQuery("OperationName", time.Now())
+func logSlowQuery(op string, start time.Time) {
+	if d := time.Since(start); d > slowQueryThreshold {
+		log.Printf("[datastore slow] %s took %v", op, d)
+	}
+}
 
 type DatastoreDB struct {
 	client    *datastore.Client
@@ -514,6 +525,7 @@ const articleURLDeduplicationWindow = 90 * 24 * time.Hour
 // per article, reducing Firestore reads from N to 1 per feed refresh cycle.
 // Only checks articles created within the last 90 days to bound read costs.
 func (db *DatastoreDB) FilterExistingArticleURLs(feedID int, urls []string) (map[string]bool, error) {
+	defer logSlowQuery("FilterExistingArticleURLs", time.Now())
 	if len(urls) == 0 {
 		return map[string]bool{}, nil
 	}
@@ -696,6 +708,7 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 }
 
 func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
+	defer logSlowQuery("GetUserFeeds", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
@@ -852,6 +865,7 @@ type articlePublishedAtProjection struct {
 }
 
 func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
+	defer logSlowQuery("GetUserArticlesPaginated", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
@@ -1057,6 +1071,7 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor st
 }
 
 func (db *DatastoreDB) GetUserFeedArticles(userID, feedID int) ([]Article, error) {
+	defer logSlowQuery("GetUserFeedArticles", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
@@ -1298,6 +1313,7 @@ func (db *DatastoreDB) ToggleUserArticleStar(userID, articleID int) error {
 }
 
 func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, isStarred bool) error {
+	defer logSlowQuery("BatchSetUserArticleStatus", time.Now())
 	if len(articles) == 0 {
 		return nil
 	}
@@ -1343,6 +1359,7 @@ func (db *DatastoreDB) BatchSetUserArticleStatus(userID int, articles []Article,
 }
 
 func (db *DatastoreDB) MarkAllUserArticlesRead(userID int) (int, error) {
+	defer logSlowQuery("MarkAllUserArticlesRead", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
@@ -1402,6 +1419,7 @@ func (db *DatastoreDB) MarkAllUserArticlesRead(userID int) (int, error) {
 }
 
 func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
+	defer logSlowQuery("GetUserUnreadCounts", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
@@ -1533,6 +1551,7 @@ func (db *DatastoreDB) GetTotalArticleCount(userID int) (int, error) {
 // GetAccountStats retrieves user account statistics using parallel queries.
 // Returns total articles, total unread, and active feeds count.
 func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, error) {
+	defer logSlowQuery("GetAccountStats", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
@@ -1657,6 +1676,7 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 // the user is no longer subscribed to. Only cleans up articles older than the specified number of days.
 // Returns the number of records deleted.
 func (db *DatastoreDB) CleanupOrphanedUserArticles(olderThanDays int) (int, error) {
+	defer logSlowQuery("CleanupOrphanedUserArticles", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 	deletedCount := 0

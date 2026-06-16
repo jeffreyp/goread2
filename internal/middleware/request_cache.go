@@ -31,6 +31,29 @@ func RequestCacheMiddleware() gin.HandlerFunc {
 	}
 }
 
+// InvalidateUserFeeds removes the cached feeds for userID so the next call to
+// GetCachedUserFeeds re-fetches from the database. Call this after any mutation
+// that changes the user's feed subscriptions within the same request.
+func (rc *RequestCache) InvalidateUserFeeds(userID int) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	delete(rc.userFeeds, userID)
+}
+
+// InvalidateCachedUserFeeds removes the cached feeds for userID from the
+// request-scoped cache stored in c. No-op if the cache middleware is absent.
+func InvalidateCachedUserFeeds(c *gin.Context, userID int) {
+	cacheInterface, exists := c.Get(requestCacheKey)
+	if !exists {
+		return
+	}
+	cache, ok := cacheInterface.(*RequestCache)
+	if !ok {
+		return
+	}
+	cache.InvalidateUserFeeds(userID)
+}
+
 // GetCachedUserFeeds retrieves user feeds from request cache if available,
 // otherwise fetches from database and stores in cache for subsequent calls.
 // This eliminates duplicate GetUserFeeds calls within a single request.

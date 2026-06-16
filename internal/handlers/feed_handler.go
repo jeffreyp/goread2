@@ -122,6 +122,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 		c.JSON(statusCode, errorDetails)
 		return
 	}
+	middleware.InvalidateCachedUserFeeds(c, user.ID)
 	c.JSON(http.StatusCreated, feed)
 }
 
@@ -143,6 +144,7 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	middleware.InvalidateCachedUserFeeds(c, user.ID)
 	c.JSON(http.StatusOK, gin.H{"message": "Feed removed from your subscriptions successfully"})
 }
 
