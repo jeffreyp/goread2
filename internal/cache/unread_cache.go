@@ -15,6 +15,7 @@ type UnreadCache struct {
 	refreshAt map[int]time.Time   // userID → cache expiry time
 	mu        sync.RWMutex
 	ttl       time.Duration
+	maxUsers  int // 0 means unlimited
 	hits      int64
 	misses    int64
 }
@@ -63,10 +64,35 @@ func (uc *UnreadCache) Get(userID int) (map[int]int, bool) {
 	return result, true
 }
 
+// SetMaxUsers configures the maximum number of users to cache. When the limit
+// is reached and a new user needs to be added, the entry closest to expiry is
+// evicted to make room. A value of 0 (the default) means unlimited.
+func (uc *UnreadCache) SetMaxUsers(n int) {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	uc.maxUsers = n
+}
+
 // Set stores unread counts for a user in the cache with the configured TTL.
 func (uc *UnreadCache) Set(userID int, counts map[int]int) {
 	uc.mu.Lock()
 	defer uc.mu.Unlock()
+
+	// Enforce max size: evict the entry closest to expiry when adding a new user
+	if uc.maxUsers > 0 {
+		if _, alreadyCached := uc.counts[userID]; !alreadyCached && len(uc.counts) >= uc.maxUsers {
+			var evictID int
+			var earliest time.Time
+			for uid, expiry := range uc.refreshAt {
+				if earliest.IsZero() || expiry.Before(earliest) {
+					evictID = uid
+					earliest = expiry
+				}
+			}
+			delete(uc.counts, evictID)
+			delete(uc.refreshAt, evictID)
+		}
+	}
 
 	// Store a copy to prevent external modification
 	cached := make(map[int]int, len(counts))
@@ -136,6 +162,7 @@ func (uc *UnreadCache) InvalidateAll() {
 // Stats returns cache statistics for monitoring.
 type CacheStats struct {
 	CachedUsers int
+	MaxUsers    int
 	TotalFeeds  int
 	Hits        int64
 	Misses      int64
@@ -167,6 +194,7 @@ func (uc *UnreadCache) GetStats() CacheStats {
 
 	return CacheStats{
 		CachedUsers: activeUsers,
+		MaxUsers:    uc.maxUsers,
 		TotalFeeds:  totalFeeds,
 		Hits:        hits,
 		Misses:      misses,

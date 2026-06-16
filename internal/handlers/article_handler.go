@@ -20,13 +20,13 @@ func NewArticleHandler(feedService *services.FeedService) *ArticleHandler {
 func (ah *ArticleHandler) GetArticle(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The article ID is not valid."})
 		return
 	}
 
@@ -36,7 +36,7 @@ func (ah *ArticleHandler) GetArticle(c *gin.Context) {
 		return
 	}
 	if article == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Article not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "The requested article could not be found."})
 		return
 	}
 

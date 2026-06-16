@@ -46,7 +46,7 @@ func NewPaymentHandler(paymentService *services.PaymentService, redirectURL stri
 func (ph *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -84,7 +84,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		fmt.Printf("ERROR: Webhook - Failed to read request body: %v\n", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Error reading request body"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The request body could not be read."})
 		return
 	}
 
@@ -115,7 +115,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 		var session stripe.CheckoutSession
 		err := json.Unmarshal(event.Data.Raw, &session)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing webhook JSON"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "The webhook payload could not be parsed."})
 			return
 		}
 
@@ -135,7 +135,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 		err := json.Unmarshal(event.Data.Raw, &subscription)
 		if err != nil {
 			fmt.Printf("ERROR: Webhook - Failed to parse subscription JSON: %v\n", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing webhook JSON"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "The webhook payload could not be parsed."})
 			return
 		}
 
@@ -163,7 +163,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 		err = ph.paymentService.HandleSubscriptionUpdate(subscription.ID)
 		if err != nil {
 			fmt.Printf("ERROR: Webhook - Failed to update subscription %s: %v\n", redactedSubID, err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating subscription"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update the subscription record."})
 			return
 		}
 
@@ -173,7 +173,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 		var subscription stripe.Subscription
 		err := json.Unmarshal(event.Data.Raw, &subscription)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing webhook JSON"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "The webhook payload could not be parsed."})
 			return
 		}
 
@@ -187,7 +187,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 		err = ph.paymentService.HandleSubscriptionUpdate(subscription.ID)
 		if err != nil {
 			fmt.Printf("Error handling subscription deletion %s: %v\n", redactedSubID, err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error handling subscription deletion"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process the subscription deletion."})
 			return
 		}
 
@@ -204,7 +204,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 func (ph *PaymentHandler) CreateCustomerPortal(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 

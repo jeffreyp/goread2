@@ -178,7 +178,7 @@ func TestOPMLImportWorkflow(t *testing.T) {
 	}
 
 	// Verify error message indicates file is required
-	if !contains(rrImport.Body.String(), "No OPML file provided") {
+	if !contains(rrImport.Body.String(), "No OPML file was included in the request.") {
 		t.Errorf("Expected error message about missing file, got: %s", rrImport.Body.String())
 	}
 

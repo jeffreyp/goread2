@@ -35,7 +35,7 @@ func NewFeedHandler(feedService *services.FeedService, subscriptionService *serv
 func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -57,7 +57,7 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 func (fh *FeedHandler) AddFeed(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -128,14 +128,14 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid feed ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The feed ID is not valid."})
 		return
 	}
 
@@ -149,7 +149,7 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 func (fh *FeedHandler) GetArticles(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -188,7 +188,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid feed ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The feed ID is not valid."})
 		return
 	}
 
@@ -204,14 +204,14 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 func (fh *FeedHandler) MarkRead(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The article ID is not valid."})
 		return
 	}
 
@@ -237,14 +237,14 @@ func (fh *FeedHandler) MarkRead(c *gin.Context) {
 func (fh *FeedHandler) ToggleStar(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The article ID is not valid."})
 		return
 	}
 
@@ -259,7 +259,7 @@ func (fh *FeedHandler) ToggleStar(c *gin.Context) {
 func (fh *FeedHandler) MarkAllRead(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -350,14 +350,14 @@ func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 func (fh *FeedHandler) DebugFeed(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid feed ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The feed ID is not valid."})
 		return
 	}
 
@@ -407,20 +407,20 @@ func (fh *FeedHandler) DebugFeed(c *gin.Context) {
 func (fh *FeedHandler) DebugArticleByURL(c *gin.Context) {
 	_, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	url := c.Query("url")
 	if url == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "URL parameter required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "A URL parameter is required."})
 		return
 	}
 
 	// Search for article by URL across all feeds
 	article, err := fh.feedService.FindArticleByURL(url)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "A database error occurred.", "details": err.Error()})
 		return
 	}
 
@@ -443,7 +443,7 @@ func (fh *FeedHandler) DebugArticleByURL(c *gin.Context) {
 func (fh *FeedHandler) DebugAllSubscriptions(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -501,7 +501,7 @@ func (fh *FeedHandler) DebugAllSubscriptions(c *gin.Context) {
 func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -525,28 +525,28 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	// Parse multipart form
 	file, header, err := c.Request.FormFile("opml")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No OPML file provided"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No OPML file was included in the request."})
 		return
 	}
 	defer func() { _ = file.Close() }()
 
 	// Check file size (limit to 10MB)
 	if header.Size > 10*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File too large (max 10MB)"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The file exceeds the maximum allowed size of 10 MB."})
 		return
 	}
 
 	// Read file content
 	opmlData, err := io.ReadAll(file)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read OPML file"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "The OPML file could not be read."})
 		return
 	}
 
@@ -582,7 +582,7 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 func (fh *FeedHandler) ExportOPML(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -606,7 +606,7 @@ func (fh *FeedHandler) ExportOPML(c *gin.Context) {
 func (fh *FeedHandler) GetSubscriptionInfo(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -622,7 +622,7 @@ func (fh *FeedHandler) GetSubscriptionInfo(c *gin.Context) {
 func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -658,7 +658,7 @@ func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 func (fh *FeedHandler) UpdateMaxArticlesOnFeedAdd(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 

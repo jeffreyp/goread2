@@ -172,12 +172,18 @@ type OPMLOutline struct {
 }
 
 func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedService {
+	uc := cache.NewUnreadCache(5 * time.Minute) // 5 minute TTL
+	uc.SetMaxUsers(10000)
+
+	flc := cache.NewFeedListCache(20 * time.Minute) // 20 minute TTL
+	flc.SetMaxFeeds(50000)
+
 	return &FeedService{
 		db:            db,
 		rateLimiter:   rateLimiter,
 		urlValidator:  NewURLValidator(),
-		unreadCache:   cache.NewUnreadCache(5 * time.Minute),    // 5 minute TTL
-		feedListCache: cache.NewFeedListCache(20 * time.Minute), // 20 minute TTL
+		unreadCache:   uc,
+		feedListCache: flc,
 		htmlPolicy:    bluemonday.UGCPolicy(),
 	}
 }

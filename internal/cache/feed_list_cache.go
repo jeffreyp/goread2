@@ -17,6 +17,7 @@ type FeedListCache struct {
 	refreshAt time.Time
 	mu        sync.RWMutex
 	ttl       time.Duration
+	maxFeeds  int // 0 means unlimited
 	hits      int64
 	misses    int64
 }
@@ -61,10 +62,24 @@ func (fc *FeedListCache) Get() ([]database.Feed, bool) {
 	return result, true
 }
 
-// Set stores the feed list in the cache with the configured TTL.
+// SetMaxFeeds configures the maximum number of feeds to cache. If the feed
+// list exceeds this limit, Set is a no-op and the list is not cached.
+// A value of 0 (the default) means unlimited.
+func (fc *FeedListCache) SetMaxFeeds(n int) {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	fc.maxFeeds = n
+}
+
+// Set stores the feed list in the cache with the configured TTL. If the list
+// exceeds the configured maxFeeds limit it is not cached.
 func (fc *FeedListCache) Set(feeds []database.Feed) {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
+
+	if fc.maxFeeds > 0 && len(feeds) > fc.maxFeeds {
+		return
+	}
 
 	// Store a copy to prevent external modification
 	cached := make([]database.Feed, len(feeds))
@@ -86,6 +101,7 @@ func (fc *FeedListCache) Invalidate() {
 // Stats returns cache statistics for monitoring.
 type FeedListCacheStats struct {
 	CachedFeeds int
+	MaxFeeds    int
 	IsValid     bool
 	Hits        int64
 	Misses      int64
@@ -112,6 +128,7 @@ func (fc *FeedListCache) GetStats() FeedListCacheStats {
 
 	return FeedListCacheStats{
 		CachedFeeds: cachedFeeds,
+		MaxFeeds:    fc.maxFeeds,
 		IsValid:     isValid,
 		Hits:        hits,
 		Misses:      misses,

@@ -37,7 +37,7 @@ func (ah *AdminHandler) ListUsers(c *gin.Context) {
 func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 	email := c.Param("email")
 	if email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email parameter required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "An email address parameter is required."})
 		return
 	}
 
@@ -46,21 +46,21 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The request body could not be parsed.", "details": err.Error()})
 		return
 	}
 
 	// Get current admin user for audit logging
 	currentUser, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	// Find target user
 	user, err := ah.subscriptionService.GetUserByEmail(email)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "details": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No user was found with that email address.", "details": err.Error()})
 		return
 	}
 
@@ -68,7 +68,7 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 	err = ah.subscriptionService.SetUserAdmin(user.ID, currentUser.ID, request.IsAdmin)
 	if err != nil {
 		if errors.Is(err, database.ErrSelfDemotion) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Cannot remove your own admin privileges"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "You cannot remove your own admin privileges."})
 			return
 		}
 		// Log failure
@@ -124,7 +124,7 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 func (ah *AdminHandler) GrantFreeMonths(c *gin.Context) {
 	email := c.Param("email")
 	if email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email parameter required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "An email address parameter is required."})
 		return
 	}
 
@@ -133,21 +133,21 @@ func (ah *AdminHandler) GrantFreeMonths(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The request body could not be parsed.", "details": err.Error()})
 		return
 	}
 
 	// Get current admin user for audit logging
 	currentUser, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	// Find target user
 	user, err := ah.subscriptionService.GetUserByEmail(email)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "details": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No user was found with that email address.", "details": err.Error()})
 		return
 	}
 
@@ -239,7 +239,7 @@ func (ah *AdminHandler) GetAuditLogs(c *gin.Context) {
 	// Get audit logs
 	logs, err := ah.auditService.GetAuditLogs(limit, offset, filters)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get audit logs", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve audit logs.", "details": err.Error()})
 		return
 	}
 
@@ -254,28 +254,28 @@ func (ah *AdminHandler) GetAuditLogs(c *gin.Context) {
 func (ah *AdminHandler) GetUserInfo(c *gin.Context) {
 	email := c.Param("email")
 	if email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email parameter required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "An email address parameter is required."})
 		return
 	}
 
 	// Get current admin user for audit logging
 	currentUser, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
 	// Find user
 	user, err := ah.subscriptionService.GetUserByEmail(email)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "details": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No user was found with that email address.", "details": err.Error()})
 		return
 	}
 
 	// Get subscription info
 	subscriptionInfo, err := ah.subscriptionService.GetUserSubscriptionInfo(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get subscription info", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve subscription information.", "details": err.Error()})
 		return
 	}
 

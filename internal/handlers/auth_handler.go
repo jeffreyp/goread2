@@ -29,7 +29,7 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 	// Generate state parameter for CSRF protection
 	state, err := generateState()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate state"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication setup failed. Please try signing in again."})
 		return
 	}
 
@@ -51,7 +51,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 
 	if err != nil || storedState != queryState {
 		log.Printf("SECURITY: OAuth state mismatch from IP %s (cookie=%v query=%v)", auth.GetSecureClientIP(c), storedState != "", queryState != "")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter is not valid."})
 		return
 	}
 
@@ -67,7 +67,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 
 	code := c.Query("code")
 	if code == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing authorization code"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The authorization code is missing from the OAuth callback."})
 		return
 	}
 
@@ -75,14 +75,14 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	user, err := ah.authService.HandleCallback(code)
 	if err != nil {
 		log.Printf("OAuth callback error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to authenticate"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication failed. Please try signing in again."})
 		return
 	}
 
 	// Create session
 	session, err := ah.sessionManager.CreateSession(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed. Please try signing in again."})
 		return
 	}
 
@@ -111,7 +111,7 @@ func (ah *AuthHandler) Logout(c *gin.Context) {
 func (ah *AuthHandler) Me(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
 		return
 	}
 
@@ -165,7 +165,7 @@ func (ah *AuthHandler) CleanupExpiredSessions(c *gin.Context) {
 			cronHeader := c.GetHeader("X-Appengine-Cron")
 			if cronHeader != "true" {
 				log.Printf("Unauthorized cron request from IP: %s", auth.GetSecureClientIP(c))
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to perform this action."})
 				return
 			}
 		} else {
@@ -173,13 +173,13 @@ func (ah *AuthHandler) CleanupExpiredSessions(c *gin.Context) {
 			user, exists := auth.GetUserFromContext(c)
 			if !exists || !user.IsAdmin {
 				log.Printf("Unauthorized cron request - requires admin authentication")
-				c.JSON(http.StatusForbidden, gin.H{"error": "Admin authentication required"})
+				c.JSON(http.StatusForbidden, gin.H{"error": "Admin access is required to perform this action."})
 				return
 			}
 			expectedToken := os.Getenv("ADMIN_TOKEN")
 			if expectedToken == "" || c.GetHeader("X-Admin-Token") != expectedToken {
 				log.Printf("Unauthorized cron request - invalid or missing X-Admin-Token from IP: %s", auth.GetSecureClientIP(c))
-				c.JSON(http.StatusForbidden, gin.H{"error": "Valid X-Admin-Token header required"})
+				c.JSON(http.StatusForbidden, gin.H{"error": "A valid X-Admin-Token header is required for admin access."})
 				return
 			}
 		}
