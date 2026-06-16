@@ -780,8 +780,14 @@ class GoReadApp {
                     // Swipe left - next article
                     this.selectNextArticleAndMarkCurrentAsRead();
                 } else {
-                    // Swipe right - previous article
-                    this.selectPreviousArticle();
+                    // Swipe right — on phone portrait, go back to articles list
+                    const isPhonePortrait = window.innerWidth < 768 &&
+                        window.matchMedia('(orientation: portrait)').matches;
+                    if (isPhonePortrait) {
+                        this.updateMobileNavigation('articles');
+                    } else {
+                        this.selectPreviousArticle();
+                    }
                 }
             }
         }, { passive: true });
@@ -918,7 +924,7 @@ class GoReadApp {
             loadingDiv.textContent = 'Loading feeds...';
             feedList.appendChild(loadingDiv);
 
-            document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
+            document.getElementById('article-list').innerHTML = this.articleLoadingSkeleton();
 
             // Batch feeds and unread counts requests
             const [feedsResponse, countsResponse] = await Promise.all([
@@ -1104,7 +1110,7 @@ class GoReadApp {
     async loadArticles(feedId, append = false) {
         try {
             if (!append) {
-                document.getElementById('article-list').innerHTML = '<div class="loading">Loading articles...</div>';
+                document.getElementById('article-list').innerHTML = this.articleLoadingSkeleton();
                 this.articles = [];
                 this.nextCursor = '';
                 this.loadedArticleIds = new Set(); // Track loaded article IDs to prevent duplicates
@@ -1581,6 +1587,13 @@ class GoReadApp {
         return result;
     }
 
+    articleLoadingSkeleton() {
+        return '<div class="skeleton-list">' +
+            [80, 65, 75, 55, 85].map(w =>
+                `<div class="skeleton-item"><div class="skeleton-line skeleton-title" style="width:${w}%"></div><div class="skeleton-line skeleton-meta"></div></div>`
+            ).join('') + '</div>';
+    }
+
     displayArticle(article) {
         const contentPane = document.getElementById('article-content');
         const publishedDate = new Date(article.published_at).toLocaleString();
@@ -1589,6 +1602,7 @@ class GoReadApp {
         const sanitizedContent = this.sanitizeContent(article.content || article.description || '<p>No content available.</p>');
 
         contentPane.innerHTML = `
+            <button class="article-back-btn" aria-label="Back to articles list">← Articles</button>
             ${article.feed_title ? `<div class="feed-label">${this.escapeHtml(article.feed_title)}</div>` : ''}
             <h1>${this.escapeHtml(article.title)}</h1>
             <div class="meta">
@@ -1600,6 +1614,11 @@ class GoReadApp {
                 ${sanitizedContent}
             </div>
         `;
+
+        const backBtn = contentPane.querySelector('.article-back-btn');
+        if (backBtn) {
+            backBtn.addEventListener('click', () => this.updateMobileNavigation('articles'));
+        }
 
         contentPane.querySelectorAll('img').forEach(img => {
             img.loading = 'lazy';
@@ -2306,6 +2325,7 @@ class GoReadApp {
             // Show loading state
             if (refreshBtn) {
                 refreshBtn.disabled = true;
+                refreshBtn.classList.add('btn-refreshing');
                 refreshBtn.textContent = 'Refreshing...';
             }
 
@@ -2349,6 +2369,7 @@ class GoReadApp {
             // Restore button state
             if (refreshBtn) {
                 refreshBtn.disabled = false;
+                refreshBtn.classList.remove('btn-refreshing');
                 refreshBtn.textContent = originalText;
             }
         }
