@@ -645,6 +645,43 @@ class GoReadApp {
 
         // Reset pane state when rotation or resize crosses a layout breakpoint
         this.setupLayoutChangeHandler();
+
+        // Feed search filter
+        const feedSearch = document.getElementById('feed-search');
+        if (feedSearch) {
+            feedSearch.addEventListener('input', () => this.filterFeeds(feedSearch.value));
+        }
+
+        // Density toggle
+        document.querySelectorAll('.density-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.setDensity(btn.dataset.density));
+        });
+        this.initDensity();
+    }
+
+    filterFeeds(query) {
+        const q = query.trim().toLowerCase();
+        document.querySelectorAll('#feed-list .feed-item:not(.special)').forEach(item => {
+            const title = item.querySelector('.feed-title')?.textContent.toLowerCase() || '';
+            item.style.display = q === '' || title.includes(q) ? '' : 'none';
+        });
+    }
+
+    initDensity() {
+        const saved = localStorage.getItem('articleDensity') || 'comfortable';
+        this.setDensity(saved);
+    }
+
+    setDensity(density) {
+        const list = document.getElementById('article-list');
+        if (list) {
+            list.classList.remove('density-compact', 'density-comfortable', 'density-spacious');
+            list.classList.add(`density-${density}`);
+        }
+        document.querySelectorAll('.density-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.density === density);
+        });
+        localStorage.setItem('articleDensity', density);
     }
 
     setupLayoutChangeHandler() {
@@ -1077,6 +1114,12 @@ class GoReadApp {
             
             feedList.appendChild(feedItem);
         });
+
+        // Re-apply any active search filter after re-render
+        const feedSearch = document.getElementById('feed-search');
+        if (feedSearch && feedSearch.value) {
+            this.filterFeeds(feedSearch.value);
+        }
     }
 
     async selectFeed(feedId) {

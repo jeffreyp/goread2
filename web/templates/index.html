@@ -70,6 +70,9 @@
                     <div class="pane-header">
                         <h2>Feeds</h2>
                     </div>
+                    <div class="feed-search-wrapper">
+                        <input type="search" id="feed-search" placeholder="Filter feeds…" autocomplete="off" aria-label="Filter feeds">
+                    </div>
                     <div class="feed-list" id="feed-list">
                         <div class="feed-item special" data-feed-id="all">
                             <span class="feed-title">All Articles</span>
@@ -83,13 +86,20 @@
                 <div class="article-pane">
                     <div class="pane-header">
                         <h2 id="article-pane-title">Select a feed</h2>
-                        <div class="article-filter">
-                            <label>
-                                <input type="radio" name="article-filter" value="unread" checked> Unread
-                            </label>
-                            <label>
-                                <input type="radio" name="article-filter" value="all"> All
-                            </label>
+                        <div class="pane-controls">
+                            <div class="article-filter">
+                                <label>
+                                    <input type="radio" name="article-filter" value="unread" checked> Unread
+                                </label>
+                                <label>
+                                    <input type="radio" name="article-filter" value="all"> All
+                                </label>
+                            </div>
+                            <div class="density-toggle" role="group" aria-label="Article density">
+                                <button class="density-btn" data-density="compact" title="Compact">S</button>
+                                <button class="density-btn active" data-density="comfortable" title="Comfortable">M</button>
+                                <button class="density-btn" data-density="spacious" title="Spacious">L</button>
+                            </div>
                         </div>
                     </div>
                     <div class="article-list" id="article-list">
