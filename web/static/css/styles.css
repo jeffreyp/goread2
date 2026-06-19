@@ -1807,33 +1807,36 @@ body.app-body {
         display: block !important;
     }
 
-    /* Toggle button for sidebar - must be ABOVE everything */
+    /* Replace FAB with a visible header button on tablet portrait */
     .tablet-sidebar-toggle {
-        display: block;
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background-color: #1a73e8;
-        color: white;
-        border: none;
-        font-size: 24px;
+        display: none;
+    }
+
+    /* Header "☰ Feeds" button — always visible, replaces the FAB */
+    .tablet-nav-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: none;
+        border: 1px solid #dadce0;
+        border-radius: 20px;
+        padding: 6px 14px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #3c4043;
         cursor: pointer;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        z-index: 1000;
+        white-space: nowrap;
+        min-height: 36px;
         -webkit-tap-highlight-color: transparent;
-        transition: background-color 0.2s ease, transform 0.2s ease;
+        transition: background-color 0.15s ease;
     }
 
-    .tablet-sidebar-toggle:hover {
-        background-color: #1765cc;
-        transform: scale(1.05);
+    .tablet-nav-btn:hover {
+        background-color: #f1f3f4;
     }
 
-    .tablet-sidebar-toggle:active {
-        transform: scale(0.95);
+    .tablet-nav-btn:active {
+        background-color: #e8eaed;
     }
 
     /* Hide mobile nav on tablets */
@@ -2377,6 +2380,11 @@ html {
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
     }
+}
+
+/* tablet-nav-btn: header "☰ Feeds" button — hidden by default, shown on tablet portrait only */
+.tablet-nav-btn {
+    display: none;
 }
 
 /* Ensure mobile menu toggle and tablet sidebar toggle are hidden on desktop */

@@ -555,10 +555,11 @@ class GoReadApp {
 
         // Tablet sidebar toggle (for portrait mode)
         const tabletSidebarToggle = document.getElementById('tablet-sidebar-toggle');
+        const tabletNavBtn = document.getElementById('tablet-nav-btn');
         const sidebarWrapper = document.querySelector('.sidebar-wrapper');
         const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 
-        if (tabletSidebarToggle && sidebarWrapper && sidebarBackdrop) {
+        if (sidebarWrapper && sidebarBackdrop) {
             // Toggle sidebar when button is clicked (handle both click and touch)
             const toggleSidebar = (e) => {
                 e.preventDefault();
@@ -567,8 +568,15 @@ class GoReadApp {
                 sidebarBackdrop.classList.toggle('show');
             };
 
-            tabletSidebarToggle.addEventListener('click', toggleSidebar);
-            tabletSidebarToggle.addEventListener('touchend', toggleSidebar);
+            if (tabletSidebarToggle) {
+                tabletSidebarToggle.addEventListener('click', toggleSidebar);
+                tabletSidebarToggle.addEventListener('touchend', toggleSidebar);
+            }
+
+            if (tabletNavBtn) {
+                tabletNavBtn.addEventListener('click', toggleSidebar);
+                tabletNavBtn.addEventListener('touchend', toggleSidebar);
+            }
 
             // Close sidebar when backdrop is clicked
             const closeSidebar = (e) => {
