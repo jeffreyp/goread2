@@ -2,9 +2,25 @@ package secrets
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 )
+
+func setMockSecretFetcher(values map[string]string, fetchErr error) func() {
+	old := secretFetcher
+	secretFetcher = func(_ context.Context, _ string, secretName string) (string, error) {
+		if fetchErr != nil {
+			return "", fetchErr
+		}
+		v, ok := values[secretName]
+		if !ok {
+			return "", fmt.Errorf("secret %q not found in mock", secretName)
+		}
+		return v, nil
+	}
+	return func() { secretFetcher = old }
+}
 
 func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
 	ctx := context.Background()
@@ -450,6 +466,147 @@ func TestGetStripeCredentials_EmptyValidation(t *testing.T) {
 		_, _, _, _, err := GetStripeCredentials(ctx)
 		if err == nil {
 			t.Error("Expected error for empty STRIPE_PRICE_ID, got nil")
+		}
+	})
+}
+
+func TestGetSecret_WithMockedSecretManager(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns value from Secret Manager", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		defer setMockSecretFetcher(map[string]string{"my-secret": "secret-value"}, nil)()
+
+		value, err := GetSecret(ctx, "my-secret")
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if value != "secret-value" {
+			t.Errorf("Expected 'secret-value', got %q", value)
+		}
+	})
+
+	t.Run("propagates Secret Manager error", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		defer setMockSecretFetcher(nil, fmt.Errorf("permission denied"))()
+
+		_, err := GetSecret(ctx, "my-secret")
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+	})
+}
+
+func TestGetOAuthCredentials_WithMockedSecretManager(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("fetches via Secret Manager when _secret: prefix used", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		t.Setenv("GOOGLE_CLIENT_ID", "_secret:google-client-id")
+		t.Setenv("GOOGLE_CLIENT_SECRET", "_secret:google-client-secret")
+		defer setMockSecretFetcher(map[string]string{
+			"google-client-id":     "real-client-id",
+			"google-client-secret": "real-client-secret",
+		}, nil)()
+
+		clientID, clientSecret, err := GetOAuthCredentials(ctx)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if clientID != "real-client-id" {
+			t.Errorf("Expected 'real-client-id', got %q", clientID)
+		}
+		if clientSecret != "real-client-secret" {
+			t.Errorf("Expected 'real-client-secret', got %q", clientSecret)
+		}
+	})
+
+	t.Run("fetches via Secret Manager when env vars are empty", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		t.Setenv("GOOGLE_CLIENT_ID", "")
+		t.Setenv("GOOGLE_CLIENT_SECRET", "")
+		defer setMockSecretFetcher(map[string]string{
+			"google-client-id":     "sm-client-id",
+			"google-client-secret": "sm-client-secret",
+		}, nil)()
+
+		clientID, clientSecret, err := GetOAuthCredentials(ctx)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if clientID != "sm-client-id" {
+			t.Errorf("Expected 'sm-client-id', got %q", clientID)
+		}
+		if clientSecret != "sm-client-secret" {
+			t.Errorf("Expected 'sm-client-secret', got %q", clientSecret)
+		}
+	})
+
+	t.Run("propagates Secret Manager error through GetOAuthCredentials", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		t.Setenv("GOOGLE_CLIENT_ID", "_secret:google-client-id")
+		t.Setenv("GOOGLE_CLIENT_SECRET", "direct-secret")
+		defer setMockSecretFetcher(nil, fmt.Errorf("secret not found"))()
+
+		_, _, err := GetOAuthCredentials(ctx)
+		if err == nil {
+			t.Fatal("Expected error from Secret Manager, got nil")
+		}
+	})
+}
+
+func TestGetStripeCredentials_WithMockedSecretManager(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("fetches all Stripe credentials from Secret Manager", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		t.Setenv("STRIPE_SECRET_KEY", "_secret:stripe-secret-key")
+		t.Setenv("STRIPE_PUBLISHABLE_KEY", "_secret:stripe-publishable-key")
+		t.Setenv("STRIPE_WEBHOOK_SECRET", "_secret:stripe-webhook-secret")
+		t.Setenv("STRIPE_PRICE_ID", "_secret:stripe-price-id")
+		defer setMockSecretFetcher(map[string]string{
+			"stripe-secret-key":      "sk_live_test",
+			"stripe-publishable-key": "pk_live_test",
+			"stripe-webhook-secret":  "whsec_live_test",
+			"stripe-price-id":        "price_live_test",
+		}, nil)()
+
+		secretKey, publishableKey, webhookSecret, priceID, err := GetStripeCredentials(ctx)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if secretKey != "sk_live_test" {
+			t.Errorf("Expected 'sk_live_test', got %q", secretKey)
+		}
+		if publishableKey != "pk_live_test" {
+			t.Errorf("Expected 'pk_live_test', got %q", publishableKey)
+		}
+		if webhookSecret != "whsec_live_test" {
+			t.Errorf("Expected 'whsec_live_test', got %q", webhookSecret)
+		}
+		if priceID != "price_live_test" {
+			t.Errorf("Expected 'price_live_test', got %q", priceID)
+		}
+	})
+
+	t.Run("propagates Secret Manager error through GetStripeCredentials", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+		t.Setenv("STRIPE_SECRET_KEY", "_secret:stripe-secret-key")
+		t.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test")
+		t.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+		t.Setenv("STRIPE_PRICE_ID", "price_test")
+		defer setMockSecretFetcher(nil, fmt.Errorf("access denied"))()
+
+		_, _, _, _, err := GetStripeCredentials(ctx)
+		if err == nil {
+			t.Fatal("Expected error from Secret Manager, got nil")
 		}
 	})
 }

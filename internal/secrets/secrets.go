@@ -48,6 +48,34 @@ var (
 	stripeErr            error
 )
 
+// secretFetcher is the function used to call Secret Manager; replaced in tests
+var secretFetcher = fetchFromSecretManager
+
+// fetchFromSecretManager is the real Secret Manager implementation
+func fetchFromSecretManager(ctx context.Context, projectID, secretName string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, secretManagerTimeout)
+	defer cancel()
+
+	client, err := getOrCreateSecretClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to create secret manager client: %w", err)
+	}
+
+	req := &secretmanagerpb.AccessSecretVersionRequest{
+		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectID, secretName),
+	}
+
+	log.Printf("secrets: fetching %q from Secret Manager (project=%s)", secretName, projectID)
+	result, err := client.AccessSecretVersion(ctx, req)
+	if err != nil {
+		log.Printf("secrets: failed to fetch %q: %v", secretName, err)
+		return "", fmt.Errorf("failed to access secret version: %w", err)
+	}
+	log.Printf("secrets: successfully fetched %q", secretName)
+
+	return string(result.Payload.Data), nil
+}
+
 // ResetCacheForTesting resets the secret caches for testing purposes
 // This should only be used in tests to allow multiple test cases
 func ResetCacheForTesting() {
@@ -70,6 +98,8 @@ func ResetCacheForTesting() {
 	stripePriceID = ""
 	stripeOnce = sync.Once{}
 	stripeErr = nil
+
+	secretFetcher = fetchFromSecretManager
 }
 
 // getOrCreateSecretClient returns the singleton Secret Manager client
@@ -83,38 +113,12 @@ func getOrCreateSecretClient(ctx context.Context) (*secretmanager.Client, error)
 }
 
 // GetSecret retrieves a secret from Google Secret Manager
-// Uses a singleton client to avoid creating a new client on every call
 func GetSecret(ctx context.Context, secretName string) (string, error) {
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	if projectID == "" {
 		return "", fmt.Errorf("GOOGLE_CLOUD_PROJECT environment variable is required")
 	}
-
-	// Create a context with timeout to prevent indefinite hangs
-	ctx, cancel := context.WithTimeout(ctx, secretManagerTimeout)
-	defer cancel()
-
-	// Get or create the singleton client (created once, reused forever)
-	client, err := getOrCreateSecretClient(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to create secret manager client: %w", err)
-	}
-
-	// Build the request
-	req := &secretmanagerpb.AccessSecretVersionRequest{
-		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectID, secretName),
-	}
-
-	// Call the API
-	log.Printf("secrets: fetching %q from Secret Manager (project=%s)", secretName, projectID)
-	result, err := client.AccessSecretVersion(ctx, req)
-	if err != nil {
-		log.Printf("secrets: failed to fetch %q: %v", secretName, err)
-		return "", fmt.Errorf("failed to access secret version: %w", err)
-	}
-	log.Printf("secrets: successfully fetched %q", secretName)
-
-	return string(result.Payload.Data), nil
+	return secretFetcher(ctx, projectID, secretName)
 }
 
 // GetOAuthCredentials retrieves OAuth credentials from environment or secrets

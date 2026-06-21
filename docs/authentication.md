@@ -179,6 +179,7 @@ cookie := &http.Cookie{
 - **SameSite Lax** - Protects against CSRF attacks by default
 - **Session expiration** - Sessions automatically expire after 7 days
 - **Automatic cleanup** - Expired sessions removed from database
+- **Session fixation protection** - Any existing session is invalidated before creating a new one on login
 
 ### CSRF Protection
 

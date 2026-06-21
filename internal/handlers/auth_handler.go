@@ -79,6 +79,12 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
+	// Invalidate any pre-existing session to prevent session fixation attacks
+	if oldSession, exists := ah.sessionManager.GetSessionFromRequest(c.Request); exists {
+		ah.sessionManager.DeleteSession(oldSession.ID)
+		ah.csrfManager.DeleteToken(oldSession.ID)
+	}
+
 	// Create session
 	session, err := ah.sessionManager.CreateSession(user)
 	if err != nil {
