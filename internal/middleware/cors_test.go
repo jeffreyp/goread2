@@ -14,7 +14,7 @@ func setupCORSRouter(t *testing.T, allowedOrigin string) *gin.Engine {
 	if allowedOrigin != "" {
 		t.Setenv("ALLOWED_ORIGIN", allowedOrigin)
 	} else {
-		os.Unsetenv("ALLOWED_ORIGIN")
+		_ = os.Unsetenv("ALLOWED_ORIGIN")
 	}
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
