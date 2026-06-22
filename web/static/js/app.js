@@ -515,13 +515,17 @@ class GoReadApp {
 
         // Set up article filter listeners
         document.querySelectorAll('input[name="article-filter"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
+            radio.addEventListener('change', async (e) => {
                 this.articleFilter = e.target.value;
-                // Reset session state when switching filters to apply proper filtering
-                this.sessionStarted = true;
-                this.applyArticleFilter();
-                // Allow session navigation after filter change
-                this.sessionStarted = false;
+                // The "All Feeds" aggregate fetches server-side with unread_only, so
+                // switching the filter requires a fresh fetch rather than a DOM re-filter.
+                if (this.currentFeed === 'all') {
+                    await this.loadArticles('all');
+                } else {
+                    this.sessionStarted = true;
+                    this.applyArticleFilter();
+                    this.sessionStarted = false;
+                }
             });
         });
 
@@ -660,11 +664,6 @@ class GoReadApp {
             feedSearch.addEventListener('input', () => this.filterFeeds(feedSearch.value));
         }
 
-        // Density toggle
-        document.querySelectorAll('.density-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.setDensity(btn.dataset.density));
-        });
-        this.initDensity();
     }
 
     filterFeeds(query) {
@@ -673,23 +672,6 @@ class GoReadApp {
             const title = item.querySelector('.feed-title')?.textContent.toLowerCase() || '';
             item.style.display = q === '' || title.includes(q) ? '' : 'none';
         });
-    }
-
-    initDensity() {
-        const saved = localStorage.getItem('articleDensity') || 'comfortable';
-        this.setDensity(saved);
-    }
-
-    setDensity(density) {
-        const list = document.getElementById('article-list');
-        if (list) {
-            list.classList.remove('density-compact', 'density-comfortable', 'density-spacious');
-            list.classList.add(`density-${density}`);
-        }
-        document.querySelectorAll('.density-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.density === density);
-        });
-        localStorage.setItem('articleDensity', density);
     }
 
     setupLayoutChangeHandler() {
@@ -1932,7 +1914,9 @@ class GoReadApp {
             // Show placeholder in article list
             const placeholder = document.createElement('div');
             placeholder.className = 'placeholder article-list-placeholder';
-            placeholder.innerHTML = '<p>No unread articles in this feed.</p>';
+            placeholder.innerHTML = this.articleFilter === 'unread'
+                ? '<p>No unread articles in this feed.</p>'
+                : '<p>No articles in this feed.</p>';
             articleList.appendChild(placeholder);
         } else {
             // Remove placeholder if articles are visible
