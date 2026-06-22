@@ -119,8 +119,8 @@ substitute-secrets:
 	STRIPE_PUBLISHABLE_KEY=$$(gcloud secrets versions access latest --secret="stripe-publishable-key") \
 	STRIPE_WEBHOOK_SECRET=$$(gcloud secrets versions access latest --secret="stripe-webhook-secret") \
 	STRIPE_PRICE_ID=$$(gcloud secrets versions access latest --secret="stripe-price-id") \
-	envsubst < app.yaml > app.yaml.deploy
-	@echo "✓ Secrets substituted into app.yaml.deploy"
+	envsubst < app.yaml > app-deploy.yaml
+	@echo "✓ Secrets substituted into app-deploy.yaml"
 
 # Deploy to development (with validation)
 deploy-dev: validate-config build-frontend substitute-secrets
@@ -129,10 +129,10 @@ deploy-dev: validate-config build-frontend substitute-secrets
 	@-bd daemon --stop 2>/dev/null || true
 	@-rm -f .beads/bd.sock 2>/dev/null || true
 	@sleep 1
-	@gcloud app deploy app.yaml.deploy --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet; \
+	@gcloud app deploy app-deploy.yaml --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet; \
 	EXIT_CODE=$$?; \
 	bd daemon --start 2>/dev/null || true; \
-	rm -f app.yaml.deploy; \
+	rm -f app-deploy.yaml; \
 	exit $$EXIT_CODE
 
 # Validate configuration in strict mode (for production)
@@ -147,10 +147,10 @@ deploy-prod: validate-config-strict test build-frontend substitute-secrets
 	@-bd daemon --stop 2>/dev/null || true
 	@-rm -f .beads/bd.sock 2>/dev/null || true
 	@sleep 1
-	@gcloud app deploy app.yaml.deploy --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet; \
+	@gcloud app deploy app-deploy.yaml --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet; \
 	EXIT_CODE=$$?; \
 	bd daemon --start 2>/dev/null || true; \
-	rm -f app.yaml.deploy; \
+	rm -f app-deploy.yaml; \
 	exit $$EXIT_CODE
 	@echo "🧹 Cleaning up old versions..."
 	@gcloud app versions list --sort-by=LAST_DEPLOYED --format="value(id)" --filter="TRAFFIC_SPLIT=0" | head -1 | xargs -r gcloud app versions delete --quiet

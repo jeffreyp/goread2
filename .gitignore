@@ -54,6 +54,7 @@ logs/
 .gcloudignore
 app.yaml.deploy
 app.yaml.tmp
+app-deploy.yaml
 
 # Temporary files
 tmp/
