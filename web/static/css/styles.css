@@ -42,6 +42,13 @@ body.app-body {
     overflow: hidden;
 }
 
+/* Safe-area top inset for all devices (viewport-fit=cover).
+   On desktop browsers env() resolves to 0, so this is a no-op there. */
+#app {
+    padding-top: env(safe-area-inset-top);
+    padding-top: constant(safe-area-inset-top); /* iOS 11.0 */
+}
+
 /* Loading screen for cold starts and initial page load */
 #app-loading-screen {
     position: fixed;
@@ -194,6 +201,9 @@ body.app-body {
     background-color: #fff;
     border-bottom: 1px solid #e1e5e9;
     padding: 0 20px;
+    /* Safe-area insets for iPad landscape: env() resolves to 0 on desktop */
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
     height: 60px;
     z-index: 1000;
     position: relative;
