@@ -890,6 +890,18 @@ class GoReadApp {
                     e.preventDefault();
                     this.refreshFeeds();
                     break;
+                case 'u':
+                    e.preventDefault();
+                    if (this.currentFeed) await this.loadArticles(this.currentFeed);
+                    break;
+                case 'a':
+                    e.preventDefault();
+                    await this.markAllRead();
+                    break;
+                case 'v':
+                    e.preventDefault();
+                    this.openCurrentArticleInPlace();
+                    break;
             }
         });
     }
@@ -1809,9 +1821,26 @@ class GoReadApp {
 
     openCurrentArticle() {
         if (this.currentArticle === null) return;
-        
+
         const article = this.articles[this.currentArticle];
         window.open(article.url, '_blank');
+    }
+
+    openCurrentArticleInPlace() {
+        if (this.currentArticle === null) return;
+        window.location.href = this.articles[this.currentArticle].url;
+    }
+
+    async markAllRead() {
+        try {
+            const response = await fetch('/api/articles/mark-all-read', { method: 'POST' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            await this.updateUnreadCounts();
+            if (this.currentFeed) await this.loadArticles(this.currentFeed);
+            this.showSuccess('All articles marked as read');
+        } catch (error) {
+            this.showError('Failed to mark all as read: ' + error.message);
+        }
     }
 
     async toggleCurrentArticleRead() {
