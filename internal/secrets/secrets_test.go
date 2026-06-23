@@ -9,7 +9,7 @@ import (
 
 func setMockSecretFetcher(values map[string]string, fetchErr error) func() {
 	old := secretFetcher
-	secretFetcher = func(_ context.Context, _ string, secretName string) (string, error) {
+	secretFetcher = func(_ context.Context, _ string, secretName string, _ string) (string, error) {
 		if fetchErr != nil {
 			return "", fetchErr
 		}
@@ -495,6 +495,80 @@ func TestGetSecret_WithMockedSecretManager(t *testing.T) {
 		_, err := GetSecret(ctx, "my-secret")
 		if err == nil {
 			t.Fatal("Expected error, got nil")
+		}
+	})
+}
+
+func TestGetSecretVersion(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("passes version to fetcher", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+
+		var capturedVersion string
+		old := secretFetcher
+		secretFetcher = func(_ context.Context, _ string, _ string, version string) (string, error) {
+			capturedVersion = version
+			return "val", nil
+		}
+		defer func() { secretFetcher = old }()
+
+		if _, err := GetSecretVersion(ctx, "my-secret", "3"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if capturedVersion != "3" {
+			t.Errorf("expected version %q, got %q", "3", capturedVersion)
+		}
+	})
+
+	t.Run("empty version defaults to latest", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+
+		var capturedVersion string
+		old := secretFetcher
+		secretFetcher = func(_ context.Context, _ string, _ string, version string) (string, error) {
+			capturedVersion = version
+			return "val", nil
+		}
+		defer func() { secretFetcher = old }()
+
+		if _, err := GetSecretVersion(ctx, "my-secret", ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if capturedVersion != "latest" {
+			t.Errorf("expected version %q, got %q", "latest", capturedVersion)
+		}
+	})
+
+	t.Run("GetSecret uses latest", func(t *testing.T) {
+		ResetCacheForTesting()
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+
+		var capturedVersion string
+		old := secretFetcher
+		secretFetcher = func(_ context.Context, _ string, _ string, version string) (string, error) {
+			capturedVersion = version
+			return "val", nil
+		}
+		defer func() { secretFetcher = old }()
+
+		if _, err := GetSecret(ctx, "my-secret"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if capturedVersion != "latest" {
+			t.Errorf("expected version %q, got %q", "latest", capturedVersion)
+		}
+	})
+
+	t.Run("missing project ID returns error", func(t *testing.T) {
+		ResetCacheForTesting()
+		_ = os.Unsetenv("GOOGLE_CLOUD_PROJECT")
+
+		_, err := GetSecretVersion(ctx, "my-secret", "2")
+		if err == nil {
+			t.Fatal("expected error, got nil")
 		}
 	})
 }

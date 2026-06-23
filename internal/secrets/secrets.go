@@ -52,7 +52,7 @@ var (
 var secretFetcher = fetchFromSecretManager
 
 // fetchFromSecretManager is the real Secret Manager implementation
-func fetchFromSecretManager(ctx context.Context, projectID, secretName string) (string, error) {
+func fetchFromSecretManager(ctx context.Context, projectID, secretName, version string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, secretManagerTimeout)
 	defer cancel()
 
@@ -62,10 +62,10 @@ func fetchFromSecretManager(ctx context.Context, projectID, secretName string) (
 	}
 
 	req := &secretmanagerpb.AccessSecretVersionRequest{
-		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectID, secretName),
+		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/%s", projectID, secretName, version),
 	}
 
-	log.Printf("secrets: fetching %q from Secret Manager (project=%s)", secretName, projectID)
+	log.Printf("secrets: fetching %q version %q from Secret Manager (project=%s)", secretName, version, projectID)
 	result, err := client.AccessSecretVersion(ctx, req)
 	if err != nil {
 		log.Printf("secrets: failed to fetch %q: %v", secretName, err)
@@ -112,13 +112,22 @@ func getOrCreateSecretClient(ctx context.Context) (*secretmanager.Client, error)
 	return secretClient, secretClientErr
 }
 
-// GetSecret retrieves a secret from Google Secret Manager
+// GetSecret retrieves the latest version of a secret from Google Secret Manager
 func GetSecret(ctx context.Context, secretName string) (string, error) {
+	return GetSecretVersion(ctx, secretName, "latest")
+}
+
+// GetSecretVersion retrieves a specific version of a secret from Google Secret Manager.
+// Use "latest" to get the current version, or a numeric string (e.g. "3") to pin to a specific version.
+func GetSecretVersion(ctx context.Context, secretName, version string) (string, error) {
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	if projectID == "" {
 		return "", fmt.Errorf("GOOGLE_CLOUD_PROJECT environment variable is required")
 	}
-	return secretFetcher(ctx, projectID, secretName)
+	if version == "" {
+		version = "latest"
+	}
+	return secretFetcher(ctx, projectID, secretName, version)
 }
 
 // GetOAuthCredentials retrieves OAuth credentials from environment or secrets
