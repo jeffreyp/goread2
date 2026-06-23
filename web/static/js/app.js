@@ -1671,7 +1671,8 @@ class GoReadApp {
         });
 
         // Scroll the content pane to the top to ensure the new article is displayed from its beginning
-        contentPane.scrollTop = 0;
+        const scrollContainer = contentPane.closest('.content-pane') || contentPane;
+        scrollContainer.scrollTop = 0;
 
     }
 
