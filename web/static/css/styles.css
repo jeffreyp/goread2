@@ -36,6 +36,7 @@ body {
     background-color: #f5f5f5;
     color: #333;
     height: 100vh;
+    height: 100dvh;
 }
 
 body.app-body {
@@ -258,6 +259,7 @@ body.app-body {
 .main-container {
     display: flex;
     height: calc(100vh - 60px);
+    height: calc(100dvh - 60px);
     overflow: hidden;
 }
 
@@ -1582,10 +1584,9 @@ body.app-body {
     }
 
     #app {
-        /* Support for iOS safe area - apply to app container instead of body */
         padding-top: env(safe-area-inset-top);
-        padding-top: constant(safe-area-inset-top); /* iOS 11.0 */
         height: 100vh;
+        height: 100dvh;
         height: -webkit-fill-available;
         display: flex;
         flex-direction: column;
@@ -1732,6 +1733,7 @@ body.app-body {
         bottom: 0 !important;
         width: 100vw !important;
         height: calc(100vh - 56px) !important;
+        height: calc(100dvh - 56px) !important;
         overflow-y: auto !important;
         background-color: #f5f5f5 !important;
         z-index: 1 !important;
