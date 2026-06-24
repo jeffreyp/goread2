@@ -198,6 +198,8 @@ class ErrorHandler {
         if (!toastContainer) {
             toastContainer = document.createElement('div');
             toastContainer.id = 'toast-container';
+            toastContainer.setAttribute('aria-live', 'polite');
+            toastContainer.setAttribute('aria-atomic', 'true');
             document.body.appendChild(toastContainer);
         }
 
@@ -901,6 +903,10 @@ class GoReadApp {
                 case 'v':
                     e.preventDefault();
                     this.openCurrentArticleInPlace();
+                    break;
+                case '?':
+                    e.preventDefault();
+                    await this.showHelpModal();
                     break;
             }
         });

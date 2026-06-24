@@ -2431,6 +2431,43 @@ html {
     }
 }
 
+/* Keyboard focus indicators — only shown for keyboard navigation, not mouse clicks */
+.btn:focus-visible {
+    outline: 2px solid #1a73e8;
+    outline-offset: 2px;
+}
+
+.btn-primary:focus-visible {
+    outline-color: #174ea6;
+    box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.3);
+}
+
+.action-btn:focus-visible {
+    outline: 2px solid #1a73e8;
+    outline-offset: 2px;
+    background-color: #f1f3f4;
+}
+
+.close:focus-visible {
+    outline: 2px solid #1a73e8;
+    outline-offset: 4px;
+    border-radius: 4px;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .tablet-nav-btn:focus-visible {
+        outline: 2px solid #1a73e8;
+        outline-offset: 2px;
+    }
+}
+
+@media (max-width: 767px) {
+    .mobile-nav-btn:focus-visible {
+        outline: 2px solid #1a73e8;
+        outline-offset: 2px;
+    }
+}
+
 /* Refresh button spinner while loading */
 .btn-refreshing::before {
     content: '';
