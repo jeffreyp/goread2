@@ -963,11 +963,8 @@ class GoReadApp {
             existingFeeds.forEach(item => item.remove());
             if (existingLoading) existingLoading.remove();
 
-            // Add loading indicator
-            const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'loading';
-            loadingDiv.textContent = 'Loading feeds...';
-            feedList.appendChild(loadingDiv);
+            // Add skeleton feed items while loading
+            feedList.appendChild(this.feedLoadingSkeleton());
 
             document.getElementById('article-list').innerHTML = this.articleLoadingSkeleton();
 
@@ -1583,6 +1580,7 @@ class GoReadApp {
         const article = this.articles[index];
 
         if (!article.content) {
+            document.getElementById('article-content').replaceChildren(this.articleContentSkeleton());
             try {
                 const response = await fetch(`/api/articles/${article.id}`);
                 if (response.ok) {
@@ -1643,6 +1641,40 @@ class GoReadApp {
             [80, 65, 75, 55, 85].map(w =>
                 `<div class="skeleton-item"><div class="skeleton-line skeleton-title" style="width:${w}%"></div><div class="skeleton-line skeleton-meta"></div></div>`
             ).join('') + '</div>';
+    }
+
+    feedLoadingSkeleton() {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'loading';
+        [72, 58, 80, 65, 75, 55].forEach(() => {
+            const item = document.createElement('div');
+            item.className = 'feed-skeleton-item';
+            const line = document.createElement('div');
+            line.className = 'skeleton-line skeleton-title';
+            line.style.width = `${Math.floor(Math.random() * 30) + 50}%`;
+            const pill = document.createElement('div');
+            pill.className = 'skeleton-line skeleton-count-pill';
+            item.appendChild(line);
+            item.appendChild(pill);
+            wrapper.appendChild(item);
+        });
+        return wrapper;
+    }
+
+    articleContentSkeleton() {
+        const container = document.createElement('div');
+        container.className = 'skeleton-article';
+        const addLine = (cls, width) => {
+            const el = document.createElement('div');
+            el.className = `skeleton-line ${cls}`;
+            el.style.width = `${width}%`;
+            container.appendChild(el);
+        };
+        addLine('skeleton-article-title', 82);
+        addLine('skeleton-article-title', 61);
+        addLine('skeleton-article-meta', 44);
+        [100, 95, 88, 100, 72, 96, 84, 100, 91, 78].forEach(w => addLine('skeleton-article-body', w));
+        return container;
     }
 
     displayArticle(article) {
@@ -2730,7 +2762,7 @@ class GoReadApp {
 
     createSubscriptionStatusElement() {
         if (!this.subscriptionInfo) {
-            return '<div class="subscription-status loading">Loading...</div>';
+            return '<div class="subscription-status loading"><div class="skeleton-line skeleton-sub-badge"></div><div class="skeleton-line skeleton-sub-text"></div></div>';
         }
 
         const info = this.subscriptionInfo;

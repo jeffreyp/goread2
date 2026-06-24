@@ -2379,18 +2379,10 @@ html {
     }
 }
 
-/* Skeleton loading for article list */
+/* Skeleton loading */
 @keyframes skeleton-shimmer {
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
-}
-
-.skeleton-item {
-    padding: 16px;
-    border-bottom: 1px solid #e1e5e9;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
 }
 
 .skeleton-line {
@@ -2400,6 +2392,15 @@ html {
     animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
 
+/* Article list skeleton */
+.skeleton-item {
+    padding: 16px;
+    border-bottom: 1px solid #e1e5e9;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .skeleton-title {
     height: 14px;
 }
@@ -2407,6 +2408,57 @@ html {
 .skeleton-meta {
     height: 11px;
     width: 45%;
+}
+
+/* Feed sidebar skeleton */
+.feed-skeleton-item {
+    padding: 12px 20px;
+    border-bottom: 1px solid #f1f3f4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.skeleton-count-pill {
+    width: 28px;
+    height: 18px;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+/* Article content skeleton */
+.skeleton-article {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.skeleton-article-title {
+    height: 26px;
+}
+
+.skeleton-article-meta {
+    height: 13px;
+    margin-bottom: 16px;
+}
+
+.skeleton-article-body {
+    height: 14px;
+}
+
+/* Subscription status skeleton */
+.skeleton-sub-badge {
+    width: 58px;
+    height: 18px;
+    border-radius: 4px;
+}
+
+.skeleton-sub-text {
+    width: 90px;
+    height: 11px;
+    border-radius: 4px;
 }
 
 /* Back button in article reader — phone portrait only */
