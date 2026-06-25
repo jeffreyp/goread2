@@ -113,10 +113,10 @@ beforeEach(() => {
         </div>
 
         <!-- Modals -->
-        <div id="add-feed-modal" class="modal" style="display: none;">
+        <div id="add-feed-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="add-feed-modal-heading" style="display: none;">
             <div class="modal-content">
-                <span class="close">&times;</span>
-                <h2>Add Feed</h2>
+                <button class="close" aria-label="Close">&times;</button>
+                <h2 id="add-feed-modal-heading">Add RSS Feed</h2>
                 <form id="add-feed-form">
                     <input type="url" id="feed-url" placeholder="Feed URL" required>
                     <div class="form-actions">
@@ -127,18 +127,18 @@ beforeEach(() => {
             </div>
         </div>
 
-        <div id="help-modal" class="modal" style="display: none;">
+        <div id="help-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="help-modal-heading" style="display: none;">
             <div class="modal-content">
-                <span class="close">&times;</span>
-                <h2>Help</h2>
+                <button class="close" aria-label="Close">&times;</button>
+                <h2 id="help-modal-heading">Help &amp; Shortcuts</h2>
                 <p>Keyboard shortcuts and help content</p>
             </div>
         </div>
 
-        <div id="import-opml-modal" class="modal" style="display: none;">
+        <div id="import-opml-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="import-opml-modal-heading" style="display: none;">
             <div class="modal-content">
-                <span class="close">&times;</span>
-                <h2>Import OPML</h2>
+                <button class="close" aria-label="Close">&times;</button>
+                <h2 id="import-opml-modal-heading">Import OPML File</h2>
                 <form id="import-opml-form">
                     <input type="file" id="opml-file" accept=".opml,.xml" required>
                     <div class="form-actions">
@@ -162,9 +162,9 @@ beforeEach(() => {
         <div id="usage-stats"></div>
 
         <!-- Confirmation Modal for Account Page -->
-        <div id="confirm-modal" class="modal" style="display: none;">
+        <div id="confirm-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" style="display: none;">
             <div class="modal-content">
-                <span class="close">&times;</span>
+                <button class="close" aria-label="Close">&times;</button>
                 <h2 id="confirm-title">Confirm Action</h2>
                 <p id="confirm-message">Are you sure?</p>
                 <div class="form-actions">
