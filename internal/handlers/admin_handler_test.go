@@ -91,7 +91,12 @@ func (m *mockDBAdminHandler) GetAccountStats(int) (map[string]interface{}, error
 func (m *mockDBAdminHandler) Close() error                                     { return nil }
 func (m *mockDBAdminHandler) CreateUser(*database.User) error                  { return nil }
 func (m *mockDBAdminHandler) GetUserByGoogleID(string) (*database.User, error) { return nil, nil }
-func (m *mockDBAdminHandler) GetUserByID(int) (*database.User, error)          { return nil, nil }
+func (m *mockDBAdminHandler) GetUserByID(id int) (*database.User, error) {
+	if u, ok := m.users[id]; ok {
+		return u, nil
+	}
+	return nil, nil
+}
 func (m *mockDBAdminHandler) UpdateUserSubscription(int, string, string, time.Time, time.Time) error {
 	return nil
 }
@@ -405,6 +410,93 @@ func TestGrantFreeMonthsAuditLogging(t *testing.T) {
 		}
 		if log.Result != "success" {
 			t.Errorf("Expected result 'success', got '%s'", log.Result)
+		}
+	})
+}
+
+func TestListUsers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newMockDBAdminHandler()
+	subscriptionService := services.NewSubscriptionService(db)
+	auditService := services.NewAuditService(db)
+	handler := NewAdminHandler(subscriptionService, auditService)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/admin/users", nil)
+	handler.ListUsers(c)
+
+	if w.Code != http.StatusNotImplemented {
+		t.Errorf("expected 501, got %d", w.Code)
+	}
+}
+
+func TestGetUserInfo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newHandler := func(db *mockDBAdminHandler) *AdminHandler {
+		return NewAdminHandler(services.NewSubscriptionService(db), services.NewAuditService(db))
+	}
+
+	adminUser := &database.User{ID: 1, Email: "admin@example.com", Name: "Admin", IsAdmin: true}
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/admin/users/target@example.com", nil)
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "target@example.com"}}
+		handler.GetUserInfo(c)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("user not found returns 404", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/admin/users/nobody@example.com", nil)
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "nobody@example.com"}}
+		c.Set("user", adminUser)
+		handler.GetUserInfo(c)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+	})
+
+	t.Run("found user returns 200 with user info", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		targetUser := &database.User{
+			ID:                 42,
+			Email:              "target@example.com",
+			Name:               "Target User",
+			SubscriptionStatus: "trial",
+		}
+		db.users[targetUser.ID] = targetUser
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/admin/users/target@example.com", nil)
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "target@example.com"}}
+		c.Set("user", adminUser)
+		handler.GetUserInfo(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		userField, ok := resp["user"].(map[string]interface{})
+		if !ok {
+			t.Fatal("response missing 'user' object")
+		}
+		if userField["email"] != "target@example.com" {
+			t.Errorf("expected email target@example.com, got %v", userField["email"])
 		}
 	})
 }

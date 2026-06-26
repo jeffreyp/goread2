@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -244,6 +245,84 @@ func TestCleanupExpiredSessions_CronAuth(t *testing.T) {
 
 		if w.Code != http.StatusForbidden {
 			t.Errorf("Expected 403, got %d", w.Code)
+		}
+	})
+}
+
+func TestMe(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newHandler := func() *AuthHandler {
+		db := &mockDBAuthHandler{}
+		sessionManager := auth.NewSessionManager(db)
+		csrfManager := auth.NewCSRFManager()
+		return NewAuthHandler(nil, sessionManager, csrfManager)
+	}
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		handler := newHandler()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/me", nil)
+		handler.Me(c)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("authenticated returns user info", func(t *testing.T) {
+		handler := newHandler()
+		user := &database.User{ID: 7, Email: "alice@example.com", Name: "Alice", MaxArticlesOnFeedAdd: 50}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/me", nil)
+		c.Set("user", user)
+		handler.Me(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		userField, ok := resp["user"].(map[string]interface{})
+		if !ok {
+			t.Fatal("response missing 'user' object")
+		}
+		if userField["email"] != "alice@example.com" {
+			t.Errorf("expected email alice@example.com, got %v", userField["email"])
+		}
+		if _, ok := resp["csrf_token"]; !ok {
+			t.Error("response missing 'csrf_token' field")
+		}
+	})
+}
+
+func TestLogout(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newHandler := func() *AuthHandler {
+		db := &mockDBAuthHandler{}
+		sessionManager := auth.NewSessionManager(db)
+		csrfManager := auth.NewCSRFManager()
+		return NewAuthHandler(nil, sessionManager, csrfManager)
+	}
+
+	t.Run("always returns 200 and clears cookie", func(t *testing.T) {
+		handler := newHandler()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/auth/logout", nil)
+		handler.Logout(c)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if resp["message"] == nil {
+			t.Error("expected message in response")
 		}
 	})
 }
