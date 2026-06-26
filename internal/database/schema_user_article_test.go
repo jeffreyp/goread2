@@ -1,6 +1,8 @@
 package database
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -405,6 +407,126 @@ func TestBatchSetUserArticleStatusEmpty(t *testing.T) {
 	err := db.BatchSetUserArticleStatus(user.ID, []Article{}, true, false)
 	if err != nil {
 		t.Errorf("BatchSetUserArticleStatus with empty list should not error: %v", err)
+	}
+}
+
+// TestBatchSetUserArticleStatus_RollsBackOnFKViolation verifies that a batch
+// containing a non-existent article ID causes the entire INSERT to fail and no
+// rows are committed — not even the valid articles that precede the bad one.
+func TestBatchSetUserArticleStatus_RollsBackOnFKViolation(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed := createTestFeed(t, db)
+
+	// Three real articles that should NOT be written if the batch fails.
+	validArticles := make([]Article, 3)
+	for i := range validArticles {
+		validArticles[i] = *createTestArticle(t, db, feed.ID)
+	}
+
+	// Mix valid articles with one that references a non-existent article ID.
+	// The FK constraint should cause the entire multi-row INSERT to fail.
+	batch := []Article{
+		validArticles[0],
+		validArticles[1],
+		{ID: 999999}, // does not exist in articles table
+		validArticles[2],
+	}
+
+	err := db.BatchSetUserArticleStatus(user.ID, batch, true, false)
+	if err == nil {
+		t.Fatal("expected BatchSetUserArticleStatus to fail on FK violation, got nil")
+	}
+
+	// Verify that none of the valid articles were committed (full rollback).
+	// GetUserArticleStatus returns sql.ErrNoRows when no row exists — that is
+	// exactly what we expect after a rollback.
+	for _, article := range validArticles {
+		_, err := db.GetUserArticleStatus(user.ID, article.ID)
+		if err == nil {
+			t.Errorf("article %d should have no user_article row after rollback", article.ID)
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			t.Errorf("unexpected error for article %d: %v", article.ID, err)
+		}
+	}
+}
+
+// TestBatchSetUserArticleStatus_LargeBatchCommitsAtomically verifies that a
+// batch larger than a typical chunk boundary (>500 rows in Datastore, tested
+// here at a smaller scale) succeeds and all rows are written correctly.
+func TestBatchSetUserArticleStatus_LargeBatchCommitsAtomically(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed := createTestFeed(t, db)
+
+	const count = 50
+	articles := make([]Article, count)
+	for i := range articles {
+		articles[i] = *createTestArticle(t, db, feed.ID)
+	}
+
+	if err := db.BatchSetUserArticleStatus(user.ID, articles, true, true); err != nil {
+		t.Fatalf("BatchSetUserArticleStatus failed: %v", err)
+	}
+
+	for _, article := range articles {
+		status, err := db.GetUserArticleStatus(user.ID, article.ID)
+		if err != nil {
+			t.Fatalf("GetUserArticleStatus failed for article %d: %v", article.ID, err)
+		}
+		if status == nil {
+			t.Errorf("article %d has no user_article row after batch", article.ID)
+			continue
+		}
+		if !status.IsRead {
+			t.Errorf("article %d should be marked read", article.ID)
+		}
+		if !status.IsStarred {
+			t.Errorf("article %d should be marked starred", article.ID)
+		}
+	}
+}
+
+// TestBatchSetUserArticleStatus_OverwriteExistingRows verifies that a second
+// batch correctly overwrites previously committed status values.
+func TestBatchSetUserArticleStatus_OverwriteExistingRows(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed := createTestFeed(t, db)
+
+	articles := make([]Article, 5)
+	for i := range articles {
+		articles[i] = *createTestArticle(t, db, feed.ID)
+	}
+
+	// First batch: mark as read and starred.
+	if err := db.BatchSetUserArticleStatus(user.ID, articles, true, true); err != nil {
+		t.Fatalf("first BatchSetUserArticleStatus failed: %v", err)
+	}
+
+	// Second batch: mark as unread and unstarred.
+	if err := db.BatchSetUserArticleStatus(user.ID, articles, false, false); err != nil {
+		t.Fatalf("second BatchSetUserArticleStatus failed: %v", err)
+	}
+
+	for _, article := range articles {
+		status, err := db.GetUserArticleStatus(user.ID, article.ID)
+		if err != nil {
+			t.Fatalf("GetUserArticleStatus failed for article %d: %v", article.ID, err)
+		}
+		if status == nil {
+			t.Errorf("article %d has no user_article row", article.ID)
+			continue
+		}
+		if status.IsRead {
+			t.Errorf("article %d should be unread after second batch", article.ID)
+		}
+		if status.IsStarred {
+			t.Errorf("article %d should be unstarred after second batch", article.ID)
+		}
 	}
 }
 
