@@ -1,6 +1,8 @@
 package services
 
 import (
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -310,5 +312,93 @@ func TestFeedScheduler_GetSchedulerStatus(t *testing.T) {
 
 	if status.CleanupInterval != config.CleanupInterval {
 		t.Errorf("expected CleanupInterval %v, got %v", config.CleanupInterval, status.CleanupInterval)
+	}
+}
+
+// TestFeedScheduler_StopCompletesPromptly verifies that Stop() returns without
+// deadlocking and that the WaitGroup goroutines (schedulerLoop + cleanupLoop)
+// actually exit. Run with -race.
+func TestFeedScheduler_StopCompletesPromptly(t *testing.T) {
+	before := runtime.NumGoroutine()
+
+	scheduler := &FeedScheduler{
+		updateWindow:    time.Hour,
+		cleanupInterval: time.Hour,
+		stopChan:        make(chan struct{}),
+	}
+
+	if err := scheduler.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Give the two goroutines a moment to reach their select blocks.
+	runtime.Gosched()
+
+	done := make(chan struct{})
+	go func() {
+		scheduler.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop() did not return within 2s — possible deadlock or goroutine leak")
+	}
+
+	if scheduler.GetSchedulerStatus().IsRunning {
+		t.Error("scheduler should not be running after Stop()")
+	}
+
+	// Allow goroutines to fully exit, then check for leaks.
+	time.Sleep(10 * time.Millisecond)
+	after := runtime.NumGoroutine()
+	if after > before+2 {
+		t.Errorf("possible goroutine leak: %d goroutines before Start, %d after Stop", before, after)
+	}
+}
+
+// TestFeedScheduler_ConcurrentStop verifies that multiple concurrent Stop()
+// calls don't panic, deadlock, or close stopChan twice.
+func TestFeedScheduler_ConcurrentStop(t *testing.T) {
+	scheduler := &FeedScheduler{
+		updateWindow:    time.Hour,
+		cleanupInterval: time.Hour,
+		stopChan:        make(chan struct{}),
+	}
+
+	if err := scheduler.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	const callers = 10
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			scheduler.Stop()
+		}()
+	}
+
+	close(start)
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("concurrent Stop() calls did not complete within 5s")
+	}
+
+	if scheduler.GetSchedulerStatus().IsRunning {
+		t.Error("scheduler should not be running after concurrent Stop()")
 	}
 }

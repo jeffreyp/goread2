@@ -2,6 +2,9 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -265,4 +268,110 @@ func TestDomainRateLimiter_Wait(t *testing.T) {
 			t.Errorf("expected RateLimitError, got %T", err)
 		}
 	})
+}
+
+// TestDomainRateLimiter_ConcurrentAllow verifies that parallel Allow() calls on
+// the same domain don't race or panic. Run with -race.
+func TestDomainRateLimiter_ConcurrentAllow(t *testing.T) {
+	limiter := NewDomainRateLimiter(RateLimiterConfig{
+		RequestsPerMinute: 6000,
+		BurstSize:         1000,
+	})
+
+	const goroutines = 50
+	const callsEach = 20
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < callsEach; j++ {
+				limiter.Allow("https://example.com/feed.xml")
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+}
+
+// TestDomainRateLimiter_ConcurrentMultipleDomains stresses the double-checked
+// lock in getLimiterForDomain by creating many domains simultaneously.
+func TestDomainRateLimiter_ConcurrentMultipleDomains(t *testing.T) {
+	limiter := NewDomainRateLimiter(RateLimiterConfig{
+		RequestsPerMinute: 600,
+		BurstSize:         10,
+	})
+
+	const goroutines = 100
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			<-start
+			limiter.Allow(fmt.Sprintf("https://unique%d.example.com/feed.xml", id))
+		}(i)
+	}
+
+	close(start)
+	wg.Wait()
+
+	limiter.mu.RLock()
+	got := len(limiter.limiters)
+	limiter.mu.RUnlock()
+
+	if got != goroutines {
+		t.Errorf("expected %d limiters, got %d", goroutines, got)
+	}
+}
+
+// TestDomainRateLimiter_ConcurrentGetAndCleanup exercises Allow() and
+// CleanupOldLimiters() racing against each other to catch map mutation bugs.
+func TestDomainRateLimiter_ConcurrentGetAndCleanup(t *testing.T) {
+	limiter := NewDomainRateLimiter(RateLimiterConfig{
+		RequestsPerMinute: 6000,
+		BurstSize:         100,
+	})
+
+	const readers = 20
+	const cleaners = 5
+	const domains = 10
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			<-start
+			url := fmt.Sprintf("https://domain%d.example.com/feed.xml", id%domains)
+			for j := 0; j < 50; j++ {
+				limiter.Allow(url)
+				runtime.Gosched()
+			}
+		}(i)
+	}
+
+	for i := 0; i < cleaners; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for j := 0; j < 20; j++ {
+				limiter.CleanupOldLimiters()
+				runtime.Gosched()
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
 }
