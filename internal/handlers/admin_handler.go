@@ -85,7 +85,7 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 			auth.GetSecureClientIP(c),
 			err.Error(),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set admin status", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update admin status. Please try again.", "details": err.Error()})
 		return
 	}
 
@@ -168,7 +168,7 @@ func (ah *AdminHandler) GrantFreeMonths(c *gin.Context) {
 			auth.GetSecureClientIP(c),
 			err.Error(),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to grant free months", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to grant free months to the user. Please try again.", "details": err.Error()})
 		return
 	}
 

@@ -58,7 +58,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	// Validate and consume state (one-time use check)
 	if !ah.sessionManager.ValidateAndConsumeOAuthState(queryState) {
 		log.Printf("SECURITY: OAuth state expired or replayed from IP %s", auth.GetSecureClientIP(c))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "State parameter has expired or already been used"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter has expired or has already been used. Please try signing in again."})
 		return
 	}
 
@@ -197,7 +197,7 @@ func (ah *AuthHandler) CleanupExpiredSessions(c *gin.Context) {
 	// Cleanup expired sessions from database
 	if err := ah.sessionManager.CleanupExpiredSessions(); err != nil {
 		log.Printf("Session cleanup failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clean up sessions. Please try again."})
 		return
 	}
 

@@ -32,7 +32,7 @@ func (ah *ArticleHandler) GetArticle(c *gin.Context) {
 
 	article, err := ah.feedService.GetArticleByID(user.ID, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve the article. Please try again."})
 		return
 	}
 	if article == nil {

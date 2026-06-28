@@ -59,10 +59,10 @@ func (ph *PaymentHandler) CreateCheckoutSession(c *gin.Context) {
 	session, err := ph.paymentService.CreateCheckoutSession(req)
 	if err != nil {
 		if errors.Is(err, services.ErrAlreadySubscribed) {
-			c.JSON(http.StatusConflict, gin.H{"error": "You already have an active subscription"})
+			c.JSON(http.StatusConflict, gin.H{"error": "You already have an active subscription."})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create a checkout session. Please try again."})
 		return
 	}
 
@@ -93,7 +93,7 @@ func (ph *PaymentHandler) WebhookHandler(c *gin.Context) {
 	if endpointSecret == "" {
 		fmt.Printf("ERROR: Webhook - STRIPE_WEBHOOK_SECRET not configured\n")
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Webhook endpoint is not properly configured",
+			"error": "The webhook endpoint is not properly configured.",
 		})
 		return
 	}
@@ -212,7 +212,7 @@ func (ph *PaymentHandler) CreateCustomerPortal(c *gin.Context) {
 
 	portalURL, err := ph.paymentService.CreateCustomerPortalSession(user.ID, returnURL)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create a customer portal session. Please try again."})
 		return
 	}
 

@@ -41,7 +41,7 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 
 	feeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve your feeds. Please try again."})
 		return
 	}
 
@@ -78,7 +78,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An internal error occurred. Please try again."})
 		return
 	}
 
@@ -87,7 +87,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The request body could not be parsed."})
 		return
 	}
 
@@ -141,7 +141,7 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 	}
 
 	if err := fh.feedService.UnsubscribeUserFromFeed(user.ID, id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove the feed. Please try again."})
 		return
 	}
 	middleware.InvalidateCachedUserFeeds(c, user.ID)
@@ -176,7 +176,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 
 		result, err := fh.feedService.GetUserArticlesPaginated(user.ID, limit, cursor, unreadOnly)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve your articles. Please try again."})
 			return
 		}
 
@@ -196,7 +196,7 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 
 	articles, err := fh.feedService.GetUserFeedArticles(user.ID, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve articles for this feed. Please try again."})
 		return
 	}
 
@@ -224,12 +224,12 @@ func (fh *FeedHandler) MarkRead(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The request body could not be parsed."})
 		return
 	}
 
 	if err := fh.feedService.MarkUserArticleRead(user.ID, id, req.IsRead, req.FeedID, req.WasRead); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update the article. Please try again."})
 		return
 	}
 
@@ -251,7 +251,7 @@ func (fh *FeedHandler) ToggleStar(c *gin.Context) {
 	}
 
 	if err := fh.feedService.ToggleUserArticleStar(user.ID, id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update the article. Please try again."})
 		return
 	}
 
@@ -267,7 +267,7 @@ func (fh *FeedHandler) MarkAllRead(c *gin.Context) {
 
 	count, err := fh.feedService.MarkAllArticlesRead(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark articles as read. Please try again."})
 		return
 	}
 
@@ -315,7 +315,7 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("Feed refresh failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh feeds. Please try again."})
 		return
 	}
 
@@ -338,7 +338,7 @@ func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 	deletedCount, err := fh.db.CleanupOrphanedUserArticles(7)
 	if err != nil {
 		log.Printf("Cleanup failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clean up orphaned articles. Please try again."})
 		return
 	}
 
@@ -366,21 +366,21 @@ func (fh *FeedHandler) DebugFeed(c *gin.Context) {
 	// Get user feeds to verify subscription
 	userFeeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user feeds", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve your feeds. Please try again.", "details": err.Error()})
 		return
 	}
 
 	// Check all articles for this feed (bypass user filtering for debug)
 	allArticles, err := fh.feedService.GetArticles(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get all articles", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve articles for this feed. Please try again.", "details": err.Error()})
 		return
 	}
 
 	// Get user-specific articles
 	userArticles, err := fh.feedService.GetUserFeedArticles(user.ID, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user articles", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve articles for this feed. Please try again.", "details": err.Error()})
 		return
 	}
 
@@ -452,7 +452,7 @@ func (fh *FeedHandler) DebugAllSubscriptions(c *gin.Context) {
 	// Get all feeds that appear in the UI
 	userFeeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user feeds", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve your feeds. Please try again.", "details": err.Error()})
 		return
 	}
 
@@ -510,13 +510,13 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 	// Get cached user feeds first to avoid duplicate DB call in GetUserUnreadCounts
 	userFeeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve your feeds. Please try again."})
 		return
 	}
 
 	unreadCounts, err := fh.feedService.GetUserUnreadCounts(user.ID, userFeeds)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve unread counts. Please try again."})
 		return
 	}
 
@@ -571,7 +571,7 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "An internal error occurred while importing. Please try again."})
 		return
 	}
 
@@ -592,7 +592,7 @@ func (fh *FeedHandler) ExportOPML(c *gin.Context) {
 	opmlData, err := fh.feedService.ExportOPML(user.ID)
 	if err != nil {
 		log.Printf("Failed to export OPML for user %d: %v", user.ID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate OPML export"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate the OPML export. Please try again."})
 		return
 	}
 
@@ -614,7 +614,7 @@ func (fh *FeedHandler) GetSubscriptionInfo(c *gin.Context) {
 
 	subscriptionInfo, err := fh.subscriptionService.GetUserSubscriptionInfo(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve subscription information. Please try again."})
 		return
 	}
 
@@ -631,13 +631,13 @@ func (fh *FeedHandler) GetAccountStats(c *gin.Context) {
 	// Get user feeds
 	feeds, err := middleware.GetCachedUserFeeds(c, user.ID, fh.db)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve your feeds. Please try again."})
 		return
 	}
 
 	accountStats, err := fh.feedService.GetAccountStats(user.ID, feeds)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve account statistics. Please try again."})
 		return
 	}
 
@@ -669,12 +669,12 @@ func (fh *FeedHandler) UpdateMaxArticlesOnFeedAdd(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The request body could not be parsed."})
 		return
 	}
 
 	if err := fh.feedService.UpdateUserMaxArticlesOnFeedAdd(user.ID, req.MaxArticles); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update the setting. Please try again."})
 		return
 	}
 
