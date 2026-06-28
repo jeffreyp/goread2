@@ -112,6 +112,7 @@ To reduce database costs (especially for Google Cloud Datastore), we implement s
 - **Incremental updates:** When marking articles read/unread, the cache is updated instantly
 - Automatically invalidated on subscribe/unsubscribe operations
 - TTL: 90 seconds
+- **Max size:** 10,000 users (configured in `feed_service.go`). When full, the entry closest to expiry is evicted to make room for a new user (LRE — least-recently-expiring eviction).
 
 **Benefits:**
 - Avoids expensive COUNT queries on every page load
@@ -149,6 +150,7 @@ return counts, err
 - Used during hourly feed refresh operations
 - Automatically invalidated when users subscribe/unsubscribe
 - TTL: 20 minutes
+- **Max size:** 50,000 feeds (configured in `feed_service.go`). If the feed list exceeds this limit, `Set` is a no-op and the cache is bypassed.
 
 **Benefits:**
 - Reduces GetAllUserFeeds() queries from 48/day to ~3/day
@@ -180,6 +182,7 @@ if !cached {
 3. **TTL-based expiration:** Automatic expiration prevents stale data
 4. **Explicit invalidation:** Critical operations invalidate caches immediately
 5. **Graceful degradation:** Cache misses fall back to database queries
+6. **Bounded size:** Configurable max-size limits prevent unbounded memory growth; `SetMaxUsers` / `SetMaxFeeds` configure the cap, and `0` means unlimited (the default before limits are applied)
 
 ## Cost Savings
 
@@ -197,6 +200,7 @@ All caches have comprehensive test coverage including:
 - Concurrent access
 - Invalidation
 - Copy safety (prevent external modification)
+- Max-size limits and eviction behaviour
 
 Run cache tests:
 ```bash
@@ -209,13 +213,13 @@ Check cache statistics:
 ```go
 // Unread cache stats
 stats := unreadCache.GetStats()
-fmt.Printf("Cached users: %d, Total feeds: %d, Hits: %d, Misses: %d, HitRate: %.2f\n",
-    stats.CachedUsers, stats.TotalFeeds, stats.Hits, stats.Misses, stats.HitRate)
+fmt.Printf("Cached users: %d/%d, Total feeds: %d, Hits: %d, Misses: %d, HitRate: %.2f\n",
+    stats.CachedUsers, stats.MaxUsers, stats.TotalFeeds, stats.Hits, stats.Misses, stats.HitRate)
 
 // Feed list cache stats
 flStats := feedListCache.GetStats()
-fmt.Printf("Cached feeds: %d, Is valid: %v, Hits: %d, Misses: %d, HitRate: %.2f\n",
-    flStats.CachedFeeds, flStats.IsValid, flStats.Hits, flStats.Misses, flStats.HitRate)
+fmt.Printf("Cached feeds: %d/%d, Is valid: %v, Hits: %d, Misses: %d, HitRate: %.2f\n",
+    flStats.CachedFeeds, flStats.MaxFeeds, flStats.IsValid, flStats.Hits, flStats.Misses, flStats.HitRate)
 
 // Session cache stats
 sessionStats := sm.GetCacheStats()
