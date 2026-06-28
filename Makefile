@@ -37,7 +37,7 @@ help:
 # Build the application
 build:
 	@echo "🔨 Building GoRead2..."
-	go build -o goread2 .
+	go build -ldflags "-X main.version=$(shell date +%Y.%m.%d)" -o goread2 .
 
 # Run linter
 lint:

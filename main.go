@@ -19,6 +19,10 @@ import (
 	"github.com/jeffreyp/goread2/internal/services"
 )
 
+// version is set at build time via -ldflags "-X main.version=YYYY.MM.DD".
+// Falls back to "dev" when running without the flag (e.g. go run main.go).
+var version = "dev"
+
 func main() {
 	// Load configuration
 	cfg := config.Load()
@@ -165,7 +169,8 @@ func main() {
 	// Public routes
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", gin.H{
-			"title": "GoRead2 - RSS Reader",
+			"title":   "GoRead2 - RSS Reader",
+			"version": version,
 		})
 	})
 
