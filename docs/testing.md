@@ -24,6 +24,15 @@ internal/
 │   └── session_test.go      # Session management tests (59.7% coverage)
 ├── config/
 │   └── config_test.go       # Configuration management tests (96.7% coverage)
+├── database/
+│   ├── schema_test.go               # Core schema and CRUD tests
+│   ├── schema_extended_test.go      # Pagination edge cases and ordering
+│   ├── schema_errors_test.go        # Error paths and boundary conditions
+│   ├── schema_user_article_test.go  # User-article status (read/star) tests
+│   ├── pagination_duplicate_test.go # Duplicate-cursor pagination tests
+│   └── schema_bench_test.go         # Benchmarks (GetUserArticlesPaginated,
+│                                    #   GetUserUnreadCounts, GetAccountStats)
+│                                    # + property tests for cursor encode/decode
 ├── handlers/
 │   ├── admin_handler_test.go    # Admin handler constructor tests
 │   ├── auth_handler_test.go     # Auth handler constructor tests  
@@ -1094,16 +1103,34 @@ Total test execution time improvements:
 
 ### Benchmark Tests
 
-```go
-func BenchmarkFeedProcessing(b *testing.B) {
-    db := setupBenchmarkDB(b)
+Benchmarks for the three most-queried database operations live in
+`internal/database/schema_bench_test.go`:
 
-    b.ResetTimer()
-    for i := 0; i < b.N; i++ {
-        processFeed(db, sampleFeed)
-    }
-}
+```bash
+# Run all database benchmarks (3 seconds each, single run)
+go test ./internal/database/ -bench=. -benchtime=3s -count=1
+
+# Run a specific benchmark
+go test ./internal/database/ -bench=BenchmarkGetUserArticlesPaginated -benchtime=5s
+
+# Compare two revisions (requires benchstat)
+go test ./internal/database/ -bench=. -count=5 | tee new.txt
+benchstat old.txt new.txt
 ```
+
+Benchmarks seeded with realistic data (5–10 feeds × 30–50 articles):
+
+| Benchmark | What it measures |
+|-----------|-----------------|
+| `BenchmarkGetUserArticlesPaginatedFirstPage` | First-page query with no cursor |
+| `BenchmarkGetUserArticlesPaginatedWithCursor` | Subsequent-page query using a real cursor |
+| `BenchmarkGetUserArticlesPaginatedUnreadOnly` | Filtered query (unread articles only) |
+| `BenchmarkGetUserUnreadCounts` | Per-feed unread counts for a user |
+| `BenchmarkGetAccountStats` | Aggregated stats (total articles, unread, active feeds) |
+
+The same file contains property-based tests (`TestCursorRoundTrip`) that verify the
+cursor encode/decode round-trip holds for 1,000 randomly generated inputs via
+`testing/quick`, and `TestDecodeCursorInvalidInputs` for malformed cursor rejection.
 
 ### Load Testing
 
