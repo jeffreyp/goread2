@@ -357,6 +357,64 @@ func TestUnreadCache_ConcurrentAccess(t *testing.T) {
 	}
 }
 
+func TestUnreadCache_MaxUsersEviction(t *testing.T) {
+	cache := NewUnreadCache(60 * time.Second)
+	cache.SetMaxUsers(3)
+
+	// Fill to the limit
+	cache.Set(1, map[int]int{10: 1})
+	time.Sleep(time.Millisecond) // ensure distinct expiry ordering
+	cache.Set(2, map[int]int{20: 2})
+	time.Sleep(time.Millisecond)
+	cache.Set(3, map[int]int{30: 3})
+
+	// Cache is now at capacity (3 users). Adding user 4 should evict user 1
+	// (oldest expiry = soonest to expire = set first).
+	cache.Set(4, map[int]int{40: 4})
+
+	if _, hit := cache.Get(1); hit {
+		t.Error("user 1 should have been evicted to make room for user 4")
+	}
+	if _, hit := cache.Get(4); !hit {
+		t.Error("user 4 should be cached after eviction")
+	}
+	// Users 2 and 3 should still be present
+	for _, uid := range []int{2, 3} {
+		if _, hit := cache.Get(uid); !hit {
+			t.Errorf("user %d should still be cached", uid)
+		}
+	}
+}
+
+func TestUnreadCache_MaxUsersNoEvictionForExistingUser(t *testing.T) {
+	cache := NewUnreadCache(60 * time.Second)
+	cache.SetMaxUsers(2)
+
+	cache.Set(1, map[int]int{10: 5})
+	cache.Set(2, map[int]int{20: 10})
+
+	// Updating an already-cached user must not trigger eviction
+	cache.Set(1, map[int]int{10: 99})
+
+	if _, hit := cache.Get(2); !hit {
+		t.Error("user 2 should not have been evicted on update of existing user 1")
+	}
+	counts, _ := cache.Get(1)
+	if counts[10] != 99 {
+		t.Errorf("user 1 count should be updated to 99, got %d", counts[10])
+	}
+}
+
+func TestUnreadCache_MaxUsersStatsReported(t *testing.T) {
+	cache := NewUnreadCache(60 * time.Second)
+	cache.SetMaxUsers(500)
+
+	stats := cache.GetStats()
+	if stats.MaxUsers != 500 {
+		t.Errorf("GetStats should report MaxUsers=500, got %d", stats.MaxUsers)
+	}
+}
+
 func TestUnreadCache_IsolationBetweenUsers(t *testing.T) {
 	cache := NewUnreadCache(60 * time.Second)
 

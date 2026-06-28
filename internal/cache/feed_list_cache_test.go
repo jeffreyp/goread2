@@ -255,6 +255,71 @@ func TestFeedListCache_ConcurrentAccess(t *testing.T) {
 	}
 }
 
+func TestFeedListCache_MaxFeedsRejectsOversizedList(t *testing.T) {
+	cache := NewFeedListCache(60 * time.Second)
+	cache.SetMaxFeeds(2)
+
+	feeds := []database.Feed{
+		{ID: 1, Title: "Feed 1", URL: "https://example.com/feed1"},
+		{ID: 2, Title: "Feed 2", URL: "https://example.com/feed2"},
+		{ID: 3, Title: "Feed 3", URL: "https://example.com/feed3"},
+	}
+	cache.Set(feeds) // 3 feeds > limit of 2, should be a no-op
+
+	if _, hit := cache.Get(); hit {
+		t.Error("Set should be a no-op when feed count exceeds MaxFeeds")
+	}
+}
+
+func TestFeedListCache_MaxFeedsAllowsListAtLimit(t *testing.T) {
+	cache := NewFeedListCache(60 * time.Second)
+	cache.SetMaxFeeds(3)
+
+	feeds := []database.Feed{
+		{ID: 1, Title: "Feed 1", URL: "https://example.com/feed1"},
+		{ID: 2, Title: "Feed 2", URL: "https://example.com/feed2"},
+		{ID: 3, Title: "Feed 3", URL: "https://example.com/feed3"},
+	}
+	cache.Set(feeds) // exactly at limit, should be cached
+
+	retrieved, hit := cache.Get()
+	if !hit {
+		t.Error("Set should succeed when feed count equals MaxFeeds")
+	}
+	if len(retrieved) != 3 {
+		t.Errorf("Expected 3 feeds, got %d", len(retrieved))
+	}
+}
+
+func TestFeedListCache_MaxFeedsStatsReported(t *testing.T) {
+	cache := NewFeedListCache(60 * time.Second)
+	cache.SetMaxFeeds(50000)
+
+	stats := cache.GetStats()
+	if stats.MaxFeeds != 50000 {
+		t.Errorf("GetStats should report MaxFeeds=50000, got %d", stats.MaxFeeds)
+	}
+}
+
+func TestFeedListCache_MaxFeedsUnlimitedByDefault(t *testing.T) {
+	cache := NewFeedListCache(60 * time.Second)
+
+	// Default (0 = unlimited): a large list should be cached
+	feeds := make([]database.Feed, 100)
+	for i := range feeds {
+		feeds[i] = database.Feed{ID: i + 1, Title: "Feed", URL: "https://example.com/f"}
+	}
+	cache.Set(feeds)
+
+	retrieved, hit := cache.Get()
+	if !hit {
+		t.Error("Unlimited cache should accept any size list")
+	}
+	if len(retrieved) != 100 {
+		t.Errorf("Expected 100 feeds, got %d", len(retrieved))
+	}
+}
+
 func TestFeedListCache_InvalidateDoesNotPanic(t *testing.T) {
 	cache := NewFeedListCache(60 * time.Second)
 
