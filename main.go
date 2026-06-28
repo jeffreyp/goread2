@@ -19,9 +19,16 @@ import (
 	"github.com/jeffreyp/goread2/internal/services"
 )
 
-// version is set at build time via -ldflags "-X main.version=YYYY.MM.DD".
-// Falls back to "dev" when running without the flag (e.g. go run main.go).
+// version is set at build time via -ldflags "-X main.version=YYYY.MM.DD" for local builds,
+// or via the BUILD_VERSION env variable when deployed to App Engine (which builds server-side).
+// Falls back to "dev" when running without either (e.g. go run main.go).
 var version = "dev"
+
+func init() {
+	if v := os.Getenv("BUILD_VERSION"); v != "" {
+		version = v
+	}
+}
 
 func main() {
 	// Load configuration

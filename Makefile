@@ -112,7 +112,8 @@ validate-build: validate-config build-frontend build
 # Substitute secrets from Secret Manager into app.yaml
 substitute-secrets:
 	@echo "🔐 Fetching secrets from Secret Manager..."
-	@CSRF_SECRET=$$(gcloud secrets versions access latest --secret="csrf-secret") \
+	@BUILD_VERSION=$$(date +%Y.%m.%d) \
+	CSRF_SECRET=$$(gcloud secrets versions access latest --secret="csrf-secret") \
 	ADMIN_TOKEN=$$(gcloud secrets versions access latest --secret="admin-token") \
 	INITIAL_ADMIN_EMAILS=$$(gcloud secrets versions access latest --secret="initial-admin-emails") \
 	STRIPE_SECRET_KEY=$$(gcloud secrets versions access latest --secret="stripe-secret-key") \
