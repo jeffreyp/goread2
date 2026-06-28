@@ -43,6 +43,12 @@ body.app-body {
     overflow: hidden;
 }
 
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+}
+
 /* Loading screen for cold starts and initial page load */
 #app-loading-screen {
     position: fixed;
