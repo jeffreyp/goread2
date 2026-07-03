@@ -152,8 +152,22 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes six policies
 - **Threshold**: >0.1 errors/second (>1% of typical traffic) sustained for 3 minutes
 - **Purpose**: Detect application errors or resource exhaustion
 - **Actions**: Check application logs immediately, review recent deployments
-- **Auto-close**: 15 minutes
+- **Auto-close**: 30 minutes (GCP enforces a 30-minute minimum; the originally documented 15 minutes was never a valid value and was corrected at deploy time)
 - **Critical**: May indicate production outage
+
+## Billing Budget
+
+Unlike the alert policies above (which track operational proxies — Datastore ops, egress, instance count — because the Monitoring API can't see actual billing data), a Cloud Billing Budget is a hard dollar-based backstop that Google computes independently from real invoiced spend.
+
+**Current configuration**: `GoRead2 Monthly Budget`, $20/month, calendar-month period, scoped to `projects/goread-467200` only. Alerts fire at 50%, 80%, and 100% of spend via the same email channel used by the operational alerts (`projects/goread-467200/notificationChannels/5854116738752263410`), plus GCP's default IAM recipients (billing account admins).
+
+To adjust the amount or thresholds:
+```bash
+gcloud billing budgets list --billing-account=016C57-9F50ED-4C680E
+gcloud billing budgets update BUDGET_ID --billing-account=016C57-9F50ED-4C680E --budget-amount=NEW_AMOUNTUSD
+```
+
+**Note**: the billing account also has a pre-existing `$10 Monthly Budget Alert` (thresholds 50/90/100/150%) that predates this setup and was not created as part of this work — review whether to keep both or consolidate.
 
 ### Customizing Alert Thresholds
 
@@ -205,9 +219,9 @@ The dashboard will be created in Cloud Monitoring. If it already exists, update 
 
 ### Deploy Alerting Policies
 
-#### Step 1: Set Up Notification Channels
+**Current state**: all 6 policies are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
 
-Before deploying alerts, create notification channels to receive alerts:
+#### Step 1: Set Up Notification Channels
 
 ```bash
 # Email notification
@@ -216,7 +230,7 @@ gcloud alpha monitoring channels create \
   --type=email \
   --channel-labels=email_address=your-email@example.com
 
-# Slack notification (recommended)
+# Slack notification (optional, additive)
 gcloud alpha monitoring channels create \
   --display-name="GoRead2 Alerts Slack" \
   --type=slack \
@@ -228,7 +242,7 @@ gcloud alpha monitoring channels list
 
 #### Step 2: Configure Alert Policies
 
-Edit `monitoring/alert-policies.yaml` and add your notification channel IDs to the `notificationChannels` array in each alert policy.
+`monitoring/alert-policies.yaml` already has the email channel ID in every policy's `notificationChannels` array. Add a second channel ID to the array (one per line) if you want alerts to also go to Slack.
 
 #### Step 3: Deploy Alerts
 
@@ -236,11 +250,14 @@ Edit `monitoring/alert-policies.yaml` and add your notification channel IDs to t
 # Install alpha components if needed
 gcloud components install alpha
 
-# Deploy alerts
-gcloud alpha monitoring policies create --policy-from-file=monitoring/alert-policies.yaml
+# gcloud alpha monitoring policies create only accepts ONE policy per invocation —
+# the multi-document YAML (separated by ---) must be split into per-policy files first
+# and each created individually. To update an already-deployed policy instead of
+# creating a duplicate, use:
+gcloud alpha monitoring policies update POLICY_NAME --add-notification-channels=CHANNEL_ID
 ```
 
-**Note**: The YAML file contains multiple alert policies separated by `---`. You may need to split them into separate files or deploy them individually.
+**Gotcha hit during initial deploy**: `alertStrategy.autoClose` has a 30-minute (`"1800s"`) minimum — the original "High HTTP Error Rate" policy specified `"900s"` (15 minutes) and was rejected by the API until corrected.
 
 ### Alternative: Use Deployment Scripts
 

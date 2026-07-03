@@ -20,7 +20,8 @@ conditions:
       duration: "300s"  # Alert if sustained for 5 minutes
 combiner: "OR"
 enabled: true
-notificationChannels: []  # Add your notification channels here
+notificationChannels:
+  - "projects/goread-467200/notificationChannels/5854116738752263410"  # GoRead2 Alerts Email
 alertStrategy:
   autoClose: "1800s"  # Auto-close after 30 minutes
 
@@ -43,7 +44,8 @@ conditions:
       duration: "300s"
 combiner: "OR"
 enabled: true
-notificationChannels: []
+notificationChannels:
+  - "projects/goread-467200/notificationChannels/5854116738752263410"  # GoRead2 Alerts Email
 alertStrategy:
   autoClose: "1800s"
 
@@ -66,7 +68,8 @@ conditions:
       duration: "600s"  # Alert if sustained for 10 minutes
 combiner: "OR"
 enabled: true
-notificationChannels: []
+notificationChannels:
+  - "projects/goread-467200/notificationChannels/5854116738752263410"  # GoRead2 Alerts Email
 alertStrategy:
   autoClose: "1800s"
 
@@ -89,7 +92,8 @@ conditions:
       duration: "300s"
 combiner: "OR"
 enabled: true
-notificationChannels: []
+notificationChannels:
+  - "projects/goread-467200/notificationChannels/5854116738752263410"  # GoRead2 Alerts Email
 alertStrategy:
   autoClose: "1800s"
 
@@ -112,7 +116,8 @@ conditions:
       duration: "0s"
 combiner: "OR"
 enabled: true
-notificationChannels: []
+notificationChannels:
+  - "projects/goread-467200/notificationChannels/5854116738752263410"  # GoRead2 Alerts Email
 alertStrategy:
   autoClose: "3600s"
 
@@ -135,6 +140,7 @@ conditions:
       duration: "180s"
 combiner: "OR"
 enabled: true
-notificationChannels: []
+notificationChannels:
+  - "projects/goread-467200/notificationChannels/5854116738752263410"  # GoRead2 Alerts Email
 alertStrategy:
-  autoClose: "900s"
+  autoClose: "1800s"  # GCP enforces a 30-minute minimum; 900s was rejected at deploy time
