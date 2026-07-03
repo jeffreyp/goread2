@@ -12,7 +12,16 @@ import (
 	"github.com/jeffreyp/goread2/test/helpers"
 )
 
-// TestPaginationEndToEnd tests end-to-end pagination flow with multiple pages and cursors
+// paginatedArticlesResponse mirrors the JSON shape returned by GET /api/feeds/all/articles.
+type paginatedArticlesResponse struct {
+	Articles   []database.Article `json:"articles"`
+	NextCursor string             `json:"next_cursor"`
+}
+
+// TestPaginationEndToEnd tests end-to-end cursor pagination across multiple pages via the
+// "all articles" endpoint (/api/feeds/all/articles), which is the only endpoint that
+// implements cursor-based pagination — GET /api/feeds/:id/articles for a single feed
+// returns the full unpaginated list.
 func TestPaginationEndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -35,49 +44,77 @@ func TestPaginationEndToEnd(t *testing.T) {
 	}
 
 	// Create 50 articles to test multi-page pagination
-	articleIDs := make([]int, 50)
 	for i := 0; i < 50; i++ {
-		article := helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Article "+strconv.Itoa(i+1), "https://pagination.com/article"+strconv.Itoa(i+1))
-		articleIDs[i] = article.ID
+		helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Article "+strconv.Itoa(i+1), "https://pagination.com/article"+strconv.Itoa(i+1))
 	}
 
-	// Test 1: Get first page with limit 20
-	req1 := testServer.CreateAuthenticatedRequest(t, "GET", "/api/feeds/"+strconv.Itoa(feed.ID)+"/articles?limit=20", nil, user)
-	rr1 := testServer.ExecuteRequest(req1)
-
-	if rr1.Code != http.StatusOK {
-		t.Fatalf("Expected status 200, got %d. Body: %s", rr1.Code, rr1.Body.String())
+	fetchPage := func(cursor string) paginatedArticlesResponse {
+		url := "/api/feeds/all/articles?limit=20"
+		if cursor != "" {
+			url += "&cursor=" + cursor
+		}
+		req := testServer.CreateAuthenticatedRequest(t, "GET", url, nil, user)
+		rr := testServer.ExecuteRequest(req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+		}
+		var page paginatedArticlesResponse
+		if err := json.Unmarshal(rr.Body.Bytes(), &page); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v. Body: %s", err, rr.Body.String())
+		}
+		return page
 	}
 
-	// API returns array directly, not wrapped
-	var page1Articles []database.Article
-	err = json.Unmarshal(rr1.Body.Bytes(), &page1Articles)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal response: %v. Body: %s", err, rr1.Body.String())
+	seen := make(map[int]bool)
+	assertNoOverlap := func(page paginatedArticlesResponse) {
+		for _, a := range page.Articles {
+			if seen[a.ID] {
+				t.Fatalf("Article %d appeared on more than one page", a.ID)
+			}
+			seen[a.ID] = true
+		}
 	}
 
-	if len(page1Articles) < 20 {
-		t.Logf("Expected 20 articles on first page, got %d (might not support pagination)", len(page1Articles))
+	// Page 1: first 20 articles, expect a next cursor
+	page1 := fetchPage("")
+	if len(page1.Articles) != 20 {
+		t.Fatalf("Expected 20 articles on page 1, got %d", len(page1.Articles))
+	}
+	if page1.NextCursor == "" {
+		t.Fatal("Expected a non-empty next_cursor on page 1 (30 articles remain)")
+	}
+	assertNoOverlap(page1)
+
+	// Page 2: next 20 articles, expect a next cursor
+	page2 := fetchPage(page1.NextCursor)
+	if len(page2.Articles) != 20 {
+		t.Fatalf("Expected 20 articles on page 2, got %d", len(page2.Articles))
+	}
+	if page2.NextCursor == "" {
+		t.Fatal("Expected a non-empty next_cursor on page 2 (10 articles remain)")
+	}
+	assertNoOverlap(page2)
+
+	// Page 3: final 10 articles, expect an empty cursor (no more results)
+	page3 := fetchPage(page2.NextCursor)
+	if len(page3.Articles) != 10 {
+		t.Fatalf("Expected 10 articles on page 3, got %d", len(page3.Articles))
+	}
+	if page3.NextCursor != "" {
+		t.Fatalf("Expected empty next_cursor on final page, got %q", page3.NextCursor)
+	}
+	assertNoOverlap(page3)
+
+	if len(seen) != 50 {
+		t.Fatalf("Expected 50 unique articles across all pages, saw %d", len(seen))
 	}
 
-	// Note: If the API doesn't support pagination with cursors yet, we'll see all articles
-	if len(page1Articles) == 50 {
-		t.Skip("API returns all articles at once - pagination with cursors not yet implemented")
+	// Invalid cursor should be rejected, not silently ignored
+	reqBad := testServer.CreateAuthenticatedRequest(t, "GET", "/api/feeds/all/articles?limit=20&cursor=not-a-valid-cursor", nil, user)
+	rrBad := testServer.ExecuteRequest(reqBad)
+	if rrBad.Code != http.StatusInternalServerError && rrBad.Code != http.StatusBadRequest {
+		t.Fatalf("Expected an error status for an invalid cursor, got %d. Body: %s", rrBad.Code, rrBad.Body.String())
 	}
-
-	// For now, verify we got some articles
-	if len(page1Articles) == 0 {
-		t.Fatal("Expected to get articles from feed")
-	}
-
-	t.Logf("Pagination test - Got %d articles (pagination implementation pending)", len(page1Articles))
-
-	// TODO: Once pagination is implemented with cursors, uncomment and update these tests:
-	// - Test fetching subsequent pages with cursor parameter
-	// - Verify no overlap between pages
-	// - Test cursor stability (same cursor returns same results)
-	// - Test invalid cursor handling
-	// - Verify total count across all pages
 }
 
 // TestFeedSubscriptionLimits tests feed subscription limits and trial expiration
