@@ -221,6 +221,8 @@ The dashboard will be created in Cloud Monitoring. If it already exists, update 
 
 **Current state**: all 6 policies are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
 
+**Unrelated pre-existing alert, disabled**: the project also had a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`), likely a GCP console/suggested default predating this setup. It compared live traffic against a *forecasted* baseline and fired on a 100% increase — since this app's baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run, any normal cron burst looked like an "infinite % increase" and triggered it every cycle. It went unnoticed until the notification channel above was attached (2026-07-03), at which point it started emailing every ~2 hours for entirely routine cron activity. Disabled via `gcloud alpha monitoring policies update ... --no-enabled` — the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) already covers this signal without the false-positive-prone forecast comparison.
+
 #### Step 1: Set Up Notification Channels
 
 ```bash
