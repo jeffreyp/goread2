@@ -23,6 +23,7 @@ type TestServer struct {
 	CSRFManager    *auth.CSRFManager
 	FeedHandler    *handlers.FeedHandler
 	AuthHandler    *handlers.AuthHandler
+	FeedService    *services.FeedService
 	DB             database.Database
 }
 
@@ -90,6 +91,7 @@ func SetupTestServer(t *testing.T) *TestServer {
 		CSRFManager:    csrfManager,
 		FeedHandler:    feedHandler,
 		AuthHandler:    authHandler,
+		FeedService:    feedService,
 		DB:             db,
 	}
 }

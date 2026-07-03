@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/test/fixtures"
 	"github.com/jeffreyp/goread2/test/helpers"
 )
 
@@ -56,19 +57,29 @@ func TestFeedAPI(t *testing.T) {
 	})
 
 	t.Run("AddFeed_Success", func(t *testing.T) {
-		// Note: This test requires an active internet connection
-		// In a real test environment, you'd mock the HTTP client
+		mockServer := helpers.NewMockFeedServer(t, fixtures.SampleRSSXML)
+		defer mockServer.Close()
+
+		testServer.FeedService.SetHTTPClient(helpers.NewMockHTTPClient(mockServer))
+		defer testServer.FeedService.SetHTTPClient(nil)
+
 		feedData := map[string]string{
-			"url": "https://feeds.bbci.co.uk/news/rss.xml",
+			"url": mockServer.URL,
 		}
 
 		req := testServer.CreateAuthenticatedRequest(t, "POST", "/api/feeds", feedData, user)
 		rr := testServer.ExecuteRequest(req)
 
-		// This might fail due to network issues in test environment
-		// In production tests, mock the feed fetching
-		if rr.Code != http.StatusCreated && rr.Code != http.StatusInternalServerError {
-			t.Errorf("Expected status 201 or 500 (network error), got %d. Body: %s", rr.Code, rr.Body.String())
+		if rr.Code != http.StatusCreated {
+			t.Fatalf("Expected status 201, got %d. Body: %s", rr.Code, rr.Body.String())
+		}
+
+		var feed database.Feed
+		if err := json.Unmarshal(rr.Body.Bytes(), &feed); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v. Body: %s", err, rr.Body.String())
+		}
+		if feed.Title != "Test RSS Feed" {
+			t.Errorf("Expected feed title %q, got %q", "Test RSS Feed", feed.Title)
 		}
 	})
 
