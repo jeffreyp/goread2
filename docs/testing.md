@@ -914,7 +914,7 @@ func TestTokenLifecycle(t *testing.T) {
 
 ### GitHub Actions (`.github/workflows/test.yml`)
 
-The CI pipeline includes:
+The CI pipeline pins Go via a single `GO_VERSION` env var (currently `1.24`, matching `go.mod`) and runs five jobs:
 
 ```yaml
 name: Tests
@@ -924,36 +924,26 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  GO_VERSION: '1.24'
+
 jobs:
-  test:
-    strategy:
-      matrix:
-        go-version: [1.24]
-        
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
-        with:
-          go-version: ${{ matrix.go-version }}
-          
-      - name: Run unit tests
-        run: go test -short -race -coverprofile=coverage.out ./internal/...
-        
-      - name: Run integration tests
-        run: go test -race ./test/integration/...
-        
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
+  test:            # unit + integration tests, coverage upload to Codecov
+  lint:            # golangci-lint
+  frontend-build:  # npm ci + make build-frontend (JS/CSS must build cleanly)
+  security:        # govulncheck, continue-on-error: true — reports, doesn't block
+  build:           # needs: [test, lint, frontend-build]; go build ./... + make build
 ```
 
 **Pipeline features:**
-- Go 1.24 testing
+- Go 1.24 testing, pinned to match `go.mod` (previously drifted to 1.23)
 - Package-level unit tests (`./internal/...`)
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov
 - Linting with golangci-lint
-- Multi-platform build artifacts
-- Separate test, lint, and build jobs
+- Frontend build verification (`npm ci` + `make build-frontend`) — broken JS/CSS now fails CI instead of shipping silently
+- `govulncheck` as a non-blocking reporting job
+- Single-platform build artifact (`goread2` binary) — dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
 
 ## Writing New Tests
 
