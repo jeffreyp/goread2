@@ -131,9 +131,9 @@ func TestConcurrentUserOperations(t *testing.T) {
 	for _, user := range users {
 		go func(u *database.User) {
 			for i := 0; i < 10; i++ {
-				defer wg.Done()
 				// Mark articles as read
 				_ = testServer.DB.MarkUserArticleRead(u.ID, i+1, true)
+				wg.Done()
 			}
 		}(user)
 	}
