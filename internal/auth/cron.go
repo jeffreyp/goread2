@@ -1,11 +1,13 @@
 package auth
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 // VerifyCronRequest checks that the request is authorized to trigger a cron job.
@@ -29,7 +31,10 @@ func VerifyCronRequest(c *gin.Context) bool {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Admin authentication required"})
 		return false
 	}
-	expectedToken := os.Getenv("ADMIN_TOKEN")
+	expectedToken, err := secrets.GetAdminToken(context.Background())
+	if err != nil {
+		log.Printf("Warning: failed to load ADMIN_TOKEN from Secret Manager: %v", err)
+	}
 	if expectedToken == "" || c.GetHeader("X-Admin-Token") != expectedToken {
 		log.Printf("Unauthorized cron request - invalid or missing X-Admin-Token from IP: %s", GetSecureClientIP(c))
 		c.JSON(http.StatusForbidden, gin.H{"error": "Valid X-Admin-Token header required"})

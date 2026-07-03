@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -8,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
@@ -50,12 +53,18 @@ var globalConfig *Config
 // ResetForTesting resets the global config - used only in tests
 func ResetForTesting() {
 	globalConfig = nil
+	secrets.ResetCacheForTesting()
 }
 
 // Load loads configuration from environment variables
 func Load() *Config {
 	if globalConfig != nil {
 		return globalConfig
+	}
+
+	adminEmailsRaw, err := secrets.GetInitialAdminEmails(context.Background())
+	if err != nil {
+		log.Printf("WARNING: failed to load INITIAL_ADMIN_EMAILS from Secret Manager: %v", err)
 	}
 
 	globalConfig = &Config{
@@ -76,7 +85,7 @@ func Load() *Config {
 		StripeWebhookSecret:  os.Getenv("STRIPE_WEBHOOK_SECRET"),
 
 		// Admin initialization
-		InitialAdminEmails: parseEmailList(os.Getenv("INITIAL_ADMIN_EMAILS")),
+		InitialAdminEmails: parseEmailList(adminEmailsRaw),
 
 		// Server
 		Port: getEnvOrDefault("PORT", "8080"),

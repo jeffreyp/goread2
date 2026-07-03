@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -11,6 +12,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 // CSRFManager manages CSRF tokens using stateless HMAC-based generation
@@ -36,8 +38,11 @@ func getOrGenerateSecret() []byte {
 	// Check if running in production environment
 	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
 
-	// Try to get secret from environment first
-	secretStr := os.Getenv("CSRF_SECRET")
+	// Try to get secret from environment or Secret Manager
+	secretStr, err := secrets.GetCSRFSecret(context.Background())
+	if err != nil {
+		log.Printf("Warning: failed to load CSRF_SECRET from Secret Manager: %v", err)
+	}
 	if secretStr != "" {
 		// Decode base64-encoded secret
 		secret, err := base64.StdEncoding.DecodeString(secretStr)

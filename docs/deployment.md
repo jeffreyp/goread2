@@ -55,6 +55,8 @@ All deployment methods require:
 
 **Secret Reference Convention**: The application supports a `_secret:` prefix for environment variables to explicitly trigger Secret Manager lookups. For example, setting `GOOGLE_CLIENT_ID=_secret:my-client-id` will fetch the secret from Google Secret Manager. This convention is consistent across all credentials (OAuth and Stripe) and prevents accidental conflicts with actual secret values.
 
+**CSRF_SECRET, ADMIN_TOKEN, and INITIAL_ADMIN_EMAILS** follow the same pattern as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`: they are fetched from Secret Manager at runtime (secret names `csrf-secret`, `admin-token`, `initial-admin-emails`) and are absent from `app.yaml` entirely — there is nothing to substitute at deploy time for these three. `make substitute-secrets` still handles the four Stripe variables, which have not yet been migrated to this pattern.
+
 #### Setting up Google Secret Manager
 
 1. **Enable the Secret Manager API:**
@@ -70,6 +72,10 @@ All deployment methods require:
 
    # CSRF secret (REQUIRED for production)
    openssl rand -base64 32 | gcloud secrets create csrf-secret --data-file=-
+
+   # Admin CLI token and initial admin bootstrap emails (optional)
+   echo -n "your-admin-token" | gcloud secrets create admin-token --data-file=-
+   echo -n "admin@example.com" | gcloud secrets create initial-admin-emails --data-file=-
 
    # Stripe configuration (if using subscriptions)
    echo -n "sk_live_your-secret-key" | gcloud secrets create stripe-secret-key --data-file=-
@@ -94,6 +100,14 @@ All deployment methods require:
        --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
        --role="roles/secretmanager.secretAccessor"
 
+   gcloud secrets add-iam-policy-binding admin-token \
+       --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
+       --role="roles/secretmanager.secretAccessor"
+
+   gcloud secrets add-iam-policy-binding initial-admin-emails \
+       --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
+       --role="roles/secretmanager.secretAccessor"
+
    # Repeat for other secrets (Stripe, etc.)...
    ```
 
@@ -108,13 +122,13 @@ env_variables:
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
   GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
-  CSRF_SECRET: ${CSRF_SECRET}
   SUBSCRIPTION_ENABLED: "true"
   STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
   STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
   STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
   STRIPE_PRICE_ID: ${STRIPE_PRICE_ID}
 ```
+`CSRF_SECRET`, `ADMIN_TOKEN`, and `INITIAL_ADMIN_EMAILS` are intentionally absent — they're fetched directly from Secret Manager at runtime with no placeholder needed (see the Secret Reference Convention note above).
 
 **Option 2: Direct Secret Manager Integration**
 ```yaml
@@ -437,6 +451,8 @@ WantedBy=multi-user.target
 - `SESSION_SECRET` - Custom session encryption key (auto-generated if not set)
 - `SESSION_CACHE_TTL` - In-memory session cache duration (default: 10m, e.g. "5m", "1h")
 - `SUBSCRIPTION_ENABLED` - Enable/disable subscription system (default: false)
+- `ADMIN_TOKEN` - Static token for the `X-Admin-Token` header on cron endpoints outside GAE (fetched from Secret Manager `admin-token` if unset; cron auth is disabled if never configured)
+- `INITIAL_ADMIN_EMAILS` - Comma-separated emails granted admin privileges on first sign-in (fetched from Secret Manager `initial-admin-emails` if unset)
 
 ### Stripe Variables (if using subscriptions)
 

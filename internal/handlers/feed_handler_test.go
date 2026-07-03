@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 	"github.com/jeffreyp/goread2/internal/services"
 )
 
@@ -928,6 +929,8 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 
 	t.Run("successful cleanup as admin in local environment", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		db := newMockDBFeedHandler()
 		db.articlesDeleted = 42
 		handler := NewFeedHandler(nil, nil, nil, db)
@@ -963,6 +966,8 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 
 	t.Run("unauthorized without admin in local environment", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		db := newMockDBFeedHandler()
 		handler := NewFeedHandler(nil, nil, nil, db)
 
@@ -988,6 +993,8 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 
 	t.Run("unauthorized without authentication in local environment", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		db := newMockDBFeedHandler()
 		handler := NewFeedHandler(nil, nil, nil, db)
 
@@ -1004,6 +1011,8 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 
 	t.Run("unauthorized admin without X-Admin-Token header", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		db := newMockDBFeedHandler()
 		handler := NewFeedHandler(nil, nil, nil, db)
 
@@ -1023,6 +1032,8 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 
 	t.Run("unauthorized admin with wrong X-Admin-Token header", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		db := newMockDBFeedHandler()
 		handler := NewFeedHandler(nil, nil, nil, db)
 
@@ -1043,6 +1054,8 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 
 	t.Run("unauthorized when ADMIN_TOKEN not configured", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		db := newMockDBFeedHandler()
 		handler := NewFeedHandler(nil, nil, nil, db)
 
@@ -1063,6 +1076,8 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 
 	t.Run("database error returns 500", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		db := newMockDBFeedHandler()
 		db.shouldFailCleanupOrphaned = true
 		handler := NewFeedHandler(nil, nil, nil, db)

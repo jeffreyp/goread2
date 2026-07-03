@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"log"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/auth"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 type AuthHandler struct {
@@ -182,7 +184,10 @@ func (ah *AuthHandler) CleanupExpiredSessions(c *gin.Context) {
 				c.JSON(http.StatusForbidden, gin.H{"error": "Admin access is required to perform this action."})
 				return
 			}
-			expectedToken := os.Getenv("ADMIN_TOKEN")
+			expectedToken, err := secrets.GetAdminToken(context.Background())
+			if err != nil {
+				log.Printf("Warning: failed to load ADMIN_TOKEN from Secret Manager: %v", err)
+			}
 			if expectedToken == "" || c.GetHeader("X-Admin-Token") != expectedToken {
 				log.Printf("Unauthorized cron request - invalid or missing X-Admin-Token from IP: %s", auth.GetSecureClientIP(c))
 				c.JSON(http.StatusForbidden, gin.H{"error": "A valid X-Admin-Token header is required for admin access."})

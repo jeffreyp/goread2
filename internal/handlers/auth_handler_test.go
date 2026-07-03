@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/auth"
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 // mockDBAuthHandler is a minimal mock database for auth handler tests
@@ -161,6 +162,8 @@ func TestCleanupExpiredSessions_CronAuth(t *testing.T) {
 
 	t.Run("admin with valid token succeeds", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-cron-token")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		handler := newHandler()
 
 		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
@@ -179,6 +182,8 @@ func TestCleanupExpiredSessions_CronAuth(t *testing.T) {
 
 	t.Run("admin without X-Admin-Token header is rejected", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-cron-token")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		handler := newHandler()
 
 		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
@@ -196,6 +201,8 @@ func TestCleanupExpiredSessions_CronAuth(t *testing.T) {
 
 	t.Run("admin with wrong X-Admin-Token is rejected", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-cron-token")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		handler := newHandler()
 
 		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
@@ -214,6 +221,8 @@ func TestCleanupExpiredSessions_CronAuth(t *testing.T) {
 
 	t.Run("non-admin is rejected even with valid token", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "test-cron-token")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		handler := newHandler()
 
 		regularUser := &database.User{ID: 2, Email: "user@example.com", IsAdmin: false}
@@ -232,6 +241,8 @@ func TestCleanupExpiredSessions_CronAuth(t *testing.T) {
 
 	t.Run("blocked when ADMIN_TOKEN not configured", func(t *testing.T) {
 		t.Setenv("ADMIN_TOKEN", "")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
 		handler := newHandler()
 
 		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}

@@ -113,9 +113,6 @@ validate-build: validate-config build-frontend build
 substitute-secrets:
 	@echo "🔐 Fetching secrets from Secret Manager..."
 	@BUILD_VERSION=$$(date +%Y.%m.%d) \
-	CSRF_SECRET=$$(gcloud secrets versions access latest --secret="csrf-secret") \
-	ADMIN_TOKEN=$$(gcloud secrets versions access latest --secret="admin-token") \
-	INITIAL_ADMIN_EMAILS=$$(gcloud secrets versions access latest --secret="initial-admin-emails") \
 	STRIPE_SECRET_KEY=$$(gcloud secrets versions access latest --secret="stripe-secret-key") \
 	STRIPE_PUBLISHABLE_KEY=$$(gcloud secrets versions access latest --secret="stripe-publishable-key") \
 	STRIPE_WEBHOOK_SECRET=$$(gcloud secrets versions access latest --secret="stripe-webhook-secret") \

@@ -48,6 +48,27 @@ var (
 	stripeErr            error
 )
 
+// Cache for the CSRF secret (fetched once at startup)
+var (
+	csrfSecret string
+	csrfOnce   sync.Once
+	csrfErr    error
+)
+
+// Cache for the admin token (fetched once at startup)
+var (
+	adminToken     string
+	adminTokenOnce sync.Once
+	adminTokenErr  error
+)
+
+// Cache for initial admin emails (fetched once at startup)
+var (
+	initialAdminEmails     string
+	initialAdminEmailsOnce sync.Once
+	initialAdminEmailsErr  error
+)
+
 // secretFetcher is the function used to call Secret Manager; replaced in tests
 var secretFetcher = fetchFromSecretManager
 
@@ -98,6 +119,18 @@ func ResetCacheForTesting() {
 	stripePriceID = ""
 	stripeOnce = sync.Once{}
 	stripeErr = nil
+
+	csrfSecret = ""
+	csrfOnce = sync.Once{}
+	csrfErr = nil
+
+	adminToken = ""
+	adminTokenOnce = sync.Once{}
+	adminTokenErr = nil
+
+	initialAdminEmails = ""
+	initialAdminEmailsOnce = sync.Once{}
+	initialAdminEmailsErr = nil
 
 	secretFetcher = fetchFromSecretManager
 }
@@ -243,4 +276,43 @@ func GetStripeCredentials(ctx context.Context) (secretKey, publishableKey, webho
 	})
 
 	return stripeSecretKey, stripePublishableKey, stripeWebhookSecret, stripePriceID, stripeErr
+}
+
+// GetCSRFSecret retrieves the CSRF secret from environment or Secret Manager.
+// Unlike OAuth/Stripe, an empty result is not necessarily an error — callers
+// (e.g. in local development) may fall back to generating an ephemeral secret.
+func GetCSRFSecret(ctx context.Context) (string, error) {
+	csrfOnce.Do(func() {
+		csrfSecret = os.Getenv("CSRF_SECRET")
+		if csrfSecret == "" || strings.HasPrefix(csrfSecret, secretPrefix) {
+			csrfSecret, csrfErr = GetSecret(ctx, "csrf-secret")
+		}
+	})
+	return csrfSecret, csrfErr
+}
+
+// GetAdminToken retrieves the admin CLI token from environment or Secret Manager.
+// An empty result is not an error — it just means the ADMIN_TOKEN auth path is
+// disabled; callers already fail closed on an empty expected token.
+func GetAdminToken(ctx context.Context) (string, error) {
+	adminTokenOnce.Do(func() {
+		adminToken = os.Getenv("ADMIN_TOKEN")
+		if adminToken == "" || strings.HasPrefix(adminToken, secretPrefix) {
+			adminToken, adminTokenErr = GetSecret(ctx, "admin-token")
+		}
+	})
+	return adminToken, adminTokenErr
+}
+
+// GetInitialAdminEmails retrieves the comma-separated initial admin email list
+// from environment or Secret Manager. An empty result just means no initial
+// admin bootstrap is configured.
+func GetInitialAdminEmails(ctx context.Context) (string, error) {
+	initialAdminEmailsOnce.Do(func() {
+		initialAdminEmails = os.Getenv("INITIAL_ADMIN_EMAILS")
+		if initialAdminEmails == "" || strings.HasPrefix(initialAdminEmails, secretPrefix) {
+			initialAdminEmails, initialAdminEmailsErr = GetSecret(ctx, "initial-admin-emails")
+		}
+	})
+	return initialAdminEmails, initialAdminEmailsErr
 }
