@@ -23,14 +23,24 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
+      - name: Validate version format
+        env:
+          TARGET_VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$TARGET_VERSION" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]]; then
+            echo "::error::Invalid version format: '$TARGET_VERSION'. Expected lowercase alphanumeric + hyphens only (App Engine version ID format)." >&2
+            exit 1
+          fi
+
       - name: Migrate 100% of traffic to the specified version
         env:
           TARGET_VERSION: ${{ inputs.version }}
         run: |
-          gcloud app versions migrate "$TARGET_VERSION" \
+          gcloud app versions migrate \
             --project=goread-467200 \
             --service=default \
-            --quiet
+            --quiet \
+            -- "$TARGET_VERSION"
 
       - name: Output rollback confirmation
         env:
