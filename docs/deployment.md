@@ -117,6 +117,26 @@ Every push to `main` that passes the `Tests` workflow automatically deploys to A
 
 **Known limitation, tracked separately**: this only deploys the `staging-<sha>` promotion candidate. A second, fixed-name `staging` version for human OAuth login testing (Google's redirect URI allowlist can't handle per-SHA URLs) is gr-furl's scope, not yet implemented — do not expect a stable staging login URL until that lands.
 
+## Rollback (`.github/workflows/rollback.yml`)
+
+One-click rollback — shifts 100% of production traffic to a previously-deployed version instantly, without needing local `gcloud` credentials.
+
+**Finding available version names:**
+```bash
+gcloud app versions list --service=default --project=goread-467200 \
+  --format="table(version.id,traffic_split,version.createTime)" \
+  --sort-by="~version.createTime"
+```
+Look for a `prod-*` version with `traffic_split: 0.00` from before the bad deploy — that's your rollback target. (`staging-*` versions are promotion candidates only and were never meant to serve production traffic; don't roll back to one.)
+
+**Triggering a rollback:**
+```bash
+gh workflow run rollback.yml --repo jeffreyp/goread2 -f version=prod-20260628t144643
+```
+Or via the GitHub Actions UI: Actions → Rollback → Run workflow, entering the version name.
+
+The workflow authenticates via the same WIF setup as deploy-staging, runs `gcloud app versions migrate VERSION --service=default`, and prints a confirmation with the version name to the job summary. This is instant (no rebuild) since it's re-pointing traffic at an already-deployed artifact.
+
 ## Google App Engine (Recommended)
 
 ### Environment Variables Setup

@@ -1,0 +1,45 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'App Engine version to shift 100% of traffic to (see: gcloud app versions list)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CICD_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Migrate 100% of traffic to the specified version
+        env:
+          TARGET_VERSION: ${{ inputs.version }}
+        run: |
+          gcloud app versions migrate "$TARGET_VERSION" \
+            --project=goread-467200 \
+            --service=default \
+            --quiet
+
+      - name: Output rollback confirmation
+        env:
+          TARGET_VERSION: ${{ inputs.version }}
+        run: |
+          {
+            echo "### 🔄 Rollback complete"
+            echo ""
+            echo "100% of production traffic has been shifted to version: \`$TARGET_VERSION\`"
+            echo ""
+            echo "URL: https://goread-467200.uc.r.appspot.com"
+          } >> "$GITHUB_STEP_SUMMARY"
