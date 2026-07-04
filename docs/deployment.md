@@ -100,6 +100,18 @@ jobs:
 
 Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow declaring `environment: production` — the run entered `waiting` status and the Actions API confirmed a pending deployment awaiting review from `jeffreyp`. Cancelled (not approved — approval should always be a real human decision) and the smoke-test workflow removed after verification.
 
+## Automated Staging Deploys (`.github/workflows/deploy-staging.yml`)
+
+Every push to `main` that passes the `Tests` workflow automatically deploys to App Engine as a new, zero-traffic version — safe to run unattended because of `--no-promote`.
+
+- **Trigger**: `workflow_run` for the `Tests` workflow, `types: [completed]`, gated on `github.event.workflow_run.conclusion == 'success'` and `branches: [main]` — deploy never runs if CI failed.
+- **Version name**: `staging-<short-sha>`, e.g. `staging-a1b2c3d`, deployed with `--no-promote` (no production traffic).
+- **cron.yaml / index.yaml**: only redeployed if changed in that specific commit (`git diff --name-only HEAD~1 HEAD`).
+- **Job summary**: prints the version name and full staging URL (`https://<version>-dot-goread-467200.uc.r.appspot.com`) so a reviewer knows where to click through and test.
+- All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review — see the workflow file's inline `# vX` comments for the corresponding version.
+
+**Known limitation, tracked separately**: this only deploys the `staging-<sha>` promotion candidate. A second, fixed-name `staging` version for human OAuth login testing (Google's redirect URI allowlist can't handle per-SHA URLs) is gr-furl's scope, not yet implemented — do not expect a stable staging login URL until that lands.
+
 ## Google App Engine (Recommended)
 
 ### Environment Variables Setup

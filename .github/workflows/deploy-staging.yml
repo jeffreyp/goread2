@@ -1,0 +1,71 @@
+name: Deploy Staging
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-staging:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: make build-frontend
+
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CICD_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Determine staging version name
+        id: version
+        run: echo "name=staging-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to App Engine staging (no traffic)
+        run: |
+          gcloud app deploy app.yaml \
+            --project=goread-467200 \
+            --version="${{ steps.version.outputs.name }}" \
+            --no-promote \
+            --quiet
+
+      - name: Deploy cron.yaml / index.yaml if changed in this commit
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^(cron|index)\.yaml$'; then
+            echo "cron.yaml or index.yaml changed — deploying config"
+            gcloud app deploy cron.yaml index.yaml --project=goread-467200 --quiet
+          else
+            echo "No changes to cron.yaml or index.yaml — skipping config deploy"
+          fi
+
+      - name: Output staging URL
+        run: |
+          {
+            echo "### 🚀 Staged for review"
+            echo ""
+            echo "**Version:** \`${{ steps.version.outputs.name }}\`"
+            echo "**URL:** https://${{ steps.version.outputs.name }}-dot-goread-467200.uc.r.appspot.com"
+            echo ""
+            echo "No production traffic has been shifted — this version was deployed with \`--no-promote\`."
+          } >> "$GITHUB_STEP_SUMMARY"
