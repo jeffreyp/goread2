@@ -914,7 +914,7 @@ func TestTokenLifecycle(t *testing.T) {
 
 ### GitHub Actions (`.github/workflows/test.yml`)
 
-The CI pipeline pins Go via a single `GO_VERSION` env var (currently `1.24`, matching `go.mod`) and runs five jobs:
+The CI pipeline pins Go via a single `GO_VERSION` env var (currently `1.25`, matching `go.mod`) and runs five jobs:
 
 ```yaml
 name: Tests
@@ -925,7 +925,7 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.25'
 
 jobs:
   test:            # unit + integration tests, coverage upload to Codecov
@@ -936,7 +936,7 @@ jobs:
 ```
 
 **Pipeline features:**
-- Go 1.24 testing, pinned to match `go.mod` (previously drifted to 1.23)
+- Go 1.25 testing, pinned to match `go.mod` (bumped from 1.24 to clear govulncheck findings GO-2026-5039/GO-2026-5037, both fixed in go1.25.11 — see gr-5ar0)
 - Package-level unit tests (`./internal/...`)
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov

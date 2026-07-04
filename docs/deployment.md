@@ -341,7 +341,7 @@ cron:
 ### Dockerfile
 
 ```dockerfile
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -458,9 +458,9 @@ http {
 ### Prerequisites
 
 ```bash
-# Install Go 1.24+
-wget https://golang.org/dl/go1.24.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.24.linux-amd64.tar.gz
+# Install Go 1.25+
+wget https://golang.org/dl/go1.25.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.25.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # Install dependencies
