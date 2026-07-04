@@ -109,16 +109,14 @@ validate-config:
 validate-build: validate-config build-frontend build
 	@echo "✅ Validation and build completed"
 
-# Substitute secrets from Secret Manager into app.yaml
+# app.yaml no longer has any ${VAR} placeholders to substitute — CSRF_SECRET,
+# ADMIN_TOKEN, INITIAL_ADMIN_EMAILS (gr-0tx) and the four Stripe variables
+# (gr-siea) are all fetched from Secret Manager at runtime instead. This target
+# is now just a copy for app-deploy.yaml's downstream deploy-dev/deploy-prod
+# dependency; full removal of that dependency is gr-wnb5's cutover task.
 substitute-secrets:
-	@echo "🔐 Fetching secrets from Secret Manager..."
-	@BUILD_VERSION=$$(date +%Y.%m.%d) \
-	STRIPE_SECRET_KEY=$$(gcloud secrets versions access latest --secret="stripe-secret-key") \
-	STRIPE_PUBLISHABLE_KEY=$$(gcloud secrets versions access latest --secret="stripe-publishable-key") \
-	STRIPE_WEBHOOK_SECRET=$$(gcloud secrets versions access latest --secret="stripe-webhook-secret") \
-	STRIPE_PRICE_ID=$$(gcloud secrets versions access latest --secret="stripe-price-id") \
-	envsubst < app.yaml > app-deploy.yaml
-	@echo "✓ Secrets substituted into app-deploy.yaml"
+	@cp app.yaml app-deploy.yaml
+	@echo "✓ app-deploy.yaml ready (no secret substitution needed anymore)"
 
 # Deploy to development (with validation)
 deploy-dev: validate-config build-frontend substitute-secrets

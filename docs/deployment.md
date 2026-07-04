@@ -109,6 +109,11 @@ Every push to `main` that passes the `Tests` workflow automatically deploys to A
 - **cron.yaml / index.yaml**: only redeployed if changed in that specific commit (`git diff --name-only HEAD~1 HEAD`).
 - **Job summary**: prints the version name and full staging URL (`https://<version>-dot-goread-467200.uc.r.appspot.com`) so a reviewer knows where to click through and test.
 - All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review — see the workflow file's inline `# vX` comments for the corresponding version.
+- **BUILD_VERSION** is injected into `app.yaml` at deploy time (via `sed`, right before the deploy step) since App Engine standard has no `--set-env-vars` deploy flag and the file has no other templating mechanism.
+
+**Bugs hit and fixed while first bringing this workflow up** (both real, both caught by actually running the pipeline rather than assuming the design was correct):
+1. `$GITHUB_SHA` is **not** the triggering commit for `workflow_run` events — it's whatever the default branch tip happens to be when the job executes. Two runs that fired close together both computed the same `staging-<sha>` name from `$GITHUB_SHA` and collided (`ABORTED: operation already in progress`). Fixed by deriving the short SHA from `github.event.workflow_run.head_sha` instead.
+2. The first real deploy 503'd — see the Stripe placeholder note above; `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so any lingering `${VAR}`-style placeholder deploys as a literal, broken string.
 
 **Known limitation, tracked separately**: this only deploys the `staging-<sha>` promotion candidate. A second, fixed-name `staging` version for human OAuth login testing (Google's redirect URI allowlist can't handle per-SHA URLs) is gr-furl's scope, not yet implemented — do not expect a stable staging login URL until that lands.
 
