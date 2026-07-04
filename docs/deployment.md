@@ -78,6 +78,28 @@ steps:
 
 Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow: authenticated successfully and ran `gcloud app describe` as `cicd-deploy@...`. The smoke-test workflow was removed after verification — the real deploy-staging/deploy-prod workflows are separate tracked work.
 
+## Production Approval Gate (GitHub Environment)
+
+A GitHub Environment named `production` provides the human approval gate for production deploys. Any workflow job that declares `environment: production` pauses and waits for an approval before running.
+
+**Configuration** (repo `jeffreyp/goread2`):
+- Environment: `production`
+- Required reviewer: `jeffreyp` (GitHub user id 548089)
+- Deployment branch policy: restricted to `main` only — no other branch can target this environment
+- **Branch protection on `main` was deliberately NOT enabled**, even though the originating issue (gr-onn) asked for it. Jeffrey pushes directly to `main` without PRs; GitHub's required-status-checks branch protection blocks pushes for commits that don't already have a passing check run, which effectively forces a PR-based workflow. Skipped to preserve the existing direct-push workflow — revisit only if the team moves to a PR-based flow.
+
+**Usage in a workflow**:
+```yaml
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: production   # pauses here for approval
+    steps:
+      - run: gcloud app versions migrate ...
+```
+
+Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow declaring `environment: production` — the run entered `waiting` status and the Actions API confirmed a pending deployment awaiting review from `jeffreyp`. Cancelled (not approved — approval should always be a real human decision) and the smoke-test workflow removed after verification.
+
 ## Google App Engine (Recommended)
 
 ### Environment Variables Setup
