@@ -72,6 +72,21 @@ jobs:
             echo "No changes to cron.yaml or index.yaml — skipping config deploy"
           fi
 
+      - name: Delete stale staging versions (keep only this one)
+        env:
+          KEEP_VERSION: ${{ steps.version.outputs.name }}
+        run: |
+          STALE=$(gcloud app versions list --service=default --project=goread-467200 \
+            --filter="version.id:staging-*" --format="value(version.id)" \
+            | grep -v "^${KEEP_VERSION}$" || true)
+          if [ -n "$STALE" ]; then
+            echo "Deleting stale staging versions: $STALE"
+            # shellcheck disable=SC2086
+            gcloud app versions delete --service=default --project=goread-467200 --quiet $STALE
+          else
+            echo "No stale staging versions to clean up"
+          fi
+
       - name: Output staging URL
         run: |
           {
@@ -81,4 +96,6 @@ jobs:
             echo "**URL:** https://${{ steps.version.outputs.name }}-dot-goread-467200.uc.r.appspot.com"
             echo ""
             echo "No production traffic has been shifted — this version was deployed with \`--no-promote\`."
+            echo ""
+            echo "Only this staging version is kept — any prior staging-* versions were deleted."
           } >> "$GITHUB_STEP_SUMMARY"

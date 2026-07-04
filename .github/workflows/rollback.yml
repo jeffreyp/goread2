@@ -32,6 +32,13 @@ jobs:
             exit 1
           fi
 
+      - name: Capture currently-live version before migrating
+        id: previous
+        run: |
+          CURRENT=$(gcloud app versions list --service=default --project=goread-467200 \
+            --filter="version.id:prod-* AND traffic_split=1.0" --format="value(version.id)")
+          echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
+
       - name: Migrate 100% of traffic to the specified version
         env:
           TARGET_VERSION: ${{ inputs.version }}
@@ -41,6 +48,22 @@ jobs:
             --service=default \
             --quiet \
             -- "$TARGET_VERSION"
+
+      - name: Delete stale production versions (keep current + previous only)
+        env:
+          TARGET_VERSION: ${{ inputs.version }}
+          PREVIOUS_VERSION: ${{ steps.previous.outputs.version }}
+        run: |
+          STALE=$(gcloud app versions list --service=default --project=goread-467200 \
+            --filter="version.id:prod-*" --format="value(version.id)" \
+            | grep -v -e "^${TARGET_VERSION}$" -e "^${PREVIOUS_VERSION}$" || true)
+          if [ -n "$STALE" ]; then
+            echo "Deleting stale production versions: $STALE"
+            # shellcheck disable=SC2086
+            gcloud app versions delete --service=default --project=goread-467200 --quiet $STALE
+          else
+            echo "No stale production versions to clean up"
+          fi
 
       - name: Output rollback confirmation
         env:
@@ -52,4 +75,6 @@ jobs:
             echo "100% of production traffic has been shifted to version: \`$TARGET_VERSION\`"
             echo ""
             echo "URL: https://goread-467200.uc.r.appspot.com"
+            echo ""
+            echo "Only the current and previously-live versions are kept — any other prod-* versions were deleted."
           } >> "$GITHUB_STEP_SUMMARY"
