@@ -40,7 +40,13 @@ jobs:
 
       - name: Determine staging version name
         id: version
-        run: echo "name=staging-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+        env:
+          # $GITHUB_SHA is NOT the triggering commit for workflow_run events — it's
+          # whatever the default branch tip happens to be when this job runs. Use the
+          # actual head_sha from the workflow_run event instead, matching what was
+          # checked out above.
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: echo "name=staging-${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to App Engine staging (no traffic)
         run: |
