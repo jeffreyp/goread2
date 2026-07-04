@@ -120,7 +120,9 @@ Every push to `main` that passes the `Tests` workflow automatically deploys to A
 
 **Secret Reference Convention**: The application supports a `_secret:` prefix for environment variables to explicitly trigger Secret Manager lookups. For example, setting `GOOGLE_CLIENT_ID=_secret:my-client-id` will fetch the secret from Google Secret Manager. This convention is consistent across all credentials (OAuth and Stripe) and prevents accidental conflicts with actual secret values.
 
-**CSRF_SECRET, ADMIN_TOKEN, and INITIAL_ADMIN_EMAILS** follow the same pattern as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`: they are fetched from Secret Manager at runtime (secret names `csrf-secret`, `admin-token`, `initial-admin-emails`) and are absent from `app.yaml` entirely — there is nothing to substitute at deploy time for these three. `make substitute-secrets` still handles the four Stripe variables, which have not yet been migrated to this pattern.
+**CSRF_SECRET, ADMIN_TOKEN, INITIAL_ADMIN_EMAILS, and the four Stripe variables** all follow the same pattern as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`: fetched from Secret Manager at runtime (secret names `csrf-secret`, `admin-token`, `initial-admin-emails`, `stripe-secret-key`, `stripe-publishable-key`, `stripe-webhook-secret`, `stripe-price-id`) and absent from `app.yaml` entirely.
+
+The Stripe placeholders were removed 2026-07-04 while debugging why the first automated staging deploy (gr-rfd) 503'd: `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so the old `${STRIPE_SECRET_KEY}`-style placeholders were being deployed as literal, unresolved strings — `secrets.GetStripeCredentials()` read that literal garbage from the env var (non-empty, so it never fell through to Secret Manager) and failed config validation. Same root cause `make substitute-secrets` existed to paper over for manual deploys, now actually fixed at the source instead. `make substitute-secrets` and its call from `deploy-dev`/`deploy-prod` are dead code at this point — tracked for removal in gr-wnb5's cutover.
 
 #### Setting up Google Secret Manager
 

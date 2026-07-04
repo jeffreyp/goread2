@@ -48,6 +48,13 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: echo "name=staging-${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
+      - name: Inject BUILD_VERSION into app.yaml
+        run: |
+          echo "  BUILD_VERSION: \"${{ steps.version.outputs.name }}\"" >> app.yaml.tmp
+          sed -i "/^  SUBSCRIPTION_ENABLED:/r app.yaml.tmp" app.yaml
+          rm app.yaml.tmp
+          cat app.yaml
+
       - name: Deploy to App Engine staging (no traffic)
         run: |
           gcloud app deploy app.yaml \
