@@ -47,6 +47,37 @@ All deployment methods require:
    gcloud config set project YOUR_PROJECT_ID
    ```
 
+## CI/CD Authentication (GitHub Actions → GCP)
+
+GitHub Actions authenticates to GCP via Workload Identity Federation (WIF) — keyless, no service account JSON key stored in GitHub. This is the foundation for the automated deploy workflows (staging/prod pipelines are tracked separately in the gr-f6v epic); this section documents the trust relationship itself.
+
+**Resources created** (one-time setup, project `goread-467200`):
+- Workload Identity Pool: `github-actions-pool` (location `global`)
+- OIDC Provider: `github-provider`, issuer `https://token.actions.githubusercontent.com`, attribute condition restricting it to `assertion.repository == 'jeffreyp/goread2'` — no other repo can assume this identity
+- Service account: `cicd-deploy@goread-467200.iam.gserviceaccount.com`, granted `roles/appengine.deployer`, `roles/cloudbuild.builds.editor`, `roles/storage.admin`, `roles/secretmanager.secretAccessor` at the project level, plus `roles/iam.serviceAccountUser` on `goread-467200@appspot.gserviceaccount.com` specifically (App Engine deploys require the deploying identity to be able to act as the App Engine default service account — easy to miss, deploys fail without it)
+- The pool is bound to the service account via `roles/iam.workloadIdentityUser`, scoped to the `attribute.repository/jeffreyp/goread2` principal set — only workflow runs from this exact repo can impersonate it
+
+**GitHub Actions repository variables** (not secrets — the provider path and SA email aren't sensitive on their own):
+- `WIF_PROVIDER` = `projects/1022472352583/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider`
+- `CICD_SERVICE_ACCOUNT` = `cicd-deploy@goread-467200.iam.gserviceaccount.com`
+
+**Usage in a workflow**:
+```yaml
+permissions:
+  contents: read
+  id-token: write   # required for WIF
+
+steps:
+  - uses: google-github-actions/auth@v2
+    with:
+      workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+      service_account: ${{ vars.CICD_SERVICE_ACCOUNT }}
+  - uses: google-github-actions/setup-gcloud@v2
+  - run: gcloud app deploy ...
+```
+
+Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow: authenticated successfully and ran `gcloud app describe` as `cicd-deploy@...`. The smoke-test workflow was removed after verification — the real deploy-staging/deploy-prod workflows are separate tracked work.
+
 ## Google App Engine (Recommended)
 
 ### Environment Variables Setup
