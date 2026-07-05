@@ -6,6 +6,16 @@ on:
     types: [completed]
     branches: [main]
 
+# Back-to-back commits to main each spawn their own Tests run, so overlapping
+# deploy-staging runs are possible with no ordering guarantee between them. The
+# "Delete stale staging versions" step below keeps only its own run's KEEP_VERSION,
+# so an older commit's run finishing after a newer commit's run would delete the
+# newer commit's just-deployed version. Serialize instead of canceling in-progress:
+# a killed gcloud app deploy mid-flight can leave a version half-created.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
 permissions:
   contents: read
   id-token: write

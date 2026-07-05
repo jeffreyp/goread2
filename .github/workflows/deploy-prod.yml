@@ -8,6 +8,14 @@ on:
         required: false
         type: string
 
+# Shared with rollback.yml: both mutate the same production traffic split via
+# `gcloud app versions migrate`, so a promotion and a rollback must never run
+# concurrently against each other. Queue rather than cancel-in-progress — killing
+# a migrate or the post-promote health watch mid-flight is worse than waiting.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 permissions:
   contents: read
   id-token: write
