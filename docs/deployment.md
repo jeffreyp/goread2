@@ -115,7 +115,21 @@ Every push to `main` that passes the `Tests` workflow automatically deploys to A
 1. `$GITHUB_SHA` is **not** the triggering commit for `workflow_run` events — it's whatever the default branch tip happens to be when the job executes. Two runs that fired close together both computed the same `staging-<sha>` name from `$GITHUB_SHA` and collided (`ABORTED: operation already in progress`). Fixed by deriving the short SHA from `github.event.workflow_run.head_sha` instead.
 2. The first real deploy 503'd — see the Stripe placeholder note above; `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so any lingering `${VAR}`-style placeholder deploys as a literal, broken string.
 
-**Known limitation, tracked separately**: this only deploys the `staging-<sha>` promotion candidate. A second, fixed-name `staging` version for human OAuth login testing (Google's redirect URI allowlist can't handle per-SHA URLs) is gr-furl's scope, not yet implemented — do not expect a stable staging login URL until that lands.
+### Human OAuth Login Testing on Staging (fixed `staging` version)
+
+The production approval gate (gr-euu) requires a human to actually log in and click through the staging UI before promoting — automated smoke checks alone don't prove the UI is usable. But Google OAuth requires an exact, pre-registered redirect URI, and the per-SHA `staging-<sha>` hostname changes on every deploy, so it can never complete a login round-trip.
+
+To solve this, `deploy-staging.yml` deploys the **same build twice**:
+- `staging-<sha>` (`--no-promote`) — the promotion candidate that `deploy-prod.yml` migrates to production.
+- `staging` (`--no-promote`, fixed name, overwritten on every merge) — exists only so a human has a stable URL to log into: `https://staging-dot-goread-467200.uc.r.appspot.com`.
+
+Both redirect URIs are registered on the **same** Google OAuth client (Google Cloud Console → APIs & Services → Credentials → the existing OAuth 2.0 Client ID → Authorized redirect URIs):
+- `https://goreadapp.com/auth/callback` (production, unchanged)
+- `https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback` (staging — **one-time manual console step**, not automatable via this pipeline)
+
+`internal/auth/auth.go` then picks the matching redirect URL per-request based on the incoming `Host` header (`GOOGLE_REDIRECT_URL` for production, `STAGING_REDIRECT_URL` for staging — both set in `app.yaml` and deployed identically to every App Engine version). See [authentication.md](authentication.md#host-aware-redirect-url-staging-support) for the implementation and its security rationale.
+
+**Accepted tradeoff**: staging shares the production Datastore — cron only ever targets the default (production) serving version, and staging writes are intentional reviewer actions on the same binary that's about to be promoted anyway, so catching a data-mutating bug on staging beats catching it in prod. **Caveat**: do not exercise Stripe subscription flows on staging — it shares live Stripe keys and webhooks point at the production domain only.
 
 ## Rollback (`.github/workflows/rollback.yml`)
 

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -146,7 +147,7 @@ func TestGetAuthURL(t *testing.T) {
 	authService := NewAuthService(db)
 
 	state := "test_state_123"
-	authURL := authService.GetAuthURL(state)
+	authURL := authService.GetAuthURL(state, "localhost:8080")
 
 	if authURL == "" {
 		t.Error("GetAuthURL returned empty string")
@@ -160,6 +161,43 @@ func TestGetAuthURL(t *testing.T) {
 	// Should contain Google OAuth endpoint
 	if !contains(authURL, "accounts.google.com") {
 		t.Error("Auth URL should contain Google OAuth endpoint")
+	}
+}
+
+func TestGetAuthURL_HostAwareRedirect(t *testing.T) {
+	db := newMockDBForAuth()
+
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "test_client_id_123")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "test_client_secret_456")
+	_ = os.Setenv("GOOGLE_REDIRECT_URL", "https://goreadapp.com/auth/callback")
+	_ = os.Setenv("STAGING_REDIRECT_URL", "https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback")
+	defer func() {
+		_ = os.Unsetenv("GOOGLE_CLIENT_ID")
+		_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		_ = os.Unsetenv("GOOGLE_REDIRECT_URL")
+		_ = os.Unsetenv("STAGING_REDIRECT_URL")
+	}()
+
+	authService := NewAuthService(db)
+
+	tests := []struct {
+		name         string
+		host         string
+		wantRedirect string
+	}{
+		{"production host", "goreadapp.com", "https://goreadapp.com/auth/callback"},
+		{"staging host", "staging-dot-goread-467200.uc.r.appspot.com", "https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback"},
+		{"unrecognized host falls back to production", "staging-a1b2c3d-dot-goread-467200.uc.r.appspot.com", "https://goreadapp.com/auth/callback"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authURL := authService.GetAuthURL("test_state", tt.host)
+			wantParam := "redirect_uri=" + url.QueryEscape(tt.wantRedirect)
+			if !contains(authURL, wantParam) {
+				t.Errorf("GetAuthURL(host=%s) = %s, want redirect_uri %s", tt.host, authURL, tt.wantRedirect)
+			}
+		})
 	}
 }
 

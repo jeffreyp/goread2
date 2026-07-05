@@ -3,6 +3,7 @@ runtime: go125
 env_variables:
   GIN_MODE: release
   GOOGLE_REDIRECT_URL: "https://goreadapp.com/auth/callback"
+  STAGING_REDIRECT_URL: "https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback"
   GOOGLE_CLOUD_PROJECT: "goread-467200"
   SECRET_CLIENT_ID_NAME: "google-client-id"
   SECRET_CLIENT_SECRET_NAME: "google-client-secret"

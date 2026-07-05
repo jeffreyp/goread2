@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"time"
 
@@ -38,6 +39,14 @@ func redactEmail(email string) string {
 type AuthService struct {
 	db     database.Database
 	config *oauth2.Config
+
+	// redirectURLsByHost maps a request's Host header to the OAuth redirect
+	// URL registered for that host in the Google OAuth client. Only hosts
+	// derived from GOOGLE_REDIRECT_URL (production) and STAGING_REDIRECT_URL
+	// (staging) are ever present, so an unrecognized or spoofed Host header
+	// simply falls through to the production default in config.RedirectURL —
+	// it can never select an arbitrary attacker-supplied URL.
+	redirectURLsByHost map[string]string
 }
 
 type GoogleUserInfo struct {
@@ -70,26 +79,65 @@ func NewAuthService(db database.Database) *AuthService {
 	}
 
 	return &AuthService{
-		db:     db,
-		config: config,
+		db:                 db,
+		config:             config,
+		redirectURLsByHost: buildRedirectURLsByHost(config.RedirectURL, os.Getenv("STAGING_REDIRECT_URL")),
 	}
 }
 
-func (a *AuthService) GetAuthURL(state string) string {
-	return a.config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+// buildRedirectURLsByHost derives a Host -> redirect URL allowlist from the
+// production and staging redirect URLs. Both must be exact, pre-registered
+// redirect URIs on the Google OAuth client (Google rejects anything else).
+func buildRedirectURLsByHost(redirectURLs ...string) map[string]string {
+	byHost := make(map[string]string, len(redirectURLs))
+	for _, redirectURL := range redirectURLs {
+		if redirectURL == "" {
+			continue
+		}
+		u, err := url.Parse(redirectURL)
+		if err != nil || u.Host == "" {
+			log.Printf("WARNING: could not parse redirect URL %q: %v", redirectURL, err)
+			continue
+		}
+		byHost[u.Host] = redirectURL
+	}
+	return byHost
 }
 
-func (a *AuthService) HandleCallback(code string) (*database.User, error) {
+// configForHost returns the OAuth config to use for a request, with
+// RedirectURL selected by matching host against the allowlist. Unrecognized
+// hosts (including local dev) fall back to the production default.
+func (a *AuthService) configForHost(host string) oauth2.Config {
+	cfg := *a.config
+	if redirectURL, ok := a.redirectURLsByHost[host]; ok {
+		cfg.RedirectURL = redirectURL
+	}
+	return cfg
+}
+
+// GetAuthURL builds the Google OAuth consent URL. host is the incoming
+// request's Host header, used to pick the matching registered redirect URI
+// (production vs. staging) — see configForHost.
+func (a *AuthService) GetAuthURL(state, host string) string {
+	cfg := a.configForHost(host)
+	return cfg.AuthCodeURL(state, oauth2.AccessTypeOffline)
+}
+
+// HandleCallback exchanges the OAuth code for a user. host must match the
+// Host used when GetAuthURL generated the original auth request, since
+// Google's token exchange requires the redirect_uri to match exactly.
+func (a *AuthService) HandleCallback(code, host string) (*database.User, error) {
 	ctx := context.Background()
+	cfg := a.configForHost(host)
 
 	// Exchange code for token
-	token, err := a.config.Exchange(ctx, code)
+	token, err := cfg.Exchange(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code for token (code length: %d): %w", len(code), err)
 	}
 
 	// Get user info from Google
-	client := a.config.Client(ctx, token)
+	client := cfg.Client(ctx, token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %w", err)

@@ -42,7 +42,7 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 	// Use environment-specific cookie name to avoid conflicts
 	c.SetCookie(getOAuthStateCookieName(), state, 600, "/", "", false, true) // 10 minutes
 
-	authURL := ah.authService.GetAuthURL(state)
+	authURL := ah.authService.GetAuthURL(state, c.Request.Host)
 	c.JSON(http.StatusOK, gin.H{"auth_url": authURL})
 }
 
@@ -74,7 +74,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// Handle the OAuth callback
-	user, err := ah.authService.HandleCallback(code)
+	user, err := ah.authService.HandleCallback(code, c.Request.Host)
 	if err != nil {
 		log.Printf("OAuth callback error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication failed. Please try signing in again."})

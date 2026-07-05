@@ -63,6 +63,14 @@ jobs:
             --no-promote \
             --quiet
 
+      - name: Deploy fixed 'staging' version for human OAuth login testing (no traffic)
+        run: |
+          gcloud app deploy app.yaml \
+            --project=goread-467200 \
+            --version=staging \
+            --no-promote \
+            --quiet
+
       - name: Deploy cron.yaml / index.yaml if changed in this commit
         run: |
           if git diff --name-only HEAD~1 HEAD | grep -qE '^(cron|index)\.yaml$'; then
@@ -76,6 +84,8 @@ jobs:
         env:
           KEEP_VERSION: ${{ steps.version.outputs.name }}
         run: |
+          # The "staging-*" filter requires a literal "staging-" prefix, so the fixed
+          # "staging" version (no trailing dash) never matches and is never swept here.
           STALE=$(gcloud app versions list --service=default --project=goread-467200 \
             --filter="version.id:staging-*" --format="value(version.id)" \
             | grep -v "^${KEEP_VERSION}$" || true)
@@ -92,10 +102,13 @@ jobs:
           {
             echo "### 🚀 Staged for review"
             echo ""
-            echo "**Version:** \`${{ steps.version.outputs.name }}\`"
+            echo "**Promotion candidate:** \`${{ steps.version.outputs.name }}\`"
             echo "**URL:** https://${{ steps.version.outputs.name }}-dot-goread-467200.uc.r.appspot.com"
             echo ""
-            echo "No production traffic has been shifted — this version was deployed with \`--no-promote\`."
+            echo "**Human login testing:** https://staging-dot-goread-467200.uc.r.appspot.com"
+            echo "Use this fixed URL to click through and test Google login — per-SHA staging URLs can't complete an OAuth round-trip since Google only allows pre-registered exact redirect URIs. Do NOT exercise Stripe subscription flows here; staging shares live Stripe keys and webhooks point at the prod domain."
             echo ""
-            echo "Only this staging version is kept — any prior staging-* versions were deleted."
+            echo "No production traffic has been shifted — both versions were deployed with \`--no-promote\`."
+            echo ""
+            echo "Only this staging-<sha> version is kept — any prior staging-* versions were deleted. The fixed 'staging' version is overwritten every merge."
           } >> "$GITHUB_STEP_SUMMARY"
