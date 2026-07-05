@@ -86,8 +86,14 @@ jobs:
         run: |
           # The "staging-*" filter requires a literal "staging-" prefix, so the fixed
           # "staging" version (no trailing dash) never matches and is never swept here.
+          #
+          # traffic_split=0 is a hard safety guard: deploy-prod.yml (gr-euu) promotes
+          # by running `gcloud app versions migrate` directly onto a staging-<sha>
+          # version rather than redeploying under a new name, so a past staging-<sha>
+          # can be the version currently serving 100% of production traffic. Without
+          # this guard, the very next push to main would delete live production here.
           STALE=$(gcloud app versions list --service=default --project=goread-467200 \
-            --filter="version.id:staging-*" --format="value(version.id)" \
+            --filter="version.id:staging-* AND traffic_split=0" --format="value(version.id)" \
             | grep -v "^${KEEP_VERSION}$" || true)
           if [ -n "$STALE" ]; then
             echo "Deleting stale staging versions: $STALE"

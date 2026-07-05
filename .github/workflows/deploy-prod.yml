@@ -1,0 +1,132 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Staging App Engine version to promote (default: latest staging-<sha>)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # Resolves which version to promote before the approval gate, so the
+  # reviewer's job summary (in deploy-prod, below) can show the concrete
+  # version being promoted. This job carries no environment protection —
+  # it only reads App Engine state, it doesn't change anything.
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CICD_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Resolve version to promote
+        id: resolve
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            # Latest staging-<sha> promotion candidate (the fixed 'staging' version
+            # is for human login testing only and is never a promotion target).
+            VERSION=$(gcloud app versions list --service=default --project=goread-467200 \
+              --filter="version.id:staging-*" --format="value(version.id)" \
+              --sort-by="~version.createTime" --limit=1)
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::No staging version found to promote, and none was specified" >&2
+            exit 1
+          fi
+
+          if ! [[ "$VERSION" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]]; then
+            echo "::error::Invalid version format: '$VERSION'. Expected lowercase alphanumeric + hyphens only (App Engine version ID format)." >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  deploy-prod:
+    needs: resolve-version
+    runs-on: ubuntu-latest
+    environment: production   # pauses here for human approval
+    outputs:
+      previous_version: ${{ steps.previous.outputs.version }}
+    steps:
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CICD_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Capture currently-live production version before migrating
+        id: previous
+        run: |
+          CURRENT=$(gcloud app versions list --service=default --project=goread-467200 \
+            --filter="traffic_split=1.0" --format="value(version.id)")
+          echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
+
+      - name: Migrate traffic to the tested staging version
+        env:
+          TARGET_VERSION: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          gcloud app versions migrate \
+            --project=goread-467200 \
+            --service=default \
+            --quiet \
+            -- "$TARGET_VERSION"
+
+      - name: Output promotion confirmation
+        env:
+          TARGET_VERSION: ${{ needs.resolve-version.outputs.version }}
+          PREVIOUS_VERSION: ${{ steps.previous.outputs.version }}
+        run: |
+          {
+            echo "### 🚀 Promoted to production"
+            echo ""
+            echo "**Version:** \`$TARGET_VERSION\` (no rebuild — the exact artifact tested on staging)"
+            echo "**Previously live:** \`$PREVIOUS_VERSION\` (kept for fast rollback)"
+            echo ""
+            echo "URL: https://goreadapp.com"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    needs: [resolve-version, deploy-prod]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.CICD_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Delete stale production versions (keep current + previous only)
+        env:
+          CURRENT_VERSION: ${{ needs.resolve-version.outputs.version }}
+          PREVIOUS_VERSION: ${{ needs.deploy-prod.outputs.previous_version }}
+        run: |
+          # Scoped to the legacy prod-* naming from the old manual 'make deploy-prod'
+          # path. Promoted staging-<sha> versions are pruned by deploy-staging.yml's
+          # own cleanup instead (which now skips anything with live traffic).
+          STALE=$(gcloud app versions list --service=default --project=goread-467200 \
+            --filter="version.id:prod-*" --format="value(version.id)" \
+            | grep -v -e "^${CURRENT_VERSION}$" -e "^${PREVIOUS_VERSION}$" || true)
+          if [ -n "$STALE" ]; then
+            echo "Deleting stale production versions: $STALE"
+            # shellcheck disable=SC2086
+            gcloud app versions delete --service=default --project=goread-467200 --quiet $STALE
+          else
+            echo "No stale production versions to clean up"
+          fi

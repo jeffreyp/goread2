@@ -110,6 +110,7 @@ Every push to `main` that passes the `Tests` workflow automatically deploys to A
 - **Job summary**: prints the version name and full staging URL (`https://<version>-dot-goread-467200.uc.r.appspot.com`) so a reviewer knows where to click through and test.
 - All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review — see the workflow file's inline `# vX` comments for the corresponding version.
 - **BUILD_VERSION** is injected into `app.yaml` at deploy time (via `sed`, right before the deploy step) since App Engine standard has no `--set-env-vars` deploy flag and the file has no other templating mechanism.
+- **Cleanup**: after deploying, every other `staging-*` version is deleted, keeping only the one just deployed — `staging-*` versions would otherwise accumulate one per push indefinitely. Restricted to versions with `traffic_split=0`: since `deploy-prod.yml` (below) promotes by migrating traffic directly onto a `staging-<sha>` version rather than redeploying under a new name, an older `staging-<sha>` can be the version currently serving 100% of production traffic — this guard is what stops the very next push from deleting live production.
 
 **Bugs hit and fixed while first bringing this workflow up** (both real, both caught by actually running the pipeline rather than assuming the design was correct):
 1. `$GITHUB_SHA` is **not** the triggering commit for `workflow_run` events — it's whatever the default branch tip happens to be when the job executes. Two runs that fired close together both computed the same `staging-<sha>` name from `$GITHUB_SHA` and collided (`ABORTED: operation already in progress`). Fixed by deriving the short SHA from `github.event.workflow_run.head_sha` instead.
@@ -130,6 +131,24 @@ Both redirect URIs are registered on the **same** Google OAuth client (Google Cl
 `internal/auth/auth.go` then picks the matching redirect URL per-request based on the incoming `Host` header (`GOOGLE_REDIRECT_URL` for production, `STAGING_REDIRECT_URL` for staging — both set in `app.yaml` and deployed identically to every App Engine version). See [authentication.md](authentication.md#host-aware-redirect-url-staging-support) for the implementation and its security rationale.
 
 **Accepted tradeoff**: staging shares the production Datastore — cron only ever targets the default (production) serving version, and staging writes are intentional reviewer actions on the same binary that's about to be promoted anyway, so catching a data-mutating bug on staging beats catching it in prod. **Caveat**: do not exercise Stripe subscription flows on staging — it shares live Stripe keys and webhooks point at the production domain only.
+
+## Production Deploys (`.github/workflows/deploy-prod.yml`)
+
+Promotes an already-deployed, manually-tested staging version to production. Manual trigger only — never runs automatically.
+
+**Trigger**: `workflow_dispatch` with an optional `version` input. If omitted, defaults to the most recently created `staging-<sha>` version (the fixed `staging` testing version is never a promotion target).
+
+```bash
+gh workflow run deploy-prod.yml --repo jeffreyp/goread2                       # promote latest staging-<sha>
+gh workflow run deploy-prod.yml --repo jeffreyp/goread2 -f version=staging-a1b2c3d  # promote a specific one
+```
+
+**Jobs**:
+1. `resolve-version` — figures out which version to promote (default or explicit input) and validates its format. Runs before the approval gate so the reviewer's job summary can show the concrete version, not a placeholder.
+2. `deploy-prod` — declares `environment: production`, pausing for human approval (see the Production Approval Gate section above). After approval: captures whichever version currently holds `traffic_split=1.0` (for the cleanup job and for the record), then runs `gcloud app versions migrate` to shift 100% of traffic to the resolved version.
+3. `cleanup` — deletes stale `prod-*` versions, keeping only the new current one and the captured previous one. Scoped to the legacy `prod-<timestamp>` naming from the old manual `make deploy-prod` path (two such versions exist from before this pipeline existed); going forward, promoted versions are pruned by `deploy-staging.yml`'s own cleanup instead (see above), since they keep their `staging-<sha>` name.
+
+**Critical detail**: this uses `gcloud app versions migrate`, not a redeploy. The exact binary a reviewer clicked through on staging is what serves production — no rebuild step, no chance of drift between what was tested and what ships.
 
 ## Rollback (`.github/workflows/rollback.yml`)
 
