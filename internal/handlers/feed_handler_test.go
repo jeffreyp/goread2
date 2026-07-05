@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jeffreyp/goread2/internal/config"
 	"github.com/jeffreyp/goread2/internal/database"
 	"github.com/jeffreyp/goread2/internal/secrets"
 	"github.com/jeffreyp/goread2/internal/services"
@@ -17,19 +19,28 @@ import (
 
 // Mock database for testing
 type mockDBFeedHandler struct {
-	shouldFailUnsubscribe       bool
-	shouldFailMarkRead          bool
-	shouldFailToggleStar        bool
-	shouldFailCleanupOrphaned   bool
-	shouldFailGetAccountStats   bool
-	shouldFailUpdateMaxArticles bool
-	shouldFailGetArticle        bool
-	shouldFailGetUserFeeds      bool
-	shouldFailGetUnreadCounts   bool
-	mockArticle                 *database.Article
-	mockUserFeeds               []database.Feed
-	articlesDeleted             int
-	capturedPaginationLimit     int
+	shouldFailUnsubscribe         bool
+	shouldFailMarkRead            bool
+	shouldFailToggleStar          bool
+	shouldFailCleanupOrphaned     bool
+	shouldFailGetAccountStats     bool
+	shouldFailUpdateMaxArticles   bool
+	shouldFailGetArticle          bool
+	shouldFailGetUserFeeds        bool
+	shouldFailGetUnreadCounts     bool
+	mockArticle                   *database.Article
+	mockUserFeeds                 []database.Feed
+	articlesDeleted               int
+	capturedPaginationLimit       int
+	mockUser                      *database.User
+	shouldFailGetUserByID         bool
+	mockFeedCount                 int
+	shouldFailGetFeedCount        bool
+	shouldFailGetFeeds            bool
+	mockFeedArticles              []database.Article
+	shouldFailGetUserFeedArticles bool
+	shouldFailFindArticleByURL    bool
+	mockFoundArticle              *database.Article
 }
 
 func newMockDBFeedHandler() *mockDBFeedHandler {
@@ -39,6 +50,12 @@ func newMockDBFeedHandler() *mockDBFeedHandler {
 func (m *mockDBFeedHandler) CreateUser(*database.User) error                  { return nil }
 func (m *mockDBFeedHandler) GetUserByGoogleID(string) (*database.User, error) { return nil, nil }
 func (m *mockDBFeedHandler) GetUserByID(userID int) (*database.User, error) {
+	if m.shouldFailGetUserByID {
+		return nil, errors.New("database error")
+	}
+	if m.mockUser != nil {
+		return m.mockUser, nil
+	}
 	return &database.User{
 		ID:                 userID,
 		Email:              "test@example.com",
@@ -50,41 +67,56 @@ func (m *mockDBFeedHandler) UpdateUserSubscription(int, string, string, time.Tim
 	return nil
 }
 func (m *mockDBFeedHandler) IsUserSubscriptionActive(int) (bool, error) { return false, nil }
-func (m *mockDBFeedHandler) GetUserFeedCount(int) (int, error)          { return 0, nil }
+func (m *mockDBFeedHandler) GetUserFeedCount(int) (int, error) {
+	if m.shouldFailGetFeedCount {
+		return 0, errors.New("database error")
+	}
+	return m.mockFeedCount, nil
+}
 func (m *mockDBFeedHandler) UpdateUserMaxArticlesOnFeedAdd(userID, maxArticles int) error {
 	if m.shouldFailUpdateMaxArticles {
 		return errors.New("database error")
 	}
 	return nil
 }
-func (m *mockDBFeedHandler) SetUserAdmin(int, bool) error            { return nil }
-func (m *mockDBFeedHandler) SetUserAdminAtomic(int, int, bool) error { return nil }
-func (m *mockDBFeedHandler) GrantFreeMonths(int, int) error          { return nil }
-func (m *mockDBFeedHandler) GetUserByEmail(string) (*database.User, error) { return nil, nil }
+func (m *mockDBFeedHandler) SetUserAdmin(int, bool) error                            { return nil }
+func (m *mockDBFeedHandler) SetUserAdminAtomic(int, int, bool) error                 { return nil }
+func (m *mockDBFeedHandler) GrantFreeMonths(int, int) error                          { return nil }
+func (m *mockDBFeedHandler) GetUserByEmail(string) (*database.User, error)           { return nil, nil }
 func (m *mockDBFeedHandler) AddFeed(*database.Feed) error                            { return nil }
 func (m *mockDBFeedHandler) UpdateFeed(*database.Feed) error                         { return nil }
 func (m *mockDBFeedHandler) UpdateFeedTracking(int, time.Time, time.Time, int) error { return nil }
-func (m *mockDBFeedHandler) GetFeeds() ([]database.Feed, error)                      { return nil, nil }
-func (m *mockDBFeedHandler) GetFeedByURL(string) (*database.Feed, error)             { return nil, nil }
+func (m *mockDBFeedHandler) GetFeeds() ([]database.Feed, error) {
+	if m.shouldFailGetFeeds {
+		return nil, errors.New("database error")
+	}
+	return nil, nil
+}
+func (m *mockDBFeedHandler) GetFeedByURL(string) (*database.Feed, error) { return nil, nil }
 func (m *mockDBFeedHandler) GetUserFeeds(int) ([]database.Feed, error) {
 	if m.shouldFailGetUserFeeds {
 		return nil, errors.New("database error")
 	}
 	return m.mockUserFeeds, nil
 }
-func (m *mockDBFeedHandler) GetAllUserFeeds() ([]database.Feed, error)               { return nil, nil }
-func (m *mockDBFeedHandler) DeleteFeed(int) error                                    { return nil }
-func (m *mockDBFeedHandler) SubscribeUserToFeed(int, int) error                      { return nil }
+func (m *mockDBFeedHandler) GetAllUserFeeds() ([]database.Feed, error) { return nil, nil }
+func (m *mockDBFeedHandler) DeleteFeed(int) error                      { return nil }
+func (m *mockDBFeedHandler) SubscribeUserToFeed(int, int) error        { return nil }
 func (m *mockDBFeedHandler) UnsubscribeUserFromFeed(userID, feedID int) error {
 	if m.shouldFailUnsubscribe {
 		return errors.New("database error")
 	}
 	return nil
 }
-func (m *mockDBFeedHandler) AddArticle(*database.Article) error                 { return nil }
-func (m *mockDBFeedHandler) GetArticles(int) ([]database.Article, error)        { return nil, nil }
-func (m *mockDBFeedHandler) FindArticleByURL(string) (*database.Article, error) { return nil, nil }
-func (m *mockDBFeedHandler) GetUserArticles(int) ([]database.Article, error)    { return nil, nil }
+func (m *mockDBFeedHandler) AddArticle(*database.Article) error          { return nil }
+func (m *mockDBFeedHandler) GetArticles(int) ([]database.Article, error) { return nil, nil }
+func (m *mockDBFeedHandler) FindArticleByURL(string) (*database.Article, error) {
+	if m.shouldFailFindArticleByURL {
+		return nil, errors.New("database error")
+	}
+	return m.mockFoundArticle, nil
+}
+func (m *mockDBFeedHandler) GetUserArticles(int) ([]database.Article, error) { return nil, nil }
 func (m *mockDBFeedHandler) GetUserArticlesPaginated(userID, limit int, cursor string, unreadOnly bool) (*database.ArticlePaginationResult, error) {
 	m.capturedPaginationLimit = limit
 	return &database.ArticlePaginationResult{
@@ -93,7 +125,10 @@ func (m *mockDBFeedHandler) GetUserArticlesPaginated(userID, limit int, cursor s
 	}, nil
 }
 func (m *mockDBFeedHandler) GetUserFeedArticles(int, int) ([]database.Article, error) {
-	return nil, nil
+	if m.shouldFailGetUserFeedArticles {
+		return nil, errors.New("database error")
+	}
+	return m.mockFeedArticles, nil
 }
 func (m *mockDBFeedHandler) GetArticleByID(int, int) (*database.Article, error) {
 	if m.shouldFailGetArticle {
@@ -105,7 +140,7 @@ func (m *mockDBFeedHandler) GetUserArticleStatus(int, int) (*database.UserArticl
 	return nil, nil
 }
 func (m *mockDBFeedHandler) SetUserArticleStatus(int, int, bool, bool) error { return nil }
-func (m *mockDBFeedHandler) MarkAllUserArticlesRead(int) (int, error)                              { return 0, nil }
+func (m *mockDBFeedHandler) MarkAllUserArticlesRead(int) (int, error)        { return 0, nil }
 func (m *mockDBFeedHandler) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }
@@ -127,7 +162,7 @@ func (m *mockDBFeedHandler) GetUserUnreadCounts(int) (map[int]int, error) {
 	}
 	return map[int]int{}, nil
 }
-func (m *mockDBFeedHandler) GetTotalArticleCount(int) (int, error)        { return 0, nil }
+func (m *mockDBFeedHandler) GetTotalArticleCount(int) (int, error) { return 0, nil }
 func (m *mockDBFeedHandler) CleanupOrphanedUserArticles(days int) (int, error) {
 	if m.shouldFailCleanupOrphaned {
 		return 0, errors.New("database error")
@@ -1761,6 +1796,461 @@ func TestExportOPML(t *testing.T) {
 		}
 		if w.Body.Len() == 0 {
 			t.Error("expected non-empty OPML body")
+		}
+	})
+}
+
+func TestAddFeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+	postFeed := func(body string) *http.Request {
+		req := httptest.NewRequest("POST", "/api/feeds", bytes.NewReader([]byte(body)))
+		req.Header.Set("Content-Type", "application/json")
+		return req
+	}
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = postFeed(`{"url":"https://example.com/feed.xml"}`)
+		handler.AddFeed(c)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("invalid JSON body returns 400", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = postFeed("not json")
+		c.Set("user", testUser)
+		handler.AddFeed(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing url returns 400", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = postFeed(`{}`)
+		c.Set("user", testUser)
+		handler.AddFeed(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("empty url returns 400 invalid URL", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = postFeed(`{"url":""}`)
+		c.Set("user", testUser)
+		handler.AddFeed(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 for empty URL, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("SSRF-blocked URL returns 400", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = postFeed(`{"url":"http://127.0.0.1/feed.xml"}`)
+		c.Set("user", testUser)
+		handler.AddFeed(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 for SSRF-blocked URL, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CanUserAddFeed database error returns 500", func(t *testing.T) {
+		t.Setenv("SUBSCRIPTION_ENABLED", "true")
+		config.ResetForTesting()
+		config.Load()
+		t.Cleanup(config.ResetForTesting)
+
+		db := newMockDBFeedHandler()
+		db.shouldFailGetUserByID = true
+		handler := newFeedHandlerWithSubscription(db)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = postFeed(`{"url":"https://example.com/feed.xml"}`)
+		c.Set("user", testUser)
+		handler.AddFeed(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("trial expired returns 402", func(t *testing.T) {
+		t.Setenv("SUBSCRIPTION_ENABLED", "true")
+		config.ResetForTesting()
+		config.Load()
+		t.Cleanup(config.ResetForTesting)
+
+		db := newMockDBFeedHandler()
+		db.mockUser = &database.User{
+			ID:                 1,
+			SubscriptionStatus: "trial",
+			TrialEndsAt:        time.Now().Add(-24 * time.Hour),
+		}
+		handler := newFeedHandlerWithSubscription(db)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = postFeed(`{"url":"https://example.com/feed.xml"}`)
+		c.Set("user", testUser)
+		handler.AddFeed(c)
+		if w.Code != http.StatusPaymentRequired {
+			t.Errorf("expected 402, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp["trial_expired"] != true {
+			t.Errorf("expected trial_expired=true in response, got %v", resp)
+		}
+	})
+
+	t.Run("feed limit reached returns 402", func(t *testing.T) {
+		t.Setenv("SUBSCRIPTION_ENABLED", "true")
+		config.ResetForTesting()
+		config.Load()
+		t.Cleanup(config.ResetForTesting)
+
+		db := newMockDBFeedHandler()
+		db.mockUser = &database.User{
+			ID:                 1,
+			SubscriptionStatus: "trial",
+			TrialEndsAt:        time.Now().Add(24 * time.Hour),
+		}
+		db.mockFeedCount = services.FreeTrialFeedLimit
+		handler := newFeedHandlerWithSubscription(db)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = postFeed(`{"url":"https://example.com/feed.xml"}`)
+		c.Set("user", testUser)
+		handler.AddFeed(c)
+		if w.Code != http.StatusPaymentRequired {
+			t.Errorf("expected 402, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp["limit_reached"] != true {
+			t.Errorf("expected limit_reached=true in response, got %v", resp)
+		}
+	})
+}
+
+func TestGetArticlesSingleFeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+	t.Run("invalid feed ID returns 400", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds/invalid/articles", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "invalid"}}
+		c.Set("user", testUser)
+		handler.GetArticles(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("valid feed ID returns articles", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		db.mockFeedArticles = []database.Article{{ID: 1, Title: "Article 1"}}
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds/123/articles", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "123"}}
+		c.Set("user", testUser)
+		handler.GetArticles(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var articles []database.Article
+		if err := json.Unmarshal(w.Body.Bytes(), &articles); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if len(articles) != 1 {
+			t.Errorf("expected 1 article, got %d", len(articles))
+		}
+	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		db.shouldFailGetUserFeedArticles = true
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/feeds/123/articles", nil)
+		c.Params = gin.Params{gin.Param{Key: "id", Value: "123"}}
+		c.Set("user", testUser)
+		handler.GetArticles(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+	})
+}
+
+func TestImportOPML(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+	newOPMLRequest := func(t *testing.T, fieldName, filename string, content []byte) *http.Request {
+		t.Helper()
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		part, err := w.CreateFormFile(fieldName, filename)
+		if err != nil {
+			t.Fatalf("failed to create form file: %v", err)
+		}
+		if _, err := part.Write(content); err != nil {
+			t.Fatalf("failed to write form file content: %v", err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatalf("failed to close multipart writer: %v", err)
+		}
+		req := httptest.NewRequest("POST", "/api/feeds/import", &buf)
+		req.Header.Set("Content-Type", w.FormDataContentType())
+		return req
+	}
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = newOPMLRequest(t, "opml", "feeds.opml", []byte(`<opml></opml>`))
+		handler.ImportOPML(c)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing file returns 400", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/feeds/import", bytes.NewReader(nil))
+		c.Request.Header.Set("Content-Type", "multipart/form-data; boundary=x")
+		c.Set("user", testUser)
+		handler.ImportOPML(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("file too large returns 400", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		oversized := bytes.Repeat([]byte("a"), 10*1024*1024+1)
+		c.Request = newOPMLRequest(t, "opml", "feeds.opml", oversized)
+		c.Set("user", testUser)
+		handler.ImportOPML(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("malformed XML returns 500", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = newOPMLRequest(t, "opml", "feeds.opml", []byte(`<opml><body><outline`))
+		c.Set("user", testUser)
+		handler.ImportOPML(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("empty OPML imports zero feeds", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = newOPMLRequest(t, "opml", "feeds.opml", []byte(`<opml version="1.0"><body></body></opml>`))
+		c.Set("user", testUser)
+		handler.ImportOPML(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if resp["imported_count"] != float64(0) {
+			t.Errorf("expected imported_count 0, got %v", resp["imported_count"])
+		}
+	})
+
+	t.Run("trial expired returns 402", func(t *testing.T) {
+		t.Setenv("SUBSCRIPTION_ENABLED", "true")
+		config.ResetForTesting()
+		config.Load()
+		t.Cleanup(config.ResetForTesting)
+
+		db := newMockDBFeedHandler()
+		db.mockUser = &database.User{
+			ID:                 1,
+			SubscriptionStatus: "trial",
+			TrialEndsAt:        time.Now().Add(-24 * time.Hour),
+		}
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		opml := `<opml version="1.0"><body><outline text="Feed" xmlUrl="https://example.com/feed.xml"/></body></opml>`
+		c.Request = newOPMLRequest(t, "opml", "feeds.opml", []byte(opml))
+		c.Set("user", testUser)
+		handler.ImportOPML(c)
+		if w.Code != http.StatusPaymentRequired {
+			t.Errorf("expected 402, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestRefreshFeeds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("manual refresh success", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/feeds/refresh", nil)
+		handler.RefreshFeeds(c)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("manual refresh database error returns 500", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		db.shouldFailGetFeeds = true
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/feeds/refresh", nil)
+		handler.RefreshFeeds(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("cron path without cron header is forbidden", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/refresh-feeds", nil)
+		handler.RefreshFeeds(c)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestDebugAllSubscriptions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/debug/subscriptions", nil)
+		handler.DebugAllSubscriptions(c)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("returns feed statuses", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		db.mockUserFeeds = []database.Feed{{ID: 1, Title: "Feed A"}}
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/debug/subscriptions", nil)
+		c.Set("user", testUser)
+		handler.DebugAllSubscriptions(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if resp["total_feeds"] != float64(1) {
+			t.Errorf("expected total_feeds 1, got %v", resp["total_feeds"])
+		}
+	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		db.shouldFailGetUserFeeds = true
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/debug/subscriptions", nil)
+		c.Set("user", testUser)
+		handler.DebugAllSubscriptions(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
+		}
+	})
+}
+
+func TestDebugArticleByURLFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	testUser := &database.User{ID: 1, Email: "test@example.com", Name: "Test User"}
+
+	t.Run("article found returns 200", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		db.mockFoundArticle = &database.Article{ID: 5, Title: "Found Article", URL: "https://example.com/a"}
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/debug/articles?url=https://example.com/a", nil)
+		c.Set("user", testUser)
+		handler.DebugArticleByURL(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if resp["found"] != true {
+			t.Errorf("expected found=true, got %v", resp)
+		}
+	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		db.shouldFailFindArticleByURL = true
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/debug/articles?url=https://example.com/a", nil)
+		c.Set("user", testUser)
+		handler.DebugArticleByURL(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", w.Code)
 		}
 	})
 }

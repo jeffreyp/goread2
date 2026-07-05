@@ -34,10 +34,12 @@ internal/
 │                                    #   GetUserUnreadCounts, GetAccountStats)
 │                                    # + property tests for cursor encode/decode
 ├── handlers/
-│   ├── admin_handler_test.go    # Admin handler constructor tests
+│   ├── admin_handler_test.go    # Admin handler request/error-path tests
 │   ├── auth_handler_test.go     # Auth handler constructor tests  
-│   ├── feed_handler_test.go     # Feed handler constructor tests
-│   └── payment_handler_test.go  # Payment handler constructor tests (1.0% coverage)
+│   ├── feed_handler_test.go     # Feed handler request/error-path tests (AddFeed, ImportOPML,
+│   │                            #   GetArticles, RefreshFeeds, DebugAllSubscriptions, etc.)
+│   └── payment_handler_test.go  # Payment handler tests incl. signed Stripe webhook payloads
+│                                # (78.9% package coverage)
 ├── secrets/
 │   └── secrets_test.go          # Secrets manager tests (80.4% coverage)
 ├── services/
@@ -330,22 +332,36 @@ func TestDatastoreAdminTokens(t *testing.T) {
 
 #### Handlers Package (`internal/handlers/`)
 
-Tests handler constructors with 1.0% coverage:
+Tests handler request and error paths with 78.9% coverage, using `httptest.ResponseRecorder`
+and a mock `database.Database` per test file (`mockDBFeedHandler`, `mockDBAdminHandler`) rather
+than a full integration setup:
 
 ```go
-func TestNewAdminHandler(t *testing.T) {
-    // Test admin handler initialization
+func TestAddFeed(t *testing.T) {
+    // unauthenticated, invalid JSON, invalid/SSRF-blocked URL,
+    // CanUserAddFeed DB error, trial expired, feed limit reached
 }
 
-func TestNewFeedHandler(t *testing.T) {
-    // Test feed handler initialization
+func TestWebhookHandler_SubscriptionCreatedOrUpdated(t *testing.T) {
+    // valid Stripe-signed payloads built with webhook.GenerateTestSignedPayload,
+    // success, service error (500), and malformed payload (400) paths
 }
 ```
 
 **Coverage includes:**
-- Handler constructor functions
-- Service dependency injection
-- Basic handler structure validation
+- Handler constructor functions and service dependency injection
+- Auth/validation error paths (401 unauthenticated, 400 malformed body/params)
+- Feed handlers: `AddFeed`, `ImportOPML` (missing file, oversized file, malformed XML,
+  subscription-limit errors), `GetArticles` (both the `all` and single-feed branches),
+  `RefreshFeeds` (manual and cron paths), `DebugAllSubscriptions`, `DebugArticleByURL`
+- Admin handlers: `SetAdminStatus` and `GrantFreeMonths` error paths (missing param,
+  invalid body, unauthenticated, user not found, DB error), `GetAuditLogs` DB error
+- Payment handlers: Stripe webhook signature verification, all handled event types
+  (`checkout.session.completed`, `customer.subscription.created/updated/deleted`,
+  unhandled event types), and the `subscription_success`/`subscription_cancel` HTML views
+- OAuth login/callback flows (`Login`, `Callback`) remain untested at the unit level —
+  they call out to Google's real OAuth endpoints and are exercised instead by
+  `test/integration` and manual verification
 
 ### 2. Backend Integration Tests
 
@@ -653,7 +669,8 @@ Current test coverage status and targets:
   - **GetStripeCredentials**: 100% coverage for all Stripe credentials
   - **GetSecret**: 23.1% coverage (environment validation, requires Secret Manager API mocking for full coverage)
 - **Services package**: 20.1% coverage (subscription logic, feed discovery, **comprehensive admin token security**)
-- **Handlers package**: 1.0% coverage (constructor functions)
+- **Handlers package**: 78.9% coverage (request/error-path tests for feed, admin, and payment
+  handlers; OAuth `Login`/`Callback` remain unit-untested — see Handlers Package section above)
 - **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
 - **Frontend**: 64 tests covering core functionality, error handling, toast notifications, and pagination
   - **Core frontend tests**: 28 tests for DOM manipulation, events, forms, utilities

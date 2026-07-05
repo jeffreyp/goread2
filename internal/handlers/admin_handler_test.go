@@ -16,13 +16,15 @@ import (
 
 // Mock database for admin handler testing
 type mockDBAdminHandler struct {
-	users               map[int]*database.User
-	auditLogs           []database.AuditLog
-	shouldFailGetUser   bool
-	shouldFailSetAdmin  bool
-	shouldFailGrantFree bool
-	shouldFailAudit     bool
-	auditCallCount      int
+	users                  map[int]*database.User
+	auditLogs              []database.AuditLog
+	shouldFailGetUser      bool
+	shouldFailSetAdmin     bool
+	shouldFailGrantFree    bool
+	shouldFailAudit        bool
+	shouldFailGetAuditLogs bool
+	shouldFailGetFeedCount bool
+	auditCallCount         int
 }
 
 func newMockDBAdminHandler() *mockDBAdminHandler {
@@ -81,6 +83,9 @@ func (m *mockDBAdminHandler) CreateAuditLog(log *database.AuditLog) error {
 }
 
 func (m *mockDBAdminHandler) GetAuditLogs(limit, offset int, filters map[string]interface{}) ([]database.AuditLog, error) {
+	if m.shouldFailGetAuditLogs {
+		return nil, errors.New("database error")
+	}
 	return m.auditLogs, nil
 }
 
@@ -100,8 +105,13 @@ func (m *mockDBAdminHandler) GetUserByID(id int) (*database.User, error) {
 func (m *mockDBAdminHandler) UpdateUserSubscription(int, string, string, time.Time, time.Time) error {
 	return nil
 }
-func (m *mockDBAdminHandler) IsUserSubscriptionActive(int) (bool, error)              { return false, nil }
-func (m *mockDBAdminHandler) GetUserFeedCount(int) (int, error)                       { return 0, nil }
+func (m *mockDBAdminHandler) IsUserSubscriptionActive(int) (bool, error) { return false, nil }
+func (m *mockDBAdminHandler) GetUserFeedCount(int) (int, error) {
+	if m.shouldFailGetFeedCount {
+		return 0, errors.New("database error")
+	}
+	return 0, nil
+}
 func (m *mockDBAdminHandler) AddFeed(*database.Feed) error                            { return nil }
 func (m *mockDBAdminHandler) UpdateFeed(*database.Feed) error                         { return nil }
 func (m *mockDBAdminHandler) UpdateFeedTracking(int, time.Time, time.Time, int) error { return nil }
@@ -127,7 +137,7 @@ func (m *mockDBAdminHandler) GetUserArticleStatus(int, int) (*database.UserArtic
 	return nil, nil
 }
 func (m *mockDBAdminHandler) SetUserArticleStatus(int, int, bool, bool) error { return nil }
-func (m *mockDBAdminHandler) MarkAllUserArticlesRead(int) (int, error)                              { return 0, nil }
+func (m *mockDBAdminHandler) MarkAllUserArticlesRead(int) (int, error)        { return 0, nil }
 func (m *mockDBAdminHandler) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }
@@ -499,4 +509,272 @@ func TestGetUserInfo(t *testing.T) {
 			t.Errorf("expected email target@example.com, got %v", userField["email"])
 		}
 	})
+}
+
+func TestGetUserInfoErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminUser := &database.User{ID: 1, Email: "admin@example.com", Name: "Admin", IsAdmin: true}
+
+	t.Run("missing email param returns 400", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := NewAdminHandler(services.NewSubscriptionService(db), services.NewAuditService(db))
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/admin/users/", nil)
+		c.Set("user", adminUser)
+		handler.GetUserInfo(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("subscription info error returns 500", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		targetUser := &database.User{ID: 42, Email: "target@example.com"}
+		db.users[targetUser.ID] = targetUser
+		db.shouldFailGetFeedCount = true
+		handler := NewAdminHandler(services.NewSubscriptionService(db), services.NewAuditService(db))
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/admin/users/target@example.com", nil)
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "target@example.com"}}
+		c.Set("user", adminUser)
+		handler.GetUserInfo(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestSetAdminStatusErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminUser := &database.User{ID: 1, Email: "admin@example.com", Name: "Admin User", IsAdmin: true}
+
+	newHandler := func(db *mockDBAdminHandler) *AdminHandler {
+		return NewAdminHandler(services.NewSubscriptionService(db), services.NewAuditService(db))
+	}
+
+	t.Run("missing email param returns 400", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]bool{"is_admin": true})
+		c.Request = httptest.NewRequest("POST", "/admin/users//admin", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		handler.SetAdminStatus(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("invalid JSON body returns 400", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/admin/users/user@example.com/admin", bytes.NewReader([]byte("not json")))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "user@example.com"}}
+		handler.SetAdminStatus(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]bool{"is_admin": true})
+		c.Request = httptest.NewRequest("POST", "/admin/users/user@example.com/admin", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "user@example.com"}}
+		handler.SetAdminStatus(c)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("target user not found returns 404", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		db.users[1] = adminUser
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]bool{"is_admin": true})
+		c.Request = httptest.NewRequest("POST", "/admin/users/nobody@example.com/admin", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "nobody@example.com"}}
+		c.Set("user", adminUser)
+		handler.SetAdminStatus(c)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+	})
+
+	// NOTE: is_admin:false cannot reach the handler's ErrSelfDemotion branch today —
+	// IsAdmin's `binding:"required"` tag rejects the bool zero value, so revocation
+	// requests are always turned away at JSON binding with 400. See gr-dhxo.
+	t.Run("is_admin false is rejected at binding (revocation currently unreachable)", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		db.users[1] = adminUser
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]bool{"is_admin": false})
+		c.Request = httptest.NewRequest("POST", "/admin/users/admin@example.com/admin", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "admin@example.com"}}
+		c.Set("user", adminUser)
+		handler.SetAdminStatus(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		db.users[1] = adminUser
+		targetUser := &database.User{ID: 2, Email: "user@example.com"}
+		db.users[2] = targetUser
+		db.shouldFailSetAdmin = true
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]bool{"is_admin": true})
+		c.Request = httptest.NewRequest("POST", "/admin/users/user@example.com/admin", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "user@example.com"}}
+		c.Set("user", adminUser)
+		handler.SetAdminStatus(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestGrantFreeMonthsErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminUser := &database.User{ID: 1, Email: "admin@example.com", Name: "Admin User", IsAdmin: true}
+
+	newHandler := func(db *mockDBAdminHandler) *AdminHandler {
+		return NewAdminHandler(services.NewSubscriptionService(db), services.NewAuditService(db))
+	}
+
+	t.Run("missing email param returns 400", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]int{"months": 3})
+		c.Request = httptest.NewRequest("POST", "/admin/users//free-months", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		handler.GrantFreeMonths(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("invalid JSON body returns 400", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/admin/users/user@example.com/free-months", bytes.NewReader([]byte("not json")))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "user@example.com"}}
+		handler.GrantFreeMonths(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("zero months returns 400", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]int{"months": 0})
+		c.Request = httptest.NewRequest("POST", "/admin/users/user@example.com/free-months", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "user@example.com"}}
+		c.Set("user", adminUser)
+		handler.GrantFreeMonths(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("unauthenticated returns 401", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]int{"months": 3})
+		c.Request = httptest.NewRequest("POST", "/admin/users/user@example.com/free-months", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "user@example.com"}}
+		handler.GrantFreeMonths(c)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("target user not found returns 404", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		db.users[1] = adminUser
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]int{"months": 3})
+		c.Request = httptest.NewRequest("POST", "/admin/users/nobody@example.com/free-months", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "nobody@example.com"}}
+		c.Set("user", adminUser)
+		handler.GrantFreeMonths(c)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
+		}
+	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		db.users[1] = adminUser
+		targetUser := &database.User{ID: 2, Email: "user@example.com"}
+		db.users[2] = targetUser
+		db.shouldFailGrantFree = true
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]int{"months": 3})
+		c.Request = httptest.NewRequest("POST", "/admin/users/user@example.com/free-months", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "user@example.com"}}
+		c.Set("user", adminUser)
+		handler.GrantFreeMonths(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestGetAuditLogsError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := newMockDBAdminHandler()
+	db.shouldFailGetAuditLogs = true
+	handler := NewAdminHandler(services.NewSubscriptionService(db), services.NewAuditService(db))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/admin/audit-logs", nil)
+	handler.GetAuditLogs(c)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
 }
