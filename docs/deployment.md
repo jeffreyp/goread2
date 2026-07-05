@@ -111,6 +111,7 @@ Every push to `main` that passes the `Tests` workflow automatically deploys to A
 - All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review — see the workflow file's inline `# vX` comments for the corresponding version.
 - **BUILD_VERSION** is injected into `app.yaml` at deploy time (via `sed`, right before the deploy step) since App Engine standard has no `--set-env-vars` deploy flag and the file has no other templating mechanism.
 - **Cleanup**: after deploying, every other `staging-*` version is deleted, keeping only the one just deployed — `staging-*` versions would otherwise accumulate one per push indefinitely. Restricted to versions with `traffic_split=0`: since `deploy-prod.yml` (below) promotes by migrating traffic directly onto a `staging-<sha>` version rather than redeploying under a new name, an older `staging-<sha>` can be the version currently serving 100% of production traffic — this guard is what stops the very next push from deleting live production.
+- **Smoke check**: immediately after both versions deploy, `scripts/smoke-check.sh` (see below) runs against the `staging-<sha>` URL and fails the job if it doesn't pass — catches a broken deploy before a human ever clicks through it.
 
 **Bugs hit and fixed while first bringing this workflow up** (both real, both caught by actually running the pipeline rather than assuming the design was correct):
 1. `$GITHUB_SHA` is **not** the triggering commit for `workflow_run` events — it's whatever the default branch tip happens to be when the job executes. Two runs that fired close together both computed the same `staging-<sha>` name from `$GITHUB_SHA` and collided (`ABORTED: operation already in progress`). Fixed by deriving the short SHA from `github.event.workflow_run.head_sha` instead.
@@ -150,6 +151,8 @@ gh workflow run deploy-prod.yml --repo jeffreyp/goread2 -f version=staging-a1b2c
 
 **Critical detail**: this uses `gcloud app versions migrate`, not a redeploy. The exact binary a reviewer clicked through on staging is what serves production — no rebuild step, no chance of drift between what was tested and what ships.
 
+Immediately after migrating traffic, `scripts/smoke-check.sh` (see below) runs against `https://goreadapp.com` and fails the job if any assertion fails — this is the last automated check before the workflow reports success, though it can't undo the traffic shift by itself (see `rollback.yml` below for that).
+
 **Naming decision (2026-07-05)**: a promoted version keeps its `staging-<sha>` name permanently in production — it is never renamed to `prod-*`. This was a deliberate choice, confirmed with Jeffrey after the first live promotion: App Engine Standard versions are immutable and this app deploys from source (`gcloud app versions describe` shows no pre-built `deployment.container` reference to reuse), so the only way to get a `prod-<timestamp>`-named version live would be to rebuild the same commit under a new name — reintroducing exactly the rebuild step this design exists to avoid, for a purely cosmetic naming benefit. `traffic_split=1.0` is what actually identifies the live production version; the name is not load-bearing anywhere in tooling (`deploy-staging.yml`'s cleanup guard checks `traffic_split=0`, not a name pattern).
 
 **Two real bugs hit while first bringing this up live** (both invisible until an actual cross-version promotion was attempted, not the same-version no-op that "verified" rollback.yml earlier):
@@ -157,6 +160,25 @@ gh workflow run deploy-prod.yml --repo jeffreyp/goread2 -f version=staging-a1b2c
 2. `gcloud app versions migrate` requires the *target* version to have App Engine warmup requests enabled before it can gain traffic from 0% — `INVALID_ARGUMENT: Warmup requests must be enabled for all versions that will gain additional traffic`. Fixed by adding `inbound_services: [warmup]` to `app.yaml` (applies to every version, staging and prod alike) plus a trivial `GET /_ah/warmup` handler in `main.go` that returns 200. Same blind spot as above: a same-version migrate never triggers this check since the target already has traffic.
 
 Both fixes are load-bearing for `rollback.yml` too, not just this workflow — a real rollback to a previously-deployed (zero-traffic) version would have hit the identical two failures.
+
+## Post-Deploy Smoke Check (`scripts/smoke-check.sh`)
+
+Unauthenticated HTTP assertions run against a base URL after every staging and production deploy (see the two workflow sections above). Exits non-zero — failing the calling workflow job — if any assertion fails.
+
+```bash
+./scripts/smoke-check.sh https://staging-a1b2c3d-dot-goread-467200.uc.r.appspot.com
+```
+
+**Assertions:**
+- `GET /` — 200, body contains `GoRead` (app started, templates loaded)
+- `GET /privacy` — 200
+- `GET /api/feeds` — 401 with a JSON error body (auth middleware ran, database responded)
+- `GET /auth/login` — 200 with a JSON `auth_url` pointing at `accounts.google.com` (OAuth config loaded). Note this is a JSON response, not a server-side redirect — the handler hands the URL to the frontend to redirect the browser itself, so there's no `Location` header or 302 to check.
+- `GET /static/js/app.min.js` — 200, `Content-Type: application/javascript` (frontend build present)
+- `GET /static/css/styles.min.css` — 200
+- `Strict-Transport-Security` header present on `/` — only set when `GAE_ENV=standard` (see `internal/middleware/security_headers.go`), so this assertion only passes when run against a real App Engine deployment, not a local dev server
+- `X-Content-Type-Options: nosniff` header present on `/`
+- `GET /auth/smoke-login` — 404 (confirms no backdoor auth endpoint is enabled)
 
 ## Rollback (`.github/workflows/rollback.yml`)
 

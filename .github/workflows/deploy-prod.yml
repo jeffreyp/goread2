@@ -87,6 +87,12 @@ jobs:
             --quiet \
             -- "$TARGET_VERSION"
 
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Smoke check production after promotion
+        run: |
+          ./scripts/smoke-check.sh "https://goreadapp.com"
+
       - name: Output promotion confirmation
         env:
           TARGET_VERSION: ${{ needs.resolve-version.outputs.version }}

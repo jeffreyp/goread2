@@ -945,6 +945,10 @@ jobs:
 - `govulncheck` as a non-blocking reporting job
 - Single-platform build artifact (`goread2` binary) — dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
 
+### Post-Deploy Smoke Check (`scripts/smoke-check.sh`)
+
+Separate from the `test.yml` CI pipeline above, `scripts/smoke-check.sh <base-url>` runs unauthenticated HTTP assertions against a live, already-deployed App Engine version — it verifies the deploy itself (app started, static assets built, OAuth config loaded, security headers present, no backdoor auth endpoint), not application logic. Called by both `deploy-staging.yml` (against the new `staging-<sha>` URL) and `deploy-prod.yml` (against `https://goreadapp.com` after promotion); see [deployment.md](deployment.md#post-deploy-smoke-check-scriptssmoke-checksh) for the full assertion list.
+
 ## Writing New Tests
 
 ### Package-Level Unit Test Example
