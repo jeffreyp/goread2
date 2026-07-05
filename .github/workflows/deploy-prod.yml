@@ -60,6 +60,10 @@ jobs:
     needs: resolve-version
     runs-on: ubuntu-latest
     environment: production   # pauses here for human approval
+    permissions:
+      contents: read
+      id-token: write
+      actions: write   # required to dispatch rollback.yml on auto-rollback
     outputs:
       previous_version: ${{ steps.previous.outputs.version }}
     steps:
@@ -90,8 +94,40 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Smoke check production after promotion
+        id: smoke_check
         run: |
           ./scripts/smoke-check.sh "https://goreadapp.com"
+
+      - name: Post-promote health watch (~15 min)
+        id: health_watch
+        env:
+          WATCH_SECONDS: "900"
+          POLL_INTERVAL_SECONDS: "60"
+        run: |
+          ./scripts/post-promote-health-watch.sh goread-467200
+
+      - name: Auto-rollback on failed smoke check or health watch
+        if: steps.smoke_check.outcome == 'failure' || steps.health_watch.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_VERSION: ${{ steps.previous.outputs.version }}
+        run: |
+          if [ -z "$PREVIOUS_VERSION" ]; then
+            echo "::error::No previous version was captured before this promotion — cannot auto-rollback. Manual intervention required." >&2
+            exit 1
+          fi
+
+          echo "::error::Post-deploy smoke check or health watch failed after promoting to production — dispatching rollback to $PREVIOUS_VERSION" >&2
+          gh workflow run rollback.yml --repo "$GITHUB_REPOSITORY" -f version="$PREVIOUS_VERSION"
+
+          {
+            echo "### 🚨 Auto-rollback triggered"
+            echo ""
+            echo "The post-deploy smoke check or post-promote health watch failed."
+            echo "Dispatched \`rollback.yml\` to migrate traffic back to: \`$PREVIOUS_VERSION\`"
+            echo ""
+            echo "Check the Actions tab for the rollback run's progress."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Output promotion confirmation
         env:

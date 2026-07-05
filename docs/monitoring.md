@@ -155,6 +155,12 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes six policies
 - **Auto-close**: 30 minutes (GCP enforces a 30-minute minimum; the originally documented 15 minutes was never a valid value and was corrected at deploy time)
 - **Critical**: May indicate production outage
 
+## Post-Promote Health Watch (a second consumer of these signals)
+
+`scripts/post-promote-health-watch.sh`, invoked from `deploy-prod.yml` after every production promotion (see [deployment.md](deployment.md#auto-rollback-post-promote-safety-net)), polls the same five signals as policies 1, 2, 3, 4, and 6 above directly via the Cloud Monitoring REST API — plus p95 latency, which has no alert policy of its own. It mirrors each policy's filter, aligner, reducer, threshold, and duration so the two stay in sync; if you change a threshold or duration here, update the script's matching `THRESHOLD`/`DURATION_SECONDS` entries too; they are not read from `alert-policies.yaml` at runtime.
+
+This is a separate mechanism from the alert policies, not a replacement: alert policies page a human at any time via the notification channel below; the health watch only runs in the ~15-minute window right after a promotion and auto-triggers `rollback.yml` on its own. Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com` (added 2026-07-05) — the alert policies never needed this since they're evaluated by GCP itself, not queried by a workflow.
+
 ## Billing Budget
 
 Unlike the alert policies above (which track operational proxies — Datastore ops, egress, instance count — because the Monitoring API can't see actual billing data), a Cloud Billing Budget is a hard dollar-based backstop that Google computes independently from real invoiced spend.
