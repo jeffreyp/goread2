@@ -187,6 +187,12 @@ func main() {
 		})
 	})
 
+	// App Engine warmup request (see app.yaml's inbound_services: warmup) — required
+	// before a version can gain traffic via `gcloud app versions migrate`/promote.
+	r.GET("/_ah/warmup", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
 	// Protected pages
 	r.GET("/account", authMiddleware.RequireAuthPage(), func(c *gin.Context) {
 		c.HTML(http.StatusOK, "account.html", gin.H{

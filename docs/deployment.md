@@ -150,6 +150,12 @@ gh workflow run deploy-prod.yml --repo jeffreyp/goread2 -f version=staging-a1b2c
 
 **Critical detail**: this uses `gcloud app versions migrate`, not a redeploy. The exact binary a reviewer clicked through on staging is what serves production — no rebuild step, no chance of drift between what was tested and what ships.
 
+**Two real bugs hit while first bringing this up live** (both invisible until an actual cross-version promotion was attempted, not the same-version no-op that "verified" rollback.yml earlier):
+1. `cicd-deploy`'s original IAM grant (`roles/appengine.deployer` only) doesn't include `appengine.services.update` — required to actually shift traffic between two *different* versions (as opposed to `services.get`/`services.list`, which `deployer` does include). Fixed by granting `roles/appengine.serviceAdmin` to the service account. This also silently affected `rollback.yml` — its "verified live" test only ever migrated a version to itself, which never exercises this permission.
+2. `gcloud app versions migrate` requires the *target* version to have App Engine warmup requests enabled before it can gain traffic from 0% — `INVALID_ARGUMENT: Warmup requests must be enabled for all versions that will gain additional traffic`. Fixed by adding `inbound_services: [warmup]` to `app.yaml` (applies to every version, staging and prod alike) plus a trivial `GET /_ah/warmup` handler in `main.go` that returns 200. Same blind spot as above: a same-version migrate never triggers this check since the target already has traffic.
+
+Both fixes are load-bearing for `rollback.yml` too, not just this workflow — a real rollback to a previously-deployed (zero-traffic) version would have hit the identical two failures.
+
 ## Rollback (`.github/workflows/rollback.yml`)
 
 One-click rollback — shifts 100% of production traffic to a previously-deployed version instantly, without needing local `gcloud` credentials.

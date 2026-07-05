@@ -9,6 +9,9 @@ env_variables:
   SECRET_CLIENT_SECRET_NAME: "google-client-secret"
   SUBSCRIPTION_ENABLED: "true"
 
+inbound_services:
+- warmup
+
 beta_settings:
   cloud_sql_instances: []
 
