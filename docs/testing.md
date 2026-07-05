@@ -944,6 +944,7 @@ jobs:
 - Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`) — a broken Jest suite or broken JS/CSS build now fails CI instead of shipping silently (gr-v9ki)
 - `govulncheck` as a non-blocking reporting job
 - Single-platform build artifact (`goread2` binary) — dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
+- All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review, matching the deploy workflows — see the workflow file's inline `# vX` comments for the corresponding version (gr-3ls6)
 
 ### Post-Deploy Smoke Check (`scripts/smoke-check.sh`)
 
