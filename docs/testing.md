@@ -47,6 +47,14 @@ internal/
 │   ├── admin_token_datastore_test.go     # Datastore admin token tests
 │   ├── feed_discovery_test.go            # Feed discovery and URL normalization tests
 │   └── subscription_service_test.go      # Subscription service logic tests (20.1% coverage)
+cmd/
+└── admin/
+    └── main_test.go      # Admin CLI command handler tests (52.4% coverage) —
+                           #   set-admin, grant-months, user-info, list-users,
+                           #   fix-subscription, set-subscription-id (Stripe backend
+                           #   mocked via stripe.SetBackend), create-token, list/revoke
+                           #   token, audit-logs; fatal (log.Fatal/os.Exit) error paths
+                           #   verified via subprocess re-exec
 test/
 ├── integration/                    # Backend integration tests
 │   ├── admin_integration_test.go   # Admin command integration tests

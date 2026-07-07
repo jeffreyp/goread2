@@ -64,8 +64,8 @@ temp/
 web/static/js/*.min.js
 web/static/css/*.min.css
 venv/
-admin
-main
+/admin
+/main
 node_modules/
 
 # Beads runtime files
