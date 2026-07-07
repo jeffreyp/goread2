@@ -77,10 +77,10 @@ make build-frontend    # Build minified JS and CSS assets
 make lint              # Run golangci-lint code quality checks
 make test              # Run all tests
 make validate-build    # Validate config + build frontend + build app
-make deploy-dev        # Deploy to development environment
-make deploy-prod       # Deploy to production environment
 make clean             # Remove all build artifacts
 ```
+
+Deployment is automated via GitHub Actions, not the Makefile — see [docs/deployment.md](docs/deployment.md).
 
 ## 📚 Documentation
 

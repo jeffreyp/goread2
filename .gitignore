@@ -52,9 +52,7 @@ logs/
 
 # App Engine
 .gcloudignore
-app.yaml.deploy
 app.yaml.tmp
-app-deploy.yaml
 
 # Temporary files
 tmp/

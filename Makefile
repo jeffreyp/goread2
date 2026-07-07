@@ -1,4 +1,4 @@
-.PHONY: all build lint test test-quick test-race validate-config deploy-dev deploy-prod clean build-js build-css build-frontend deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
+.PHONY: all build lint test test-quick test-race validate-config clean build-js build-css build-frontend deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
 
 # Default target - build everything
 all: build-frontend build test-quick
@@ -23,8 +23,6 @@ help:
 	@echo "  test-race          Run Go tests with race detector — use before merging concurrent code changes"
 	@echo "  validate-config    Validate application configuration"
 	@echo "  validate-build     Validate config + build frontend + build app"
-	@echo "  deploy-dev         Deploy to development environment"
-	@echo "  deploy-prod        Deploy to production environment"
 	@echo "  deploy-monitoring  Deploy monitoring dashboard and alerts"
 	@echo "  clean              Remove all build artifacts"
 	@echo "  dev                Start development server"
@@ -33,6 +31,10 @@ help:
 	@echo "Frontend build requirements:"
 	@echo "  - Node.js and npm must be installed"
 	@echo "  - Dependencies are installed automatically via 'npm install'"
+	@echo ""
+	@echo "Deployment is automated via GitHub Actions — see docs/deployment.md:"
+	@echo "  - Staging: automatic on every push to main"
+	@echo "  - Production: gh workflow run deploy-prod.yml (requires approval)"
 
 # Build the application
 build:
@@ -108,48 +110,6 @@ validate-config:
 # Validate and build (recommended before deployment)
 validate-build: validate-config build-frontend build
 	@echo "✅ Validation and build completed"
-
-# app.yaml no longer has any ${VAR} placeholders to substitute — CSRF_SECRET,
-# ADMIN_TOKEN, INITIAL_ADMIN_EMAILS (gr-0tx) and the four Stripe variables
-# (gr-siea) are all fetched from Secret Manager at runtime instead. This target
-# is now just a copy for app-deploy.yaml's downstream deploy-dev/deploy-prod
-# dependency; full removal of that dependency is gr-wnb5's cutover task.
-substitute-secrets:
-	@cp app.yaml app-deploy.yaml
-	@echo "✓ app-deploy.yaml ready (no secret substitution needed anymore)"
-
-# Deploy to development (with validation)
-deploy-dev: validate-config build-frontend substitute-secrets
-	@echo "🚀 Deploying to development..."
-	@echo "🧹 Stopping beads daemon and removing socket file..."
-	@-bd daemon --stop 2>/dev/null || true
-	@-rm -f .beads/bd.sock 2>/dev/null || true
-	@sleep 1
-	@gcloud app deploy app-deploy.yaml --version="dev-$$(date +%Y%m%dt%H%M%S)" --no-promote --quiet; \
-	EXIT_CODE=$$?; \
-	bd daemon --start 2>/dev/null || true; \
-	rm -f app-deploy.yaml; \
-	exit $$EXIT_CODE
-
-# Validate configuration in strict mode (for production)
-validate-config-strict:
-	@echo "🔍 Validating configuration (strict mode)..."
-	VALIDATE_STRICT=true go run cmd/validate-config/main.go
-
-# Deploy to production (with strict validation and tests)
-deploy-prod: validate-config-strict test build-frontend substitute-secrets
-	@echo "🚀 Deploying to production..."
-	@echo "🧹 Stopping beads daemon and removing socket file..."
-	@-bd daemon --stop 2>/dev/null || true
-	@-rm -f .beads/bd.sock 2>/dev/null || true
-	@sleep 1
-	@gcloud app deploy app-deploy.yaml --version="prod-$$(date +%Y%m%dt%H%M%S)" --quiet; \
-	EXIT_CODE=$$?; \
-	bd daemon --start 2>/dev/null || true; \
-	rm -f app-deploy.yaml; \
-	exit $$EXIT_CODE
-	@echo "🧹 Cleaning up old versions..."
-	@gcloud app versions list --sort-by=LAST_DEPLOYED --format="value(id)" --filter="TRAFFIC_SPLIT=0" | head -1 | xargs -r gcloud app versions delete --quiet
 
 # Clean build artifacts
 clean:

@@ -226,7 +226,7 @@ The workflow authenticates via the same WIF setup as deploy-staging, runs `gclou
 
 **CSRF_SECRET, ADMIN_TOKEN, INITIAL_ADMIN_EMAILS, and the four Stripe variables** all follow the same pattern as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`: fetched from Secret Manager at runtime (secret names `csrf-secret`, `admin-token`, `initial-admin-emails`, `stripe-secret-key`, `stripe-publishable-key`, `stripe-webhook-secret`, `stripe-price-id`) and absent from `app.yaml` entirely.
 
-The Stripe placeholders were removed 2026-07-04 while debugging why the first automated staging deploy (gr-rfd) 503'd: `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so the old `${STRIPE_SECRET_KEY}`-style placeholders were being deployed as literal, unresolved strings — `secrets.GetStripeCredentials()` read that literal garbage from the env var (non-empty, so it never fell through to Secret Manager) and failed config validation. Same root cause `make substitute-secrets` existed to paper over for manual deploys, now actually fixed at the source instead. `make substitute-secrets` and its call from `deploy-dev`/`deploy-prod` are dead code at this point — tracked for removal in gr-wnb5's cutover.
+The Stripe placeholders were removed 2026-07-04 while debugging why the first automated staging deploy (gr-rfd) 503'd: `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so the old `${STRIPE_SECRET_KEY}`-style placeholders were being deployed as literal, unresolved strings — `secrets.GetStripeCredentials()` read that literal garbage from the env var (non-empty, so it never fell through to Secret Manager) and failed config validation. Same root cause `make substitute-secrets` existed to paper over for manual deploys. `app.yaml` now has zero `${VAR}` placeholders; the manual `make deploy-dev`/`deploy-prod`/`substitute-secrets` Makefile targets were removed once the GitHub Actions pipeline (staging/prod deploy workflows documented above) fully replaced them — see [Deployment Steps](#deployment-steps) below.
 
 #### Setting up Google Secret Manager
 
@@ -368,36 +368,19 @@ cron:
    Update OAuth configuration with production URL:
    `https://your-app.appspot.com/auth/callback`
 
-2. **Set up environment variables:**
-   ```bash
-   # Option A: Export variables for substitution in app.yaml
-   export GOOGLE_CLIENT_ID="your-oauth-client-id"
-   export GOOGLE_CLIENT_SECRET="your-oauth-client-secret"
-   export STRIPE_SECRET_KEY="sk_live_your-secret-key"
-   export STRIPE_PUBLISHABLE_KEY="pk_live_your-publishable-key"
-   export STRIPE_WEBHOOK_SECRET="whsec_your-webhook-secret"
-   export STRIPE_PRICE_ID="price_your-price-id"
-
-   # Option B: Use Secret Manager (recommended for production)
-   # Secrets will be automatically accessed by App Engine if properly configured
-   ```
+2. **Set up secrets in Google Secret Manager:**
+   `app.yaml` has no `${VAR}` placeholders — every credential (OAuth, CSRF, admin, Stripe) is fetched from Secret Manager at runtime. See [Setting up Google Secret Manager](#setting-up-google-secret-manager) above to create the secrets once per project.
 
 3. **Initialize App Engine:**
    ```bash
    gcloud app create --region=us-central1
    ```
 
-4. **Deploy application:**
-   ```bash
-   # Deploy to development environment (with validation)
-   make deploy-dev
-
-   # Deploy to production environment (with strict validation and tests)
-   make deploy-prod
-
-   # Deploy cron jobs (manual step)
-   gcloud app deploy cron.yaml
-   ```
+4. **Deploy:**
+   There is no manual deploy command — deploys happen through the GitHub Actions pipeline described earlier in this doc:
+   - Push to `main` → `deploy-staging.yml` automatically deploys a zero-traffic `staging-<sha>` version and runs `cron.yaml`/`index.yaml` if they changed (see [Automated Staging Deploys](#automated-staging-deploys-githubworkflowsdeploy-stagingyml)).
+   - Click through the staging URL, then promote with `gh workflow run deploy-prod.yml` (see [Production Deploys](#production-deploys-githubworkflowsdeploy-prodyml)) — this pauses for human approval, migrates traffic, then runs the smoke check and 15-minute health watch automatically.
+   - To roll back, see [Rollback](#rollback-githubworkflowsrollbackyml).
 
 5. **Verify deployment:**
    ```bash

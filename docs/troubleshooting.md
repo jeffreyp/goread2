@@ -341,12 +341,9 @@ time curl "https://slow-feed.example.com/rss"
 
 **Solutions**:
 ```bash
-# Use Makefile for deployment (recommended)
-# Development deployment with validation
-make deploy-dev
-
-# Production deployment with strict validation and tests
-make deploy-prod
+# Deploys are automated via GitHub Actions (see docs/deployment.md) —
+# push to main for staging, or trigger production manually:
+gh workflow run deploy-prod.yml --repo jeffreyp/goread2
 
 # Manual deployment debugging
 gcloud app deploy --dry-run
