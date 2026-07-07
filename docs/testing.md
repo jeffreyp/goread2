@@ -758,6 +758,16 @@ RSS and Atom feed examples for parser testing:
 </feed>
 ```
 
+### Feed Format Fixtures (`test/fixtures/feeds/`)
+
+On-disk XML fixtures (as opposed to the inline string constants above) exercised by the table-driven suite in `internal/services/feed_fixtures_test.go` (`TestParseFeedFixtures`):
+
+- `rss2_standard.xml`, `atom_standard.xml`, `rdf_standard.xml` — one representative document per supported format (RSS 2.0, Atom 1.0, RSS 1.0/RDF).
+- `rss2_relative_urls.xml` — item `<link>` values are relative/scheme-relative paths. The parser copies `<link>` verbatim into `ArticleData.Link` with no `url.Parse`/`ResolveReference` step, so this fixture documents that pass-through behavior rather than testing normalization that doesn't exist.
+- `rss2_missing_fields.xml` — empty channel title/description and items missing `<title>`/`<description>`, verifying the parser substitutes fallback titles per-item instead of erroring or skipping items.
+- `malformed.xml` — unclosed tags; the parser must fail all three (RSS/RDF/Atom) unmarshal attempts and return an error rather than partial data.
+- `rss2_large_item_count.xml` — 3,000 items, guarding against silent truncation. There is no per-item cap during parsing itself; the only feed-fetch DoS control is the 10MB `maxFeedBodySize` body-size cap enforced in `fetchFeed` before parsing (see `TestFetchFeed_SizeLimit`).
+
 ### Generating Test Articles
 
 For testing pagination, feed loading, and article navigation, use the `generate-test-articles` utility to create test data in your local SQLite database:

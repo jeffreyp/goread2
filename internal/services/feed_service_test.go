@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -286,7 +287,7 @@ func (fs *FeedService) parseFeedFromBytes(body []byte, feedURL string) (*FeedDat
 		return fs.convertAtomToFeedData(&atom, feedURL), nil
 	}
 
-	return nil, err
+	return nil, fmt.Errorf("%w: unsupported feed format or invalid XML", ErrInvalidFeedFormat)
 }
 
 // Helper for XML unmarshaling

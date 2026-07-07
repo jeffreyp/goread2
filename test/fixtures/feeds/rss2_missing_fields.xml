@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title></title>
+    <description></description>
+    <link>https://sparse.example.com</link>
+    <item>
+      <link>https://sparse.example.com/posts/breaking-news-update</link>
+      <pubDate>Sat, 07 Jan 2024 10:15:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Has A Title</title>
+      <link>https://sparse.example.com/posts/second-post</link>
+    </item>
+  </channel>
+</rss>

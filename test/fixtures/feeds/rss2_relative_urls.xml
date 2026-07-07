@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Relative Link Blog</title>
+    <description>A feed whose item links are relative paths, not absolute URLs</description>
+    <link>https://relative.example.com</link>
+    <item>
+      <title>Article With Relative Link</title>
+      <link>/articles/relative-one</link>
+      <description>&lt;p&gt;This item's link is a site-relative path.&lt;/p&gt;</description>
+      <author>Erin Editor</author>
+      <pubDate>Thu, 05 Jan 2024 08:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Article With Scheme-Relative Link</title>
+      <link>//relative.example.com/articles/relative-two</link>
+      <description>&lt;p&gt;This item's link omits the scheme.&lt;/p&gt;</description>
+      <author>Erin Editor</author>
+      <pubDate>Fri, 06 Jan 2024 08:00:00 +0000</pubDate>
+    </item>
+  </channel>
+</rss>

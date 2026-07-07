@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Tech Blog</title>
+    <description>Technology news and analysis</description>
+    <link>https://example.com</link>
+    <item>
+      <title>First Article Title</title>
+      <link>https://example.com/articles/first-article</link>
+      <description>&lt;p&gt;This is the description of the first article.&lt;/p&gt;</description>
+      <author>Jane Doe</author>
+      <pubDate>Mon, 02 Jan 2024 15:04:05 +0000</pubDate>
+    </item>
+    <item>
+      <title>Second Article Title</title>
+      <link>https://example.com/articles/second-article</link>
+      <description>&lt;p&gt;This is the description of the second article.&lt;/p&gt;</description>
+      <author>John Smith</author>
+      <pubDate>Tue, 03 Jan 2024 09:30:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Third Article Title</title>
+      <link>https://example.com/articles/third-article</link>
+      <description>&lt;p&gt;This is the description of the third article.&lt;/p&gt;</description>
+      <author>Jane Doe</author>
+      <pubDate>Wed, 04 Jan 2024 12:00:00 +0000</pubDate>
+    </item>
+  </channel>
+</rss>
