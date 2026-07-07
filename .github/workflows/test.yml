@@ -21,6 +21,15 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
+    # The Datastore emulator (started below) is a Java process and requires
+    # a 21+ JRE. Installed explicitly rather than relying on whatever `java`
+    # happens to be default on the runner image.
+    - name: Set up Java (for Datastore emulator)
+      uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+      with:
+        distribution: temurin
+        java-version: '21'
+
     - name: Cache Go modules
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
@@ -35,11 +44,43 @@ jobs:
     - name: Verify dependencies
       run: go mod verify
 
+    # The runner's preinstalled gcloud is apt-managed and refuses
+    # `gcloud components install`, so setup-gcloud provisions a standalone
+    # SDK just for this step. No GCP auth/credentials needed — the emulator
+    # runs entirely locally.
+    - name: Set up gcloud (for Datastore emulator)
+      uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+      with:
+        install_components: 'beta,cloud-datastore-emulator'
+
+    - name: Start Cloud Datastore emulator
+      run: |
+        # --consistency=1.0 disables the emulator's default eventual-consistency
+        # simulation (default ~0.9): with it enabled, GetAll queries can miss
+        # entities written moments earlier, which is exactly what happened when
+        # this was first tried against internal/services/admin_token_datastore_test.go
+        # (flaky failures in ListAdminTokens/AdminTokenCompatibility that
+        # disappeared once consistency was pinned to 1.0).
+        nohup gcloud beta emulators datastore start \
+          --host-port=localhost:8081 --no-store-on-disk --consistency=1.0 \
+          > /tmp/datastore-emulator.log 2>&1 &
+        for i in $(seq 1 30); do
+          if curl -s -o /dev/null http://localhost:8081/; then
+            echo "Datastore emulator is up"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::Datastore emulator failed to start"
+        cat /tmp/datastore-emulator.log
+        exit 1
+
     - name: Set up test environment
       run: |
         echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> $GITHUB_ENV
         echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> $GITHUB_ENV
         echo "GOOGLE_REDIRECT_URL=${{ secrets.GOOGLE_REDIRECT_URL }}" >> $GITHUB_ENV
+        echo "DATASTORE_EMULATOR_HOST=localhost:8081" >> $GITHUB_ENV
 
     - name: Run unit tests
       run: go test -short -race -coverprofile=coverage.out ./internal/...

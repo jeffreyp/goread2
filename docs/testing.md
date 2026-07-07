@@ -618,6 +618,27 @@ func setupTestDB(t *testing.T) *DB {
 - **Automatic cleanup** when database connection closes
 - **Consistent behavior** with production SQLite schema
 
+### Datastore Emulator (`internal/services/admin_token_datastore_test.go`)
+
+Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` — the production database implementation — against a real (local) Datastore emulator instead of mocks. They `t.Skip` when the env var is unset, so they run silently skipped in a plain local `make test`/`go test ./...`.
+
+**In CI** (`.github/workflows/test.yml`, `test` job): a Cloud Datastore emulator is started before the unit test step —
+1. `actions/setup-java` installs a Java 21+ JRE (the emulator is a Java process; the runner's default `java` isn't guaranteed to meet the minimum version).
+2. `google-github-actions/setup-gcloud` provisions a standalone gcloud SDK with the `beta` and `cloud-datastore-emulator` components (the runner's preinstalled `gcloud` is apt-managed and refuses `gcloud components install`).
+3. `gcloud beta emulators datastore start --host-port=localhost:8081 --no-store-on-disk --consistency=1.0` runs in the background; the step polls `http://localhost:8081/` until it responds before continuing.
+4. `DATASTORE_EMULATOR_HOST=localhost:8081` is exported for the rest of the job, so `go test ./internal/...` picks up the gated tests instead of skipping them.
+
+**`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which made `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier — a real flake, not a fluke, reproduced locally before this was pinned to full consistency.
+
+**Local setup** (to run these tests outside CI):
+```bash
+gcloud components install beta cloud-datastore-emulator
+gcloud beta emulators datastore start --host-port=localhost:8081 --no-store-on-disk --consistency=1.0 &
+DATASTORE_EMULATOR_HOST=localhost:8081 go test ./internal/services/... -run TestDatastore
+```
+
+Only `AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered this way today. The bulk of `DatastoreDB`'s own methods implementing the `database.Database` interface (`GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, and ~25 others in `internal/database/datastore.go`) have no emulator-backed tests yet and remain at 0% coverage — the CI emulator makes writing those tests possible, but doesn't by itself add coverage for them.
+
 ### HTTP Test Setup
 
 Integration tests use test servers and mock HTTP clients:
@@ -679,13 +700,13 @@ Current test coverage status and targets:
   - **Pagination tests**: 18 tests for Load More button, cursor-based pagination, article rendering
 - **Admin Token System**: Comprehensive test coverage for the new secure authentication system
   - 6 SQLite backend test suites with 20+ individual test cases
-  - 6 Datastore backend test suites (skip when emulator unavailable)
+  - 6 Datastore backend test suites, run for real against a Cloud Datastore emulator in CI (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above); skip locally unless `DATASTORE_EMULATOR_HOST` is set
   - Security integration tests for bootstrap protection and token lifecycle
   - Edge case and error handling tests
 - **Overall system**: All core tests passing successfully
 
 ### 🎯 Future Coverage Targets
-- **Database operations**: Target 80%+ coverage (requires complex mocking)
+- **Database operations**: Target 80%+ coverage — the Datastore emulator is now wired into CI (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above), but `DatastoreDB`'s ~30 `database.Database` interface methods still have no tests written against it
 - **Feed service operations**: Target 60%+ coverage (HTTP dependency mocking needed)
 - **Handler HTTP logic**: Target 50%+ coverage (requires Gin test setup)  
 - **Payment service**: Target 40%+ coverage (Stripe API mocking needed)
