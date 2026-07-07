@@ -184,7 +184,6 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -193,7 +192,20 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
+    - name: Set up test environment
+      run: |
+        echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> $GITHUB_ENV
+        echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> $GITHUB_ENV
+        echo "GOOGLE_REDIRECT_URL=${{ secrets.GOOGLE_REDIRECT_URL }}" >> $GITHUB_ENV
+
+    # Regression suite for CSRF, auth-bypass, SSRF, and feed-limit
+    # enforcement (test/security/) — a real pass/fail gate, unlike the
+    # advisory govulncheck step below.
+    - name: Run security regression suite
+      run: go test -race ./test/security/...
+
     - name: Run govulncheck
+      continue-on-error: true
       run: |
         go install golang.org/x/vuln/cmd/govulncheck@latest
         govulncheck ./...

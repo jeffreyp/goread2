@@ -62,12 +62,23 @@ else
     exit 1
 fi
 
+# Run security regression suite
+echo ""
+echo "🔒 Running Security Regression Suite..."
+echo "----------------------------------------"
+if go test ./test/security/... -v -coverprofile=security_coverage.out; then
+    print_status "Security regression suite passed"
+else
+    print_error "Security regression suite failed"
+    exit 1
+fi
+
 # Combine coverage files
 echo ""
 echo "📊 Generating Coverage Report..."
 echo "--------------------------------"
 if command -v gocovmerge &> /dev/null; then
-    gocovmerge unit_coverage.out integration_coverage.out > coverage.out
+    gocovmerge unit_coverage.out integration_coverage.out security_coverage.out > coverage.out
     print_status "Coverage files merged"
 else
     print_warning "gocovmerge not found, using unit test coverage only"
@@ -134,7 +145,7 @@ else
 fi
 
 # Clean up
-rm -f unit_coverage.out integration_coverage.out
+rm -f unit_coverage.out integration_coverage.out security_coverage.out
 
 # Restore original environment variables
 if [ -n "$ORIG_GOOGLE_CLOUD_PROJECT" ]; then

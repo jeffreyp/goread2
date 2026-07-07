@@ -62,6 +62,11 @@ test/
 │   ├── api_test.go                 # End-to-end API testing
 │   ├── workflow_test.go            # User workflow integration tests
 │   └── performance_test.go         # Performance baseline tests
+├── security/                       # Consolidated security regression suite (dedicated CI job — gr-rrt)
+│   ├── auth_test.go                # Every RequireAuth route rejects requests with no session cookie
+│   ├── csrf_test.go                # CSRF token enforcement on mutating endpoints (moved from test/integration/auth_csrf_test.go)
+│   ├── feed_limit_test.go          # POST /api/feeds returns 402 once a trial user hits FreeTrialFeedLimit
+│   └── ssrf_test.go                # POST /api/feeds rejects loopback/link-local/RFC1918/metadata URLs
 └── fixtures/            # Test data and sample feeds
     └── sample_feeds.go  # Sample data for tests
 web/tests/                  # Frontend tests
@@ -945,7 +950,7 @@ jobs:
   lint:            # golangci-lint
   frontend-build:  # npm ci + npm run lint:js + npm run test:ci + make build-frontend
   benchmark:       # go test -bench + benchstat vs cached main baseline; fails on >20% regression
-  security:        # govulncheck, continue-on-error: true — reports, doesn't block
+  security:        # go test ./test/security/... (blocking regression gate) + govulncheck (continue-on-error: true, reports only)
   build:           # needs: [test, lint, frontend-build]; go build ./... + make build
 ```
 
@@ -958,7 +963,8 @@ jobs:
 - ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`) — catches undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed (gr-il9c)
 - Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`) — a broken Jest suite or broken JS/CSS build now fails CI instead of shipping silently (gr-v9ki)
 - Benchmark regression gate (`benchmark` job) — see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above (gr-4o2f)
-- `govulncheck` as a non-blocking reporting job
+- Security regression suite (`./test/security/...`) — blocking gate covering CSRF enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and `FreeTrialFeedLimit` enforcement, all exercised through the real HTTP handlers rather than scattered across `test/integration` and package-level unit tests with no dedicated CI signal (gr-rrt)
+- `govulncheck` as a non-blocking reporting job, run in the same `security` job after the regression suite
 - Single-platform build artifact (`goread2` binary) — dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
 - All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review, matching the deploy workflows — see the workflow file's inline `# vX` comments for the corresponding version (gr-3ls6)
 

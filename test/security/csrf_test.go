@@ -1,4 +1,8 @@
-package integration
+// Package security consolidates the regression suite for GoRead2's core
+// security controls (CSRF, auth bypass, SSRF, feed-limit enforcement) into
+// one location with a dedicated CI signal, instead of being scattered across
+// test/integration and internal/*/  test files.
+package security
 
 import (
 	"net/http"
