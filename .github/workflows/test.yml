@@ -61,8 +61,11 @@ jobs:
         # this was first tried against internal/services/admin_token_datastore_test.go
         # (flaky failures in ListAdminTokens/AdminTokenCompatibility that
         # disappeared once consistency was pinned to 1.0).
+        # --project is required even though it's fake/local-only — the emulator
+        # start command fails with "required property [project] is not set" on
+        # a runner with no gcloud config (unlike a dev machine with one already set).
         nohup gcloud beta emulators datastore start \
-          --host-port=localhost:8081 --no-store-on-disk --consistency=1.0 \
+          --project=goread2-ci-test --host-port=localhost:8081 --no-store-on-disk --consistency=1.0 \
           > /tmp/datastore-emulator.log 2>&1 &
         for i in $(seq 1 30); do
           if curl -s -o /dev/null http://localhost:8081/; then
