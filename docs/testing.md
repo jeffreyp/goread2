@@ -955,7 +955,7 @@ env:
 jobs:
   test:            # unit + integration tests, coverage upload to Codecov
   lint:            # golangci-lint
-  frontend-build:  # npm ci + npm run test:ci + make build-frontend
+  frontend-build:  # npm ci + npm run lint:js + npm run test:ci + make build-frontend
   security:        # govulncheck, continue-on-error: true — reports, doesn't block
   build:           # needs: [test, lint, frontend-build]; go build ./... + make build
 ```
@@ -966,6 +966,7 @@ jobs:
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov
 - Linting with golangci-lint
+- ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`) — catches undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed (gr-il9c)
 - Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`) — a broken Jest suite or broken JS/CSS build now fails CI instead of shipping silently (gr-v9ki)
 - `govulncheck` as a non-blocking reporting job
 - Single-platform build artifact (`goread2` binary) — dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
