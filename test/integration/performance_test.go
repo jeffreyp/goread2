@@ -1,6 +1,9 @@
 package integration
 
 import (
+	"io"
+	"log"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -10,61 +13,125 @@ import (
 	"github.com/jeffreyp/goread2/test/helpers"
 )
 
-// TestPerformanceBaseline establishes performance baselines (not a benchmark, but records timing)
-func TestPerformanceBaseline(t *testing.T) {
-	helpers.SetupTestEnv(t)
-	defer helpers.CleanupTestEnv(t)
+// silenceLog discards package-level log output (e.g. the CSRF manager's
+// "no secret configured" warning) for the duration of a benchmark. `go test`
+// merges the test binary's stdout and stderr into one stream, so left alone
+// these log lines land mid-line in the tab-separated "go test -bench" output
+// and make it unparseable by benchstat.
+func silenceLog(b *testing.B) {
+	b.Helper()
+	log.SetOutput(io.Discard)
+	b.Cleanup(func() { log.SetOutput(os.Stderr) })
+}
 
-	testServer := helpers.SetupTestServer(t)
-	user := helpers.CreateTestUser(t, testServer.DB, "perf-baseline", "baseline@example.com", "Baseline User")
+// setupPerfFixture builds a database with numFeeds feeds (all subscribed to
+// user) and numArticles articles on the first feed. Shared by the benchmarks
+// below so each one measures only the operation named, not fixture setup.
+func setupPerfFixture(b *testing.B, numFeeds, numArticles int) (testServer *helpers.TestServer, user *database.User, firstFeed *database.Feed) {
+	b.Helper()
+	silenceLog(b)
 
-	// Test 1: Create 100 feeds
-	start := time.Now()
-	for i := 0; i < 100; i++ {
-		feed := helpers.CreateTestFeed(t, testServer.DB, "Perf Feed "+strconv.Itoa(i), "https://perf"+strconv.Itoa(i)+".com/feed", "Performance feed")
-		err := testServer.DB.SubscribeUserToFeed(user.ID, feed.ID)
-		if err != nil {
-			t.Fatalf("Failed to subscribe: %v", err)
+	helpers.SetupTestEnv(b)
+	b.Cleanup(func() { helpers.CleanupTestEnv(b) })
+
+	testServer = helpers.SetupTestServer(b)
+	user = helpers.CreateTestUser(b, testServer.DB, "perf-baseline", "baseline@example.com", "Baseline User")
+
+	for i := 0; i < numFeeds; i++ {
+		feed := helpers.CreateTestFeed(b, testServer.DB, "Perf Feed "+strconv.Itoa(i), "https://perf"+strconv.Itoa(i)+".com/feed", "Performance feed")
+		if err := testServer.DB.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+			b.Fatalf("Failed to subscribe: %v", err)
+		}
+		if i == 0 {
+			firstFeed = feed
 		}
 	}
-	duration := time.Since(start)
-	t.Logf("✅ Created and subscribed to 100 feeds in %v (avg: %v per feed)", duration, duration/100)
 
-	// Test 2: Query all feeds
-	start = time.Now()
-	feeds, err := testServer.DB.GetUserFeeds(user.ID)
-	duration = time.Since(start)
-	if err != nil {
-		t.Fatalf("Failed to get feeds: %v", err)
+	for i := 0; i < numArticles; i++ {
+		helpers.CreateTestArticle(b, testServer.DB, firstFeed.ID, "Article "+strconv.Itoa(i), "https://perf.com/article"+strconv.Itoa(i))
 	}
-	t.Logf("✅ Queried %d feeds in %v", len(feeds), duration)
 
-	// Test 3: Create 1000 articles
-	if len(feeds) > 0 {
-		start = time.Now()
-		for i := 0; i < 1000; i++ {
-			helpers.CreateTestArticle(t, testServer.DB, feeds[0].ID, "Article "+strconv.Itoa(i), "https://perf.com/article"+strconv.Itoa(i))
-		}
-		duration = time.Since(start)
-		t.Logf("✅ Created 1000 articles in %v (avg: %v per article)", duration, duration/1000)
+	return testServer, user, firstFeed
+}
 
-		// Test 4: Query articles with pagination
-		start = time.Now()
-		result, err := testServer.DB.GetUserArticlesPaginated(user.ID, 50, "", false)
-		duration = time.Since(start)
-		if err != nil {
-			t.Fatalf("Failed to get articles: %v", err)
-		}
-		t.Logf("✅ Queried %d articles (paginated) in %v", len(result.Articles), duration)
+// BenchmarkGetUserFeeds100 measures querying a user's full feed list once
+// they're subscribed to 100 feeds.
+func BenchmarkGetUserFeeds100(b *testing.B) {
+	testServer, user, _ := setupPerfFixture(b, 100, 0)
 
-		// Test 5: Calculate unread counts
-		start = time.Now()
-		counts, err := testServer.DB.GetUserUnreadCounts(user.ID)
-		duration = time.Since(start)
-		if err != nil {
-			t.Fatalf("Failed to get unread counts: %v", err)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := testServer.DB.GetUserFeeds(user.ID); err != nil {
+			b.Fatalf("Failed to get feeds: %v", err)
 		}
-		t.Logf("✅ Calculated unread counts for %d feeds in %v", len(counts), duration)
+	}
+}
+
+// BenchmarkGetUserArticlesPaginated measures a paginated article query against
+// a feed with 1000 articles.
+func BenchmarkGetUserArticlesPaginated(b *testing.B) {
+	testServer, user, _ := setupPerfFixture(b, 1, 1000)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := testServer.DB.GetUserArticlesPaginated(user.ID, 50, "", false); err != nil {
+			b.Fatalf("Failed to get articles: %v", err)
+		}
+	}
+}
+
+// BenchmarkGetUserUnreadCounts measures computing per-feed unread counts
+// across 100 subscribed feeds.
+func BenchmarkGetUserUnreadCounts(b *testing.B) {
+	testServer, user, _ := setupPerfFixture(b, 100, 0)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := testServer.DB.GetUserUnreadCounts(user.ID); err != nil {
+			b.Fatalf("Failed to get unread counts: %v", err)
+		}
+	}
+}
+
+// BenchmarkConcurrentReads measures 10 users concurrently reading their own
+// feeds, articles, and unread counts against a shared feed.
+func BenchmarkConcurrentReads(b *testing.B) {
+	silenceLog(b)
+
+	helpers.SetupTestEnv(b)
+	b.Cleanup(func() { helpers.CleanupTestEnv(b) })
+
+	testServer := helpers.SetupTestServer(b)
+
+	const numUsers = 10
+	users := make([]*database.User, numUsers)
+	for i := 0; i < numUsers; i++ {
+		users[i] = helpers.CreateTestUser(b, testServer.DB, "concurrent-"+strconv.Itoa(i), "concurrent"+strconv.Itoa(i)+"@example.com", "Concurrent User "+strconv.Itoa(i))
+	}
+
+	feed := helpers.CreateTestFeed(b, testServer.DB, "Shared Feed", "https://shared.com/feed", "Shared feed for concurrent test")
+	for _, user := range users {
+		if err := testServer.DB.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+			b.Fatalf("Failed to subscribe user: %v", err)
+		}
+	}
+	for i := 0; i < 50; i++ {
+		helpers.CreateTestArticle(b, testServer.DB, feed.ID, "Concurrent Article "+strconv.Itoa(i), "https://shared.com/article"+strconv.Itoa(i))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var wg sync.WaitGroup
+		wg.Add(numUsers)
+		for _, user := range users {
+			go func(u *database.User) {
+				defer wg.Done()
+				_, _ = testServer.DB.GetUserFeeds(u.ID)
+				_, _ = testServer.DB.GetUserArticlesPaginated(u.ID, 50, "", false)
+				_, _ = testServer.DB.GetUserUnreadCounts(u.ID)
+			}(user)
+		}
+		wg.Wait()
 	}
 }
 

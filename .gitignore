@@ -60,6 +60,10 @@ app-deploy.yaml
 tmp/
 temp/
 
+# Benchmark output (CI writes/caches these; see check-benchmark-regression.sh)
+bench-baseline.txt
+bench-current.txt
+
 # Build artifacts
 web/static/js/*.min.js
 web/static/css/*.min.css

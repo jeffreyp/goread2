@@ -16,7 +16,7 @@ import (
 var cleanupMu sync.Mutex
 
 // CreateTestDB creates an in-memory SQLite database for testing
-func CreateTestDB(t *testing.T) database.Database {
+func CreateTestDB(t testing.TB) database.Database {
 	db, err := sql.Open("sqlite3", ":memory:?_loc=auto")
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
@@ -111,7 +111,7 @@ func createTestTables(db *database.DB) error {
 }
 
 // CreateTestUser creates a test user in the database
-func CreateTestUser(t *testing.T, db database.Database, googleID, email, name string) *database.User {
+func CreateTestUser(t testing.TB, db database.Database, googleID, email, name string) *database.User {
 	user := &database.User{
 		GoogleID:  googleID,
 		Email:     email,
@@ -128,7 +128,7 @@ func CreateTestUser(t *testing.T, db database.Database, googleID, email, name st
 }
 
 // CreateTestFeed creates a test feed in the database
-func CreateTestFeed(t *testing.T, db database.Database, title, url, description string) *database.Feed {
+func CreateTestFeed(t testing.TB, db database.Database, title, url, description string) *database.Feed {
 	now := time.Now()
 	feed := &database.Feed{
 		Title:                 title,
@@ -150,7 +150,7 @@ func CreateTestFeed(t *testing.T, db database.Database, title, url, description 
 }
 
 // CreateTestArticle creates a test article in the database
-func CreateTestArticle(t *testing.T, db database.Database, feedID int, title, url string) *database.Article {
+func CreateTestArticle(t testing.TB, db database.Database, feedID int, title, url string) *database.Article {
 	article := &database.Article{
 		FeedID:      feedID,
 		Title:       title,
@@ -170,14 +170,14 @@ func CreateTestArticle(t *testing.T, db database.Database, feedID int, title, ur
 }
 
 // SetupTestEnv sets up environment variables for testing
-func SetupTestEnv(t *testing.T) {
+func SetupTestEnv(t testing.TB) {
 	_ = os.Setenv("GOOGLE_CLIENT_ID", "test_client_id")
 	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "test_client_secret")
 	_ = os.Setenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/callback")
 }
 
 // CleanupTestEnv cleans up test environment variables
-func CleanupTestEnv(t *testing.T) {
+func CleanupTestEnv(t testing.TB) {
 	_ = os.Unsetenv("GOOGLE_CLIENT_ID")
 	_ = os.Unsetenv("GOOGLE_CLIENT_SECRET")
 	_ = os.Unsetenv("GOOGLE_REDIRECT_URL")

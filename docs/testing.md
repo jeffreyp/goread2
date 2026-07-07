@@ -441,48 +441,36 @@ func TestAdminWorkflow(t *testing.T) {
 - Feed deletion and cleanup
 - API endpoint authentication and CSRF protection
 
-#### Performance Tests (`test/integration/performance_test.go`)
+#### Performance Benchmarks (`test/integration/performance_test.go`)
 
-Tests establish performance baselines and measure concurrent operations:
+`TestPerformanceBaseline` used to record timing via `t.Logf` with nothing checked against it — no pass/fail signal, just numbers in the log. It's been replaced with real `testing.B` benchmarks, run by a dedicated `benchmark` CI job rather than `go test`'s normal test run (see [CI regression gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) below):
 
 ```go
-func TestPerformanceBaseline(t *testing.T) {
-    // Test 1: Create and subscribe to 100 feeds
-    // Test 2: Query all feeds
-    // Test 3: Create 1000 articles
-    // Test 4: Query articles with pagination (50 per page)
-    // Test 5: Calculate unread counts for all feeds
-    // All tests log timing: duration and avg per operation
-}
-
-func TestConcurrentUserOperations(t *testing.T) {
-    // Create 10 users
-    // Subscribe all users to shared feed
-    // Add 50 articles to feed
-
-    // Test concurrent reads:
-    // - Each user queries feeds, articles, unread counts
-
-    // Test concurrent writes:
-    // - 100 mark-as-read operations (10 per user)
-}
+func BenchmarkGetUserFeeds100(b *testing.B)           // Query all feeds for a user subscribed to 100
+func BenchmarkGetUserArticlesPaginated(b *testing.B)  // Paginated query (50/page) against 1000 articles
+func BenchmarkGetUserUnreadCounts(b *testing.B)       // Per-feed unread counts across 100 feeds
+func BenchmarkConcurrentReads(b *testing.B)           // 10 users concurrently reading a shared feed
 ```
 
-**Performance metrics tracked:**
-- Feed creation and subscription speed (avg ~12µs per feed)
-- Feed query performance (~900µs for 100 feeds)
-- Article creation speed (avg ~9µs per article)
-- Paginated article queries (~4ms for 50 articles)
-- Unread count calculation (~3.6ms for 100 feeds)
-- Concurrent user operations (10 users in ~2.5ms)
-- Concurrent write operations (100 ops in ~500µs)
+Fixture setup (creating the feeds/articles/users) happens once per `-count` repetition via `b.ResetTimer()`, so only the operation named is measured, not the setup cost. `TestConcurrentUserOperations` (correctness of concurrent reads *and* writes under `-race`) is unchanged — it's a concurrency-safety test, not a timing one.
 
-**Benefits:**
-- Establishes performance baselines for regression testing
-- Validates in-memory database performance
-- Tests concurrent access patterns
-- Measures real-world operation timing
-- Ensures system scales with multiple users
+Run locally:
+
+```bash
+go test -run='^$' -bench=. -benchmem ./test/integration/...
+```
+
+#### CI Benchmark Regression Gate (`scripts/check-benchmark-regression.sh`)
+
+The `benchmark` job in `test.yml` runs the four benchmarks above with `-benchtime=50x -count=10` and compares them against a baseline using [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat). No baseline file is committed to the repo — raw timings are hardware-dependent, so a baseline is only meaningful compared against a run on the *same* runner type it was recorded on. Instead:
+
+- The baseline is the most recent successful main-branch run's benchmark output, persisted via `actions/cache` under a rolling key (`bench-baseline-<run-id>`, restored by the `bench-baseline-` prefix).
+- Every push to `main` whose benchmarks *don't* regress rolls the cache forward to that run's numbers, so the baseline tracks main over time instead of drifting stale.
+- `scripts/check-benchmark-regression.sh <baseline> <current> [threshold-pct]` (default threshold 20%) parses `benchstat -format csv` output and fails only on sec/op deltas that are both `>threshold%` *and* statistically significant per benchstat's own test — a change benchstat marks `~` is noise and is ignored regardless of the raw percentage. `B/op`/`allocs/op` deltas are printed but not gated on.
+- A regression fails the `benchmark` job, which fails the whole `test.yml` workflow, which blocks `deploy-staging.yml` (gated on `workflow_run.conclusion == 'success'` — same mechanism as every other required job, see gr-vu1d's neighbor jobs). On a pull request, a regression additionally posts the benchstat report as a PR comment via `gh pr comment`.
+- The very first run after this job shipped has no cache to restore, so it skips the comparison and just bootstraps the baseline.
+
+Part of epic gr-f6v (gr-4o2f).
 
 ### 3. Frontend Tests
 
@@ -956,6 +944,7 @@ jobs:
   test:            # unit + integration tests, coverage upload to Codecov
   lint:            # golangci-lint
   frontend-build:  # npm ci + npm run lint:js + npm run test:ci + make build-frontend
+  benchmark:       # go test -bench + benchstat vs cached main baseline; fails on >20% regression
   security:        # govulncheck, continue-on-error: true — reports, doesn't block
   build:           # needs: [test, lint, frontend-build]; go build ./... + make build
 ```
@@ -968,6 +957,7 @@ jobs:
 - Linting with golangci-lint
 - ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`) — catches undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed (gr-il9c)
 - Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`) — a broken Jest suite or broken JS/CSS build now fails CI instead of shipping silently (gr-v9ki)
+- Benchmark regression gate (`benchmark` job) — see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above (gr-4o2f)
 - `govulncheck` as a non-blocking reporting job
 - Single-platform build artifact (`goread2` binary) — dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
 - All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review, matching the deploy workflows — see the workflow file's inline `# vX` comments for the corresponding version (gr-3ls6)
