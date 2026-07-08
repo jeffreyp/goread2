@@ -77,53 +77,62 @@ func (m *mockDBPayment) UpdateUserSubscription(userID int, status, subscriptionI
 	m.updateCalled = true
 	return nil
 }
-func (m *mockDBPayment) Close() error                                                         { return nil }
-func (m *mockDBPayment) CreateUser(*database.User) error                                      { return nil }
-func (m *mockDBPayment) GetUserByGoogleID(string) (*database.User, error)                     { return nil, nil }
-func (m *mockDBPayment) IsUserSubscriptionActive(int) (bool, error)                           { return false, nil }
-func (m *mockDBPayment) GetUserFeedCount(int) (int, error)                                    { return 0, nil }
-func (m *mockDBPayment) UpdateUserMaxArticlesOnFeedAdd(int, int) error                        { return nil }
-func (m *mockDBPayment) SetUserAdmin(int, bool) error                                         { return nil }
-func (m *mockDBPayment) SetUserAdminAtomic(int, int, bool) error                              { return nil }
-func (m *mockDBPayment) GrantFreeMonths(int, int) error                                       { return nil }
-func (m *mockDBPayment) GetUserByEmail(string) (*database.User, error)                        { return nil, nil }
-func (m *mockDBPayment) AddFeed(*database.Feed) error                                         { return nil }
-func (m *mockDBPayment) UpdateFeed(*database.Feed) error                                      { return nil }
-func (m *mockDBPayment) UpdateFeedTracking(int, time.Time, time.Time, int) error              { return nil }
-func (m *mockDBPayment) GetFeeds() ([]database.Feed, error)                                   { return nil, nil }
-func (m *mockDBPayment) GetFeedByURL(string) (*database.Feed, error)                          { return nil, nil }
-func (m *mockDBPayment) GetUserFeeds(int) ([]database.Feed, error)                            { return nil, nil }
-func (m *mockDBPayment) GetAllUserFeeds() ([]database.Feed, error)                            { return nil, nil }
-func (m *mockDBPayment) UpdateFeedCacheHeaders(int, string, string) error                     { return nil }
-func (m *mockDBPayment) DeleteFeed(int) error                                                 { return nil }
-func (m *mockDBPayment) SubscribeUserToFeed(int, int) error                                   { return nil }
-func (m *mockDBPayment) UnsubscribeUserFromFeed(int, int) error                               { return nil }
-func (m *mockDBPayment) AddArticle(*database.Article) error                                   { return nil }
-func (m *mockDBPayment) FilterExistingArticleURLs(int, []string) (map[string]bool, error)     { return nil, nil }
-func (m *mockDBPayment) GetArticles(int) ([]database.Article, error)                          { return nil, nil }
-func (m *mockDBPayment) FindArticleByURL(string) (*database.Article, error)                   { return nil, nil }
-func (m *mockDBPayment) GetUserArticles(int) ([]database.Article, error)                      { return nil, nil }
+func (m *mockDBPayment) Close() error                                            { return nil }
+func (m *mockDBPayment) CreateUser(*database.User) error                         { return nil }
+func (m *mockDBPayment) GetUserByGoogleID(string) (*database.User, error)        { return nil, nil }
+func (m *mockDBPayment) IsUserSubscriptionActive(int) (bool, error)              { return false, nil }
+func (m *mockDBPayment) GetUserFeedCount(int) (int, error)                       { return 0, nil }
+func (m *mockDBPayment) UpdateUserMaxArticlesOnFeedAdd(int, int) error           { return nil }
+func (m *mockDBPayment) SetUserAdmin(int, bool) error                            { return nil }
+func (m *mockDBPayment) SetUserAdminAtomic(int, int, bool) error                 { return nil }
+func (m *mockDBPayment) GrantFreeMonths(int, int) error                          { return nil }
+func (m *mockDBPayment) GetUserByEmail(string) (*database.User, error)           { return nil, nil }
+func (m *mockDBPayment) AddFeed(*database.Feed) error                            { return nil }
+func (m *mockDBPayment) UpdateFeed(*database.Feed) error                         { return nil }
+func (m *mockDBPayment) UpdateFeedTracking(int, time.Time, time.Time, int) error { return nil }
+func (m *mockDBPayment) GetFeeds() ([]database.Feed, error)                      { return nil, nil }
+func (m *mockDBPayment) GetFeedByURL(string) (*database.Feed, error)             { return nil, nil }
+func (m *mockDBPayment) GetUserFeeds(int) ([]database.Feed, error)               { return nil, nil }
+func (m *mockDBPayment) GetAllUserFeeds() ([]database.Feed, error)               { return nil, nil }
+func (m *mockDBPayment) UpdateFeedCacheHeaders(int, string, string) error        { return nil }
+func (m *mockDBPayment) DeleteFeed(int) error                                    { return nil }
+func (m *mockDBPayment) SubscribeUserToFeed(int, int) error                      { return nil }
+func (m *mockDBPayment) UnsubscribeUserFromFeed(int, int) error                  { return nil }
+func (m *mockDBPayment) AddArticle(*database.Article) error                      { return nil }
+func (m *mockDBPayment) FilterExistingArticleURLs(int, []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (m *mockDBPayment) GetArticles(int) ([]database.Article, error)        { return nil, nil }
+func (m *mockDBPayment) FindArticleByURL(string) (*database.Article, error) { return nil, nil }
+func (m *mockDBPayment) GetUserArticles(int) ([]database.Article, error)    { return nil, nil }
 func (m *mockDBPayment) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) {
 	return &database.ArticlePaginationResult{}, nil
 }
-func (m *mockDBPayment) GetUserFeedArticles(int, int) ([]database.Article, error)             { return nil, nil }
-func (m *mockDBPayment) GetArticleByID(int, int) (*database.Article, error)                   { return nil, nil }
-func (m *mockDBPayment) GetUserArticleStatus(int, int) (*database.UserArticle, error)         { return nil, nil }
-func (m *mockDBPayment) SetUserArticleStatus(int, int, bool, bool) error                      { return nil }
-func (m *mockDBPayment) MarkAllUserArticlesRead(int) (int, error)                             { return 0, nil }
-func (m *mockDBPayment) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error  { return nil }
-func (m *mockDBPayment) MarkUserArticleRead(int, int, bool) error                             { return nil }
-func (m *mockDBPayment) ToggleUserArticleStar(int, int) error                                 { return nil }
-func (m *mockDBPayment) GetUserUnreadCounts(int) (map[int]int, error)                         { return nil, nil }
-func (m *mockDBPayment) GetTotalArticleCount(int) (int, error)                                { return 0, nil }
-func (m *mockDBPayment) GetAccountStats(int) (map[string]interface{}, error)                  { return nil, nil }
-func (m *mockDBPayment) CleanupOrphanedUserArticles(int) (int, error)                         { return 0, nil }
-func (m *mockDBPayment) CreateSession(*database.Session) error                                { return nil }
-func (m *mockDBPayment) GetSession(string) (*database.Session, error)                         { return nil, nil }
-func (m *mockDBPayment) UpdateSessionExpiry(string, time.Time) error                          { return nil }
-func (m *mockDBPayment) DeleteSession(string) error                                           { return nil }
-func (m *mockDBPayment) DeleteExpiredSessions() error                                         { return nil }
-func (m *mockDBPayment) CreateAuditLog(*database.AuditLog) error                              { return nil }
+func (m *mockDBPayment) GetUserFeedArticles(int, int) ([]database.Article, error) { return nil, nil }
+func (m *mockDBPayment) GetUserFeedArticlesPaginated(int, int, int, string, bool) (*database.ArticlePaginationResult, error) {
+	return &database.ArticlePaginationResult{}, nil
+}
+func (m *mockDBPayment) GetArticleByID(int, int) (*database.Article, error) { return nil, nil }
+func (m *mockDBPayment) GetUserArticleStatus(int, int) (*database.UserArticle, error) {
+	return nil, nil
+}
+func (m *mockDBPayment) SetUserArticleStatus(int, int, bool, bool) error { return nil }
+func (m *mockDBPayment) MarkAllUserArticlesRead(int) (int, error)        { return 0, nil }
+func (m *mockDBPayment) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
+	return nil
+}
+func (m *mockDBPayment) MarkUserArticleRead(int, int, bool) error            { return nil }
+func (m *mockDBPayment) ToggleUserArticleStar(int, int) error                { return nil }
+func (m *mockDBPayment) GetUserUnreadCounts(int) (map[int]int, error)        { return nil, nil }
+func (m *mockDBPayment) GetTotalArticleCount(int) (int, error)               { return 0, nil }
+func (m *mockDBPayment) GetAccountStats(int) (map[string]interface{}, error) { return nil, nil }
+func (m *mockDBPayment) CleanupOrphanedUserArticles(int) (int, error)        { return 0, nil }
+func (m *mockDBPayment) CreateSession(*database.Session) error               { return nil }
+func (m *mockDBPayment) GetSession(string) (*database.Session, error)        { return nil, nil }
+func (m *mockDBPayment) UpdateSessionExpiry(string, time.Time) error         { return nil }
+func (m *mockDBPayment) DeleteSession(string) error                          { return nil }
+func (m *mockDBPayment) DeleteExpiredSessions() error                        { return nil }
+func (m *mockDBPayment) CreateAuditLog(*database.AuditLog) error             { return nil }
 func (m *mockDBPayment) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
 }
@@ -240,8 +249,8 @@ func TestPaymentService_CreateCustomerPortalSession_UserNotFound(t *testing.T) {
 func TestPaymentService_CreateCustomerPortalSession_HappyPath(t *testing.T) {
 	srv := mockStripeServer(t, map[string]interface{}{
 		"/v1/customers/search": map[string]interface{}{
-			"object": "search_result",
-			"data":   []interface{}{map[string]interface{}{"id": "cus_existing", "object": "customer"}},
+			"object":   "search_result",
+			"data":     []interface{}{map[string]interface{}{"id": "cus_existing", "object": "customer"}},
 			"has_more": false,
 		},
 		"/v1/billing_portal/sessions": map[string]interface{}{

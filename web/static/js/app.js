@@ -519,15 +519,10 @@ class GoReadApp {
         document.querySelectorAll('input[name="article-filter"]').forEach(radio => {
             radio.addEventListener('change', async (e) => {
                 this.articleFilter = e.target.value;
-                // The "All Feeds" aggregate fetches server-side with unread_only, so
-                // switching the filter requires a fresh fetch rather than a DOM re-filter.
-                if (this.currentFeed === 'all') {
-                    await this.loadArticles('all');
-                } else {
-                    this.sessionStarted = true;
-                    this.applyArticleFilter();
-                    this.sessionStarted = false;
-                }
+                // Both the "all" and single-feed endpoints fetch server-side with unread_only
+                // and are paginated, so switching the filter requires a fresh fetch rather
+                // than a DOM re-filter over a possibly-incomplete loaded page.
+                await this.loadArticles(this.currentFeed);
             });
         });
 
@@ -1165,14 +1160,9 @@ class GoReadApp {
             }
 
             const limit = 50;
-            let url;
-            if (feedId === 'all') {
-                const unreadParam = this.articleFilter === 'unread' ? '&unread_only=true' : '';
-                const cursorParam = this.nextCursor ? `&cursor=${encodeURIComponent(this.nextCursor)}` : '';
-                url = `/api/feeds/all/articles?limit=${limit}${cursorParam}${unreadParam}`;
-            } else {
-                url = `/api/feeds/${feedId}/articles`;
-            }
+            const unreadParam = this.articleFilter === 'unread' ? '&unread_only=true' : '';
+            const cursorParam = this.nextCursor ? `&cursor=${encodeURIComponent(this.nextCursor)}` : '';
+            const url = `/api/feeds/${feedId}/articles?limit=${limit}${cursorParam}${unreadParam}`;
 
             const response = await fetch(url);
 
@@ -1190,16 +1180,9 @@ class GoReadApp {
 
             const data = await response.json();
 
-            // Handle cursor-based pagination response for 'all' feed
-            let newArticles, nextCursor;
-            if (feedId === 'all' && data.articles !== undefined) {
-                newArticles = data.articles;
-                nextCursor = data.next_cursor || '';
-            } else {
-                // Single feed endpoint still returns array directly
-                newArticles = data;
-                nextCursor = '';
-            }
+            // Both the 'all' and single-feed endpoints return { articles, next_cursor }.
+            const newArticles = data.articles || [];
+            const nextCursor = data.next_cursor || '';
 
             // Track the starting index of newly loaded articles (for auto-selection after load more)
             const newArticlesStartIndex = append ? this.articles.length : 0;
@@ -1290,15 +1273,15 @@ class GoReadApp {
     }
 
     async loadMoreArticles() {
-        if (this.currentFeed === 'all' && this.hasMoreArticles) {
+        if (this.hasMoreArticles) {
             const button = document.querySelector('.load-more-button button');
             if (button) {
                 button.textContent = 'Loading...';
                 button.disabled = true;
             }
-            
-            await this.loadArticles('all', true);
-            
+
+            await this.loadArticles(this.currentFeed, true);
+
             if (button) {
                 button.textContent = 'Load More Articles';
                 button.disabled = false;
@@ -1467,7 +1450,7 @@ class GoReadApp {
             articleList.appendChild(fragment);
 
             // Re-add load more button if needed
-            if (this.currentFeed === 'all' && this.hasMoreArticles) {
+            if (this.hasMoreArticles) {
                 this.addLoadMoreButton();
             }
 
@@ -1543,8 +1526,8 @@ class GoReadApp {
         // Single DOM append operation
         updatedArticleList.appendChild(fragment);
 
-        // Add load more button if needed (for paginated "all articles" view)
-        if (this.currentFeed === 'all' && this.hasMoreArticles) {
+        // Add load more button if needed
+        if (this.hasMoreArticles) {
             this.addLoadMoreButton();
         }
 

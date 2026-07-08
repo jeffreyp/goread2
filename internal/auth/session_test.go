@@ -58,7 +58,10 @@ func (m *mockDB) GetUserArticles(int) ([]database.Article, error)               
 func (m *mockDB) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) {
 	return &database.ArticlePaginationResult{}, nil
 }
-func (m *mockDB) GetUserFeedArticles(int, int) ([]database.Article, error)            { return nil, nil }
+func (m *mockDB) GetUserFeedArticles(int, int) ([]database.Article, error) { return nil, nil }
+func (m *mockDB) GetUserFeedArticlesPaginated(int, int, int, string, bool) (*database.ArticlePaginationResult, error) {
+	return &database.ArticlePaginationResult{}, nil
+}
 func (m *mockDB) GetArticleByID(int, int) (*database.Article, error)                  { return nil, nil }
 func (m *mockDB) GetUserArticleStatus(int, int) (*database.UserArticle, error)        { return nil, nil }
 func (m *mockDB) SetUserArticleStatus(int, int, bool, bool) error                     { return nil }

@@ -270,13 +270,15 @@ describe('Pagination Functionality', () => {
             expect(hasMoreArticles2).toBe(false);
         });
 
-        test('should only add load more button for "all" feed view', () => {
+        test('should add load more button for both "all" and single-feed views', () => {
+            // Per-feed article listing paginates server-side too (gr-bd4x), so the load
+            // more button is gated purely on hasMoreArticles, not on which feed is active.
             const articleList = document.getElementById('article-list');
 
             let currentFeed = 'all';
             let hasMoreArticles = true;
 
-            if (currentFeed === 'all' && hasMoreArticles) {
+            if (hasMoreArticles) {
                 const button = document.createElement('div');
                 button.className = 'load-more-button';
                 articleList.appendChild(button);
@@ -291,13 +293,14 @@ describe('Pagination Functionality', () => {
             currentFeed = 'feed-123';
             hasMoreArticles = true;
 
-            if (currentFeed === 'all' && hasMoreArticles) {
+            if (hasMoreArticles) {
                 const button = document.createElement('div');
                 button.className = 'load-more-button';
                 articleList.appendChild(button);
             }
 
-            expect(document.querySelector('.load-more-button')).toBeNull();
+            expect(document.querySelector('.load-more-button')).toBeTruthy();
+            expect(currentFeed).toBe('feed-123');
         });
     });
 

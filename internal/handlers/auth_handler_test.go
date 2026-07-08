@@ -46,21 +46,26 @@ func (m *mockDBAuthHandler) GetUserArticles(int) ([]database.Article, error)    
 func (m *mockDBAuthHandler) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) {
 	return &database.ArticlePaginationResult{}, nil
 }
-func (m *mockDBAuthHandler) GetUserFeedArticles(int, int) ([]database.Article, error) { return nil, nil }
-func (m *mockDBAuthHandler) GetArticleByID(int, int) (*database.Article, error)       { return nil, nil }
+func (m *mockDBAuthHandler) GetUserFeedArticles(int, int) ([]database.Article, error) {
+	return nil, nil
+}
+func (m *mockDBAuthHandler) GetUserFeedArticlesPaginated(int, int, int, string, bool) (*database.ArticlePaginationResult, error) {
+	return &database.ArticlePaginationResult{}, nil
+}
+func (m *mockDBAuthHandler) GetArticleByID(int, int) (*database.Article, error) { return nil, nil }
 func (m *mockDBAuthHandler) GetUserArticleStatus(int, int) (*database.UserArticle, error) {
 	return nil, nil
 }
 func (m *mockDBAuthHandler) SetUserArticleStatus(int, int, bool, bool) error { return nil }
-func (m *mockDBAuthHandler) MarkAllUserArticlesRead(int) (int, error)                              { return 0, nil }
+func (m *mockDBAuthHandler) MarkAllUserArticlesRead(int) (int, error)        { return 0, nil }
 func (m *mockDBAuthHandler) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }
-func (m *mockDBAuthHandler) MarkUserArticleRead(int, int, bool) error         { return nil }
-func (m *mockDBAuthHandler) ToggleUserArticleStar(int, int) error             { return nil }
-func (m *mockDBAuthHandler) GetUserUnreadCounts(int) (map[int]int, error)     { return nil, nil }
-func (m *mockDBAuthHandler) GetTotalArticleCount(int) (int, error)            { return 0, nil }
-func (m *mockDBAuthHandler) CleanupOrphanedUserArticles(int) (int, error)     { return 0, nil }
+func (m *mockDBAuthHandler) MarkUserArticleRead(int, int, bool) error     { return nil }
+func (m *mockDBAuthHandler) ToggleUserArticleStar(int, int) error         { return nil }
+func (m *mockDBAuthHandler) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
+func (m *mockDBAuthHandler) GetTotalArticleCount(int) (int, error)        { return 0, nil }
+func (m *mockDBAuthHandler) CleanupOrphanedUserArticles(int) (int, error) { return 0, nil }
 func (m *mockDBAuthHandler) GetUserArticlesByIDs(int, []int) ([]database.Article, error) {
 	return nil, nil
 }
@@ -71,8 +76,8 @@ func (m *mockDBAuthHandler) DeleteSession(string) error                   { retu
 func (m *mockDBAuthHandler) GetExpiredSessions() ([]database.Session, error) {
 	return nil, nil
 }
-func (m *mockDBAuthHandler) DeleteExpiredSessions() error { return nil }
-func (m *mockDBAuthHandler) UpdateLastActiveTime(int) error { return nil }
+func (m *mockDBAuthHandler) DeleteExpiredSessions() error            { return nil }
+func (m *mockDBAuthHandler) UpdateLastActiveTime(int) error          { return nil }
 func (m *mockDBAuthHandler) CreateAuditLog(*database.AuditLog) error { return nil }
 func (m *mockDBAuthHandler) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
@@ -117,7 +122,6 @@ func TestNewAuthHandler(t *testing.T) {
 		t.Error("AuthHandler CSRF manager not set correctly")
 	}
 }
-
 
 // TestOAuthStateExpiration tests that expired states are rejected
 func TestOAuthStateExpiration(t *testing.T) {

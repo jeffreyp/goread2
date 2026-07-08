@@ -865,6 +865,19 @@ type articlePublishedAtProjection struct {
 }
 
 func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
+	return db.getUserArticlesPaginated(userID, 0, limit, cursor, unreadOnly)
+}
+
+// GetUserFeedArticlesPaginated fetches a single feed's articles with the same cursor-based
+// pagination as GetUserArticlesPaginated. Returns an empty result if the user isn't
+// subscribed to feedID.
+func (db *DatastoreDB) GetUserFeedArticlesPaginated(userID, feedID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
+	return db.getUserArticlesPaginated(userID, feedID, limit, cursor, unreadOnly)
+}
+
+// getUserArticlesPaginated backs both GetUserArticlesPaginated and GetUserFeedArticlesPaginated.
+// feedID of 0 means "all of the user's feeds"; a nonzero feedID restricts to that one feed.
+func (db *DatastoreDB) getUserArticlesPaginated(userID, feedID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
 	defer logSlowQuery("GetUserArticlesPaginated", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
@@ -872,6 +885,20 @@ func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor st
 	feeds, err := db.GetUserFeeds(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user feeds: %w", err)
+	}
+	if feedID != 0 {
+		var only *Feed
+		for i := range feeds {
+			if feeds[i].ID == feedID {
+				only = &feeds[i]
+				break
+			}
+		}
+		if only == nil {
+			// User is not subscribed to this feed.
+			return &ArticlePaginationResult{Articles: []Article{}, NextCursor: ""}, nil
+		}
+		feeds = []Feed{*only}
 	}
 	if len(feeds) == 0 {
 		return &ArticlePaginationResult{Articles: []Article{}, NextCursor: ""}, nil

@@ -42,7 +42,7 @@ func (ah *AdminHandler) SetAdminStatus(c *gin.Context) {
 	}
 
 	var request struct {
-		IsAdmin bool `json:"is_admin" binding:"required"`
+		IsAdmin bool `json:"is_admin"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {

@@ -19,9 +19,8 @@ type paginatedArticlesResponse struct {
 }
 
 // TestPaginationEndToEnd tests end-to-end cursor pagination across multiple pages via the
-// "all articles" endpoint (/api/feeds/all/articles), which is the only endpoint that
-// implements cursor-based pagination — GET /api/feeds/:id/articles for a single feed
-// returns the full unpaginated list.
+// "all articles" endpoint (/api/feeds/all/articles). GET /api/feeds/:id/articles for a
+// single feed returns the same paginatedArticlesResponse shape (see gr-bd4x).
 func TestPaginationEndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -177,7 +176,7 @@ func TestFeedSubscriptionLimits(t *testing.T) {
 
 	// Test 3: Test trial expiration
 	// Expire the user's trial by setting end date in the past
-	expiredTime := time.Now().Add(-24 * time.Hour) // 1 day ago
+	expiredTime := time.Now().Add(-24 * time.Hour)    // 1 day ago
 	startTime := time.Now().Add(-30 * 24 * time.Hour) // 30 days ago
 	err = testServer.DB.UpdateUserSubscription(user.ID, "trial", "", startTime, expiredTime)
 	if err != nil {
@@ -257,11 +256,12 @@ func TestMultiUserFeedSharing(t *testing.T) {
 		t.Fatalf("User 1 failed to get articles: %d", rr1.Code)
 	}
 
-	var user1Articles []database.Article
-	err = json.Unmarshal(rr1.Body.Bytes(), &user1Articles)
+	var user1Resp paginatedArticlesResponse
+	err = json.Unmarshal(rr1.Body.Bytes(), &user1Resp)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal user1 articles: %v", err)
 	}
+	user1Articles := user1Resp.Articles
 
 	if len(user1Articles) != 2 {
 		t.Errorf("Expected user1 to see 2 articles, got %d", len(user1Articles))
@@ -274,11 +274,12 @@ func TestMultiUserFeedSharing(t *testing.T) {
 		t.Fatalf("User 2 failed to get articles: %d", rr2.Code)
 	}
 
-	var user2Articles []database.Article
-	err = json.Unmarshal(rr2.Body.Bytes(), &user2Articles)
+	var user2Resp paginatedArticlesResponse
+	err = json.Unmarshal(rr2.Body.Bytes(), &user2Resp)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal user2 articles: %v", err)
 	}
+	user2Articles := user2Resp.Articles
 
 	if len(user2Articles) != 2 {
 		t.Errorf("Expected user2 to see 2 articles, got %d", len(user2Articles))
@@ -406,7 +407,7 @@ func TestOrphanedArticleCleanup(t *testing.T) {
 	_ = helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Article 3", "https://cleanup.com/article3")
 
 	// Create user article statuses
-	_ = testServer.DB.SetUserArticleStatus(user.ID, article1.ID, true, false)  // Read
+	_ = testServer.DB.SetUserArticleStatus(user.ID, article1.ID, true, false)   // Read
 	err = testServer.DB.SetUserArticleStatus(user.ID, article2.ID, false, true) // Starred
 	if err != nil {
 		t.Fatalf("Failed to set article status: %v", err)

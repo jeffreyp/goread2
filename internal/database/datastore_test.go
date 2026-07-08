@@ -900,3 +900,48 @@ func TestDatastoreGetUserArticlesPaginated(t *testing.T) {
 		t.Errorf("Expected to see all %d articles across pages, got %d", total, len(seen))
 	}
 }
+
+func TestDatastoreGetUserFeedArticlesPaginated(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+
+	user := createDatastoreTestUser(t, db)
+	feed1 := createDatastoreTestFeed(t, db)
+	feed2 := createDatastoreTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+
+	article1 := createDatastoreTestArticle(t, db, feed1.ID)
+	article2 := createDatastoreTestArticle(t, db, feed1.ID)
+	otherFeedArticle := createDatastoreTestArticle(t, db, feed2.ID)
+
+	result, err := db.GetUserFeedArticlesPaginated(user.ID, feed1.ID, 10, "", false)
+	if err != nil {
+		t.Fatalf("GetUserFeedArticlesPaginated failed: %v", err)
+	}
+	if len(result.Articles) != 2 {
+		t.Fatalf("Expected 2 articles from feed1, got %d", len(result.Articles))
+	}
+	seen := map[int]bool{}
+	for _, a := range result.Articles {
+		seen[a.ID] = true
+		if a.FeedID != feed1.ID {
+			t.Errorf("Expected article from feed %d, got feed %d", feed1.ID, a.FeedID)
+		}
+	}
+	if !seen[article1.ID] || !seen[article2.ID] {
+		t.Errorf("Expected to see both feed1 articles, got %+v", result.Articles)
+	}
+	if seen[otherFeedArticle.ID] {
+		t.Error("Should not have received article from a different feed")
+	}
+
+	// User is not subscribed to feed2: should get an empty, non-error result.
+	unsubscribed, err := db.GetUserFeedArticlesPaginated(user.ID, feed2.ID, 10, "", false)
+	if err != nil {
+		t.Fatalf("GetUserFeedArticlesPaginated for unsubscribed feed failed: %v", err)
+	}
+	if len(unsubscribed.Articles) != 0 {
+		t.Errorf("Expected 0 articles for unsubscribed feed, got %d", len(unsubscribed.Articles))
+	}
+}

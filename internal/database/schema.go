@@ -61,6 +61,7 @@ type Database interface {
 	GetUserArticles(userID int) ([]Article, error)
 	GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error)
 	GetUserFeedArticles(userID, feedID int) ([]Article, error)
+	GetUserFeedArticlesPaginated(userID, feedID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error)
 	GetArticleByID(userID, articleID int) (*Article, error)
 
 	// User article status methods
@@ -887,6 +888,19 @@ func (db *DB) GetUserArticles(userID int) ([]Article, error) {
 // GetUserArticlesPaginated fetches user articles with cursor-based pagination
 // Uses keyset pagination for efficient querying without scanning skipped rows
 func (db *DB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
+	return db.getUserArticlesPaginated(userID, 0, limit, cursor, unreadOnly)
+}
+
+// GetUserFeedArticlesPaginated fetches a single feed's articles with the same cursor-based
+// pagination as GetUserArticlesPaginated. Returns an empty result if the user isn't
+// subscribed to feedID, since the underlying query requires a user_feeds match.
+func (db *DB) GetUserFeedArticlesPaginated(userID, feedID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
+	return db.getUserArticlesPaginated(userID, feedID, limit, cursor, unreadOnly)
+}
+
+// getUserArticlesPaginated backs both GetUserArticlesPaginated and GetUserFeedArticlesPaginated.
+// feedID of 0 means "all of the user's feeds"; a nonzero feedID restricts to that one feed.
+func (db *DB) getUserArticlesPaginated(userID, feedID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
 	baseQuery := `SELECT a.id, a.feed_id, f.title as feed_title, a.title, a.url, a.description, a.author,
 			  a.published_at, a.created_at,
 			  COALESCE(ua.is_read, 0) as is_read,
@@ -898,6 +912,11 @@ func (db *DB) GetUserArticlesPaginated(userID int, limit int, cursor string, unr
 			  WHERE uf.user_id = ?`
 
 	args := []interface{}{userID, userID}
+
+	if feedID != 0 {
+		baseQuery += ` AND a.feed_id = ?`
+		args = append(args, feedID)
+	}
 
 	// Add unread filter if requested
 	if unreadOnly {

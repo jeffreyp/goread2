@@ -132,6 +132,9 @@ func (m *mockDBAdminHandler) GetUserArticlesPaginated(int, int, string, bool) (*
 func (m *mockDBAdminHandler) GetUserFeedArticles(int, int) ([]database.Article, error) {
 	return nil, nil
 }
+func (m *mockDBAdminHandler) GetUserFeedArticlesPaginated(int, int, int, string, bool) (*database.ArticlePaginationResult, error) {
+	return &database.ArticlePaginationResult{}, nil
+}
 func (m *mockDBAdminHandler) GetArticleByID(int, int) (*database.Article, error) { return nil, nil }
 func (m *mockDBAdminHandler) GetUserArticleStatus(int, int) (*database.UserArticle, error) {
 	return nil, nil
@@ -616,10 +619,9 @@ func TestSetAdminStatusErrors(t *testing.T) {
 		}
 	})
 
-	// NOTE: is_admin:false cannot reach the handler's ErrSelfDemotion branch today —
-	// IsAdmin's `binding:"required"` tag rejects the bool zero value, so revocation
-	// requests are always turned away at JSON binding with 400. See gr-dhxo.
-	t.Run("is_admin false is rejected at binding (revocation currently unreachable)", func(t *testing.T) {
+	// is_admin:false must bind successfully and reach SetUserAdminAtomic so the
+	// self-demotion guard can fire. See gr-dhxo.
+	t.Run("is_admin false binds and self-demotion returns 403", func(t *testing.T) {
 		db := newMockDBAdminHandler()
 		db.users[1] = adminUser
 		handler := newHandler(db)
@@ -631,8 +633,30 @@ func TestSetAdminStatusErrors(t *testing.T) {
 		c.Params = gin.Params{gin.Param{Key: "email", Value: "admin@example.com"}}
 		c.Set("user", adminUser)
 		handler.SetAdminStatus(c)
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
+		if w.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("is_admin false revokes a different user's admin status", func(t *testing.T) {
+		db := newMockDBAdminHandler()
+		db.users[1] = adminUser
+		targetUser := &database.User{ID: 2, Email: "other-admin@example.com", IsAdmin: true}
+		db.users[2] = targetUser
+		handler := newHandler(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body, _ := json.Marshal(map[string]bool{"is_admin": false})
+		c.Request = httptest.NewRequest("POST", "/admin/users/other-admin@example.com/admin", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{gin.Param{Key: "email", Value: "other-admin@example.com"}}
+		c.Set("user", adminUser)
+		handler.SetAdminStatus(c)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		if targetUser.IsAdmin {
+			t.Error("expected target user's admin status to be revoked")
 		}
 	})
 

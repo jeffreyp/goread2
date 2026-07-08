@@ -81,11 +81,15 @@ func TestUserWorkflowEndToEnd(t *testing.T) {
 		t.Fatalf("Step 6 failed: Expected status 200, got %d", rrGetArticles.Code)
 	}
 
-	var articles []database.Article
-	err = json.Unmarshal(rrGetArticles.Body.Bytes(), &articles)
+	var articlesResp struct {
+		Articles   []database.Article `json:"articles"`
+		NextCursor string             `json:"next_cursor"`
+	}
+	err = json.Unmarshal(rrGetArticles.Body.Bytes(), &articlesResp)
 	if err != nil {
 		t.Fatalf("Step 6 failed: Failed to unmarshal articles: %v", err)
 	}
+	articles := articlesResp.Articles
 
 	if len(articles) != 2 {
 		t.Fatalf("Step 6 failed: Expected 2 articles, got %d", len(articles))

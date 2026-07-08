@@ -38,6 +38,7 @@ type mockDBFeedHandler struct {
 	shouldFailGetFeedCount        bool
 	shouldFailGetFeeds            bool
 	mockFeedArticles              []database.Article
+	mockNextCursor                string
 	shouldFailGetUserFeedArticles bool
 	shouldFailFindArticleByURL    bool
 	mockFoundArticle              *database.Article
@@ -129,6 +130,16 @@ func (m *mockDBFeedHandler) GetUserFeedArticles(int, int) ([]database.Article, e
 		return nil, errors.New("database error")
 	}
 	return m.mockFeedArticles, nil
+}
+func (m *mockDBFeedHandler) GetUserFeedArticlesPaginated(userID, feedID, limit int, cursor string, unreadOnly bool) (*database.ArticlePaginationResult, error) {
+	if m.shouldFailGetUserFeedArticles {
+		return nil, errors.New("database error")
+	}
+	m.capturedPaginationLimit = limit
+	return &database.ArticlePaginationResult{
+		Articles:   m.mockFeedArticles,
+		NextCursor: m.mockNextCursor,
+	}, nil
 }
 func (m *mockDBFeedHandler) GetArticleByID(int, int) (*database.Article, error) {
 	if m.shouldFailGetArticle {
@@ -1968,25 +1979,35 @@ func TestGetArticlesSingleFeed(t *testing.T) {
 		}
 	})
 
-	t.Run("valid feed ID returns articles", func(t *testing.T) {
+	t.Run("valid feed ID returns paginated articles", func(t *testing.T) {
 		db := newMockDBFeedHandler()
 		db.mockFeedArticles = []database.Article{{ID: 1, Title: "Article 1"}}
+		db.mockNextCursor = "next-page-cursor"
 		handler := newFeedHandlerWithSubscription(db)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/api/feeds/123/articles", nil)
+		c.Request = httptest.NewRequest("GET", "/api/feeds/123/articles?limit=10&cursor=abc&unread_only=true", nil)
 		c.Params = gin.Params{gin.Param{Key: "id", Value: "123"}}
 		c.Set("user", testUser)
 		handler.GetArticles(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 		}
-		var articles []database.Article
-		if err := json.Unmarshal(w.Body.Bytes(), &articles); err != nil {
+		var response struct {
+			Articles   []database.Article `json:"articles"`
+			NextCursor string             `json:"next_cursor"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 			t.Fatalf("failed to parse response: %v", err)
 		}
-		if len(articles) != 1 {
-			t.Errorf("expected 1 article, got %d", len(articles))
+		if len(response.Articles) != 1 {
+			t.Errorf("expected 1 article, got %d", len(response.Articles))
+		}
+		if response.NextCursor != "next-page-cursor" {
+			t.Errorf("expected next_cursor to be passed through, got %q", response.NextCursor)
+		}
+		if db.capturedPaginationLimit != 10 {
+			t.Errorf("expected limit query param 10 to reach GetUserFeedArticlesPaginated, got %d", db.capturedPaginationLimit)
 		}
 	})
 

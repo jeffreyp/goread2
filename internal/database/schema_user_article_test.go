@@ -256,6 +256,68 @@ func TestGetUserFeedArticles(t *testing.T) {
 	_ = article1 // Use the variable to avoid unused error
 }
 
+func TestGetUserFeedArticlesPaginated(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed1 := createTestFeed(t, db)
+	feed2 := createTestFeed(t, db)
+
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+
+	// 5 articles on feed1, 1 on feed2 (which the user isn't subscribed to).
+	for i := 0; i < 5; i++ {
+		createTestArticle(t, db, feed1.ID)
+	}
+	otherFeedArticle := createTestArticle(t, db, feed2.ID)
+
+	// First page: should only ever see feed1's articles.
+	result, err := db.GetUserFeedArticlesPaginated(user.ID, feed1.ID, 2, "", false)
+	if err != nil {
+		t.Fatalf("GetUserFeedArticlesPaginated failed: %v", err)
+	}
+	if len(result.Articles) != 2 {
+		t.Fatalf("Expected 2 articles on first page, got %d", len(result.Articles))
+	}
+	if result.NextCursor == "" {
+		t.Fatal("Expected a next_cursor since 3 articles remain")
+	}
+	for _, a := range result.Articles {
+		if a.FeedID != feed1.ID {
+			t.Errorf("Expected article from feed %d, got feed %d", feed1.ID, a.FeedID)
+		}
+		if a.ID == otherFeedArticle.ID {
+			t.Error("Should not have received article from a different feed")
+		}
+	}
+
+	// Walk the rest of the pages and confirm we see exactly feed1's 5 articles.
+	seen := len(result.Articles)
+	cursor := result.NextCursor
+	for cursor != "" {
+		page, err := db.GetUserFeedArticlesPaginated(user.ID, feed1.ID, 2, cursor, false)
+		if err != nil {
+			t.Fatalf("GetUserFeedArticlesPaginated (subsequent page) failed: %v", err)
+		}
+		seen += len(page.Articles)
+		cursor = page.NextCursor
+	}
+	if seen != 5 {
+		t.Errorf("Expected to see all 5 of feed1's articles across pages, got %d", seen)
+	}
+
+	// User is not subscribed to feed2: should get an empty, non-error result.
+	unsubscribed, err := db.GetUserFeedArticlesPaginated(user.ID, feed2.ID, 10, "", false)
+	if err != nil {
+		t.Fatalf("GetUserFeedArticlesPaginated for unsubscribed feed failed: %v", err)
+	}
+	if len(unsubscribed.Articles) != 0 {
+		t.Errorf("Expected 0 articles for unsubscribed feed, got %d", len(unsubscribed.Articles))
+	}
+}
+
 func TestSetUserArticleStatus(t *testing.T) {
 	db := setupTestDB(t)
 

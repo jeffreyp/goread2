@@ -148,6 +148,26 @@ func (fh *FeedHandler) DeleteFeed(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Feed removed from your subscriptions successfully"})
 }
 
+// parseArticlePaginationParams reads the limit/cursor/unread_only query parameters shared by
+// the "all articles" and per-feed article listing endpoints.
+func parseArticlePaginationParams(c *gin.Context) (limit int, cursor string, unreadOnly bool) {
+	limit = 50 // Default limit
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {
+			limit = parsedLimit
+		}
+	}
+
+	cursor = c.Query("cursor") // Get cursor from query parameter
+
+	if unreadStr := c.Query("unread_only"); unreadStr == "true" || unreadStr == "1" {
+		unreadOnly = true
+	}
+
+	return limit, cursor, unreadOnly
+}
+
 func (fh *FeedHandler) GetArticles(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
@@ -156,24 +176,9 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 	}
 
 	idStr := c.Param("id")
+	limit, cursor, unreadOnly := parseArticlePaginationParams(c)
+
 	if idStr == "all" {
-		// Parse pagination parameters
-		limit := 50         // Default limit
-		cursor := ""        // Empty cursor means start from beginning
-		unreadOnly := false // Default to showing all articles
-
-		if limitStr := c.Query("limit"); limitStr != "" {
-			if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {
-				limit = parsedLimit
-			}
-		}
-
-		cursor = c.Query("cursor") // Get cursor from query parameter
-
-		if unreadStr := c.Query("unread_only"); unreadStr == "true" || unreadStr == "1" {
-			unreadOnly = true
-		}
-
 		result, err := fh.feedService.GetUserArticlesPaginated(user.ID, limit, cursor, unreadOnly)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve your articles. Please try again."})
@@ -194,13 +199,16 @@ func (fh *FeedHandler) GetArticles(c *gin.Context) {
 		return
 	}
 
-	articles, err := fh.feedService.GetUserFeedArticles(user.ID, id)
+	result, err := fh.feedService.GetUserFeedArticlesPaginated(user.ID, id, limit, cursor, unreadOnly)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve articles for this feed. Please try again."})
 		return
 	}
 
-	c.JSON(http.StatusOK, articles)
+	c.JSON(http.StatusOK, gin.H{
+		"articles":    result.Articles,
+		"next_cursor": result.NextCursor,
+	})
 }
 
 func (fh *FeedHandler) MarkRead(c *gin.Context) {

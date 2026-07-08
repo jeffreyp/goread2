@@ -348,17 +348,17 @@ Get articles for a specific feed.
 
 **Special Cases**:
 - Use `id=all` to get articles from all subscribed feeds (supports pagination)
-- Use `id={feed_id}` to get articles from a specific feed (no pagination)
+- Use `id={feed_id}` to get articles from a specific feed (also supports pagination, same response shape)
 - Articles are ordered by `published_at` DESC, then `id` DESC for deterministic ordering
 - `is_read` and `is_starred` are user-specific
 
 **Example**:
 ```bash
-# Get first page from specific feed (no pagination)
-curl "http://localhost:8080/api/feeds/1/articles" \
+# Get first page from a specific feed
+curl "http://localhost:8080/api/feeds/1/articles?limit=50" \
   -H "Cookie: session=your-session-cookie"
 
-# Get first page from all feeds (with pagination)
+# Get first page from all feeds
 curl "http://localhost:8080/api/feeds/all/articles?limit=50" \
   -H "Cookie: session=your-session-cookie"
 
