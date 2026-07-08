@@ -2116,16 +2116,16 @@ func (db *DatastoreDB) UpdateSessionExpiry(sessionID string, newExpiry time.Time
 	key := datastore.NameKey("Session", sessionID, nil)
 
 	// Get existing session first
-	var session Session
-	if err := db.client.Get(ctx, key, &session); err != nil {
+	var entity SessionEntity
+	if err := db.client.Get(ctx, key, &entity); err != nil {
 		return fmt.Errorf("failed to get session for expiry update: %w", err)
 	}
 
 	// Update expiry
-	session.ExpiresAt = newExpiry
+	entity.ExpiresAt = newExpiry
 
 	// Save back to Datastore
-	if _, err := db.client.Put(ctx, key, &session); err != nil {
+	if _, err := db.client.Put(ctx, key, &entity); err != nil {
 		return fmt.Errorf("failed to update session expiry: %w", err)
 	}
 	return nil

@@ -620,7 +620,7 @@ func setupTestDB(t *testing.T) *DB {
 
 ### Datastore Emulator (`internal/services/admin_token_datastore_test.go`)
 
-Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` — the production database implementation — against a real (local) Datastore emulator instead of mocks. They `t.Skip` when the env var is unset, so they run silently skipped in a plain local `make test`/`go test ./...`.
+Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` — the production database implementation — against a real (local) Datastore emulator instead of mocks. They `t.Skip` when the env var is unset, so they run silently skipped in a plain local `make test`/`go test ./...`. The same gating is used by `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, which exercise `DatastoreDB` through the `database.Database` interface (see below).
 
 **In CI** (`.github/workflows/test.yml`, `test` job): a Cloud Datastore emulator is started before the unit test step —
 1. `actions/setup-java` installs a Java 21+ JRE (the emulator is a Java process; the runner's default `java` isn't guaranteed to meet the minimum version).
@@ -635,9 +635,11 @@ Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` — the producti
 gcloud components install beta cloud-datastore-emulator
 gcloud beta emulators datastore start --host-port=localhost:8081 --no-store-on-disk --consistency=1.0 &
 DATASTORE_EMULATOR_HOST=localhost:8081 go test ./internal/services/... -run TestDatastore
+DATASTORE_EMULATOR_HOST=localhost:8081 go test ./internal/database/... -run TestDatastore
 ```
+The emulator's Java process requires a Java 21+ JRE on `PATH`; on macOS with Homebrew's `openjdk` installed but not linked, prefix the `gcloud emulators` command with `PATH="$(brew --prefix openjdk)/bin:$PATH"`.
 
-Only `AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered this way today. The bulk of `DatastoreDB`'s own methods implementing the `database.Database` interface (`GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, and ~25 others in `internal/database/datastore.go`) have no emulator-backed tests yet and remain at 0% coverage — the CI emulator makes writing those tests possible, but doesn't by itself add coverage for them.
+`AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered in `internal/services/admin_token_datastore_test.go`. `DatastoreDB`'s own methods implementing the `database.Database` interface — `AddFeed`, `GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, `GetAccountStats`, `CleanupOrphanedUserArticles`, sessions, audit logs, and the rest — are covered directly (through the `Database` interface, mirroring the SQLite `schema_test.go` suite) in `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, bringing `internal/database` to 80%+ coverage when run against the emulator.
 
 ### HTTP Test Setup
 
@@ -704,9 +706,9 @@ Current test coverage status and targets:
   - Security integration tests for bootstrap protection and token lifecycle
   - Edge case and error handling tests
 - **Overall system**: All core tests passing successfully
+- **DatastoreDB interface coverage**: `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go` exercise `DatastoreDB`'s ~30 `database.Database` interface methods (feeds, articles, users, subscriptions/admin, sessions, audit logs) against the CI emulator, mirroring the SQLite `schema_test.go` suite; `internal/database` reaches 80%+ coverage when run with `DATASTORE_EMULATOR_HOST` set (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above)
 
 ### 🎯 Future Coverage Targets
-- **Database operations**: Target 80%+ coverage — the Datastore emulator is now wired into CI (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above), but `DatastoreDB`'s ~30 `database.Database` interface methods still have no tests written against it
 - **Feed service operations**: Target 60%+ coverage (HTTP dependency mocking needed)
 - **Handler HTTP logic**: Target 50%+ coverage (requires Gin test setup)  
 - **Payment service**: Target 40%+ coverage (Stripe API mocking needed)
