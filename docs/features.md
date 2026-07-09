@@ -1,6 +1,17 @@
 # Features Guide
 
-Complete guide to GoRead2's features and how to use them effectively.
+Guide to GoRead2's features and how to use them, for end users of the application.
+
+## Table of Contents
+
+- [Reading Experience](#reading-experience)
+- [Navigation](#navigation)
+- [Feed Management](#feed-management)
+- [Article Management](#article-management)
+- [User Interface Features](#user-interface-features)
+- [Subscription Features](#subscription-features)
+- [Tips for Best Experience](#tips-for-best-experience)
+- [Related Documentation](#related-documentation)
 
 ## Reading Experience
 
@@ -128,7 +139,7 @@ Use the radio buttons in the article pane header:
 - Unlimited RSS feeds
 - Continued access to all features
 - Priority support
-- $2.99/month subscription
+- $9.99/month subscription
 
 ### Account Management
 - View subscription status in the header
@@ -152,3 +163,9 @@ Use the radio buttons in the article pane header:
 - GoRead2 automatically optimizes for performance
 - Articles load progressively for faster browsing
 - Unread counts sync in the background
+
+## Related Documentation
+
+- [Stripe Setup](stripe.md) - GoRead2 Pro billing details
+- [Admin Guide](admin.md) - Granting unlimited access outside a paid subscription
+- [Troubleshooting Guide](troubleshooting.md) - Common issues

@@ -1,6 +1,19 @@
 # Setup Guide
 
-Complete installation and configuration guide for GoRead2.
+Installation and configuration guide for running GoRead2 locally.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Google OAuth Setup](#google-oauth-setup)
+- [Stripe Setup (Optional)](#stripe-setup-optional)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Feature Flags](#feature-flags)
+- [First Run](#first-run)
+- [Troubleshooting](#troubleshooting)
+- [Development Setup](#development-setup)
+- [Related Documentation](#related-documentation)
 
 ## Prerequisites
 
@@ -195,54 +208,7 @@ See [Admin Guide](admin.md) for complete user management.
 
 ## Troubleshooting
 
-### Authentication Issues
-
-**OAuth errors:**
-- Verify Google Cloud project configuration
-- Check OAuth client ID and secret
-- Ensure redirect URLs match exactly
-- Verify OAuth consent screen setup
-
-**Session problems:**
-- Clear browser cookies and retry
-- Check server logs for session errors
-- Verify environment variables are set
-
-### Feed Issues
-
-**"Failed to fetch feed" error:**
-- Verify RSS/Atom feed URL is valid and accessible
-- Check server logs for specific HTTP errors
-- Some feeds may require User-Agent headers
-
-**Feed not updating:**
-- Check feed refresh cron job/background task
-- Verify feed URL hasn't changed
-- Look for HTTP status errors in logs
-
-### Database Issues
-
-**Local SQLite problems:**
-- Stop all running instances
-- Check `goread2.db` file permissions
-- Delete database file to reset (loses data)
-
-**User data isolation:**
-- Verify user ID is properly set in session
-- Check database queries include user filtering
-- Review test results for isolation verification
-
-### Performance
-
-**Slow article loading:**
-- Check database indexes
-- Monitor feed fetch times
-- Consider caching strategies
-
-**Memory usage:**
-- Monitor session cleanup
-- Check for database connection leaks
-- Review background task efficiency
+See [Troubleshooting Guide](troubleshooting.md) for authentication, feed, database, and performance issues.
 
 ## Development Setup
 
@@ -262,9 +228,10 @@ See [Admin Guide](admin.md) for complete user management.
 - **Documentation**: Update README and code comments
 - **Security**: Follow security best practices
 
-## Next Steps
+## Related Documentation
 
-- Read the [Deployment Guide](deployment.md) for production setup
-- Configure [Stripe payments](stripe.md) for subscriptions
-- Set up [admin access](admin.md) for user management
-- Review the [API documentation](api.md) for integration
+- [Deployment Guide](deployment.md) - Production deployment
+- [Stripe Setup](stripe.md) - Configuring subscription payments
+- [Admin Guide](admin.md) - User management
+- [API Reference](api.md) - Integration reference
+- [Troubleshooting Guide](troubleshooting.md) - Common issues

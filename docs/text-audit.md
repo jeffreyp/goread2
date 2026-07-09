@@ -8,6 +8,27 @@ Use it to:
 - Prepare strings for localization (i18n)
 - Spot redundant or confusing messages
 
+## Table of Contents
+
+- [`internal/handlers/admin_handler.go`](#internalhandlersadmin_handlergo)
+- [`internal/handlers/auth_handler.go`](#internalhandlersauth_handlergo)
+- [`internal/handlers/feed_handler.go`](#internalhandlersfeed_handlergo)
+- [`internal/handlers/payment_handler.go`](#internalhandlerspayment_handlergo)
+- [`internal/services/errors.go`](#internalserviceserrorsgo)
+- [`internal/services/feed_discovery.go`](#internalservicesfeed_discoverygo)
+- [`internal/services/feed_scheduler.go`](#internalservicesfeed_schedulergo)
+- [`internal/services/feed_service.go`](#internalservicesfeed_servicego)
+- [`internal/services/payment_service.go`](#internalservicespayment_servicego)
+- [`internal/services/subscription_service.go`](#internalservicessubscription_servicego)
+- [`internal/services/url_validator.go`](#internalservicesurl_validatorgo)
+- [`web/static/js/account.js`](#webstaticjsaccountjs)
+- [`web/static/js/app.js`](#webstaticjsappjs)
+- [`web/static/js/modals.js`](#webstaticjsmodalsjs)
+- [`web/templates/account.html`](#webtemplatesaccounthtml)
+- [`web/templates/index.html`](#webtemplatesindexhtml)
+- [`web/templates/privacy.html`](#webtemplatesprivacyhtml)
+- [`web/templates/subscription_cancel.html`](#webtemplatessubscription_cancelhtml)
+- [`web/templates/subscription_success.html`](#webtemplatessubscription_successhtml)
 
 ---
 

@@ -18,6 +18,11 @@ Complete guide for managing users, permissions, and subscriptions in GoRead2.
 - [Security Considerations](#security-considerations)
 - [Troubleshooting](#troubleshooting)
 - [Database Schema](#database-schema)
+- [Testing and Validation](#testing-and-validation)
+- [Monitoring and Analytics](#monitoring-and-analytics)
+- [Migration and Backup](#migration-and-backup)
+- [API Integration](#api-integration)
+- [Related Documentation](#related-documentation)
 
 ## Overview
 
@@ -422,7 +427,7 @@ curl -X POST "https://yourdomain.com/admin/users/user@example.com/free-months" \
 
 - **Unlimited feeds**: Paid Stripe subscription
 - **Managed by Stripe**: Webhooks handle status updates
-- **Billing**: $2.99/month recurring
+- **Billing**: $9.99/month recurring
 
 ### User Status Hierarchy
 
@@ -598,76 +603,7 @@ go run cmd/admin/main.go user-info user@example.com
 
 ## Troubleshooting
 
-### User Not Found
-
-```bash
-# Check email spelling and case sensitivity
-./admin.sh info user@example.com
-
-# Verify user has logged in at least once
-./admin.sh list | grep user@example.com
-```
-
-**Solutions:**
-- User must have logged in at least once (account must exist)
-- Check email spelling and case sensitivity
-- Verify Google OAuth is working
-
-### Database Locked
-
-```bash
-# Stop GoRead2 before running admin commands
-sudo systemctl stop goread2
-./admin.sh admin user@example.com on
-sudo systemctl start goread2
-```
-
-**Solutions:**
-- Stop the GoRead2 application before running admin commands
-- Check file permissions on SQLite database
-- Ensure only one process accesses SQLite at a time
-
-### Changes Not Reflected
-
-```bash
-# Restart the application
-sudo systemctl restart goread2
-
-# Or for development
-# Stop and restart: go run main.go
-```
-
-**Solutions:**
-- Restart the GoRead2 application
-- Have user log out and log back in
-- Clear browser cache/cookies
-- Check server logs for errors
-
-### Stripe Integration Conflicts
-
-Admin and free month users may still see Stripe UI elements. This is by design: admin status overrides subscription requirements, so any payment prompts can be ignored.
-
-### Error Messages Guide
-
-#### "ADMIN_TOKEN must be exactly 64 characters (32 bytes as hex)"
-- **Cause**: Token format is invalid (not 64 hexadecimal characters)
-- **Solution**: Use `create-token` command to generate valid token
-
-#### "Invalid ADMIN_TOKEN - token not found in database or inactive"
-- **Cause**: Token doesn't exist in database or has been revoked
-- **Solution**: Generate new token with `create-token` or contact administrator
-
-#### "ADMIN_TOKEN environment variable must be set"
-- **Cause**: Missing required environment variable
-- **Solution**: Set ADMIN_TOKEN with valid 64-character token
-
-#### Bootstrap Security Errors
-- **"No admin users found in database"**: Initial token creation blocked
-- **Solution**: Create user account and set as admin in database first
-
-#### Token Creation Security Warnings
-- **"Admin tokens already exist"**: Shown when creating additional tokens
-- **Solution**: Confirm with 'y' if you're authorized to create tokens
+See [Troubleshooting Guide](troubleshooting.md#admin-issues) for admin token errors, user lookup failures, and database lock issues.
 
 ## Database Schema
 
@@ -824,8 +760,10 @@ if err != nil {
 }
 ```
 
-See [API Reference](api.md) for complete endpoint documentation.
+## Related Documentation
 
----
-
-This comprehensive admin system provides flexible user management while maintaining security and a good user experience.
+- [API Reference](api.md) - Endpoint documentation
+- [Security Guidelines](security.md) - Admin token security model
+- [Stripe Setup](stripe.md) - Subscription and billing configuration
+- [Feature Flags](feature-flags.md) - Enabling/disabling the subscription system
+- [Troubleshooting Guide](troubleshooting.md) - Common issues

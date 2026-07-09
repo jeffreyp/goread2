@@ -1,37 +1,40 @@
 # Caching Strategy
 
+Describes GoRead2's HTTP caching (for static assets) and application-level caching (for reducing database queries).
+
+## Table of Contents
+
+- [Philosophy](#philosophy)
+- [HTTP Caching](#http-caching)
+- [Application-Level Caching](#application-level-caching)
+- [Related Documentation](#related-documentation)
+
 ## Philosophy
 
-**Keep it simple.** We only cache what's safe and provides real value.
+Only cache what's safe and provides real value.
 
-This document covers both HTTP caching (for static assets) and application-level caching (for reducing database queries).
+## HTTP Caching
 
-## What We Cache
+### What We Cache
 
-### Static Assets (24 hours)
-
-Files that rarely change:
+**Static Assets (24 hours)** — files that rarely change:
 - CSS files (`/static/*.css`)
 - JavaScript files (`/static/*.js`)
 - Images (`/static/*.svg`, `favicon.ico`)
 
 **Cache-Control:** `public, max-age=86400` (24 hours)
 
-### Everything Else (No cache)
-
+**Everything else (no cache)**:
 - API endpoints
 - HTML pages
 - Authentication endpoints
 - User data
 
-**Why?** Caching dynamic content creates more problems than it solves:
-- Users see stale data
-- Changes don't appear immediately
-- Hard to debug "it works for me but not you" issues
+Caching dynamic content creates more problems than it solves: users see stale data, changes don't appear immediately, and "it works for me but not you" issues become hard to debug.
 
-## Implementation
+### Implementation
 
-The caching middleware is dead simple (main.go:157-166):
+The caching middleware (`main.go:157-166`):
 
 ```go
 r.Use(func(c *gin.Context) {
@@ -47,23 +50,22 @@ r.Use(func(c *gin.Context) {
 })
 ```
 
-## Benefits
+### Benefits
 
 - **Faster page loads:** CSS/JS loads instantly from browser cache
 - **Reduced bandwidth:** ~80% reduction for static assets
 - **No stale data issues:** Dynamic content is always fresh
-- **Easy to understand:** No magic, no surprises
 
-## When Static Files Change
+### When Static Files Change
 
 If you update CSS/JS and users have it cached:
 1. They'll see the old version for up to 24 hours
 2. Hard refresh (Cmd/Ctrl+Shift+R) clears the cache
-3. Or just wait 24 hours
+3. Or wait 24 hours
 
 For frequent CSS/JS changes during development, test locally where caching behaves the same way.
 
-## Testing
+### Testing
 
 ```bash
 # Check static asset cache headers
@@ -78,30 +80,25 @@ curl -I http://localhost:8080/api/feeds
 # Should NOT see Cache-Control header
 ```
 
-## What We DON'T Do
+### What We Don't Do
 
-- ❌ No ETags (adds complexity, buffers responses)
-- ❌ No stale-while-revalidate (confusing behavior)
-- ❌ No API caching (too risky for user data)
-- ❌ No different cache times for different endpoints (too many magic numbers)
+- No ETags for HTTP responses (adds complexity, buffers responses)
+- No stale-while-revalidate (confusing behavior)
+- No API caching (too risky for user data)
+- No different cache times for different endpoints (too many magic numbers)
 
-## Performance Impact
+### Performance Impact
 
 - Static asset requests: ~80% from cache
 - Server load: ~20-30% reduction (just from static assets)
-- User experience: Faster page loads, no stale data confusion
 
----
+## Application-Level Caching
 
-# Application-Level Caching
+To reduce database costs (especially for Google Cloud Datastore), GoRead2 implements in-memory caching for expensive queries. All caches are thread-safe and automatically expire.
 
-## Overview
+### Caches in Use
 
-To reduce database costs (especially for Google Cloud Datastore), we implement smart in-memory caching for expensive queries. All caches are thread-safe and automatically expire.
-
-## Caches in Use
-
-### 1. Unread Count Cache (5 minutes TTL)
+#### Unread Count Cache (5 minutes TTL)
 
 **Purpose:** Cache per-user unread article counts to avoid repeated database queries.
 
@@ -140,9 +137,9 @@ return counts, err
 - Unsubscribe from feed
 - Batch article operations
 
-### 2. Feed List Cache (20 minutes TTL)
+#### Feed List Cache (20 minutes TTL)
 
-**Purpose:** Cache the list of all user-subscribed feeds to reduce expensive GetAllUserFeeds() queries.
+**Purpose:** Cache the list of all user-subscribed feeds to reduce expensive `GetAllUserFeeds()` queries.
 
 **Location:** `internal/cache/feed_list_cache.go`
 
@@ -155,9 +152,9 @@ return counts, err
 - **Background cleanup:** like the unread cache, `Start(ctx)` runs a periodic sweep and is wired into `FeedService.Start(ctx)` for graceful shutdown.
 
 **Benefits:**
-- Reduces GetAllUserFeeds() queries from 48/day to ~3/day
+- Reduces `GetAllUserFeeds()` queries from 48/day to ~3/day
 - Saves ~$50-100/month in Datastore costs
-- No impact on UX - new feed articles load immediately on subscribe
+- No impact on UX; new feed articles load immediately on subscribe
 
 **Example:**
 ```go
@@ -177,7 +174,7 @@ if !cached {
 - User subscribes to a feed
 - User unsubscribes from a feed
 
-## Cache Design Principles
+### Cache Design Principles
 
 1. **Copy on read/write:** All caches return copies to prevent external modification
 2. **Thread-safe:** Uses sync.RWMutex for concurrent access
@@ -186,30 +183,21 @@ if !cached {
 5. **Graceful degradation:** Cache misses fall back to database queries
 6. **Bounded size:** Configurable max-size limits prevent unbounded memory growth; `SetMaxUsers` / `SetMaxFeeds` configure the cap, and `0` means unlimited (the default before limits are applied)
 
-## Cost Savings
-
-Our caching strategy provides significant cost reductions:
+### Cost Savings
 
 - **Unread count cache:** ~70% reduction in count queries
-- **Feed list cache:** ~45 fewer GetAllUserFeeds() queries/day
+- **Feed list cache:** ~45 fewer `GetAllUserFeeds()` queries/day
 - **Total estimated savings:** $50-150/month in database costs
 
-## Testing
+### Testing
 
-All caches have comprehensive test coverage including:
-- Basic get/set operations
-- TTL expiration
-- Concurrent access
-- Invalidation
-- Copy safety (prevent external modification)
-- Max-size limits and eviction behaviour
+All caches have test coverage including basic get/set operations, TTL expiration, concurrent access, invalidation, copy safety, and max-size/eviction behavior.
 
-Run cache tests:
 ```bash
 go test ./internal/cache/...
 ```
 
-## Monitoring
+### Monitoring
 
 Check cache statistics:
 ```go
@@ -229,6 +217,7 @@ fmt.Printf("Sessions: %d active, Hits: %d, Misses: %d, HitRate: %d%%\n",
     sessionStats["active"], sessionStats["hits"], sessionStats["misses"], sessionStats["hit_rate"])
 ```
 
----
+## Related Documentation
 
-That's it. Simple and safe.
+- [Performance & Cost Optimization](performance.md) - Caching in the context of overall cost strategy
+- [Troubleshooting Guide](troubleshooting.md) - Common issues

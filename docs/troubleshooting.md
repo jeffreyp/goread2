@@ -1,6 +1,21 @@
 # Troubleshooting Guide
 
-Common issues and solutions for GoRead2.
+Common issues and solutions for GoRead2, covering authentication, feeds, database, subscriptions, admin, performance, deployment, monitoring, and development.
+
+## Table of Contents
+
+- [Authentication Issues](#authentication-issues)
+- [Feed Issues](#feed-issues)
+- [Database Issues](#database-issues)
+- [Subscription Issues](#subscription-issues)
+- [Admin Issues](#admin-issues)
+- [Performance Issues](#performance-issues)
+- [Deployment Issues](#deployment-issues)
+- [Monitoring Issues](#monitoring-issues)
+- [Development Issues](#development-issues)
+- [Logging and Debugging](#logging-and-debugging)
+- [Getting Help](#getting-help)
+- [Related Documentation](#related-documentation)
 
 ## Authentication Issues
 
@@ -31,9 +46,6 @@ echo $GOOGLE_REDIRECT_URL
 
 **Solutions**:
 ```bash
-# Check session configuration
-grep -i session logs/goread2.log
-
 # Verify HTTPS in production (required for secure cookies)
 curl -I https://your-domain.com/
 
@@ -46,6 +58,8 @@ curl -I https://your-domain.com/
 - Incorrect cookie domain settings
 - Session cleanup too aggressive
 
+See [authentication.md](authentication.md#session-management) for how sessions are created, stored, and cleaned up.
+
 ### Login Redirect Loops
 
 **Problem**: Continuous redirects during login process
@@ -55,6 +69,41 @@ curl -I https://your-domain.com/
 - Verify user is added to test users (if in testing mode)
 - Check browser blocks third-party cookies
 - Ensure redirect URL protocol matches (HTTP vs HTTPS)
+
+### "The OAuth State Parameter Is Not Valid" Error
+
+**Common Causes**:
+- Cookie was deleted between login initiation and callback
+- Request came from a different browser/incognito window
+- OAuth state cookie expired (10 minute timeout)
+
+**Solution**: Try logging in again.
+
+### Logged Out When Switching Between Local and Production
+
+**Common Causes**:
+- Using an old build predating environment-specific cookie names (see [authentication.md](authentication.md#environment-isolation))
+- Stale cookies from a previous session
+
+**Solution**: Clear cookies and log in again; verify environment variables are set correctly.
+
+### Session Expires Too Quickly
+
+Sessions last 7 days by default.
+
+**Common Causes**:
+- Server clock is incorrect
+- Sessions aren't persisting in the database
+- Browser cookie settings are clearing cookies early
+
+### Can't Stay Logged In
+
+**Common Causes**:
+- Browser blocking cookies
+- Incognito/private browsing mode
+- Cookie settings too restrictive
+
+**Solution**: Allow cookies for the application domain.
 
 ## Feed Issues
 
@@ -129,9 +178,11 @@ head -50 subscriptions.opml > test.opml
 
 ## Database Issues
 
+Local development uses SQLite (`goread2.db`); production uses Google Cloud Datastore. See [setup.md](setup.md#database-configuration) for how the database is selected.
+
 ### SQLite Database Locked
 
-**Problem**: "Database is locked" errors
+**Problem**: "Database is locked" errors (local development only)
 
 **Solutions**:
 ```bash
@@ -153,7 +204,6 @@ rm -f goread2.db.lock
 - Multiple GoRead2 instances running
 - Improper shutdown leaving connections open
 - File permission issues
-- Database corruption
 
 ### User Data Isolation Failures
 
@@ -178,7 +228,7 @@ grep -r "user_id" internal/database/
 
 ### Database Corruption
 
-**Problem**: Database errors or inconsistent data
+**Problem**: Database errors or inconsistent data (local SQLite only)
 
 **Solutions**:
 ```bash
@@ -189,11 +239,20 @@ sqlite3 goread2.db "PRAGMA integrity_check;"
 cp goread2.db goread2_backup.db
 rm goread2.db
 # Restart application to recreate schema
-
-# Restore from backup if available
 ```
 
 ## Subscription Issues
+
+### Subscription Routes Return 404
+
+**Problem**: Subscription-related API routes return 404
+
+**Solutions**:
+- Check `SUBSCRIPTION_ENABLED=true` is set
+- Verify Stripe configuration (see below)
+
+**Common Causes**:
+- `SUBSCRIPTION_ENABLED` unset or `false`; routes are only registered when it's enabled, see [feature-flags.md](feature-flags.md)
 
 ### Stripe Configuration Problems
 
@@ -208,9 +267,6 @@ go run cmd/setup-stripe/main.go validate
 echo $SUBSCRIPTION_ENABLED
 echo $STRIPE_SECRET_KEY
 echo $STRIPE_PUBLISHABLE_KEY
-
-# Test product/price exists
-go run cmd/setup-stripe/main.go list-products
 ```
 
 **Common Causes**:
@@ -265,6 +321,82 @@ echo $STRIPE_WEBHOOK_SECRET
 - HTTPS required for production
 - Webhook signature verification failing
 
+### Product/Price Not Found
+
+**Problem**: Checkout fails to load, or logs show "Price not found"
+
+**Solutions**:
+```bash
+# Recreate product and price
+go run cmd/setup-stripe/main.go create-product
+
+# Update STRIPE_PRICE_ID with the new price ID
+export STRIPE_PRICE_ID=price_new_id_here
+```
+
+### Payment Fails in Production
+
+**Problem**: Stripe test cards work, but real cards are declined or checkout errors in production
+
+**Solutions**:
+- Switch to live API keys (`sk_live_`/`pk_live_`) in production
+- Ensure the webhook endpoint uses HTTPS
+- Check the Stripe Dashboard for detailed error messages
+- Verify business information is complete in the Stripe account
+
+See [stripe.md](stripe.md) for the full Stripe setup and webhook configuration.
+
+## Admin Issues
+
+### User Not Found
+
+**Solutions**:
+```bash
+# Check email spelling and case sensitivity
+./admin.sh info user@example.com
+
+# Verify user has logged in at least once
+./admin.sh list | grep user@example.com
+```
+
+**Common Causes**:
+- User must have logged in at least once (account must exist)
+- Email spelling or case mismatch
+
+### Database Locked When Running Admin Commands
+
+**Solutions**:
+```bash
+# Stop the local GoRead2 process before running admin commands
+pkill goread2
+./admin.sh admin user@example.com on
+```
+
+**Common Causes**:
+- The application is still running locally against the same SQLite file
+- Only one process can access the local SQLite database at a time
+
+### Admin Changes Not Reflected
+
+**Solutions**:
+- Restart the local GoRead2 process (or redeploy, in production)
+- Have the user log out and log back in
+- Clear browser cache/cookies
+
+### Stripe Integration Conflicts
+
+Admin and free-month users may still see Stripe UI elements. This is by design: admin status overrides subscription requirements, so any payment prompts can be ignored.
+
+### Admin Token Error Messages
+
+- **"ADMIN_TOKEN must be exactly 64 characters (32 bytes as hex)"**: Token format is invalid. Use `create-token` to generate a valid one.
+- **"Invalid ADMIN_TOKEN - token not found in database or inactive"**: Token doesn't exist or was revoked. Generate a new one with `create-token`.
+- **"ADMIN_TOKEN environment variable must be set"**: Set `ADMIN_TOKEN` to a valid 64-character token.
+- **"No admin users found in database"** (bootstrap): create a user account and set it as admin in the database first.
+- **"Admin tokens already exist"**: shown when creating additional tokens; confirm with `y` if authorized.
+
+See [admin.md](admin.md) for the full admin token and CLI reference.
+
 ## Performance Issues
 
 ### Slow Page Loading
@@ -273,14 +405,14 @@ echo $STRIPE_WEBHOOK_SECRET
 
 **Solutions**:
 ```bash
-# Check database query performance
+# Check database query performance (local SQLite)
 sqlite3 goread2.db ".timer on"
 sqlite3 goread2.db "SELECT * FROM feeds LIMIT 10;"
 
 # Monitor network requests in browser DevTools
 # Look for slow API calls
 
-# Check for database indexes
+# Check for database indexes (local SQLite)
 sqlite3 goread2.db ".schema" | grep INDEX
 ```
 
@@ -289,6 +421,8 @@ sqlite3 goread2.db ".schema" | grep INDEX
 - Large number of feeds/articles
 - Slow external feed fetching
 - Inefficient database queries
+
+See [performance.md](performance.md) for the optimizations already in place.
 
 ### High Memory Usage
 
@@ -301,9 +435,6 @@ top -p $(pgrep goread2)
 
 # Check for memory leaks
 go tool pprof http://localhost:8080/debug/pprof/heap
-
-# Review session cleanup
-grep -i "session.*cleanup" logs/goread2.log
 ```
 
 **Common Causes**:
@@ -323,8 +454,6 @@ grep -r "timeout" internal/services/feed_*
 
 # Test slow feeds manually
 time curl "https://slow-feed.example.com/rss"
-
-# Consider reducing concurrent fetches
 ```
 
 **Common Causes**:
@@ -334,6 +463,8 @@ time curl "https://slow-feed.example.com/rss"
 - Large feed content
 
 ## Deployment Issues
+
+GoRead2 deploys exclusively to Google App Engine; see [deployment.md](deployment.md) for the full pipeline.
 
 ### App Engine Deployment Failures
 
@@ -364,55 +495,29 @@ gcloud app logs tail -s default
 - Go version incompatibility
 - Resource limits exceeded
 
-### Docker Build Issues
+## Monitoring Issues
 
-**Problem**: Docker build fails or container won't start
-
-**Solutions**:
-```bash
-# Build with verbose output
-docker build --no-cache -t goread2 .
-
-# Check Go build within container
-docker run -it goread2 go version
-
-# Inspect container filesystem
-docker run -it --entrypoint /bin/sh goread2
-
-# Check container logs
-docker logs container_name
-```
-
-**Common Causes**:
-- Missing dependencies in Dockerfile
-- Go build failures
-- Missing static files
-- Port binding issues
-
-### SSL/HTTPS Issues
-
-**Problem**: HTTPS not working or certificate errors
+### Dashboard Not Showing Data
 
 **Solutions**:
-```bash
-# Test SSL certificate
-openssl s_client -connect your-domain.com:443
+- Verify that the app is deployed and receiving traffic
+- Check that metrics are being generated in Metrics Explorer
+- Datastore metrics may take a few minutes to appear after deployment
 
-# Check certificate expiration
-curl -I https://your-domain.com/
+### Alerts Not Firing
 
-# Verify Let's Encrypt renewal
-sudo certbot certificates
+**Solutions**:
+- Confirm notification channels are configured
+- Check alert policy status in Cloud Console
+- Verify that thresholds are being exceeded using Metrics Explorer
 
-# Test with curl
-curl -v https://your-domain.com/
-```
+### Permission Errors
 
-**Common Causes**:
-- Expired SSL certificates
-- Incorrect nginx configuration
-- DNS pointing to wrong server
-- Firewall blocking HTTPS
+**Required IAM roles**:
+- `roles/monitoring.dashboardEditor` - Create/edit dashboards
+- `roles/monitoring.alertPolicyEditor` - Create/edit alerting policies
+
+See [monitoring.md](monitoring.md) for the full dashboard and alerting setup.
 
 ## Development Issues
 
@@ -428,13 +533,12 @@ make all
 # Build specific components
 make build          # Build Go application
 make build-frontend # Build JS/CSS assets
-make test          # Run test suite
+make test           # Run test suite
 
 # Manual troubleshooting
 go mod tidy
 go clean -modcache
 go version
-grep -r "os.Getenv" *.go
 ```
 
 **Common Causes**:
@@ -505,28 +609,18 @@ npm test
 # Development mode with verbose logging
 export GIN_MODE=debug
 go run main.go
-
-# Check application logs
-tail -f logs/goread2.log
-
-# Database query logging (development only)
-export DB_DEBUG=true
 ```
+
+GoRead2 logs to stdout; there is no log file. Locally that means the terminal running the
+process. In production, use `gcloud app logs tail -s default` (see below).
 
 ### Common Log Locations
 
 ```bash
-# Local development
-./logs/goread2.log
+# Local development: stdout of the running process (go run main.go / make dev)
 
 # App Engine
 gcloud app logs tail -s default
-
-# Docker
-docker logs container_name
-
-# systemd service
-sudo journalctl -u goread2 -f
 ```
 
 ### Debug Commands
@@ -550,12 +644,6 @@ curl -v "https://example.com/feed.xml"
 
 ## Getting Help
 
-### Check Documentation
-- [Setup Guide](setup.md) - Installation and configuration
-- [Deployment Guide](deployment.md) - Production deployment
-- [Admin Guide](admin.md) - User management
-- [API Reference](API.md) - API documentation
-
 ### Collect Debug Information
 
 When reporting issues, include:
@@ -563,11 +651,8 @@ When reporting issues, include:
 ```bash
 # System information
 go version
-cat app.yaml  # or docker-compose.yml
+cat app.yaml
 env | grep -E "(GOOGLE|STRIPE|SUBSCRIPTION)"
-
-# Application logs
-tail -100 logs/goread2.log
 
 # Database state
 ./admin.sh list
@@ -581,12 +666,11 @@ tail -100 logs/goread2.log
 
 - **GitHub Issues**: [goread2/issues](https://github.com/jeffreyp/goread2/issues)
 - **Include**: Error messages, logs, configuration, steps to reproduce
-- **Environment**: Local development, Docker, App Engine, etc.
+- **Environment**: Local development or App Engine (staging/production)
 
-### Community Support
+## Related Documentation
 
-- **GitHub Discussions**: For questions and general help
-- **Stack Overflow**: Tag questions with `goread2`
-- **Documentation**: Check all docs before asking questions
-
-This troubleshooting guide covers the most common issues. If you encounter problems not listed here, please check the logs carefully and report the issue with detailed information.
+- [Setup Guide](setup.md) - Installation and configuration
+- [Deployment Guide](deployment.md) - Production deployment
+- [Admin Guide](admin.md) - User management
+- [API Reference](api.md) - API documentation

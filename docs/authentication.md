@@ -10,6 +10,8 @@ This document describes the authentication architecture and implementation detai
 - [Environment Isolation](#environment-isolation)
 - [Security Considerations](#security-considerations)
 - [Implementation Details](#implementation-details)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
 
 ## Overview
 
@@ -263,43 +265,13 @@ api.Use(authMiddleware.RequireAuth())
 api.Use(authMiddleware.CSRFMiddleware(csrfManager))
 ```
 
-## Related Documentation
-
-- [security.md](security.md) - Security implementation and best practices
-- [api.md](api.md) - API endpoints and usage
-- [setup.md](setup.md) - Initial setup and configuration
-- [troubleshooting.md](troubleshooting.md) - Common authentication issues
-
 ## Troubleshooting
 
-### "The OAuth state parameter is not valid" error
+See [Troubleshooting Guide](troubleshooting.md#authentication-issues) for OAuth errors, session problems, and login issues.
 
-This usually indicates:
-- Cookie was deleted between login initiation and callback
-- Request came from different browser/incognito window
-- OAuth state cookie expired (10 minute timeout)
+## Related Documentation
 
-**Solution**: Try logging in again.
-
-### Logged out when switching environments
-
-If using the same browser for both local and production:
-- Ensure you're not using an old version (pre-environment isolation)
-- Clear cookies and log in again
-- Verify environment variables are set correctly
-
-### Session expires too quickly
-
-Sessions last 7 days by default. If experiencing premature expiration:
-- Check server time is correct
-- Verify database is persisting sessions
-- Check browser cookie settings
-
-### Can't stay logged in
-
-Common causes:
-- Browser blocking cookies
-- Incognito/private browsing mode
-- Cookie settings too restrictive
-
-**Solution**: Allow cookies for the application domain.
+- [Security Guidelines](security.md) - Security implementation and best practices
+- [API Reference](api.md) - API endpoints and usage
+- [Setup Guide](setup.md) - Initial setup and configuration
+- [Troubleshooting Guide](troubleshooting.md) - Common authentication issues

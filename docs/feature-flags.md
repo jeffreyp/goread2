@@ -1,6 +1,16 @@
 # Feature Flags
 
-Configuration options for enabling/disabling GoRead2 features.
+Configuration options for enabling or disabling GoRead2 features, primarily the subscription system.
+
+## Table of Contents
+
+- [Subscription System Toggle](#subscription-system-toggle)
+- [Implementation Details](#implementation-details)
+- [Migration Strategy](#migration-strategy)
+- [Environment Variables Summary](#environment-variables-summary)
+- [Testing Different Modes](#testing-different-modes)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
 
 ## Subscription System Toggle
 
@@ -30,7 +40,7 @@ export SUBSCRIPTION_ENABLED=false
 
 ### When Subscription System is ENABLED
 
-✅ **Active Features:**
+**Active Features:**
 - 30-day free trial with 20 feed limit
 - Stripe integration for payments
 - Subscription upgrade prompts
@@ -39,7 +49,7 @@ export SUBSCRIPTION_ENABLED=false
 - Customer portal access
 - Webhook processing
 
-🔧 **Required Configuration:**
+**Required Configuration:**
 ```bash
 SUBSCRIPTION_ENABLED=true
 STRIPE_SECRET_KEY=sk_test_...
@@ -50,13 +60,13 @@ STRIPE_PRICE_ID=price_...
 
 ### When Subscription System is DISABLED
 
-✅ **Default Behavior:**
-- **Unlimited feeds** for all users
-- **No billing** or payment processing
-- **No subscription limits** or restrictions
-- **Simplified UI** without upgrade prompts
+**Default Behavior:**
+- Unlimited feeds for all users
+- No billing or payment processing
+- No subscription limits or restrictions
+- Simplified UI without upgrade prompts
 
-❌ **Disabled Features:**
+**Disabled Features:**
 - Stripe payment processing
 - Subscription upgrade flows
 - Feed limit enforcement
@@ -64,7 +74,7 @@ STRIPE_PRICE_ID=price_...
 - Customer portal
 - Subscription webhooks
 
-🔧 **Required Configuration:**
+**Required Configuration:**
 ```bash
 SUBSCRIPTION_ENABLED=false
 # Stripe keys not required
@@ -104,11 +114,10 @@ func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
 
 ### Admin Commands
 
-**⚠️ Security:** All admin commands now require ADMIN_TOKEN authentication.
+All admin commands require `ADMIN_TOKEN` authentication.
 
 **Always Available:**
 ```bash
-# SECURITY: Set admin tokens first
 export ADMIN_TOKEN="$(openssl rand -hex 32)"
 export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
 
@@ -119,7 +128,7 @@ go run cmd/admin/main.go user-info user@example.com
 
 **Only When Enabled:**
 ```bash
-# SECURITY: Requires both tokens for sensitive operations
+# Requires both tokens for sensitive operations
 export ADMIN_TOKEN="$(openssl rand -hex 32)"
 export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
 
@@ -158,8 +167,7 @@ If issues occur after enabling subscriptions:
 # Immediate rollback - disable subscriptions
 SUBSCRIPTION_ENABLED=false
 
-# Restart application
-# Users get unlimited access immediately
+# Restart application; users get unlimited access immediately
 ```
 
 ## Environment Variables Summary
@@ -188,7 +196,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/subscription
 ### Test Subscription Enabled
 
 ```bash
-# Set environment  
+# Set environment
 SUBSCRIPTION_ENABLED=true
 STRIPE_SECRET_KEY=sk_test_...
 
@@ -199,30 +207,10 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/subscription
 
 ## Troubleshooting
 
-### Common Issues
+See [Troubleshooting Guide](troubleshooting.md#subscription-issues) for routing, configuration, and admin command issues related to the subscription flag.
 
-1. **Subscription routes not found (404)**
-   - Check `SUBSCRIPTION_ENABLED=true`
-   - Verify Stripe configuration
+## Related Documentation
 
-2. **Unlimited access not working**
-   - Confirm `SUBSCRIPTION_ENABLED=false`
-   - Check application logs for config loading
-
-3. **Admin commands failing**
-   - Verify command exists for current configuration
-   - Check environment variable spelling
-
-### Debug Commands
-
-```bash
-# SECURITY: Set admin token first
-export ADMIN_TOKEN="$(openssl rand -hex 32)"
-
-# Check current configuration
-go run cmd/admin/main.go user-info any@email.com
-
-# Look for "System Configuration" section in output
-```
-
-This feature flag system provides flexible control over subscription functionality while maintaining a smooth user experience.
+- [Stripe Setup](stripe.md) - Configuring the Stripe integration this flag gates
+- [Admin Guide](admin.md) - Admin commands referenced above
+- [Troubleshooting Guide](troubleshooting.md) - Common issues

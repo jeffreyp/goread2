@@ -1,6 +1,25 @@
 # API Reference
 
-Complete reference for GoRead2's REST API endpoints.
+Reference for GoRead2's REST API endpoints, for developers integrating with or extending the application.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Authentication Endpoints](#authentication-endpoints)
+- [Feed Endpoints](#feed-endpoints)
+- [Article Endpoints](#article-endpoints)
+- [Subscription Endpoints](#subscription-endpoints)
+- [Account Endpoints](#account-endpoints)
+- [Webhook Endpoints](#webhook-endpoints)
+- [Admin Endpoints](#admin-endpoints)
+- [Debug Endpoints](#debug-endpoints)
+- [Error Handling](#error-handling)
+- [Rate Limiting](#rate-limiting)
+- [CORS Policy](#cors-policy)
+- [Session Management](#session-management)
+- [API Versioning](#api-versioning)
+- [Examples and SDKs](#examples-and-sdks)
+- [Related Documentation](#related-documentation)
 
 ## Overview
 
@@ -837,4 +856,9 @@ add_response = session.post('http://localhost:8080/api/feeds',
                            json={'url': 'https://example.com/feed.xml'})
 ```
 
-This API provides comprehensive access to all GoRead2 functionality while maintaining security and user data isolation.
+## Related Documentation
+
+- [Authentication](authentication.md) - Session and OAuth implementation details
+- [Security Guidelines](security.md) - CSRF, rate limiting, and input validation
+- [Admin Guide](admin.md) - Admin endpoint authentication
+- [Troubleshooting Guide](troubleshooting.md) - Common issues

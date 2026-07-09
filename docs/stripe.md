@@ -1,12 +1,30 @@
 # Stripe Setup Guide
 
-Complete guide for integrating Stripe payment processing with GoRead2 subscriptions.
+Guide for integrating Stripe payment processing with GoRead2's subscription system, for developers configuring billing in a new environment.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Step 1: Get Stripe API Keys](#step-1-get-stripe-api-keys)
+- [Step 2: Configure Environment Variables](#step-2-configure-environment-variables)
+- [Step 3: Create Product and Price](#step-3-create-product-and-price)
+- [Step 4: Set Up Webhooks](#step-4-set-up-webhooks)
+- [Step 5: Test the Integration](#step-5-test-the-integration)
+- [Stripe Test Cards](#stripe-test-cards)
+- [Subscription Management](#subscription-management)
+- [Configuration Options](#configuration-options)
+- [Monitoring and Analytics](#monitoring-and-analytics)
+- [Security Best Practices](#security-best-practices)
+- [Going Live](#going-live)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
 
 ## Overview
 
 GoRead2 uses Stripe for subscription billing with the following features:
 - **30-day free trial** with 20 feed limit
-- **$2.99/month Pro subscription** for unlimited feeds
+- **$9.99/month Pro subscription** for unlimited feeds
 - **Customer portal** for billing management
 - **Webhook integration** for real-time subscription updates
 
@@ -59,16 +77,7 @@ env_variables:
   STRIPE_PRICE_ID: "price_your_price_id_here"
 ```
 
-### Production (Docker)
-
-```bash
-# .env file
-SUBSCRIPTION_ENABLED=true
-STRIPE_SECRET_KEY=sk_live_your_secret_key_here
-STRIPE_PUBLISHABLE_KEY=pk_live_your_publishable_key_here
-STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
-STRIPE_PRICE_ID=price_your_price_id_here
-```
+In practice these are stored in Google Secret Manager and referenced from `app.yaml`; see [deployment.md](deployment.md#setting-up-google-secret-manager).
 
 ## Step 3: Create Product and Price
 
@@ -149,7 +158,7 @@ export STRIPE_WEBHOOK_SECRET=whsec_...
 export STRIPE_PRICE_ID=price_...
 
 # Start GoRead2
-./goread2
+make dev
 ```
 
 ### Test Subscription Flow
@@ -159,7 +168,7 @@ export STRIPE_PRICE_ID=price_...
    - Should see "Upgrade to Pro" modal
 
 2. **Test payment process**:
-   - Click "Upgrade to Pro" 
+   - Click "Upgrade to Pro"
    - Complete checkout using test card: `4242 4242 4242 4242`
    - Use any future expiry date, any 3-digit CVC, any ZIP code
 
@@ -170,13 +179,10 @@ export STRIPE_PRICE_ID=price_...
 
 ### Test Webhook Processing
 
-```bash
-# Monitor application logs for webhook events
-tail -f logs/goread2.log
-
-# Look for entries like:
-# "Stripe webhook received: checkout.session.completed"
-# "Subscription updated for user: user@example.com"
+Watch the application's stdout (see [troubleshooting.md](troubleshooting.md#logging-and-debugging)) for entries like:
+```
+Stripe webhook received: checkout.session.completed
+Subscription updated for user: user@example.com
 ```
 
 ## Stripe Test Cards
@@ -251,7 +257,7 @@ The 30-day trial length and 20-feed free-tier limit are not configurable via env
 
 The default GoRead2 Pro product includes:
 
-- **Price**: $2.99/month USD
+- **Price**: $9.99/month USD
 - **Billing**: Monthly recurring
 - **Trial**: 30-day free trial
 - **Features**: Unlimited feeds, all features
@@ -273,27 +279,15 @@ Monitor key metrics:
 - **Customers**: New signups, payment failures
 - **Billing**: Successful payments, refunds
 
-### Application Logs
+- **Events**: Developers → Events (shows all webhook deliveries)
+- **Logs**: Developers → Logs (API request logs)
+- **Webhooks**: Developers → Webhooks (delivery attempts)
 
-Monitor webhook processing:
+### Health Check
 
-```bash
-# Successful webhook processing
-grep "Stripe webhook" logs/goread2.log
-
-# Failed webhook processing  
-grep "ERROR.*stripe" logs/goread2.log
-
-# Subscription status changes
-grep "Subscription.*updated" logs/goread2.log
-```
-
-### Health Checks
-
-Verify Stripe integration:
+Verify the webhook endpoint is reachable:
 
 ```bash
-# Test webhook endpoint
 curl -X POST https://your-domain.com/webhooks/stripe \
   -H "Content-Type: application/json" \
   -d '{"type": "ping"}'
@@ -301,121 +295,24 @@ curl -X POST https://your-domain.com/webhooks/stripe \
 # Should return 200 OK (may show signature error, but endpoint is reachable)
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-#### "Stripe not configured" Error
-
-**Symptoms:**
-- Subscription features not available
-- Error in application logs
-
-**Solutions:**
-```bash
-# Verify all environment variables are set
-go run cmd/setup-stripe/main.go validate
-
-# Check required variables
-echo $SUBSCRIPTION_ENABLED
-echo $STRIPE_SECRET_KEY
-echo $STRIPE_PUBLISHABLE_KEY
-```
-
-#### Webhook Signature Verification Failed
-
-**Symptoms:**
-- Webhooks returning 400 errors
-- "Invalid signature" in logs
-
-**Solutions:**
-- Verify `STRIPE_WEBHOOK_SECRET` matches webhook endpoint
-- Ensure webhook URL is publicly accessible
-- Check webhook endpoint in Stripe Dashboard
-
-#### Product/Price Not Found
-
-**Symptoms:**
-- Checkout fails to load
-- "Price not found" errors
-
-**Solutions:**
-```bash
-# Recreate product and price
-go run cmd/setup-stripe/main.go create-product
-
-# Update STRIPE_PRICE_ID with new price ID
-export STRIPE_PRICE_ID=price_new_id_here
-```
-
-#### Payment Fails in Production
-
-**Symptoms:**
-- Test cards work, real cards don't
-- Production checkout errors
-
-**Solutions:**
-- Switch to live API keys in production
-- Ensure webhook endpoint uses HTTPS
-- Check Stripe Dashboard for detailed error messages
-- Verify business information is complete
-
-### Debug Commands
-
-```bash
-# Validate Stripe configuration
-go run cmd/setup-stripe/main.go validate
-
-# Test webhook endpoint
-go run cmd/setup-stripe/main.go test-webhook
-
-# List products and prices
-go run cmd/setup-stripe/main.go list-products
-```
-
-### Logs and Monitoring
-
-#### Application Logs
-
-```bash
-# Stripe-related logs
-grep -i stripe logs/goread2.log
-
-# Webhook processing
-grep "webhook" logs/goread2.log
-
-# Subscription changes
-grep "subscription" logs/goread2.log
-```
-
-#### Stripe Dashboard
-
-- **Events**: Developers → Events (shows all webhook deliveries)
-- **Logs**: Developers → Logs (API request logs)
-- **Webhooks**: Developers → Webhooks (delivery attempts)
-
 ## Security Best Practices
 
 ### API Key Management
 
-- **Never commit keys** to version control
-- **Use environment variables** for all deployments
-- **Rotate keys regularly** if compromised
-- **Use restricted keys** when possible
+- Never commit keys to version control
+- Use environment variables (or Secret Manager, in production) for all deployments
+- Rotate keys if compromised
+- Use restricted keys when possible
 
 ### Webhook Security
 
-- **Always verify signatures** (automatically handled)
-- **Use HTTPS** for webhook endpoints in production
-- **Implement idempotency** for webhook processing
-- **Log security events** for monitoring
+- Signature verification is handled automatically by the Stripe SDK
+- Use HTTPS for webhook endpoints in production
 
 ### Customer Data
 
-- **Follow PCI compliance** guidelines
-- **Never store card details** (Stripe handles this)
-- **Secure customer information** with encryption
-- **Implement proper access controls**
+- Card details are never stored by GoRead2; Stripe handles PCI compliance
+- Customer information is stored only as needed to link a Stripe customer ID to a GoRead2 user
 
 ## Going Live
 
@@ -426,58 +323,21 @@ grep "subscription" logs/goread2.log
 - [ ] Test complete subscription flow with real payment
 - [ ] Verify customer portal functionality
 - [ ] Monitor webhook delivery for 24 hours
-- [ ] Set up monitoring and alerting
 
 ### Launch Process
 
-1. **Update environment variables** to live keys
-2. **Deploy application** with new configuration
-3. **Test subscription flow** end-to-end
-4. **Monitor Stripe Dashboard** for any issues
-5. **Notify users** of new Pro features (optional)
+1. Update environment variables to live keys
+2. Deploy application with new configuration
+3. Test subscription flow end-to-end
+4. Monitor Stripe Dashboard for issues
 
-### Post-Launch Monitoring
+## Troubleshooting
 
-- **Daily**: Check failed payments and webhook deliveries
-- **Weekly**: Review subscription metrics and churn
-- **Monthly**: Analyze revenue and customer growth
-- **Quarterly**: Review pricing and feature usage
+See [Troubleshooting Guide](troubleshooting.md#subscription-issues) for Stripe configuration errors, webhook failures, missing products/prices, and production payment issues.
 
-## Support and Resources
+## Related Documentation
 
-- **Stripe Documentation**: [stripe.com/docs](https://stripe.com/docs)
-- **Stripe Support**: Available through dashboard chat
-- **GoRead2 Issues**: Report integration problems on GitHub
-- **Community**: Stripe Discord and forums for developer help
-
-## Advanced Configuration
-
-### Custom Pricing
-
-Create multiple price tiers:
-
-```bash
-# Create additional prices
-go run cmd/setup-stripe/main.go create-price --amount 499 --interval year
-go run cmd/setup-stripe/main.go create-price --amount 999 --interval month --name "Premium"
-```
-
-### Multiple Products
-
-Support different subscription tiers:
-
-1. Create products in Stripe Dashboard
-2. Configure environment variables for each tier
-3. Modify checkout logic to select appropriate price
-4. Update UI to show different options
-
-### Usage-Based Billing
-
-Implement metered billing for heavy users:
-
-1. Create metered pricing in Stripe
-2. Track usage in GoRead2 (feed count, API calls)
-3. Report usage to Stripe via API
-4. Handle usage-based invoicing
-
-This comprehensive Stripe integration provides secure, scalable subscription management for GoRead2.
+- [Setup Guide](setup.md) - Environment variables and installation
+- [Feature Flags](feature-flags.md) - Enabling/disabling the subscription system
+- [Deployment Guide](deployment.md) - Storing Stripe secrets in Secret Manager
+- [Troubleshooting Guide](troubleshooting.md) - Stripe-related issues

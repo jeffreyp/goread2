@@ -89,7 +89,7 @@ Deployment is automated via GitHub Actions, not the Makefile. See [docs/deployme
 | [**Features Guide**](docs/features.md) | Complete feature overview and usage tips |
 | [**Setup Guide**](docs/setup.md) | Complete installation and configuration |
 | [**Authentication Guide**](docs/authentication.md) | OAuth flow, session management, and security |
-| [**Deployment Guide**](docs/deployment.md) | Production deployment options (includes Google Secret Manager setup) |
+| [**Deployment Guide**](docs/deployment.md) | Google App Engine deployment and CI/CD pipeline (includes Google Secret Manager setup) |
 | [**Admin Guide**](docs/admin.md) | User management and admin commands |
 | [**Stripe Setup**](docs/stripe.md) | Payment processing configuration |
 | [**Testing Guide**](docs/testing.md) | Running and writing tests |

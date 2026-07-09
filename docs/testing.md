@@ -2,14 +2,30 @@
 
 Testing guide for GoRead2's multi-user RSS reader application.
 
-## Current Status
+## Table of Contents
 
-✅ **All tests are passing successfully** - The testing infrastructure is fully functional with no interface compatibility issues.
+- [Overview](#overview)
+- [Current Test Structure](#current-test-structure)
+- [Running Tests](#running-tests)
+- [Test Categories](#test-categories)
+- [Test Environment](#test-environment)
+- [Coverage Goals](#coverage-goals)
+- [Test Data and Fixtures](#test-data-and-fixtures)
+- [Security Testing](#security-testing)
+- [CI/CD Integration](#cicd-integration)
+- [Writing New Tests](#writing-new-tests)
+- [Test Performance Optimizations](#test-performance-optimizations)
+- [Performance Testing](#performance-testing)
+- [Debugging Tests](#debugging-tests)
+- [Troubleshooting](#troubleshooting)
+- [Best Practices](#best-practices)
+- [Contributing](#contributing)
+- [Related Documentation](#related-documentation)
 
 ## Overview
 
 GoRead2's testing infrastructure includes:
-- **Package-level unit tests** across ten `internal/` packages plus `cmd/admin`, with per-package coverage ranging from ~65% to ~85% (see [Test Coverage](#test-coverage) below); coverage drifts often enough that the numbers there are a snapshot, not a guarantee; regenerate with `go test ./internal/... -cover` for the current figures
+- **Package-level unit tests** across ten `internal/` packages plus `cmd/admin`, with per-package coverage ranging from ~65% to ~85% (see [Coverage Goals](#coverage-goals) below); coverage drifts often enough that the numbers there are a snapshot, not a guarantee; regenerate with `go test ./internal/... -cover` for the current figures
 - **Integration tests** for end-to-end API validation
 - **Frontend tests** with Jest and jsdom (140 tests across 7 files)
 - **CI/CD integration** with GitHub Actions
@@ -718,7 +734,7 @@ func TestAddFeedWithMockHTTP(t *testing.T) {
 
 Current test coverage status and targets:
 
-### ✅ Achieved Coverage
+### Coverage by Package
 - **Overall project**: Coverage across all packages with significant improvements
 - **Config package**: 85.2% coverage (comprehensive unit tests)
 - **Auth package**: 69.6% coverage (session, middleware, CSRF, rate limiting, OAuth service)
@@ -744,12 +760,6 @@ Current test coverage status and targets:
   - Edge case and error handling tests
 - **Overall system**: All core tests passing successfully
 - **DatastoreDB interface coverage**: `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go` exercise `DatastoreDB`'s ~30 `database.Database` interface methods (feeds, articles, users, subscriptions/admin, sessions, audit logs) against the CI emulator, mirroring the SQLite `schema_test.go` suite; `internal/database` reaches 80%+ coverage when run with `DATASTORE_EMULATOR_HOST` set (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above)
-
-### 🎯 Future Coverage Targets
-- **Feed service operations**: Target 60%+ coverage (HTTP dependency mocking needed)
-- **Handler HTTP logic**: Target 50%+ coverage (requires Gin test setup)  
-- **Payment service**: Target 40%+ coverage (Stripe API mocking needed)
-- **Overall project**: Target 80%+ coverage (significant infrastructure needed)
 
 ### Viewing Coverage
 
@@ -1350,11 +1360,10 @@ When adding new features:
 - Update documentation for user-facing changes
 - Follow existing test patterns and conventions
 
-### Future Testing Roadmap
+## Related Documentation
 
-1. **Fix interface mismatches** to enable more unit tests
-2. **Add package-level tests** for database, auth, and admin packages
-3. **Achieve target coverage goals** (80-90% for new packages)
-4. **Maintain security testing** for multi-user isolation
+- [Security Guidelines](security.md) - Regression suite covered by the `security` CI job
+- [Performance & Cost Optimization](performance.md) - Benchmark regression gate
+- [Troubleshooting Guide](troubleshooting.md) - Build and test failures
 
 The testing infrastructure follows Go conventions with package-level tests co-located with source code, comprehensive integration testing, and frontend validation to ensure GoRead2 maintains quality and reliability.

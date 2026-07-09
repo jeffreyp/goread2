@@ -1,12 +1,27 @@
 # Performance & Cost Optimization
 
+Documents GoRead2's performance and cost-optimization strategies and their measured or estimated impact.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Cost Optimization Strategy](#cost-optimization-strategy)
+- [Performance Optimizations](#performance-optimizations)
+- [Database Query Patterns](#database-query-patterns)
+- [Monitoring & Metrics](#monitoring--metrics)
+- [Future Optimization Opportunities](#future-optimization-opportunities)
+- [Testing Performance](#testing-performance)
+- [Deployment Considerations](#deployment-considerations)
+- [Summary](#summary)
+- [Related Documentation](#related-documentation)
+
 ## Overview
 
-GoRead2 is designed to be cost-effective while maintaining excellent performance. This document outlines our optimization strategies and their impact.
+GoRead2 is designed to be cost-effective while maintaining excellent performance. This document outlines the optimization strategies in place and their impact.
 
 ## Cost Optimization Strategy
 
-Our pricing model ($2.99/month unlimited feeds) requires aggressive cost optimization to remain profitable. We've implemented several strategies to reduce Google Cloud / Datastore costs:
+Our pricing model ($9.99/month unlimited feeds) requires aggressive cost optimization to remain profitable. We've implemented several strategies to reduce Google Cloud / Datastore costs:
 
 ### Current Optimizations
 
@@ -144,7 +159,7 @@ Our pricing model ($2.99/month unlimited feeds) requires aggressive cost optimiz
 
 **Estimated total: $590-1,090/month**
 
-This reduces per-user costs by approximately $6-12/month, making the $2.99/month pricing sustainable and profitable.
+This reduces per-user costs by approximately $6-12/month, making the $9.99/month pricing sustainable and profitable.
 
 ## Performance Optimizations
 
@@ -338,4 +353,11 @@ Through careful optimization, we've reduced operational costs by $590-1,090/mont
 6. ✅ Concurrent processing where safe
 7. ✅ HTTP conditional requests (ETag/If-Modified-Since)
 
-These optimizations make the $2.99/month pricing sustainable and profitable.
+These optimizations make the $9.99/month pricing sustainable and profitable.
+
+## Related Documentation
+
+- [Caching Strategy](caching.md) - Unread count and feed list caches
+- [Monitoring Setup](monitoring.md) - Dashboards and cost/alert tracking
+- [Testing Guide](testing.md) - Benchmark regression gate
+- [Troubleshooting Guide](troubleshooting.md) - Performance issues

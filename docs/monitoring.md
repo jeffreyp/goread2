@@ -1,6 +1,21 @@
 # Cloud Monitoring Setup
 
-This document describes the Cloud Monitoring infrastructure for tracking GoRead2 costs and performance metrics.
+Describes the Cloud Monitoring infrastructure for tracking GoRead2 costs and performance metrics.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Dashboards](#dashboards)
+- [Tracking Actual Costs and Usage](#tracking-actual-costs-and-usage)
+- [Alerting Policies](#alerting-policies)
+- [Post-Promote Health Watch](#post-promote-health-watch-a-second-consumer-of-these-signals)
+- [Billing Budget](#billing-budget)
+- [Deployment](#deployment)
+- [Viewing Metrics](#viewing-metrics)
+- [Cost Estimation](#cost-estimation)
+- [Maintenance](#maintenance)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
 
 ## Overview
 
@@ -353,20 +368,7 @@ To update an existing alerting policy, edit `monitoring/alert-policies.yaml` and
 
 ## Troubleshooting
 
-### Dashboard Not Showing Data
-- Verify that the app is deployed and receiving traffic
-- Check that metrics are being generated in Metrics Explorer
-- Datastore metrics may take a few minutes to appear after deployment
-
-### Alerts Not Firing
-- Confirm notification channels are configured
-- Check alert policy status in Cloud Console
-- Verify that thresholds are being exceeded using Metrics Explorer
-
-### Permission Errors
-Required IAM roles:
-- `roles/monitoring.dashboardEditor` - Create/edit dashboards
-- `roles/monitoring.alertPolicyEditor` - Create/edit alerting policies
+See [Troubleshooting Guide](troubleshooting.md#monitoring-issues) for dashboard, alerting, and IAM permission issues.
 
 ## Related Documentation
 
