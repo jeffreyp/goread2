@@ -51,7 +51,7 @@ gcloud alpha monitoring policies create --policy-from-file=monitoring/alert-poli
 # Deploy dashboard
 ./monitoring/deploy-dashboard.sh
 
-# Deploy alerts (requires jq)
+# Deploy alerts
 ./monitoring/deploy-alerts.sh
 ```
 
@@ -61,7 +61,6 @@ gcloud alpha monitoring policies create --policy-from-file=monitoring/alert-poli
 - Appropriate IAM permissions:
   - `roles/monitoring.dashboardEditor`
   - `roles/monitoring.alertPolicyEditor`
-- `jq` installed (for alert deployment)
 
 ## Documentation
 

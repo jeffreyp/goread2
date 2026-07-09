@@ -3,7 +3,7 @@
 
 set -e
 
-POLICIES_FILE="monitoring/alerting-policies.json"
+POLICIES_FILE="monitoring/alert-policies.yaml"
 
 # Check if gcloud is installed
 if ! command -v gcloud &> /dev/null; then
@@ -29,45 +29,41 @@ if [ ! -f "$POLICIES_FILE" ]; then
     exit 1
 fi
 
-# Check if jq is installed (needed for JSON processing)
-if ! command -v jq &> /dev/null; then
-    echo "⚠️  Warning: jq is not installed. Installing policies will be done as a batch."
-    echo "To install jq: brew install jq (macOS) or apt-get install jq (Linux)"
-fi
+# gcloud alpha monitoring policies create only accepts one policy per
+# invocation, but $POLICIES_FILE is a multi-document YAML file (policies
+# separated by "---"). Split it into one temp file per policy first.
+SPLIT_DIR=$(mktemp -d)
+trap 'rm -rf "$SPLIT_DIR"' EXIT
 
-# Read the policies array and create each one
-echo "Creating alerting policies..."
-POLICY_COUNT=0
+awk -v dir="$SPLIT_DIR" '
+  /^---[[:space:]]*$/ { doc++; next }
+  doc > 0 { print > (dir "/policy-" doc ".yaml") }
+' "$POLICIES_FILE"
 
-if command -v jq &> /dev/null; then
-    # Use jq to process each policy individually
-    jq -c '.policies[]' "$POLICIES_FILE" | while read -r policy; do
-        POLICY_COUNT=$((POLICY_COUNT + 1))
-        POLICY_NAME=$(echo "$policy" | jq -r '.displayName')
-        echo "  Creating policy: $POLICY_NAME"
+POLICY_FILES=("$SPLIT_DIR"/policy-*.yaml)
 
-        # Write individual policy to temp file
-        echo "$policy" > /tmp/policy-temp.json
-
-        # Create the policy
-        if gcloud alpha monitoring policies create --policy-from-file=/tmp/policy-temp.json 2>&1 | tee /tmp/alert-deploy.log; then
-            echo "  ✅ Created: $POLICY_NAME"
-        else
-            if grep -q "already exists" /tmp/alert-deploy.log; then
-                echo "  ⚠️  Policy already exists: $POLICY_NAME"
-            else
-                echo "  ❌ Failed to create: $POLICY_NAME"
-                cat /tmp/alert-deploy.log
-            fi
-        fi
-
-        rm -f /tmp/policy-temp.json
-    done
-else
-    echo "❌ Error: jq is required to deploy individual policies"
-    echo "Please install jq first."
+if [ ! -e "${POLICY_FILES[0]}" ]; then
+    echo "❌ Error: No policies found in $POLICIES_FILE"
     exit 1
 fi
+
+echo "Creating alerting policies..."
+
+for policy_file in "${POLICY_FILES[@]}"; do
+    POLICY_NAME=$(grep -m1 '^displayName:' "$policy_file" | sed -E 's/^displayName:[[:space:]]*"?([^"]*)"?$/\1/')
+    echo "  Creating policy: $POLICY_NAME"
+
+    if gcloud alpha monitoring policies create --policy-from-file="$policy_file" 2>&1 | tee /tmp/alert-deploy.log; then
+        echo "  ✅ Created: $POLICY_NAME"
+    else
+        if grep -q "already exists" /tmp/alert-deploy.log; then
+            echo "  ⚠️  Policy already exists: $POLICY_NAME"
+        else
+            echo "  ❌ Failed to create: $POLICY_NAME"
+            cat /tmp/alert-deploy.log
+        fi
+    fi
+done
 
 echo ""
 echo "✅ Alerting policies deployment complete!"

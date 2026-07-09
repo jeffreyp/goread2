@@ -277,13 +277,13 @@ gcloud alpha monitoring policies update POLICY_NAME --add-notification-channels=
 ./monitoring/deploy-alerts.sh
 ```
 
-**Known gap**: `monitoring/deploy-alerts.sh` still points at `monitoring/alerting-policies.json`, an older policy file (November 2025) that predates the six policies in `monitoring/alert-policies.yaml` described above. The currently-deployed policies were created manually via the Step 3 `gcloud alpha monitoring policies` commands, not via this script. Running `make deploy-monitoring-alerts` today would deploy the stale JSON policy set, not the live one. Treat the script as unmaintained until it's repointed at `alert-policies.yaml`.
+`monitoring/deploy-alerts.sh` reads `monitoring/alert-policies.yaml`, splits its six `---`-separated documents into per-policy temp files (`gcloud alpha monitoring policies create` only accepts one policy per invocation), and creates each in turn. Policies that already exist are reported and skipped, not updated; use `gcloud alpha monitoring policies update` (see [Step 3](#step-3-deploy-alerts) above) to change an existing policy's configuration.
 
 ### Makefile Targets
 
 ```bash
 make deploy-monitoring-dashboard  # ./monitoring/deploy-dashboard.sh
-make deploy-monitoring-alerts     # ./monitoring/deploy-alerts.sh (see known gap above)
+make deploy-monitoring-alerts     # ./monitoring/deploy-alerts.sh
 make deploy-monitoring            # both
 ```
 
@@ -300,7 +300,7 @@ The alert thresholds are configured for moderate usage. You may need to adjust t
 
 1. Monitor the dashboard for a few days to establish baseline metrics
 2. Edit `monitoring/alert-policies.yaml` to update thresholds
-3. Redeploy the changed policy with `gcloud alpha monitoring policies update POLICY_NAME ...` (see [Step 3](#step-3-deploy-alerts) above), not `deploy-alerts.sh`, which targets the stale JSON file
+3. Redeploy the changed policy with `gcloud alpha monitoring policies update POLICY_NAME ...` (see [Step 3](#step-3-deploy-alerts) above); `deploy-alerts.sh` only creates new policies and skips ones that already exist
 
 Recommended adjustments:
 - Increase thresholds if you get too many false positives
@@ -349,7 +349,7 @@ To update the dashboard configuration:
    ```
 
 ### Alert Policy Updates
-To update alerting policies, edit `monitoring/alert-policies.yaml` and push the change with `gcloud alpha monitoring policies update` as described in [Updating Thresholds](#updating-thresholds) above. Don't use `monitoring/deploy-alerts.sh`; it deploys the stale `monitoring/alerting-policies.json` file, not the live policy set.
+To update an existing alerting policy, edit `monitoring/alert-policies.yaml` and push the change with `gcloud alpha monitoring policies update` as described in [Updating Thresholds](#updating-thresholds) above. `monitoring/deploy-alerts.sh` only creates new policies from that file; it skips ones that already exist rather than updating them.
 
 ## Troubleshooting
 
