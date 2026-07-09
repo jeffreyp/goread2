@@ -14,6 +14,9 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 ### Development Setup
 
 1. **Fork and clone**:
+
+   Fork the repository by clicking "Fork" at [github.com/jeffreyp/goread2](https://github.com/jeffreyp/goread2), then clone your fork:
+
    ```bash
    git clone https://github.com/your-username/goread2.git
    cd goread2
