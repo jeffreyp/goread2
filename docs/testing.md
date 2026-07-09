@@ -9,9 +9,9 @@ Testing guide for GoRead2's multi-user RSS reader application.
 ## Overview
 
 GoRead2's testing infrastructure includes:
-- **Package-level unit tests** with 8.0% overall coverage across multiple packages
+- **Package-level unit tests** across ten `internal/` packages plus `cmd/admin`, with per-package coverage ranging from ~65% to ~85% (see [Test Coverage](#test-coverage) below); coverage drifts often enough that the numbers there are a snapshot, not a guarantee; regenerate with `go test ./internal/... -cover` for the current figures
 - **Integration tests** for end-to-end API validation
-- **Frontend tests** with Jest and jsdom (64 tests)
+- **Frontend tests** with Jest and jsdom (140 tests across 7 files)
 - **CI/CD integration** with GitHub Actions
 
 ## Current Test Structure
@@ -19,63 +19,100 @@ GoRead2's testing infrastructure includes:
 ```
 internal/
 ├── auth/
-│   ├── auth_test.go         # Authentication service tests
-│   ├── middleware_test.go   # Authentication middleware tests
-│   └── session_test.go      # Session management tests (59.7% coverage)
+│   ├── auth_test.go          # Authentication service tests
+│   ├── client_ip_test.go     # Client IP extraction tests
+│   ├── csrf_test.go          # CSRF token generation/validation tests
+│   ├── middleware_test.go    # Authentication middleware tests
+│   ├── rate_limiter_test.go  # Rate limiter unit tests
+│   └── session_test.go       # Session management tests
+│                              # (auth package: ~70% coverage)
+├── cache/
+│   ├── feed_list_cache_test.go  # Feed list cache tests
+│   └── unread_cache_test.go     # Unread count cache tests
+│                                 # (cache package: ~82% coverage)
 ├── config/
-│   └── config_test.go       # Configuration management tests (96.7% coverage)
+│   ├── config_test.go        # Configuration management tests
+│   └── validation_test.go    # Config validation tests
+│                              # (config package: ~85% coverage)
 ├── database/
 │   ├── schema_test.go               # Core schema and CRUD tests
 │   ├── schema_extended_test.go      # Pagination edge cases and ordering
 │   ├── schema_errors_test.go        # Error paths and boundary conditions
 │   ├── schema_user_article_test.go  # User-article status (read/star) tests
 │   ├── pagination_duplicate_test.go # Duplicate-cursor pagination tests
-│   └── schema_bench_test.go         # Benchmarks (GetUserArticlesPaginated,
-│                                    #   GetUserUnreadCounts, GetAccountStats)
-│                                    # + property tests for cursor encode/decode
+│   ├── datastore_test.go            # DatastoreDB interface tests (emulator-gated)
+│   ├── datastore_user_article_test.go # DatastoreDB user-article tests (emulator-gated)
+│   └── schema_bench_test.go         # Benchmarks: BenchmarkGetUserArticlesPaginatedFirstPage,
+│                                    #   ...WithCursor, ...UnreadOnly, BenchmarkGetUserUnreadCounts,
+│                                    #   BenchmarkGetAccountStats + property tests for cursor encode/decode
 ├── handlers/
 │   ├── admin_handler_test.go    # Admin handler request/error-path tests
-│   ├── auth_handler_test.go     # Auth handler constructor tests  
+│   ├── article_handler_test.go  # Article handler tests (GetArticle)
+│   ├── auth_handler_test.go     # Auth handler constructor tests
 │   ├── feed_handler_test.go     # Feed handler request/error-path tests (AddFeed, ImportOPML,
 │   │                            #   GetArticles, RefreshFeeds, DebugAllSubscriptions, etc.)
 │   └── payment_handler_test.go  # Payment handler tests incl. signed Stripe webhook payloads
-│                                # (78.9% package coverage)
+│                                # (handlers package: ~79% coverage)
+├── middleware/
+│   ├── body_limit_test.go        # Request body size limit tests
+│   ├── cors_test.go              # CORS middleware tests
+│   ├── request_cache_test.go     # Request-scoped cache invalidation tests
+│   └── security_headers_test.go  # Security header middleware tests
+│                                  # (middleware package: ~84% coverage)
 ├── secrets/
-│   └── secrets_test.go          # Secrets manager tests (80.4% coverage)
+│   └── secrets_test.go          # Secrets manager tests (~65% coverage)
 ├── services/
 │   ├── admin_token_test.go               # SQLite admin token tests (comprehensive)
 │   ├── admin_token_datastore_test.go     # Datastore admin token tests
+│   ├── audit_service_test.go             # Audit logging tests
+│   ├── edge_cases_test.go                # Cross-cutting edge-case tests
 │   ├── feed_discovery_test.go            # Feed discovery and URL normalization tests
-│   └── subscription_service_test.go      # Subscription service logic tests (20.1% coverage)
+│   ├── feed_fixtures_test.go             # Contract/fixture tests for RSS 2.0, Atom, RDF feeds
+│   ├── feed_scheduler_test.go            # Feed scheduler concurrency/stress tests
+│   ├── feed_service_test.go              # Feed service core logic tests
+│   ├── feed_service_coverage_test.go     # Additional feed service coverage tests
+│   ├── payment_service_test.go           # Payment service logic tests
+│   ├── rate_limiter_test.go              # Concurrency stress tests for the rate limiter
+│   ├── subscription_service_test.go      # Subscription service logic tests
+│   └── url_validator_test.go             # SSRF/URL validation tests
+│                                          # (services package: ~67% coverage)
 cmd/
 └── admin/
-    └── main_test.go      # Admin CLI command handler tests (52.4% coverage) —
+    └── main_test.go      # Admin CLI command handler tests (~52% coverage):
                            #   set-admin, grant-months, user-info, list-users,
                            #   fix-subscription, set-subscription-id (Stripe backend
                            #   mocked via stripe.SetBackend), create-token, list/revoke
                            #   token, audit-logs; fatal (log.Fatal/os.Exit) error paths
                            #   verified via subprocess re-exec
 test/
-├── integration/                    # Backend integration tests
-│   ├── admin_integration_test.go   # Admin command integration tests
-│   ├── admin_security_test.go      # Admin security and bootstrap tests
-│   ├── api_test.go                 # End-to-end API testing
-│   ├── workflow_test.go            # User workflow integration tests
-│   └── performance_test.go         # Performance baseline tests
-├── security/                       # Consolidated security regression suite (dedicated CI job — gr-rrt)
+├── integration/                          # Backend integration tests
+│   ├── admin_integration_test.go         # Admin command integration tests
+│   ├── admin_security_test.go            # Admin security and bootstrap tests
+│   ├── api_test.go                       # End-to-end API testing
+│   ├── cache_test.go                     # Cache integration tests
+│   ├── critical_workflows_test.go        # Critical user-workflow regression tests
+│   ├── feature_flag_test.go              # SUBSCRIPTION_ENABLED toggle behavior tests
+│   ├── main_test.go                      # Shared integration test setup
+│   ├── subscription_integration_test.go  # Subscription lifecycle integration tests
+│   └── workflow_test.go                  # User workflow integration tests
+├── security/                       # Consolidated security regression suite (dedicated CI job, gr-rrt)
 │   ├── auth_test.go                # Every RequireAuth route rejects requests with no session cookie
 │   ├── csrf_test.go                # CSRF token enforcement on mutating endpoints (moved from test/integration/auth_csrf_test.go)
 │   ├── feed_limit_test.go          # POST /api/feeds returns 402 once a trial user hits FreeTrialFeedLimit
 │   └── ssrf_test.go                # POST /api/feeds rejects loopback/link-local/RFC1918/metadata URLs
 └── fixtures/            # Test data and sample feeds
     └── sample_feeds.go  # Sample data for tests
-web/tests/                  # Frontend tests
-├── app-core.test.js        # Core frontend functionality (28 tests)
-├── error-handler.test.js   # Error handling and toast notifications (18 tests)
-├── pagination.test.js      # Pagination and Load More functionality (18 tests)
-├── utils.js                # Frontend test utilities
-├── setup.js                # Test environment setup
-└── README.md               # Frontend testing documentation
+web/tests/                     # Frontend tests (140 tests across 7 files)
+├── accessibility.test.js      # ARIA/focus/keyboard accessibility assertions
+├── account-app.test.js        # Account page app tests
+├── app-core.test.js           # Core frontend functionality
+├── error-handler.test.js      # Error handling and toast notifications
+├── goread-app.test.js         # Main app class tests
+├── integration.test.js        # Frontend integration tests
+├── pagination.test.js         # Pagination and Load More functionality
+├── utils.js                   # Frontend test utilities
+├── setup.js                   # Test environment setup
+└── README.md                  # Frontend testing documentation
 ```
 
 ## Running Tests
@@ -135,7 +172,7 @@ make build            # Build the Go application
 make build-frontend   # Build minified JS/CSS assets
 make validate-config  # Validate application configuration
 make clean           # Remove build artifacts
-make test-quick      # Run tests using Go cache — fast for dev iteration
+make test-quick      # Run tests using Go cache, fast for dev iteration
 make test            # Run full test suite with coverage (CI/pre-deploy)
 make test-race       # Run Go tests with race detector (CI also runs this automatically)
 ```
@@ -162,7 +199,7 @@ npm test -- app-core.test.js
 
 #### Config Package (`internal/config/config_test.go`)
 
-Tests configuration management with 96.7% coverage:
+Tests configuration management with 85.2% coverage:
 
 ```go
 func TestConfigLoad(t *testing.T) {
@@ -187,7 +224,7 @@ func TestParseEmailList(t *testing.T) {
 
 #### Auth Package (`internal/auth/`)
 
-Tests authentication system with 81.9% coverage:
+Tests authentication system with 69.6% coverage:
 
 ```go
 func TestNewAuthService(t *testing.T) {
@@ -255,7 +292,7 @@ func TestRateLimiterConcurrentAccess(t *testing.T) {
 
 #### Secrets Package (`internal/secrets/`)
 
-Tests secrets management system with 80.4% coverage:
+Tests secrets management system with 64.6% coverage:
 
 ```go
 func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
@@ -293,7 +330,7 @@ func TestGetSecret_MissingProjectID(t *testing.T) {
 
 #### Services Package (`internal/services/`)
 
-Tests service layer logic with 20.1% coverage:
+Tests service layer logic with 67.2% coverage:
 
 ```go
 func TestSubscriptionService(t *testing.T) {
@@ -345,7 +382,7 @@ func TestDatastoreAdminTokens(t *testing.T) {
 
 #### Handlers Package (`internal/handlers/`)
 
-Tests handler request and error paths with 78.9% coverage, using `httptest.ResponseRecorder`
+Tests handler request and error paths with 79.3% coverage, using `httptest.ResponseRecorder`
 and a mock `database.Database` per test file (`mockDBFeedHandler`, `mockDBAdminHandler`) rather
 than a full integration setup:
 
@@ -372,7 +409,7 @@ func TestWebhookHandler_SubscriptionCreatedOrUpdated(t *testing.T) {
 - Payment handlers: Stripe webhook signature verification, all handled event types
   (`checkout.session.completed`, `customer.subscription.created/updated/deleted`,
   unhandled event types), and the `subscription_success`/`subscription_cancel` HTML views
-- OAuth login/callback flows (`Login`, `Callback`) remain untested at the unit level —
+- OAuth login/callback flows (`Login`, `Callback`) remain untested at the unit level:
   they call out to Google's real OAuth endpoints and are exercised instead by
   `test/integration` and manual verification
 
@@ -448,7 +485,7 @@ func TestAdminWorkflow(t *testing.T) {
 
 #### Performance Benchmarks (`test/integration/performance_test.go`)
 
-`TestPerformanceBaseline` used to record timing via `t.Logf` with nothing checked against it — no pass/fail signal, just numbers in the log. It's been replaced with real `testing.B` benchmarks, run by a dedicated `benchmark` CI job rather than `go test`'s normal test run (see [CI regression gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) below):
+`TestPerformanceBaseline` used to record timing via `t.Logf` with nothing checked against it: no pass/fail signal, just numbers in the log. It's been replaced with real `testing.B` benchmarks, run by a dedicated `benchmark` CI job rather than `go test`'s normal test run (see [CI regression gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) below):
 
 ```go
 func BenchmarkGetUserFeeds100(b *testing.B)           // Query all feeds for a user subscribed to 100
@@ -457,7 +494,7 @@ func BenchmarkGetUserUnreadCounts(b *testing.B)       // Per-feed unread counts 
 func BenchmarkConcurrentReads(b *testing.B)           // 10 users concurrently reading a shared feed
 ```
 
-Fixture setup (creating the feeds/articles/users) happens once per `-count` repetition via `b.ResetTimer()`, so only the operation named is measured, not the setup cost. `TestConcurrentUserOperations` (correctness of concurrent reads *and* writes under `-race`) is unchanged — it's a concurrency-safety test, not a timing one.
+Fixture setup (creating the feeds/articles/users) happens once per `-count` repetition via `b.ResetTimer()`, so only the operation named is measured, not the setup cost. `TestConcurrentUserOperations` (correctness of concurrent reads *and* writes under `-race`) is unchanged, since it's a concurrency-safety test, not a timing one.
 
 Run locally:
 
@@ -467,12 +504,12 @@ go test -run='^$' -bench=. -benchmem ./test/integration/...
 
 #### CI Benchmark Regression Gate (`scripts/check-benchmark-regression.sh`)
 
-The `benchmark` job in `test.yml` runs the four benchmarks above with `-benchtime=50x -count=10` and compares them against a baseline using [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat). No baseline file is committed to the repo — raw timings are hardware-dependent, so a baseline is only meaningful compared against a run on the *same* runner type it was recorded on. Instead:
+The `benchmark` job in `test.yml` runs the four benchmarks above with `-benchtime=50x -count=10` and compares them against a baseline using [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat). No baseline file is committed to the repo: raw timings are hardware-dependent, so a baseline is only meaningful compared against a run on the *same* runner type it was recorded on. Instead:
 
 - The baseline is the most recent successful main-branch run's benchmark output, persisted via `actions/cache` under a rolling key (`bench-baseline-<run-id>`, restored by the `bench-baseline-` prefix).
 - Every push to `main` whose benchmarks *don't* regress rolls the cache forward to that run's numbers, so the baseline tracks main over time instead of drifting stale.
-- `scripts/check-benchmark-regression.sh <baseline> <current> [threshold-pct]` (default threshold 20%) parses `benchstat -format csv` output and fails only on sec/op deltas that are both `>threshold%` *and* statistically significant per benchstat's own test — a change benchstat marks `~` is noise and is ignored regardless of the raw percentage. `B/op`/`allocs/op` deltas are printed but not gated on.
-- A regression fails the `benchmark` job, which fails the whole `test.yml` workflow, which blocks `deploy-staging.yml` (gated on `workflow_run.conclusion == 'success'` — same mechanism as every other required job, see gr-vu1d's neighbor jobs). On a pull request, a regression additionally posts the benchstat report as a PR comment via `gh pr comment`.
+- `scripts/check-benchmark-regression.sh <baseline> <current> [threshold-pct]` (default threshold 20%) parses `benchstat -format csv` output and fails only on sec/op deltas that are both `>threshold%` *and* statistically significant per benchstat's own test; a change benchstat marks `~` is noise and is ignored regardless of the raw percentage. `B/op`/`allocs/op` deltas are printed but not gated on.
+- A regression fails the `benchmark` job, which fails the whole `test.yml` workflow, which blocks `deploy-staging.yml` (gated on `workflow_run.conclusion == 'success'`, the same mechanism as every other required job; see gr-vu1d's neighbor jobs). On a pull request, a regression additionally posts the benchstat report as a PR comment via `gh pr comment`.
 - The very first run after this job shipped has no cache to restore, so it skips the comparison and just bootstraps the baseline.
 
 Part of epic gr-f6v (gr-4o2f).
@@ -620,15 +657,15 @@ func setupTestDB(t *testing.T) *DB {
 
 ### Datastore Emulator (`internal/services/admin_token_datastore_test.go`)
 
-Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` — the production database implementation — against a real (local) Datastore emulator instead of mocks. They `t.Skip` when the env var is unset, so they run silently skipped in a plain local `make test`/`go test ./...`. The same gating is used by `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, which exercise `DatastoreDB` through the `database.Database` interface (see below).
+Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` (the production database implementation) against a real (local) Datastore emulator instead of mocks. They `t.Skip` when the env var is unset, so they run silently skipped in a plain local `make test`/`go test ./...`. The same gating is used by `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, which exercise `DatastoreDB` through the `database.Database` interface (see below).
 
-**In CI** (`.github/workflows/test.yml`, `test` job): a Cloud Datastore emulator is started before the unit test step —
+**In CI** (`.github/workflows/test.yml`, `test` job): a Cloud Datastore emulator is started before the unit test step:
 1. `actions/setup-java` installs a Java 21+ JRE (the emulator is a Java process; the runner's default `java` isn't guaranteed to meet the minimum version).
 2. `google-github-actions/setup-gcloud` provisions a standalone gcloud SDK with the `beta` and `cloud-datastore-emulator` components (the runner's preinstalled `gcloud` is apt-managed and refuses `gcloud components install`).
 3. `gcloud beta emulators datastore start --host-port=localhost:8081 --no-store-on-disk --consistency=1.0` runs in the background; the step polls `http://localhost:8081/` until it responds before continuing.
 4. `DATASTORE_EMULATOR_HOST=localhost:8081` is exported for the rest of the job, so `go test ./internal/...` picks up the gated tests instead of skipping them.
 
-**`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which made `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier — a real flake, not a fluke, reproduced locally before this was pinned to full consistency.
+**`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which made `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier: a real flake, not a fluke, reproduced locally before this was pinned to full consistency.
 
 **Local setup** (to run these tests outside CI):
 ```bash
@@ -639,7 +676,7 @@ DATASTORE_EMULATOR_HOST=localhost:8081 go test ./internal/database/... -run Test
 ```
 The emulator's Java process requires a Java 21+ JRE on `PATH`; on macOS with Homebrew's `openjdk` installed but not linked, prefix the `gcloud emulators` command with `PATH="$(brew --prefix openjdk)/bin:$PATH"`.
 
-`AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered in `internal/services/admin_token_datastore_test.go`. `DatastoreDB`'s own methods implementing the `database.Database` interface — `AddFeed`, `GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, `GetAccountStats`, `CleanupOrphanedUserArticles`, sessions, audit logs, and the rest — are covered directly (through the `Database` interface, mirroring the SQLite `schema_test.go` suite) in `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, bringing `internal/database` to 80%+ coverage when run against the emulator.
+`AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered in `internal/services/admin_token_datastore_test.go`. `DatastoreDB`'s own methods implementing the `database.Database` interface (`AddFeed`, `GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, `GetAccountStats`, `CleanupOrphanedUserArticles`, sessions, audit logs, and the rest) are covered directly (through the `Database` interface, mirroring the SQLite `schema_test.go` suite) in `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, bringing `internal/database` to 80%+ coverage when run against the emulator.
 
 ### HTTP Test Setup
 
@@ -683,20 +720,20 @@ Current test coverage status and targets:
 
 ### ✅ Achieved Coverage
 - **Overall project**: Coverage across all packages with significant improvements
-- **Config package**: 96.7% coverage (comprehensive unit tests)
-- **Auth package**: 81.9% coverage (session, middleware, CSRF, rate limiting, OAuth service)
+- **Config package**: 85.2% coverage (comprehensive unit tests)
+- **Auth package**: 69.6% coverage (session, middleware, CSRF, rate limiting, OAuth service)
   - **Middleware**: 100% coverage for RequireAuth, OptionalAuth, RequireAdmin
   - **CSRF Manager**: 100% coverage for CSRFMiddleware, concurrent token generation
   - **Rate Limiter**: 100% coverage for RateLimitMiddleware, concurrent access, cleanup
-- **Secrets package**: 80.4% coverage (OAuth and Stripe credential management)
+- **Secrets package**: 64.6% coverage (OAuth and Stripe credential management)
   - **GetOAuthCredentials**: 100% coverage for environment variable handling
   - **GetStripeCredentials**: 100% coverage for all Stripe credentials
   - **GetSecret**: 23.1% coverage (environment validation, requires Secret Manager API mocking for full coverage)
-- **Services package**: 20.1% coverage (subscription logic, feed discovery, **comprehensive admin token security**)
-- **Handlers package**: 78.9% coverage (request/error-path tests for feed, admin, and payment
-  handlers; OAuth `Login`/`Callback` remain unit-untested — see Handlers Package section above)
+- **Services package**: 67.2% coverage (subscription logic, feed discovery, feed scheduling, **comprehensive admin token security**)
+- **Handlers package**: 79.3% coverage (request/error-path tests for feed, admin, and payment
+  handlers; OAuth `Login`/`Callback` remain unit-untested; see Handlers Package section above)
 - **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
-- **Frontend**: 64 tests covering core functionality, error handling, toast notifications, and pagination
+- **Frontend**: 140 tests across 7 files covering core functionality, error handling, accessibility, pagination, and account-page behavior
   - **Core frontend tests**: 28 tests for DOM manipulation, events, forms, utilities
   - **Error handler tests**: 18 tests for connection monitoring, error display, toast notifications
   - **Pagination tests**: 18 tests for Load More button, cursor-based pagination, article rendering
@@ -785,11 +822,11 @@ RSS and Atom feed examples for parser testing:
 
 On-disk XML fixtures (as opposed to the inline string constants above) exercised by the table-driven suite in `internal/services/feed_fixtures_test.go` (`TestParseFeedFixtures`):
 
-- `rss2_standard.xml`, `atom_standard.xml`, `rdf_standard.xml` — one representative document per supported format (RSS 2.0, Atom 1.0, RSS 1.0/RDF).
-- `rss2_relative_urls.xml` — item `<link>` values are relative/scheme-relative paths. The parser copies `<link>` verbatim into `ArticleData.Link` with no `url.Parse`/`ResolveReference` step, so this fixture documents that pass-through behavior rather than testing normalization that doesn't exist.
-- `rss2_missing_fields.xml` — empty channel title/description and items missing `<title>`/`<description>`, verifying the parser substitutes fallback titles per-item instead of erroring or skipping items.
-- `malformed.xml` — unclosed tags; the parser must fail all three (RSS/RDF/Atom) unmarshal attempts and return an error rather than partial data.
-- `rss2_large_item_count.xml` — 3,000 items, guarding against silent truncation. There is no per-item cap during parsing itself; the only feed-fetch DoS control is the 10MB `maxFeedBodySize` body-size cap enforced in `fetchFeed` before parsing (see `TestFetchFeed_SizeLimit`).
+- `rss2_standard.xml`, `atom_standard.xml`, `rdf_standard.xml`: one representative document per supported format (RSS 2.0, Atom 1.0, RSS 1.0/RDF).
+- `rss2_relative_urls.xml`: item `<link>` values are relative/scheme-relative paths. The parser copies `<link>` verbatim into `ArticleData.Link` with no `url.Parse`/`ResolveReference` step, so this fixture documents that pass-through behavior rather than testing normalization that doesn't exist.
+- `rss2_missing_fields.xml`: empty channel title/description and items missing `<title>`/`<description>`, verifying the parser substitutes fallback titles per-item instead of erroring or skipping items.
+- `malformed.xml`: unclosed tags; the parser must fail all three (RSS/RDF/Atom) unmarshal attempts and return an error rather than partial data.
+- `rss2_large_item_count.xml`: 3,000 items, guarding against silent truncation. There is no per-item cap during parsing itself; the only feed-fetch DoS control is the 10MB `maxFeedBodySize` body-size cap enforced in `fetchFeed` before parsing (see `TestFetchFeed_SizeLimit`).
 
 ### Generating Test Articles
 
@@ -965,7 +1002,7 @@ func TestTokenLifecycle(t *testing.T) {
 
 ### GitHub Actions (`.github/workflows/test.yml`)
 
-The CI pipeline pins Go via a single `GO_VERSION` env var (currently `1.25`, matching `go.mod`) and runs five jobs:
+The CI pipeline pins Go via a single `GO_VERSION` env var (currently `1.25`, matching `go.mod`) and runs six jobs:
 
 ```yaml
 name: Tests
@@ -988,22 +1025,22 @@ jobs:
 ```
 
 **Pipeline features:**
-- Go 1.25 testing, pinned to match `go.mod` (bumped from 1.24 to clear govulncheck findings GO-2026-5039/GO-2026-5037, both fixed in go1.25.11 — see gr-5ar0)
-- Package-level unit tests (`./internal/...`)
+- Go 1.25 testing, pinned to match `go.mod` (bumped from 1.24 to clear govulncheck findings GO-2026-5039/GO-2026-5037, both fixed in go1.25.11; see gr-5ar0)
+- Package-level unit tests (`go test -short -race -coverprofile=coverage.out ./internal/...`)
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov
 - Linting with golangci-lint
-- ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`) — catches undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed (gr-il9c)
-- Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`) — a broken Jest suite or broken JS/CSS build now fails CI instead of shipping silently (gr-v9ki)
-- Benchmark regression gate (`benchmark` job) — see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above (gr-4o2f)
-- Security regression suite (`./test/security/...`) — blocking gate covering CSRF enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and `FreeTrialFeedLimit` enforcement, all exercised through the real HTTP handlers rather than scattered across `test/integration` and package-level unit tests with no dedicated CI signal (gr-rrt)
+- ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`), catching undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed (gr-il9c)
+- Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build now fails CI instead of shipping silently (gr-v9ki)
+- Benchmark regression gate (`benchmark` job): see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above (gr-4o2f)
+- Security regression suite (`./test/security/...`): blocking gate covering CSRF enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and `FreeTrialFeedLimit` enforcement, all exercised through the real HTTP handlers rather than scattered across `test/integration` and package-level unit tests with no dedicated CI signal (gr-rrt)
 - `govulncheck` as a non-blocking reporting job, run in the same `security` job after the regression suite
-- Single-platform build artifact (`goread2` binary) — dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
-- All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review, matching the deploy workflows — see the workflow file's inline `# vX` comments for the corresponding version (gr-3ls6)
+- Single-platform build artifact (`goread2` binary): dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
+- All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review, matching the deploy workflows; see the workflow file's inline `# vX` comments for the corresponding version (gr-3ls6)
 
 ### Post-Deploy Smoke Check (`scripts/smoke-check.sh`)
 
-Separate from the `test.yml` CI pipeline above, `scripts/smoke-check.sh <base-url>` runs unauthenticated HTTP assertions against a live, already-deployed App Engine version — it verifies the deploy itself (app started, static assets built, OAuth config loaded, security headers present, no backdoor auth endpoint), not application logic. Called by both `deploy-staging.yml` (against the new `staging-<sha>` URL) and `deploy-prod.yml` (against `https://goreadapp.com` after promotion); see [deployment.md](deployment.md#post-deploy-smoke-check-scriptssmoke-checksh) for the full assertion list.
+Separate from the `test.yml` CI pipeline above, `scripts/smoke-check.sh <base-url>` runs unauthenticated HTTP assertions against a live, already-deployed App Engine version. It verifies the deploy itself (app started, static assets built, OAuth config loaded, security headers present, no backdoor auth endpoint), not application logic. Called by both `deploy-staging.yml` (against the new `staging-<sha>` URL) and `deploy-prod.yml` (against `https://goreadapp.com` after promotion); see [deployment.md](deployment.md#post-deploy-smoke-check-scriptssmoke-checksh) for the full assertion list.
 
 ## Writing New Tests
 

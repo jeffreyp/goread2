@@ -21,9 +21,16 @@ GoRead2 provides efficient keyboard navigation:
 | `j` | Next article |
 | `k` | Previous article |
 | `o` or `Enter` | Open article in new tab |
+| `v` | Open article in place (current tab) |
 | `m` | Mark article as read/unread |
 | `s` | Star/unstar article |
 | `r` | Refresh all feeds |
+| `u` | Refresh the current feed |
+| `a` | Mark all articles as read |
+| `?` | Open the help modal |
+
+### Help Modal
+Press `?` at any time to open the help modal, which lists every keyboard shortcut and a summary of GoRead2's features. Its footer also shows the app's build version (a CalVer `YYYY.MM.DD` string), useful for confirming which deploy you're running against when reporting an issue.
 
 ### Mobile and Tablet Navigation
 
@@ -36,13 +43,12 @@ On mobile devices, use the bottom navigation bar to switch between panes:
 #### Tablet (Portrait Mode)
 On tablets in portrait orientation, GoRead2 provides a reading-optimized layout:
 - **Content pane** takes the full screen width for comfortable reading
-- **Toggle button** (☰) appears in the bottom-right corner to access feeds and articles
-- Tap the toggle button to show/hide the sidebar with feeds and articles
+- **"☰ Feeds" button** in the header opens the sidebar with feeds and articles
 - Sidebar automatically hides when you select an article to maximize reading space
 - Tap the dimmed area outside the sidebar to close it
 
 #### Rotation
-When the device is rotated (or the window is resized across a layout breakpoint), pane state resets to the new layout's default — on phone portrait the content pane is shown with the bottom navigation bar; other layouts return to their standard multi-pane view.
+When the device is rotated (or the window is resized across a layout breakpoint), pane state resets to the new layout's default: on phone portrait the content pane is shown with the bottom navigation bar, and other layouts return to their standard multi-pane view.
 
 ## Feed Management
 

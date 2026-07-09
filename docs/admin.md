@@ -296,19 +296,19 @@ Recent Audit Logs (Last 50):
 ```bash
 # Get audit logs via API (requires admin session)
 curl -X GET "https://yourdomain.com/admin/audit-logs?limit=50&offset=0" \
-  -H "Cookie: session=your-admin-session"
+  -H "Cookie: session_id=your-admin-session"
 
 # Filter by admin user
 curl -X GET "https://yourdomain.com/admin/audit-logs?admin_user_id=1" \
-  -H "Cookie: session=your-admin-session"
+  -H "Cookie: session_id=your-admin-session"
 
 # Filter by target user
 curl -X GET "https://yourdomain.com/admin/audit-logs?target_user_id=123" \
-  -H "Cookie: session=your-admin-session"
+  -H "Cookie: session_id=your-admin-session"
 
 # Filter by operation type
 curl -X GET "https://yourdomain.com/admin/audit-logs?operation_type=grant_admin" \
-  -H "Cookie: session=your-admin-session"
+  -H "Cookie: session_id=your-admin-session"
 ```
 
 **Response Format:**
@@ -367,18 +367,18 @@ For programmatic access, use the authenticated admin endpoints:
 ```bash
 # Get user info (requires admin session cookie)
 curl -X GET "https://yourdomain.com/admin/users/user@example.com" \
-  -H "Cookie: session=your-admin-session"
+  -H "Cookie: session_id=your-admin-session"
 
 # Set admin status (requires admin session cookie)
 curl -X POST "https://yourdomain.com/admin/users/user@example.com/admin" \
   -H "Content-Type: application/json" \
-  -H "Cookie: session=your-admin-session" \
+  -H "Cookie: session_id=your-admin-session" \
   -d '{"is_admin": true}'
 
 # Grant free months (requires admin session cookie)
 curl -X POST "https://yourdomain.com/admin/users/user@example.com/free-months" \
   -H "Content-Type: application/json" \
-  -H "Cookie: session=your-admin-session" \
+  -H "Cookie: session_id=your-admin-session" \
   -d '{"months": 6}'
 ```
 
@@ -544,9 +544,6 @@ When subscriptions are enabled (`SUBSCRIPTION_ENABLED=true`):
 # SECURITY: Set admin token first
 export ADMIN_TOKEN="your_64_char_token"
 
-# Check subscription system status
-go run cmd/admin/main.go system-info
-
 # View user subscription details
 go run cmd/admin/main.go user-info user@example.com
 
@@ -648,7 +645,7 @@ sudo systemctl restart goread2
 
 ### Stripe Integration Conflicts
 
-Admin and free month users may still see Stripe UI elements. This is by design — admin status overrides subscription requirements, so any payment prompts can be ignored.
+Admin and free month users may still see Stripe UI elements. This is by design: admin status overrides subscription requirements, so any payment prompts can be ignored.
 
 ### Error Messages Guide
 
@@ -784,9 +781,6 @@ export ADMIN_TOKEN="your_64_char_token"
 
 # View user breakdown
 ./admin.sh list
-
-# Check system configuration
-go run cmd/admin/main.go system-info
 ```
 
 ### Usage Tracking

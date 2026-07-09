@@ -8,6 +8,8 @@ GoRead2 provides a RESTful API for managing feeds, articles, and user subscripti
 
 **Base URL**: `http://localhost:8080` (development) or `https://your-domain.com` (production)
 
+**Cookie name**: the session cookie is named `session_id_local` in local development and `session_id` in production, to prevent conflicts when testing against both from the same browser. Examples below use `session_id` as a placeholder; substitute the environment-appropriate name.
+
 **Authentication**: Session-based authentication with HTTP-only cookies
 
 **CSRF Protection**: All state-changing operations (POST, PUT, DELETE) require a valid CSRF token in the `X-CSRF-Token` header
@@ -53,7 +55,7 @@ Logout and clear session.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/auth/logout" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 #### `GET /auth/me`
@@ -78,7 +80,7 @@ Get current authenticated user information and CSRF token.
 **Example**:
 ```bash
 curl "http://localhost:8080/auth/me" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ## Feed Endpoints
@@ -110,7 +112,7 @@ List user's subscribed feeds.
 **Example**:
 ```bash
 curl "http://localhost:8080/api/feeds" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `POST /api/feeds`
@@ -172,7 +174,7 @@ Subscribe user to a new feed.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/feeds" \
-  -H "Cookie: session=your-session-cookie" \
+  -H "Cookie: session_id=your-session-cookie" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com/feed.xml"}'
 ```
@@ -192,13 +194,14 @@ Unsubscribe user from a feed.
 
 **Error Responses**:
 - `400 Bad Request` - Invalid feed ID
-- `404 Not Found` - Feed not found or not subscribed
 - `500 Internal Server Error` - Database error
+
+Note: there's no `404` case today. Unsubscribing from a feed ID you were never subscribed to is not distinguished from a successful unsubscribe at the handler level.
 
 **Example**:
 ```bash
 curl -X DELETE "http://localhost:8080/api/feeds/1" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `POST /api/feeds/refresh`
@@ -214,7 +217,7 @@ Manually refresh all user's feeds.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/feeds/refresh" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `GET /api/feeds/unread-counts`
@@ -234,7 +237,7 @@ Get unread article counts for all user's feeds.
 **Example**:
 ```bash
 curl "http://localhost:8080/api/feeds/unread-counts" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `POST /api/feeds/import`
@@ -265,7 +268,7 @@ Import feeds from OPML file.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/feeds/import" \
-  -H "Cookie: session=your-session-cookie" \
+  -H "Cookie: session_id=your-session-cookie" \
   -H "X-CSRF-Token: your-csrf-token" \
   -F "opml=@subscriptions.opml"
 ```
@@ -302,18 +305,32 @@ Export user's feeds to OPML format.
 **Example**:
 ```bash
 curl "http://localhost:8080/api/feeds/export" \
-  -H "Cookie: session=your-session-cookie" \
+  -H "Cookie: session_id=your-session-cookie" \
   -o subscriptions.opml
 ```
 
 ## Article Endpoints
+
+### `GET /api/articles/:id`
+Get a single article by ID.
+
+**Parameters**:
+- `id` (path) - Article ID
+
+**Response**: `200 OK` with the article object (same shape as items in the `articles` array below), `400 Bad Request` for a non-numeric ID, `404 Not Found` if the article doesn't exist.
+
+**Example**:
+```bash
+curl "http://localhost:8080/api/articles/1" \
+  -H "Cookie: session_id=your-session-cookie"
+```
 
 ### `GET /api/feeds/:id/articles`
 Get articles for a specific feed.
 
 **Parameters**:
 - `id` (path) - Feed ID or "all" for all feeds
-- `limit` (query, optional) - Number of articles per page (default: 50, max: 200)
+- `limit` (query, optional) - Number of articles per page (default: 50, max: 100; out-of-range or non-numeric values silently fall back to the default rather than erroring)
 - `cursor` (query, optional) - Pagination cursor from previous response (omit for first page)
 - `unread_only` (query, optional) - Filter to unread articles only (`true`, `1`, or omit)
 
@@ -356,19 +373,19 @@ Get articles for a specific feed.
 ```bash
 # Get first page from a specific feed
 curl "http://localhost:8080/api/feeds/1/articles?limit=50" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 
 # Get first page from all feeds
 curl "http://localhost:8080/api/feeds/all/articles?limit=50" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 
 # Get next page using cursor from previous response
 curl "http://localhost:8080/api/feeds/all/articles?limit=50&cursor=1672570800000000000_1" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 
 # Get unread articles only
 curl "http://localhost:8080/api/feeds/all/articles?unread_only=true&limit=50" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `POST /api/articles/:id/read`
@@ -395,13 +412,13 @@ Mark article as read or unread for current user.
 ```bash
 # Mark as read
 curl -X POST "http://localhost:8080/api/articles/1/read" \
-  -H "Cookie: session=your-session-cookie" \
+  -H "Cookie: session_id=your-session-cookie" \
   -H "Content-Type: application/json" \
   -d '{"is_read": true}'
 
 # Mark as unread
 curl -X POST "http://localhost:8080/api/articles/1/read" \
-  -H "Cookie: session=your-session-cookie" \
+  -H "Cookie: session_id=your-session-cookie" \
   -H "Content-Type: application/json" \
   -d '{"is_read": false}'
 ```
@@ -422,7 +439,7 @@ Toggle star status for article.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/articles/1/star" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `POST /api/articles/mark-all-read`
@@ -450,11 +467,11 @@ This endpoint marks all articles across all subscribed feeds as read for the aut
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/articles/mark-all-read" \
-  -H "Cookie: session=your-session-cookie" \
+  -H "Cookie: session_id=your-session-cookie" \
   -H "X-CSRF-Token: your-csrf-token"
 ```
 
-**Note**: This is an API-only endpoint with no corresponding UI button. It's useful for automation scripts or third-party integrations.
+**Note**: reachable from the UI via the `a` keyboard shortcut, in addition to direct API use for automation scripts or third-party integrations.
 
 ## Subscription Endpoints
 
@@ -498,7 +515,7 @@ Get user's subscription information and limits.
 **Example**:
 ```bash
 curl "http://localhost:8080/api/subscription" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `POST /api/subscription/checkout`
@@ -514,7 +531,7 @@ Create Stripe checkout session for subscription.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/subscription/checkout" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `POST /api/subscription/portal`
@@ -530,7 +547,7 @@ Create Stripe customer portal session for billing management.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/subscription/portal" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `GET /api/stripe/config`
@@ -547,7 +564,7 @@ Get Stripe configuration for frontend.
 **Example**:
 ```bash
 curl "http://localhost:8080/api/stripe/config" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ## Account Endpoints
@@ -573,7 +590,7 @@ Get detailed account statistics.
 **Example**:
 ```bash
 curl "http://localhost:8080/api/account/stats" \
-  -H "Cookie: session=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie"
 ```
 
 ### `PUT /api/account/max-articles`
@@ -600,7 +617,7 @@ Update the maximum number of articles to import when adding a new feed.
 **Example**:
 ```bash
 curl -X PUT "http://localhost:8080/api/account/max-articles" \
-  -H "Cookie: session=your-session-cookie" \
+  -H "Cookie: session_id=your-session-cookie" \
   -H "Content-Type: application/json" \
   -d '{"max_articles": 250}'
 ```
@@ -623,8 +640,6 @@ Stripe webhook endpoint for subscription events.
 - `customer.subscription.created`
 - `customer.subscription.updated`
 - `customer.subscription.deleted`
-- `invoice.payment_succeeded`
-- `invoice.payment_failed`
 
 **Response**:
 ```json
@@ -634,6 +649,16 @@ Stripe webhook endpoint for subscription events.
 ```
 
 **Note**: This endpoint is called by Stripe, not for direct API usage.
+
+## Admin Endpoints
+
+**⚠️ Admin Only**: All `/admin/*` endpoints require an authenticated admin session. See [admin.md](admin.md) for the equivalent CLI commands.
+
+- `GET /admin/users` - Not yet implemented; returns `501 Not Implemented` with a note to use the CLI instead
+- `GET /admin/users/:email` - Get a user's account and subscription info
+- `POST /admin/users/:email/admin` - Set a user's admin status (`{"is_admin": true|false}`); returns `403` if you try to remove your own admin privileges
+- `POST /admin/users/:email/free-months` - Grant free subscription months (`{"months": N}`)
+- `GET /admin/audit-logs` - Query the admin action audit log (`limit`, `offset`, `admin_user_id`, `target_user_id`, `operation_type` query params); see [admin.md](admin.md#audit-logging) for response format
 
 ## Debug Endpoints
 
@@ -714,10 +739,11 @@ Exceeded requests return `429 Too Many Requests`.
 
 ## CORS Policy
 
-CORS is configured to allow:
-- **Origins**: Same origin only (no cross-origin requests)
-- **Credentials**: Cookies included in same-origin requests
-- **Headers**: Standard headers + `Content-Type`
+CORS is disabled by default, so only same-origin requests are allowed. Setting the `ALLOWED_ORIGIN` environment variable to an exact origin enables cross-origin access for that origin only:
+- **Origins**: none by default; exactly one allowlisted origin when `ALLOWED_ORIGIN` is set
+- **Methods**: `GET, POST, PUT, DELETE, OPTIONS`
+- **Credentials**: cookies included, both same-origin and for the allowlisted cross-origin case
+- **Headers**: `Content-Type`, `Authorization`, `X-CSRF-Token`
 
 ## Session Management
 

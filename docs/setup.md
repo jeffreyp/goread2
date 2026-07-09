@@ -64,7 +64,7 @@ export STRIPE_PRICE_ID="price_your-price-id"
 go run cmd/setup-stripe/main.go create-product
 ```
 
-For detailed Stripe setup, see [Stripe Setup Guide](STRIPE.md).
+For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 
 ## Installation
 
@@ -118,12 +118,17 @@ For detailed Stripe setup, see [Stripe Setup Guide](STRIPE.md).
 
 **Required:**
 - `GOOGLE_CLIENT_ID` - Google OAuth client ID
-- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret  
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
 - `GOOGLE_REDIRECT_URL` - OAuth redirect URL
+- `CSRF_SECRET` - HMAC secret for CSRF token generation
+
+In production (App Engine), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CSRF_SECRET`, `ADMIN_TOKEN`, and `INITIAL_ADMIN_EMAILS` are not set as plain env vars. They're fetched from Secret Manager at startup (`internal/secrets/secrets.go`) using secret names configured in `app.yaml`; local development still reads them directly from the environment.
 
 **Optional:**
 - `GOOGLE_CLOUD_PROJECT` - Use Google Cloud Datastore (if set)
 - `PORT` - Server port (default: 8080)
+- `ADMIN_TOKEN` - Bearer token for `cmd/admin` CLI authentication
+- `INITIAL_ADMIN_EMAILS` - Comma-separated emails granted admin on first login
 - `STRIPE_SECRET_KEY` - Stripe secret key for payment processing
 - `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key for frontend
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook endpoint secret
@@ -160,7 +165,7 @@ When disabled:
 - **No billing** or payment processing
 - **Simplified UI** without upgrade prompts
 
-See [Feature Flags Guide](FEATURE-FLAGS.md) for complete details.
+See [Feature Flags Guide](feature-flags.md) for complete details.
 
 ## First Run
 
@@ -260,6 +265,6 @@ See [Admin Guide](admin.md) for complete user management.
 ## Next Steps
 
 - Read the [Deployment Guide](deployment.md) for production setup
-- Configure [Stripe payments](STRIPE.md) for subscriptions
+- Configure [Stripe payments](stripe.md) for subscriptions
 - Set up [admin access](admin.md) for user management
-- Review the [API documentation](API.md) for integration
+- Review the [API documentation](api.md) for integration

@@ -49,16 +49,16 @@ All deployment methods require:
 
 ## CI/CD Authentication (GitHub Actions → GCP)
 
-GitHub Actions authenticates to GCP via Workload Identity Federation (WIF) — keyless, no service account JSON key stored in GitHub. This is the foundation for the automated deploy workflows (staging/prod pipelines are tracked separately in the gr-f6v epic); this section documents the trust relationship itself.
+GitHub Actions authenticates to GCP via Workload Identity Federation (WIF): keyless, no service account JSON key stored in GitHub. This is the foundation for the automated deploy workflows (staging/prod pipelines are tracked separately in the gr-f6v epic); this section documents the trust relationship itself.
 
 **Resources created** (one-time setup, project `goread-467200`):
 - Workload Identity Pool: `github-actions-pool` (location `global`)
-- OIDC Provider: `github-provider`, issuer `https://token.actions.githubusercontent.com`, attribute condition restricting it to `assertion.repository == 'jeffreyp/goread2'` — no other repo can assume this identity
-- Service account: `cicd-deploy@goread-467200.iam.gserviceaccount.com`, granted `roles/appengine.deployer`, `roles/cloudbuild.builds.editor`, `roles/storage.admin`, `roles/secretmanager.secretAccessor` at the project level, plus `roles/iam.serviceAccountUser` on `goread-467200@appspot.gserviceaccount.com` specifically (App Engine deploys require the deploying identity to be able to act as the App Engine default service account — easy to miss, deploys fail without it)
-- The pool is bound to the service account via `roles/iam.workloadIdentityUser`, scoped to the `attribute.repository/jeffreyp/goread2` principal set — only workflow runs from this exact repo can impersonate it
-- Two roles were added after this initial grant, each discovered by hitting the missing permission live rather than anticipated up front: `roles/appengine.serviceAdmin` (see the Production Deploys section's "Two real bugs" below — traffic migration between two *different* versions needs more than `appengine.deployer`) and `roles/monitoring.viewer` (see Auto-Rollback below — added 2026-07-05 so the post-promote health watch can read Cloud Monitoring time series)
+- OIDC Provider: `github-provider`, issuer `https://token.actions.githubusercontent.com`, attribute condition restricting it to `assertion.repository == 'jeffreyp/goread2'`; no other repo can assume this identity
+- Service account: `cicd-deploy@goread-467200.iam.gserviceaccount.com`, granted `roles/appengine.deployer`, `roles/cloudbuild.builds.editor`, `roles/storage.admin`, `roles/secretmanager.secretAccessor` at the project level, plus `roles/iam.serviceAccountUser` on `goread-467200@appspot.gserviceaccount.com` specifically (App Engine deploys require the deploying identity to be able to act as the App Engine default service account; easy to miss, deploys fail without it)
+- The pool is bound to the service account via `roles/iam.workloadIdentityUser`, scoped to the `attribute.repository/jeffreyp/goread2` principal set; only workflow runs from this exact repo can impersonate it
+- Two roles were added after this initial grant, each discovered by hitting the missing permission live rather than anticipated up front: `roles/appengine.serviceAdmin` (see the Production Deploys section's "Two real bugs" below: traffic migration between two *different* versions needs more than `appengine.deployer`) and `roles/monitoring.viewer` (see Auto-Rollback below, added 2026-07-05 so the post-promote health watch can read Cloud Monitoring time series)
 
-**GitHub Actions repository variables** (not secrets — the provider path and SA email aren't sensitive on their own):
+**GitHub Actions repository variables** (not secrets; the provider path and SA email aren't sensitive on their own):
 - `WIF_PROVIDER` = `projects/1022472352583/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider`
 - `CICD_SERVICE_ACCOUNT` = `cicd-deploy@goread-467200.iam.gserviceaccount.com`
 
@@ -77,7 +77,7 @@ steps:
   - run: gcloud app deploy ...
 ```
 
-Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow: authenticated successfully and ran `gcloud app describe` as `cicd-deploy@...`. The smoke-test workflow was removed after verification — the real deploy-staging/deploy-prod workflows are separate tracked work.
+Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow: authenticated successfully and ran `gcloud app describe` as `cicd-deploy@...`. The smoke-test workflow was removed after verification; the real deploy-staging/deploy-prod workflows are separate tracked work.
 
 ## Production Approval Gate (GitHub Environment)
 
@@ -86,8 +86,8 @@ A GitHub Environment named `production` provides the human approval gate for pro
 **Configuration** (repo `jeffreyp/goread2`):
 - Environment: `production`
 - Required reviewer: `jeffreyp` (GitHub user id 548089)
-- Deployment branch policy: restricted to `main` only — no other branch can target this environment
-- **Branch protection on `main` was deliberately NOT enabled**, even though the originating issue (gr-onn) asked for it. Jeffrey pushes directly to `main` without PRs; GitHub's required-status-checks branch protection blocks pushes for commits that don't already have a passing check run, which effectively forces a PR-based workflow. Skipped to preserve the existing direct-push workflow — revisit only if the team moves to a PR-based flow.
+- Deployment branch policy: restricted to `main` only; no other branch can target this environment
+- **Branch protection on `main` was deliberately NOT enabled**, even though the originating issue (gr-onn) asked for it. Jeffrey pushes directly to `main` without PRs; GitHub's required-status-checks branch protection blocks pushes for commits that don't already have a passing check run, which effectively forces a PR-based workflow. Skipped to preserve the existing direct-push workflow; revisit only if the team moves to a PR-based flow.
 
 **Usage in a workflow**:
 ```yaml
@@ -99,45 +99,45 @@ jobs:
       - run: gcloud app versions migrate ...
 ```
 
-Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow declaring `environment: production` — the run entered `waiting` status and the Actions API confirmed a pending deployment awaiting review from `jeffreyp`. Cancelled (not approved — approval should always be a real human decision) and the smoke-test workflow removed after verification.
+Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow declaring `environment: production`. The run entered `waiting` status and the Actions API confirmed a pending deployment awaiting review from `jeffreyp`. Cancelled (not approved; approval should always be a real human decision) and the smoke-test workflow removed after verification.
 
 ## Automated Staging Deploys (`.github/workflows/deploy-staging.yml`)
 
-Every push to `main` that passes the `Tests` workflow automatically deploys to App Engine as a new, zero-traffic version — safe to run unattended because of `--no-promote`.
+Every push to `main` that passes the `Tests` workflow automatically deploys to App Engine as a new, zero-traffic version, safe to run unattended because of `--no-promote`.
 
-- **Trigger**: `workflow_run` for the `Tests` workflow, `types: [completed]`, gated on `github.event.workflow_run.conclusion == 'success'` and `branches: [main]` — deploy never runs if CI failed.
+- **Trigger**: `workflow_run` for the `Tests` workflow, `types: [completed]`, gated on `github.event.workflow_run.conclusion == 'success'` and `branches: [main]`; deploy never runs if CI failed.
 - **Version name**: `staging-<short-sha>`, e.g. `staging-a1b2c3d`, deployed with `--no-promote` (no production traffic).
 - **cron.yaml / index.yaml**: only redeployed if changed in that specific commit (`git diff --name-only HEAD~1 HEAD`).
 - **Job summary**: prints the version name and full staging URL (`https://<version>-dot-goread-467200.uc.r.appspot.com`) so a reviewer knows where to click through and test.
-- All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review — see the workflow file's inline `# vX` comments for the corresponding version.
+- All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review; see the workflow file's inline `# vX` comments for the corresponding version.
 - **BUILD_VERSION** is injected into `app.yaml` at deploy time (via `sed`, right before the deploy step) since App Engine standard has no `--set-env-vars` deploy flag and the file has no other templating mechanism.
-- **Cleanup**: after deploying, every other `staging-*` version is deleted, keeping only the one just deployed — `staging-*` versions would otherwise accumulate one per push indefinitely. Restricted to versions with `traffic_split=0`: since `deploy-prod.yml` (below) promotes by migrating traffic directly onto a `staging-<sha>` version rather than redeploying under a new name, an older `staging-<sha>` can be the version currently serving 100% of production traffic — this guard is what stops the very next push from deleting live production.
-- **Smoke check**: immediately after both versions deploy, `scripts/smoke-check.sh` (see below) runs against the `staging-<sha>` URL and fails the job if it doesn't pass — catches a broken deploy before a human ever clicks through it.
-- **Concurrency**: `concurrency: { group: deploy-staging, cancel-in-progress: false }` serializes runs. Back-to-back commits to `main` each spawn their own `Tests` run and therefore their own `deploy-staging` run, with no guarantee the older commit's run finishes first — without this guard, an older commit's run finishing *after* a newer commit's run would delete the newer commit's just-deployed `staging-<sha>` version in the cleanup step above, silently reverting staging. `cancel-in-progress` is `false` rather than `true` because killing a `gcloud app deploy` mid-flight can leave a version half-created, which is worse than a queued run waiting its turn.
+- **Cleanup**: after deploying, every other `staging-*` version is deleted, keeping only the one just deployed; `staging-*` versions would otherwise accumulate one per push indefinitely. Restricted to versions with `traffic_split=0`: since `deploy-prod.yml` (below) promotes by migrating traffic directly onto a `staging-<sha>` version rather than redeploying under a new name, an older `staging-<sha>` can be the version currently serving 100% of production traffic. This guard is what stops the very next push from deleting live production.
+- **Smoke check**: immediately after both versions deploy, `scripts/smoke-check.sh` (see below) runs against the `staging-<sha>` URL and fails the job if it doesn't pass, catching a broken deploy before a human ever clicks through it.
+- **Concurrency**: `concurrency: { group: deploy-staging, cancel-in-progress: false }` serializes runs. Back-to-back commits to `main` each spawn their own `Tests` run and therefore their own `deploy-staging` run, with no guarantee the older commit's run finishes first. Without this guard, an older commit's run finishing *after* a newer commit's run would delete the newer commit's just-deployed `staging-<sha>` version in the cleanup step above, silently reverting staging. `cancel-in-progress` is `false` rather than `true` because killing a `gcloud app deploy` mid-flight can leave a version half-created, which is worse than a queued run waiting its turn.
 
 **Bugs hit and fixed while first bringing this workflow up** (both real, both caught by actually running the pipeline rather than assuming the design was correct):
-1. `$GITHUB_SHA` is **not** the triggering commit for `workflow_run` events — it's whatever the default branch tip happens to be when the job executes. Two runs that fired close together both computed the same `staging-<sha>` name from `$GITHUB_SHA` and collided (`ABORTED: operation already in progress`). Fixed by deriving the short SHA from `github.event.workflow_run.head_sha` instead. Note this was a same-commit name collision — the separate, cross-commit ordering race described in **Concurrency** above wasn't fixed until the `concurrency:` group was added.
-2. The first real deploy 503'd — see the Stripe placeholder note above; `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so any lingering `${VAR}`-style placeholder deploys as a literal, broken string.
+1. `$GITHUB_SHA` is **not** the triggering commit for `workflow_run` events; it's whatever the default branch tip happens to be when the job executes. Two runs that fired close together both computed the same `staging-<sha>` name from `$GITHUB_SHA` and collided (`ABORTED: operation already in progress`). Fixed by deriving the short SHA from `github.event.workflow_run.head_sha` instead. Note this was a same-commit name collision; the separate, cross-commit ordering race described in **Concurrency** above wasn't fixed until the `concurrency:` group was added.
+2. The first real deploy 503'd, see the Stripe placeholder note above; `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so any lingering `${VAR}`-style placeholder deploys as a literal, broken string.
 
 ### Human OAuth Login Testing on Staging (fixed `staging` version)
 
-The production approval gate (gr-euu) requires a human to actually log in and click through the staging UI before promoting — automated smoke checks alone don't prove the UI is usable. But Google OAuth requires an exact, pre-registered redirect URI, and the per-SHA `staging-<sha>` hostname changes on every deploy, so it can never complete a login round-trip.
+The production approval gate (gr-euu) requires a human to actually log in and click through the staging UI before promoting: automated smoke checks alone don't prove the UI is usable. But Google OAuth requires an exact, pre-registered redirect URI, and the per-SHA `staging-<sha>` hostname changes on every deploy, so it can never complete a login round-trip.
 
 To solve this, `deploy-staging.yml` deploys the **same build twice**:
-- `staging-<sha>` (`--no-promote`) — the promotion candidate that `deploy-prod.yml` migrates to production.
-- `staging` (`--no-promote`, fixed name, overwritten on every merge) — exists only so a human has a stable URL to log into: `https://staging-dot-goread-467200.uc.r.appspot.com`.
+- `staging-<sha>` (`--no-promote`): the promotion candidate that `deploy-prod.yml` migrates to production.
+- `staging` (`--no-promote`, fixed name, overwritten on every merge): exists only so a human has a stable URL to log into: `https://staging-dot-goread-467200.uc.r.appspot.com`.
 
 Both redirect URIs are registered on the **same** Google OAuth client (Google Cloud Console → APIs & Services → Credentials → the existing OAuth 2.0 Client ID → Authorized redirect URIs):
 - `https://goreadapp.com/auth/callback` (production, unchanged)
-- `https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback` (staging — **one-time manual console step**, not automatable via this pipeline)
+- `https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback` (staging; **one-time manual console step**, not automatable via this pipeline)
 
-`internal/auth/auth.go` then picks the matching redirect URL per-request based on the incoming `Host` header (`GOOGLE_REDIRECT_URL` for production, `STAGING_REDIRECT_URL` for staging — both set in `app.yaml` and deployed identically to every App Engine version). See [authentication.md](authentication.md#host-aware-redirect-url-staging-support) for the implementation and its security rationale.
+`internal/auth/auth.go` then picks the matching redirect URL per-request based on the incoming `Host` header (`GOOGLE_REDIRECT_URL` for production, `STAGING_REDIRECT_URL` for staging; both set in `app.yaml` and deployed identically to every App Engine version). See [authentication.md](authentication.md#host-aware-redirect-url-staging-support) for the implementation and its security rationale.
 
-**Accepted tradeoff**: staging shares the production Datastore — cron only ever targets the default (production) serving version, and staging writes are intentional reviewer actions on the same binary that's about to be promoted anyway, so catching a data-mutating bug on staging beats catching it in prod. **Caveat**: do not exercise Stripe subscription flows on staging — it shares live Stripe keys and webhooks point at the production domain only.
+**Accepted tradeoff**: staging shares the production Datastore. Cron only ever targets the default (production) serving version, and staging writes are intentional reviewer actions on the same binary that's about to be promoted anyway, so catching a data-mutating bug on staging beats catching it in prod. **Caveat**: do not exercise Stripe subscription flows on staging, since it shares live Stripe keys and webhooks point at the production domain only.
 
 ## Production Deploys (`.github/workflows/deploy-prod.yml`)
 
-Promotes an already-deployed, manually-tested staging version to production. Manual trigger only — never runs automatically.
+Promotes an already-deployed, manually-tested staging version to production. Manual trigger only; never runs automatically.
 
 **Trigger**: `workflow_dispatch` with an optional `version` input. If omitted, defaults to the most recently created `staging-<sha>` version (the fixed `staging` testing version is never a promotion target).
 
@@ -147,58 +147,58 @@ gh workflow run deploy-prod.yml --repo jeffreyp/goread2 -f version=staging-a1b2c
 ```
 
 **Jobs**:
-1. `resolve-version` — figures out which version to promote (default or explicit input) and validates its format. Runs before the approval gate so the reviewer's job summary can show the concrete version, not a placeholder.
-2. `deploy-prod` — declares `environment: production`, pausing for human approval (see the Production Approval Gate section above). After approval: captures whichever version currently holds `traffic_split=1.0` (for the cleanup job and for the record), then runs `gcloud app versions migrate` to shift 100% of traffic to the resolved version.
-3. `cleanup` — deletes stale `prod-*` versions, keeping only the new current one and the captured previous one. Scoped to the legacy `prod-<timestamp>` naming from the old manual `make deploy-prod` path (two such versions exist from before this pipeline existed); going forward, promoted versions are pruned by `deploy-staging.yml`'s own cleanup instead (see above), since they keep their `staging-<sha>` name.
+1. `resolve-version`: figures out which version to promote (default or explicit input) and validates its format. Runs before the approval gate so the reviewer's job summary can show the concrete version, not a placeholder.
+2. `deploy-prod`: declares `environment: production`, pausing for human approval (see the Production Approval Gate section above). After approval: captures whichever version currently holds `traffic_split=1.0` (for the cleanup job and for the record), then runs `gcloud app versions migrate` to shift 100% of traffic to the resolved version.
+3. `cleanup`: deletes stale `prod-*` versions, keeping only the new current one and the captured previous one. Scoped to the legacy `prod-<timestamp>` naming from the old manual `make deploy-prod` path (two such versions exist from before this pipeline existed); going forward, promoted versions are pruned by `deploy-staging.yml`'s own cleanup instead (see above), since they keep their `staging-<sha>` name.
 
-**Critical detail**: this uses `gcloud app versions migrate`, not a redeploy. The exact binary a reviewer clicked through on staging is what serves production — no rebuild step, no chance of drift between what was tested and what ships.
+**Critical detail**: this uses `gcloud app versions migrate`, not a redeploy. The exact binary a reviewer clicked through on staging is what serves production: no rebuild step, no chance of drift between what was tested and what ships.
 
-Immediately after migrating traffic, `scripts/smoke-check.sh` (see below) runs against `https://goreadapp.com` and fails the job if any assertion fails. Unlike the earlier design, this is no longer the last word — see **Auto-Rollback** below for what happens next when it fails.
+Immediately after migrating traffic, `scripts/smoke-check.sh` (see below) runs against `https://goreadapp.com` and fails the job if any assertion fails. Unlike the earlier design, this is no longer the last word; see **Auto-Rollback** below for what happens next when it fails.
 
-**Naming decision (2026-07-05)**: a promoted version keeps its `staging-<sha>` name permanently in production — it is never renamed to `prod-*`. This was a deliberate choice, confirmed with Jeffrey after the first live promotion: App Engine Standard versions are immutable and this app deploys from source (`gcloud app versions describe` shows no pre-built `deployment.container` reference to reuse), so the only way to get a `prod-<timestamp>`-named version live would be to rebuild the same commit under a new name — reintroducing exactly the rebuild step this design exists to avoid, for a purely cosmetic naming benefit. `traffic_split=1.0` is what actually identifies the live production version; the name is not load-bearing anywhere in tooling (`deploy-staging.yml`'s cleanup guard checks `traffic_split=0`, not a name pattern).
+**Naming decision (2026-07-05)**: a promoted version keeps its `staging-<sha>` name permanently in production. It is never renamed to `prod-*`. This was a deliberate choice, confirmed with Jeffrey after the first live promotion: App Engine Standard versions are immutable and this app deploys from source (`gcloud app versions describe` shows no pre-built `deployment.container` reference to reuse), so the only way to get a `prod-<timestamp>`-named version live would be to rebuild the same commit under a new name, reintroducing exactly the rebuild step this design exists to avoid, for a purely cosmetic naming benefit. `traffic_split=1.0` is what actually identifies the live production version; the name is not load-bearing anywhere in tooling (`deploy-staging.yml`'s cleanup guard checks `traffic_split=0`, not a name pattern).
 
 **Two real bugs hit while first bringing this up live** (both invisible until an actual cross-version promotion was attempted, not the same-version no-op that "verified" rollback.yml earlier):
-1. `cicd-deploy`'s original IAM grant (`roles/appengine.deployer` only) doesn't include `appengine.services.update` — required to actually shift traffic between two *different* versions (as opposed to `services.get`/`services.list`, which `deployer` does include). Fixed by granting `roles/appengine.serviceAdmin` to the service account. This also silently affected `rollback.yml` — its "verified live" test only ever migrated a version to itself, which never exercises this permission.
-2. `gcloud app versions migrate` requires the *target* version to have App Engine warmup requests enabled before it can gain traffic from 0% — `INVALID_ARGUMENT: Warmup requests must be enabled for all versions that will gain additional traffic`. Fixed by adding `inbound_services: [warmup]` to `app.yaml` (applies to every version, staging and prod alike) plus a trivial `GET /_ah/warmup` handler in `main.go` that returns 200. Same blind spot as above: a same-version migrate never triggers this check since the target already has traffic.
+1. `cicd-deploy`'s original IAM grant (`roles/appengine.deployer` only) doesn't include `appengine.services.update`, required to actually shift traffic between two *different* versions (as opposed to `services.get`/`services.list`, which `deployer` does include). Fixed by granting `roles/appengine.serviceAdmin` to the service account. This also silently affected `rollback.yml`: its "verified live" test only ever migrated a version to itself, which never exercises this permission.
+2. `gcloud app versions migrate` requires the *target* version to have App Engine warmup requests enabled before it can gain traffic from 0%: `INVALID_ARGUMENT: Warmup requests must be enabled for all versions that will gain additional traffic`. Fixed by adding `inbound_services: [warmup]` to `app.yaml` (applies to every version, staging and prod alike) plus a trivial `GET /_ah/warmup` handler in `main.go` that returns 200. Same blind spot as above: a same-version migrate never triggers this check since the target already has traffic.
 
-Both fixes are load-bearing for `rollback.yml` too, not just this workflow — a real rollback to a previously-deployed (zero-traffic) version would have hit the identical two failures.
+Both fixes are load-bearing for `rollback.yml` too, not just this workflow: a real rollback to a previously-deployed (zero-traffic) version would have hit the identical two failures.
 
-**Concurrency**: `deploy-prod.yml` and `rollback.yml` share one `concurrency: { group: production-deploy, cancel-in-progress: false }` group. Both run `gcloud app versions migrate` against the same production traffic split, so if a rollback were dispatched while a promotion is still mid-flight (e.g. during the 15-minute post-promote health watch), racing `migrate` calls could leave production pointed at either version nondeterministically. The shared group forces one to fully finish — including auto-rollback dispatch, if triggered — before the other starts.
+**Concurrency**: `deploy-prod.yml` and `rollback.yml` share one `concurrency: { group: production-deploy, cancel-in-progress: false }` group. Both run `gcloud app versions migrate` against the same production traffic split, so if a rollback were dispatched while a promotion is still mid-flight (e.g. during the 15-minute post-promote health watch), racing `migrate` calls could leave production pointed at either version nondeterministically. The shared group forces one to fully finish (including auto-rollback dispatch, if triggered) before the other starts.
 
 ## Post-Deploy Smoke Check (`scripts/smoke-check.sh`)
 
-Unauthenticated HTTP assertions run against a base URL after every staging and production deploy (see the two workflow sections above). Exits non-zero — failing the calling workflow job — if any assertion fails.
+Unauthenticated HTTP assertions run against a base URL after every staging and production deploy (see the two workflow sections above). Exits non-zero, failing the calling workflow job, if any assertion fails.
 
 ```bash
 ./scripts/smoke-check.sh https://staging-a1b2c3d-dot-goread-467200.uc.r.appspot.com
 ```
 
 **Assertions:**
-- `GET /` — 200, body contains `GoRead` (app started, templates loaded)
-- `GET /privacy` — 200
-- `GET /api/feeds` — 401 with a JSON error body (auth middleware ran, database responded)
-- `GET /auth/login` — 200 with a JSON `auth_url` pointing at `accounts.google.com` (OAuth config loaded). Note this is a JSON response, not a server-side redirect — the handler hands the URL to the frontend to redirect the browser itself, so there's no `Location` header or 302 to check.
-- `GET /static/js/app.min.js` — 200, `Content-Type: application/javascript` (frontend build present)
-- `GET /static/css/styles.min.css` — 200
-- `Strict-Transport-Security` header present on `/` — only set when `GAE_ENV=standard` (see `internal/middleware/security_headers.go`), so this assertion only passes when run against a real App Engine deployment, not a local dev server
+- `GET /`: 200, body contains `GoRead` (app started, templates loaded)
+- `GET /privacy`: 200
+- `GET /api/feeds`: 401 with a JSON error body (auth middleware ran, database responded)
+- `GET /auth/login`: 200 with a JSON `auth_url` pointing at `accounts.google.com` (OAuth config loaded). Note this is a JSON response, not a server-side redirect; the handler hands the URL to the frontend to redirect the browser itself, so there's no `Location` header or 302 to check.
+- `GET /static/js/app.min.js`: 200, `Content-Type: application/javascript` (frontend build present)
+- `GET /static/css/styles.min.css`: 200
+- `Strict-Transport-Security` header present on `/`: only set when `GAE_ENV=standard` (see `internal/middleware/security_headers.go`), so this assertion only passes when run against a real App Engine deployment, not a local dev server
 - `X-Content-Type-Options: nosniff` header present on `/`
-- `GET /auth/smoke-login` — 404 (confirms no backdoor auth endpoint is enabled)
+- `GET /auth/smoke-login`: 404 (confirms no backdoor auth endpoint is enabled)
 
 ## Auto-Rollback (post-promote safety net)
 
-`gcloud app versions migrate` shifts 100% of traffic immediately — before this safety net existed, a smoke check failure only turned the workflow red; the broken version stayed fully live until a human noticed and manually ran `rollback.yml`. `deploy-prod.yml`'s `deploy-prod` job now closes that gap with two checks, either of which auto-triggers a rollback:
+`gcloud app versions migrate` shifts 100% of traffic immediately. Before this safety net existed, a smoke check failure only turned the workflow red; the broken version stayed fully live until a human noticed and manually ran `rollback.yml`. `deploy-prod.yml`'s `deploy-prod` job now closes that gap with two checks, either of which auto-triggers a rollback:
 
-1. **Smoke check** (`scripts/smoke-check.sh`, see above) — runs immediately after the traffic migration.
-2. **Post-promote health watch** (`scripts/post-promote-health-watch.sh`) — runs immediately after the smoke check passes. Polls Cloud Monitoring every 60s for a 15-minute window (`WATCH_SECONDS=900`, `POLL_INTERVAL_SECONDS=60`), watching the same signals as the six policies in `monitoring/alert-policies.yaml`: 5xx rate, App Engine instance count, Datastore read/write rate, and network egress — plus p95 latency (`appengine.googleapis.com/http/server/response_latencies`), which has no corresponding alert policy today; a 3000ms threshold was chosen as a conservative ~5x multiple of the app's typical baseline (~600ms at the time this was written) and should be revisited if that baseline drifts. Each signal must breach its threshold for that signal's alert-policy `duration` (e.g. 5xx needs 180s sustained, instance count needs 600s) before it counts — a single noisy poll doesn't trigger anything. Queries the Cloud Monitoring REST API directly via `curl` + an access token (`gcloud monitoring time-series list` does not exist as a CLI command, unlike `policies`/`channels`/`dashboards`), since `jq` and `curl` are preinstalled on `ubuntu-latest` and this avoids scripting a second SDK. Because App Engine/Datastore metric ingestion lags real time by a few minutes, each query looks back a fixed 300s window and takes the newest point (`points[0]`, API returns newest-first) rather than a window tied to the poll interval — a narrower lookback came back empty on every poll in testing.
-   - Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com` (granted 2026-07-05; not part of the original WIF setup in the CI/CD Authentication section above, since nothing previously needed to *read* Monitoring data — only alerting policies needed write access).
+1. **Smoke check** (`scripts/smoke-check.sh`, see above): runs immediately after the traffic migration.
+2. **Post-promote health watch** (`scripts/post-promote-health-watch.sh`): runs immediately after the smoke check passes. Polls Cloud Monitoring every 60s for a 15-minute window (`WATCH_SECONDS=900`, `POLL_INTERVAL_SECONDS=60`), watching the same signals as five of the six policies in `monitoring/alert-policies.yaml` (all but Datastore Entity Read Spike): 5xx rate, App Engine instance count, Datastore read/write rate, and network egress, plus p95 latency (`appengine.googleapis.com/http/server/response_latencies`), which has no corresponding alert policy today; a 3000ms threshold was chosen as a conservative ~5x multiple of the app's typical baseline (~600ms at the time this was written) and should be revisited if that baseline drifts. Each signal must breach its threshold for that signal's alert-policy `duration` (e.g. 5xx needs 180s sustained, instance count needs 600s) before it counts; a single noisy poll doesn't trigger anything. Queries the Cloud Monitoring REST API directly via `curl` + an access token (`gcloud monitoring time-series list` does not exist as a CLI command, unlike `policies`/`channels`/`dashboards`), since `jq` and `curl` are preinstalled on `ubuntu-latest` and this avoids scripting a second SDK. Because App Engine/Datastore metric ingestion lags real time by a few minutes, each query looks back a fixed 300s window and takes the newest point (`points[0]`, API returns newest-first) rather than a window tied to the poll interval, since a narrower lookback came back empty on every poll in testing.
+   - Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com` (granted 2026-07-05; not part of the original WIF setup in the CI/CD Authentication section above, since nothing previously needed to *read* Monitoring data (only alerting policies needed write access).
 
-**On failure of either check**: the job dispatches `rollback.yml` via `gh workflow run rollback.yml -f version=$PREVIOUS_VERSION` (the version captured as live *before* this promotion, from the same `deploy-prod` job), fails loudly with a `::error::` annotation and a job summary entry, and does not attempt to wait for the rollback to complete — check the Actions tab for its progress. Requires `actions: write` on the job's `GITHUB_TOKEN` (added as a job-level `permissions` override, since the workflow-level default is `contents: read` / `id-token: write` only). If no previous version was captured (e.g. a first-ever promotion with nothing yet live), auto-rollback is skipped with an error instructing manual intervention — there is nothing to roll back to.
+**On failure of either check**: the job dispatches `rollback.yml` via `gh workflow run rollback.yml -f version=$PREVIOUS_VERSION` (the version captured as live *before* this promotion, from the same `deploy-prod` job), fails loudly with a `::error::` annotation and a job summary entry, and does not attempt to wait for the rollback to complete; check the Actions tab for its progress. Requires `actions: write` on the job's `GITHUB_TOKEN` (added as a job-level `permissions` override, since the workflow-level default is `contents: read` / `id-token: write` only). If no previous version was captured (e.g. a first-ever promotion with nothing yet live), auto-rollback is skipped with an error instructing manual intervention, since there is nothing to roll back to.
 
 This is a safety net, not a replacement for watching the deploy: the health watch adds up to 15 minutes to every production promotion, and a human should still confirm the rollback (once dispatched) actually restored service.
 
 ## Rollback (`.github/workflows/rollback.yml`)
 
-One-click rollback — shifts 100% of production traffic to a previously-deployed version instantly, without needing local `gcloud` credentials.
+One-click rollback: shifts 100% of production traffic to a previously-deployed version instantly, without needing local `gcloud` credentials.
 
 **Finding available version names:**
 ```bash
@@ -206,15 +206,17 @@ gcloud app versions list --service=default --project=goread-467200 \
   --format="table(version.id,traffic_split,version.createTime)" \
   --sort-by="~version.createTime"
 ```
-Look for a `prod-*` version with `traffic_split: 0.00` from before the bad deploy — that's your rollback target. (`staging-*` versions are promotion candidates only and were never meant to serve production traffic; don't roll back to one.)
+Look for the `staging-<sha>` version with `traffic_split: 0.00` from before the bad deploy, per the [naming decision](#automated-staging-deploys-githubworkflowsdeploy-stagingyml) above, that's your rollback target. There are no `prod-*` versions anymore except two legacy ones left over from before this pipeline existed.
 
 **Triggering a rollback:**
 ```bash
-gh workflow run rollback.yml --repo jeffreyp/goread2 -f version=prod-20260628t144643
+gh workflow run rollback.yml --repo jeffreyp/goread2 -f version=staging-a1b2c3d
 ```
 Or via the GitHub Actions UI: Actions → Rollback → Run workflow, entering the version name.
 
 The workflow authenticates via the same WIF setup as deploy-staging, runs `gcloud app versions migrate VERSION --service=default`, and prints a confirmation with the version name to the job summary. This is instant (no rebuild) since it's re-pointing traffic at an already-deployed artifact.
+
+**Known gap**: `rollback.yml`'s own "capture currently-live version" and "delete stale versions" steps still filter on `version.id:prod-*`, which no longer matches anything post-promotion (see the naming decision above). The migrate step itself works regardless, since it targets whatever version you pass in, but the workflow's internal cleanup is currently a no-op for `staging-<sha>`-named versions.
 
 ## Google App Engine (Recommended)
 
@@ -226,7 +228,7 @@ The workflow authenticates via the same WIF setup as deploy-staging, runs `gclou
 
 **CSRF_SECRET, ADMIN_TOKEN, INITIAL_ADMIN_EMAILS, and the four Stripe variables** all follow the same pattern as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`: fetched from Secret Manager at runtime (secret names `csrf-secret`, `admin-token`, `initial-admin-emails`, `stripe-secret-key`, `stripe-publishable-key`, `stripe-webhook-secret`, `stripe-price-id`) and absent from `app.yaml` entirely.
 
-The Stripe placeholders were removed 2026-07-04 while debugging why the first automated staging deploy (gr-rfd) 503'd: `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so the old `${STRIPE_SECRET_KEY}`-style placeholders were being deployed as literal, unresolved strings — `secrets.GetStripeCredentials()` read that literal garbage from the env var (non-empty, so it never fell through to Secret Manager) and failed config validation. Same root cause `make substitute-secrets` existed to paper over for manual deploys. `app.yaml` now has zero `${VAR}` placeholders; the manual `make deploy-dev`/`deploy-prod`/`substitute-secrets` Makefile targets were removed once the GitHub Actions pipeline (staging/prod deploy workflows documented above) fully replaced them — see [Deployment Steps](#deployment-steps) below.
+The Stripe placeholders were removed 2026-07-04 while debugging why the first automated staging deploy (gr-rfd) 503'd: `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so the old `${STRIPE_SECRET_KEY}`-style placeholders were being deployed as literal, unresolved strings. `secrets.GetStripeCredentials()` read that literal garbage from the env var (non-empty, so it never fell through to Secret Manager) and failed config validation. Same root cause `make substitute-secrets` existed to paper over for manual deploys. `app.yaml` now has zero `${VAR}` placeholders; the manual `make deploy-dev`/`deploy-prod`/`substitute-secrets` Makefile targets were removed once the GitHub Actions pipeline (staging/prod deploy workflows documented above) fully replaced them; see [Deployment Steps](#deployment-steps) below.
 
 #### Setting up Google Secret Manager
 
@@ -284,35 +286,22 @@ The Stripe placeholders were removed 2026-07-04 while debugging why the first au
 
 ### app.yaml Configuration
 
-**Option 1: Using Secret Manager References (Recommended)**
+This is the actual production `app.yaml`. It carries no OAuth or Stripe values at all, only the Secret Manager secret *names* to look up; `CSRF_SECRET`, `ADMIN_TOKEN`, `INITIAL_ADMIN_EMAILS`, and the four Stripe variables aren't listed here because they're fetched from Secret Manager under fixed default names with no `app.yaml` entry needed at all (see the Secret Reference Convention note above).
+
 ```yaml
-runtime: go124
+runtime: go125
 
 env_variables:
   GIN_MODE: release
-  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-  GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
+  GOOGLE_REDIRECT_URL: "https://goreadapp.com/auth/callback"
+  STAGING_REDIRECT_URL: "https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback"
+  GOOGLE_CLOUD_PROJECT: "goread-467200"
+  SECRET_CLIENT_ID_NAME: "google-client-id"
+  SECRET_CLIENT_SECRET_NAME: "google-client-secret"
   SUBSCRIPTION_ENABLED: "true"
-  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
-  STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
-  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
-  STRIPE_PRICE_ID: ${STRIPE_PRICE_ID}
 ```
-`CSRF_SECRET`, `ADMIN_TOKEN`, and `INITIAL_ADMIN_EMAILS` are intentionally absent — they're fetched directly from Secret Manager at runtime with no placeholder needed (see the Secret Reference Convention note above).
 
-**Option 2: Direct Secret Manager Integration**
-```yaml
-runtime: go124
-
-env_variables:
-  GIN_MODE: release
-  GOOGLE_REDIRECT_URL: "https://your-app.appspot.com/auth/callback"
-  SUBSCRIPTION_ENABLED: "true"
-
-# Secrets are automatically injected by App Engine from Secret Manager
-# when using the same names as environment variables
-```
+`SECRET_CLIENT_ID_NAME`/`SECRET_CLIENT_SECRET_NAME` override which Secret Manager secret name to fetch the OAuth credentials from; omit them to fall back to the defaults `google-client-id`/`google-client-secret`.
 
 **Option 3: Manual Configuration (Less Secure)**
 ```yaml
@@ -340,7 +329,7 @@ handlers:
   script: auto
   secure: always
 
-instance_class: F2  # 512MB RAM - good balance of cost and performance
+instance_class: F1  # 256MB RAM - cost-optimized
 
 automatic_scaling:
   min_instances: 0
@@ -351,15 +340,32 @@ automatic_scaling:
 
 ```yaml
 cron:
-- description: "Refresh RSS feeds for all users"
-  url: /api/feeds/refresh
-  schedule: every 1 hours
+- description: "Refresh RSS feeds"
+  url: /cron/refresh-feeds
+  schedule: every 2 hours
   target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3
 
-- description: "Clean up expired sessions"
-  url: /auth/cleanup
-  schedule: every 1 hours
+- description: "Cleanup expired sessions"
+  url: /cron/cleanup-sessions
+  schedule: every 24 hours
   target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3
+
+- description: "Cleanup orphaned user articles"
+  url: /cron/cleanup-orphaned-articles
+  schedule: every 24 hours
+  target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3
 ```
 
 ### Deployment Steps
@@ -369,7 +375,7 @@ cron:
    `https://your-app.appspot.com/auth/callback`
 
 2. **Set up secrets in Google Secret Manager:**
-   `app.yaml` has no `${VAR}` placeholders — every credential (OAuth, CSRF, admin, Stripe) is fetched from Secret Manager at runtime. See [Setting up Google Secret Manager](#setting-up-google-secret-manager) above to create the secrets once per project.
+   `app.yaml` has no `${VAR}` placeholders; every credential (OAuth, CSRF, admin, Stripe) is fetched from Secret Manager at runtime. See [Setting up Google Secret Manager](#setting-up-google-secret-manager) above to create the secrets once per project.
 
 3. **Initialize App Engine:**
    ```bash
@@ -377,9 +383,9 @@ cron:
    ```
 
 4. **Deploy:**
-   There is no manual deploy command — deploys happen through the GitHub Actions pipeline described earlier in this doc:
+   There is no manual deploy command; deploys happen through the GitHub Actions pipeline described earlier in this doc:
    - Push to `main` → `deploy-staging.yml` automatically deploys a zero-traffic `staging-<sha>` version and runs `cron.yaml`/`index.yaml` if they changed (see [Automated Staging Deploys](#automated-staging-deploys-githubworkflowsdeploy-stagingyml)).
-   - Click through the staging URL, then promote with `gh workflow run deploy-prod.yml` (see [Production Deploys](#production-deploys-githubworkflowsdeploy-prodyml)) — this pauses for human approval, migrates traffic, then runs the smoke check and 15-minute health watch automatically.
+   - Click through the staging URL, then promote with `gh workflow run deploy-prod.yml` (see [Production Deploys](#production-deploys-githubworkflowsdeploy-prodyml)); this pauses for human approval, migrates traffic, then runs the smoke check and 15-minute health watch automatically.
    - To roll back, see [Rollback](#rollback-githubworkflowsrollbackyml).
 
 5. **Verify deployment:**
@@ -759,7 +765,6 @@ artillery quick --count 10 --num 50 https://your-domain.com
 
 ## Next Steps
 
-- Configure [Stripe payments](STRIPE.md) for subscription features
+- Configure [Stripe payments](stripe.md) for subscription features
 - Set up [monitoring and logging](monitoring.md) for production
 - Review [security best practices](security.md)
-- Plan [backup and recovery](backup.md) procedures

@@ -153,9 +153,10 @@ This reduces per-user costs by approximately $6-12/month, making the $2.99/month
 **Purpose:** Avoid expensive COUNT queries on every page load
 
 **Implementation:**
-- In-memory cache with 90-second TTL
+- In-memory cache with 5-minute TTL
 - Incremental updates when marking articles read/unread
 - Thread-safe with sync.RWMutex
+- Bounded to 10,000 users, with a periodic background sweep for expired entries
 
 **Benefits:**
 - ~70% reduction in count queries
@@ -206,9 +207,14 @@ See [caching.md](caching.md) for details.
    - Reduces database round trips
 
 4. **Cache expensive queries**
-   - Unread counts (90s TTL)
+   - Unread counts (5min TTL)
    - Feed lists (20min TTL)
    - Automatic invalidation on changes
+   - Both caches are size-bounded with eviction; see [caching.md](caching.md#cache-design-principles) for limits and eviction behavior
+
+5. **Log slow queries**
+   - Datastore operations exceeding 200ms are logged as warnings (`internal/database/datastore.go`, `logSlowQuery`)
+   - SQLite path has no equivalent slow-query logging today
 
 ### Query Optimization Examples
 
@@ -265,11 +271,9 @@ Enable detailed logging for cost analysis:
 
 ## Future Optimization Opportunities
 
-Several P1 and P2 optimizations remain in the Beads issue tracker:
+Remaining optimizations are tracked in the Beads issue tracker:
 
-1. **Increase unread cache TTL** (P1) - From 90s to 5-10 minutes
-2. **Cloud Monitoring dashboards** (P2) - Better visibility into costs
-3. **Keys-only queries** (P2) - Where full entities not needed
+1. **Keys-only queries** (P2) - Where full entities not needed
 
 Run `bd ready` to see all available optimization issues.
 
@@ -292,10 +296,9 @@ go tool pprof mem.prof
 ```bash
 # Test concurrent user operations
 go test ./test/integration -run TestConcurrentUserOperations
-
-# Test feed refresh performance
-go test ./test/integration -run TestPerformanceBaseline
 ```
+
+Timing-based performance checks now live as Go benchmarks (`BenchmarkGetUserArticlesPaginatedFirstPage`, `BenchmarkGetUserUnreadCounts`, etc. in `internal/database/schema_bench_test.go`) rather than a single integration test, and are gated in CI by a dedicated `benchmark` job. See [testing.md](testing.md#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) for details.
 
 ## Deployment Considerations
 

@@ -131,8 +131,8 @@ Webhooks notify your application when subscription events occur.
      - `customer.subscription.created`
      - `customer.subscription.updated`
      - `customer.subscription.deleted`
-     - `invoice.payment_succeeded`
-     - `invoice.payment_failed`
+
+   These are the only events `internal/handlers/payment_handler.go` handles; sending others is harmless but they won't trigger any action.
 
 2. **Copy the webhook secret** and set as `STRIPE_WEBHOOK_SECRET`
 
@@ -243,11 +243,9 @@ STRIPE_SECRET_KEY=sk_...
 STRIPE_PUBLISHABLE_KEY=pk_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_PRICE_ID=price_...
-
-# Optional - Subscription behavior
-FREE_TRIAL_DAYS=30          # Default: 30 days
-FREE_TRIAL_FEED_LIMIT=20    # Default: 20 feeds
 ```
+
+The 30-day trial length and 20-feed free-tier limit are not configurable via environment variables. They're compile-time constants (`internal/services/subscription_service.go`'s `FreeTrialFeedLimit`, and a hardcoded 30-day offset in the database layer), so changing them requires a code change.
 
 ### Product Configuration
 

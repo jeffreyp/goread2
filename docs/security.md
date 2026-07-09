@@ -38,7 +38,7 @@ go run cmd/admin/main.go grant-months user@example.com 12
 
 Authenticated admin endpoints are available for safer admin operations:
 
-- `GET /admin/users` - List all users (requires admin auth)
+- `GET /admin/users` - Not yet implemented; returns `501` with a note to use the CLI instead
 - `GET /admin/users/:email` - Get user information
 - `POST /admin/users/:email/admin` - Set admin status
 - `POST /admin/users/:email/free-months` - Grant free months
@@ -49,7 +49,7 @@ Authenticated admin endpoints are available for safer admin operations:
 curl -X POST "https://yourdomain.com/admin/users/user@example.com/admin" \
   -H "Content-Type: application/json" \
   -d '{"is_admin": true}' \
-  -b "session_cookie=your_session"
+  -b "session_id=your_session"
 ```
 
 ### Initial Admin Setup
@@ -121,7 +121,7 @@ SUBSCRIPTION_ENABLED=false  # Set to true for paid features
 - **Secure cookies** - Automatically enabled in production (App Engine and ENVIRONMENT=production)
 - **HTTP-only cookies** - Prevents XSS attacks from accessing session tokens
 - **SameSite protection** - Lax mode prevents CSRF attacks via cross-site requests
-- **Automatic cleanup** - Expired sessions are cleaned up hourly
+- **Automatic cleanup** - Expired sessions are cleaned up every 24 hours by the `/cron/cleanup-sessions` cron job (not an in-process timer)
 - **Environment isolation** - Separate cookie names for local and production environments prevent authentication conflicts
 
 #### Environment-Specific Cookies
@@ -200,6 +200,7 @@ Protection against brute force and DoS attacks:
 
 - **Auth endpoints** (`/auth/*`) - 10 requests/second, burst of 20
 - **API endpoints** (`/api/*`) - 30 requests/second, burst of 50
+- **Webhook endpoint** (`/webhooks/stripe`) - 5 requests/second, burst of 10
 - **IP-based tracking** - Each client IP has independent limits
 - **Automatic cleanup** - Old IP entries cleaned up hourly
 
@@ -209,6 +210,15 @@ Protection against brute force and DoS attacks:
 - **URL validation** - Feed URLs are validated before processing
 - **Request size limits** - File uploads limited to 10MB
 - **SQL injection prevention** - All database queries use parameterized statements
+- **OPML bomb protection** - OPML import rejects documents nesting deeper than 50 levels or containing more than 50,000 XML elements (`internal/services/feed_service.go`), preventing XML-bomb-style denial of service
+
+### Cross-Origin Requests
+
+CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_ORIGIN` to an exact origin allows that single origin to make credentialed cross-origin requests (`GET, POST, PUT, DELETE, OPTIONS`, headers `Content-Type, Authorization, X-CSRF-Token`); any other origin, or no `ALLOWED_ORIGIN` at all, gets no CORS headers and falls back to the browser's same-origin policy.
+
+### Request Tracing
+
+401/403 responses from `RequireAuth`/`RequireAdmin` include a `request_id` field, sourced from `X-Cloud-Trace-Context` (set by App Engine) or `X-Request-ID`, falling back to a random value. Use it to correlate a client-reported auth failure with server logs.
 
 ### Endpoint Protection
 
@@ -218,7 +228,7 @@ Protection against brute force and DoS attacks:
 
 ### Regression Test Coverage
 
-`test/security/` is the consolidated, CI-gated regression suite for the controls above — CSRF token enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and free-trial feed-limit enforcement. It runs as a blocking step in the `security` job in `.github/workflows/test.yml`, separate from the advisory `govulncheck` scan. See [testing.md](testing.md#cicd-integration) for details.
+`test/security/` is the consolidated, CI-gated regression suite for the controls above: CSRF token enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and free-trial feed-limit enforcement. It runs as a blocking step in the `security` job in `.github/workflows/test.yml`, separate from the advisory `govulncheck` scan. See [testing.md](testing.md#cicd-integration) for details.
 
 ### Audit & Monitoring
 
@@ -381,7 +391,7 @@ This release addressed five critical security vulnerabilities and implemented co
 **Backend Documentation:**
 1. **docs/security.md** - Added comprehensive security feature documentation (this file)
 2. **docs/admin.md** - Added admin token security system details
-3. **docs/API.md** - Updated with CSRF requirements and rate limiting info
+3. **docs/api.md** - Updated with CSRF requirements and rate limiting info
 4. **test/helpers/http.go** - Updated test helpers to support CSRF
 
 **Frontend Implementation:**

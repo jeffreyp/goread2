@@ -41,7 +41,7 @@ This minimal dashboard tracks the only 3 operational metrics available for App E
 
 1. **App Engine Instance Count** - Number of running instances (instance-hours = primary cost driver)
    - Cost: Varies by instance class (F1/F2/F4/F4_1G)
-   - Your config: 1 CPU, 0.5GB RAM
+   - Your config: F1, 256MB RAM
 
 2. **Network Egress** - Outbound bandwidth usage
    - Cost: $0.12/GB (after free tier of 1GB/day)
@@ -157,13 +157,13 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes six policies
 
 ## Post-Promote Health Watch (a second consumer of these signals)
 
-`scripts/post-promote-health-watch.sh`, invoked from `deploy-prod.yml` after every production promotion (see [deployment.md](deployment.md#auto-rollback-post-promote-safety-net)), polls the same five signals as policies 1, 2, 3, 4, and 6 above directly via the Cloud Monitoring REST API — plus p95 latency, which has no alert policy of its own. It mirrors each policy's filter, aligner, reducer, threshold, and duration so the two stay in sync; if you change a threshold or duration here, update the script's matching `THRESHOLD`/`DURATION_SECONDS` entries too; they are not read from `alert-policies.yaml` at runtime.
+`scripts/post-promote-health-watch.sh`, invoked from `deploy-prod.yml` after every production promotion (see [deployment.md](deployment.md#auto-rollback-post-promote-safety-net)), polls the same five signals as policies 1, 2, 3, 4, and 6 above directly via the Cloud Monitoring REST API, plus p95 latency, which has no alert policy of its own. It mirrors each policy's filter, aligner, reducer, threshold, and duration so the two stay in sync; if you change a threshold or duration here, update the script's matching `THRESHOLD`/`DURATION_SECONDS` entries too; they are not read from `alert-policies.yaml` at runtime.
 
-This is a separate mechanism from the alert policies, not a replacement: alert policies page a human at any time via the notification channel below; the health watch only runs in the ~15-minute window right after a promotion and auto-triggers `rollback.yml` on its own. Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com` (added 2026-07-05) — the alert policies never needed this since they're evaluated by GCP itself, not queried by a workflow.
+This is a separate mechanism from the alert policies, not a replacement: alert policies page a human at any time via the notification channel below; the health watch only runs in the ~15-minute window right after a promotion and auto-triggers `rollback.yml` on its own. Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com` (added 2026-07-05); the alert policies never needed this since they're evaluated by GCP itself, not queried by a workflow.
 
 ## Billing Budget
 
-Unlike the alert policies above (which track operational proxies — Datastore ops, egress, instance count — because the Monitoring API can't see actual billing data), a Cloud Billing Budget is a hard dollar-based backstop that Google computes independently from real invoiced spend.
+Unlike the alert policies above (which track operational proxies, such as Datastore ops, egress, and instance count, because the Monitoring API can't see actual billing data), a Cloud Billing Budget is a hard dollar-based backstop that Google computes independently from real invoiced spend.
 
 **Current configuration**: `GoRead2 Monthly Budget`, $20/month, calendar-month period, scoped to `projects/goread-467200` only. Alerts fire at 50%, 80%, and 100% of spend via the same email channel used by the operational alerts (`projects/goread-467200/notificationChannels/5854116738752263410`), plus GCP's default IAM recipients (billing account admins).
 
@@ -173,7 +173,7 @@ gcloud billing budgets list --billing-account=016C57-9F50ED-4C680E
 gcloud billing budgets update BUDGET_ID --billing-account=016C57-9F50ED-4C680E --budget-amount=NEW_AMOUNTUSD
 ```
 
-**Note**: the billing account also has a pre-existing `$10 Monthly Budget Alert` (thresholds 50/90/100/150%) that predates this setup and was not created as part of this work — review whether to keep both or consolidate.
+**Note**: the billing account also has a pre-existing `$10 Monthly Budget Alert` (thresholds 50/90/100/150%) that predates this setup and was not created as part of this work. Review whether to keep both or consolidate.
 
 ### Customizing Alert Thresholds
 
@@ -227,7 +227,7 @@ The dashboard will be created in Cloud Monitoring. If it already exists, update 
 
 **Current state**: all 6 policies are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
 
-**Unrelated pre-existing alert, disabled**: the project also had a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`), likely a GCP console/suggested default predating this setup. It compared live traffic against a *forecasted* baseline and fired on a 100% increase — since this app's baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run, any normal cron burst looked like an "infinite % increase" and triggered it every cycle. It went unnoticed until the notification channel above was attached (2026-07-03), at which point it started emailing every ~2 hours for entirely routine cron activity. Disabled via `gcloud alpha monitoring policies update ... --no-enabled` — the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) already covers this signal without the false-positive-prone forecast comparison.
+**Unrelated pre-existing alert, disabled**: the project also had a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`), likely a GCP console/suggested default predating this setup. It compared live traffic against a *forecasted* baseline and fired on a 100% increase. Since this app's baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run, any normal cron burst looked like an "infinite % increase" and triggered it every cycle. It went unnoticed until the notification channel above was attached (2026-07-03), at which point it started emailing every ~2 hours for entirely routine cron activity. Disabled via `gcloud alpha monitoring policies update ... --no-enabled`; the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) already covers this signal without the false-positive-prone forecast comparison.
 
 #### Step 1: Set Up Notification Channels
 
@@ -258,38 +258,33 @@ gcloud alpha monitoring channels list
 # Install alpha components if needed
 gcloud components install alpha
 
-# gcloud alpha monitoring policies create only accepts ONE policy per invocation —
+# gcloud alpha monitoring policies create only accepts ONE policy per invocation;
 # the multi-document YAML (separated by ---) must be split into per-policy files first
 # and each created individually. To update an already-deployed policy instead of
 # creating a duplicate, use:
 gcloud alpha monitoring policies update POLICY_NAME --add-notification-channels=CHANNEL_ID
 ```
 
-**Gotcha hit during initial deploy**: `alertStrategy.autoClose` has a 30-minute (`"1800s"`) minimum — the original "High HTTP Error Rate" policy specified `"900s"` (15 minutes) and was rejected by the API until corrected.
+**Gotcha hit during initial deploy**: `alertStrategy.autoClose` has a 30-minute (`"1800s"`) minimum. The original "High HTTP Error Rate" policy specified `"900s"` (15 minutes) and was rejected by the API until corrected.
 
 ### Alternative: Use Deployment Scripts
 
-If you have existing deployment scripts:
-
 ```bash
-# Deploy dashboard (if script exists)
+# Deploy dashboard
 ./monitoring/deploy-dashboard.sh
 
-# Deploy alerting policies (if script exists)
+# Deploy alerting policies
 ./monitoring/deploy-alerts.sh
 ```
+
+**Known gap**: `monitoring/deploy-alerts.sh` still points at `monitoring/alerting-policies.json`, an older policy file (November 2025) that predates the six policies in `monitoring/alert-policies.yaml` described above. The currently-deployed policies were created manually via the Step 3 `gcloud alpha monitoring policies` commands, not via this script. Running `make deploy-monitoring-alerts` today would deploy the stale JSON policy set, not the live one. Treat the script as unmaintained until it's repointed at `alert-policies.yaml`.
 
 ### Makefile Targets
 
 ```bash
-# Deploy dashboard (if Makefile target exists)
-make deploy-monitoring-dashboard
-
-# Deploy alerting policies (if Makefile target exists)
-make deploy-monitoring-alerts
-
-# Deploy both (if Makefile target exists)
-make deploy-monitoring
+make deploy-monitoring-dashboard  # ./monitoring/deploy-dashboard.sh
+make deploy-monitoring-alerts     # ./monitoring/deploy-alerts.sh (see known gap above)
+make deploy-monitoring            # both
 ```
 
 ## Viewing Metrics
@@ -304,8 +299,8 @@ make deploy-monitoring
 The alert thresholds are configured for moderate usage. You may need to adjust them based on your actual traffic patterns:
 
 1. Monitor the dashboard for a few days to establish baseline metrics
-2. Edit `monitoring/alerting-policies.json` to update thresholds
-3. Redeploy with `./monitoring/deploy-alerts.sh`
+2. Edit `monitoring/alert-policies.yaml` to update thresholds
+3. Redeploy the changed policy with `gcloud alpha monitoring policies update POLICY_NAME ...` (see [Step 3](#step-3-deploy-alerts) above), not `deploy-alerts.sh`, which targets the stale JSON file
 
 Recommended adjustments:
 - Increase thresholds if you get too many false positives
@@ -322,7 +317,7 @@ While the dashboard shows operational metrics, you can estimate costs using:
 - Storage: $0.108 per GB/month
 
 ### App Engine Costs
-- Instance hours vary by instance class (configured: 1 CPU, 0.5GB RAM)
+- Instance hours vary by instance class (configured: F1, 256MB RAM)
 - Bandwidth: $0.12 per GB (first 1GB free per day)
 
 ### Example Calculation
@@ -354,21 +349,7 @@ To update the dashboard configuration:
    ```
 
 ### Alert Policy Updates
-To update alerting policies:
-
-1. Edit `monitoring/alerting-policies.json`
-2. List existing policies to find the one to update:
-   ```bash
-   gcloud alpha monitoring policies list
-   ```
-3. Delete the old policy:
-   ```bash
-   gcloud alpha monitoring policies delete POLICY_ID
-   ```
-4. Redeploy:
-   ```bash
-   ./monitoring/deploy-alerts.sh
-   ```
+To update alerting policies, edit `monitoring/alert-policies.yaml` and push the change with `gcloud alpha monitoring policies update` as described in [Updating Thresholds](#updating-thresholds) above. Don't use `monitoring/deploy-alerts.sh`; it deploys the stale `monitoring/alerting-policies.json` file, not the live policy set.
 
 ## Troubleshooting
 

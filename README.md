@@ -80,7 +80,7 @@ make validate-build    # Validate config + build frontend + build app
 make clean             # Remove all build artifacts
 ```
 
-Deployment is automated via GitHub Actions, not the Makefile — see [docs/deployment.md](docs/deployment.md).
+Deployment is automated via GitHub Actions, not the Makefile. See [docs/deployment.md](docs/deployment.md).
 
 ## 📚 Documentation
 
@@ -121,9 +121,13 @@ The interface features three main sections:
 
 - `j/k` - Navigate articles up/down
 - `o/Enter` - Open article in new tab
+- `v` - Open article in place (current tab)
 - `m` - Toggle read/unread status
 - `s` - Star/unstar article
 - `r` - Refresh all feeds
+- `u` - Refresh the current feed
+- `a` - Mark all articles as read
+- `?` - Open help
 
 ## 🔒 Security & Privacy
 

@@ -540,8 +540,8 @@ bd search "keyword"
 
 ```
 .beads/
-├── issues.jsonl      # Issue data — committed to git
-└── goread2.db        # SQLite database — gitignored
+├── issues.jsonl      # Issue data, committed to git
+└── goread2.db        # SQLite database, gitignored
 ```
 
 ## Issue Reporting

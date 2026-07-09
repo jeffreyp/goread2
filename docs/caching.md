@@ -31,7 +31,7 @@ Files that rarely change:
 
 ## Implementation
 
-The caching middleware is dead simple (main.go:122-133):
+The caching middleware is dead simple (main.go:157-166):
 
 ```go
 r.Use(func(c *gin.Context) {
@@ -101,7 +101,7 @@ To reduce database costs (especially for Google Cloud Datastore), we implement s
 
 ## Caches in Use
 
-### 1. Unread Count Cache (90 seconds TTL)
+### 1. Unread Count Cache (5 minutes TTL)
 
 **Purpose:** Cache per-user unread article counts to avoid repeated database queries.
 
@@ -111,8 +111,9 @@ To reduce database costs (especially for Google Cloud Datastore), we implement s
 - Caches unread counts per user and feed
 - **Incremental updates:** When marking articles read/unread, the cache is updated instantly
 - Automatically invalidated on subscribe/unsubscribe operations
-- TTL: 90 seconds
-- **Max size:** 10,000 users (configured in `feed_service.go`). When full, the entry closest to expiry is evicted to make room for a new user (LRE — least-recently-expiring eviction).
+- TTL: 5 minutes
+- **Max size:** 10,000 users (configured in `feed_service.go`). When full, the entry closest to expiry is evicted to make room for a new user.
+- **Background cleanup:** `Start(ctx)` runs a periodic sweep that drops expired entries; `FeedService.Start(ctx)` calls it, wired from `main.go` so cleanup stops cleanly on shutdown.
 
 **Benefits:**
 - Avoids expensive COUNT queries on every page load
@@ -151,6 +152,7 @@ return counts, err
 - Automatically invalidated when users subscribe/unsubscribe
 - TTL: 20 minutes
 - **Max size:** 50,000 feeds (configured in `feed_service.go`). If the feed list exceeds this limit, `Set` is a no-op and the cache is bypassed.
+- **Background cleanup:** like the unread cache, `Start(ctx)` runs a periodic sweep and is wired into `FeedService.Start(ctx)` for graceful shutdown.
 
 **Benefits:**
 - Reduces GetAllUserFeeds() queries from 48/day to ~3/day

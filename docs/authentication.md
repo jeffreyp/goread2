@@ -109,7 +109,7 @@ On each authenticated request:
 
 ### Session Cleanup
 
-Expired sessions are automatically cleaned up every hour by a background goroutine.
+Expired sessions are removed by the `/cron/cleanup-sessions` endpoint (`AuthHandler.CleanupExpiredSessions`), triggered every 24 hours by `cron.yaml`, not a background goroutine. Running cleanup as a cron job rather than an in-process timer avoids keeping an otherwise-idle App Engine instance alive just to fire a periodic goroutine.
 
 ## Environment Isolation
 
@@ -210,7 +210,7 @@ GOOGLE_CLIENT_ID="your-client-id"
 GOOGLE_CLIENT_SECRET="your-client-secret"
 GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
 
-# Optional: fixed staging redirect URL (production App Engine deploys only — see below)
+# Optional: fixed staging redirect URL (production App Engine deploys only, see below)
 STAGING_REDIRECT_URL="https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback"
 
 # Optional: Force production mode
@@ -219,15 +219,15 @@ ENVIRONMENT="production"
 
 ### Host-Aware Redirect URL (staging support)
 
-Google OAuth requires the `redirect_uri` used in both the auth request and the token exchange to exactly match a URI pre-registered on the OAuth client. App Engine's per-SHA staging versions (`staging-<sha>-dot-...`) get a new hostname on every deploy, so they can never complete a login round-trip — Google would reject an unregistered redirect URI.
+Google OAuth requires the `redirect_uri` used in both the auth request and the token exchange to exactly match a URI pre-registered on the OAuth client. App Engine's per-SHA staging versions (`staging-<sha>-dot-...`) get a new hostname on every deploy, so they can never complete a login round-trip: Google would reject an unregistered redirect URI.
 
-To let a human reviewer log in on staging before approving a production promotion (see [deployment.md](deployment.md#automated-staging-deploys-githubworkflowsdeploy-stagingyml)), `deploy-staging.yml` also deploys the same build to a second, fixed-name `staging` version whose hostname never changes. `internal/auth/auth.go` picks the redirect URL per-request by matching the incoming request's `Host` header against an allowlist built from `GOOGLE_REDIRECT_URL` (production) and `STAGING_REDIRECT_URL` (staging) — both are added as registered redirect URIs on the *same* Google OAuth client (no second client needed).
+To let a human reviewer log in on staging before approving a production promotion (see [deployment.md](deployment.md#automated-staging-deploys-githubworkflowsdeploy-stagingyml)), `deploy-staging.yml` also deploys the same build to a second, fixed-name `staging` version whose hostname never changes. `internal/auth/auth.go` picks the redirect URL per-request by matching the incoming request's `Host` header against an allowlist built from `GOOGLE_REDIRECT_URL` (production) and `STAGING_REDIRECT_URL` (staging); both are added as registered redirect URIs on the *same* Google OAuth client (no second client needed).
 
-Because the allowlist only ever contains these two configured URLs, a `Host` header that doesn't match either one (e.g. a per-SHA staging URL, or an attacker-supplied value) simply falls back to the production redirect URL — it can never select an arbitrary URL, so there's no host-header-spoofing risk.
+Because the allowlist only ever contains these two configured URLs, a `Host` header that doesn't match either one (e.g. a per-SHA staging URL, or an attacker-supplied value) simply falls back to the production redirect URL. It can never select an arbitrary URL, so there's no host-header-spoofing risk.
 
-**Caveat**: staging shares the production Datastore and live Stripe keys. Do not exercise Stripe subscription flows on staging — webhooks point at the production domain only.
+**Caveat**: staging shares the production Datastore and live Stripe keys. Do not exercise Stripe subscription flows on staging, since webhooks point at the production domain only.
 
-**Local dev**: `STAGING_REDIRECT_URL` is unset locally, so the allowlist only contains whatever host `GOOGLE_REDIRECT_URL` resolves to (typically `localhost:8080`) — behavior is unchanged from before this feature existed.
+**Local dev**: `STAGING_REDIRECT_URL` is unset locally, so the allowlist only contains whatever host `GOOGLE_REDIRECT_URL` resolves to (typically `localhost:8080`); behavior is unchanged from before this feature existed.
 
 ### Testing
 
@@ -272,7 +272,7 @@ api.Use(authMiddleware.CSRFMiddleware(csrfManager))
 
 ## Troubleshooting
 
-### "Invalid state parameter" error
+### "The OAuth state parameter is not valid" error
 
 This usually indicates:
 - Cookie was deleted between login initiation and callback

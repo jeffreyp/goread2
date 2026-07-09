@@ -1,4 +1,4 @@
-# GoRead2 — Claude Code Guide
+# GoRead2 Claude Code Guide
 
 GoRead2 is a multi-user RSS reader written in Go with a JavaScript/CSS frontend, deployed to Google App Engine. It uses Google Datastore for persistence, Google OAuth for authentication, and Stripe for subscriptions.
 
@@ -17,7 +17,7 @@ Run `make test` and `make lint` after any Go changes before committing.
 
 ## Documentation Conventions
 
-Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`) — this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `feature-flags.md`).
+Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`); this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `feature-flags.md`).
 
 ### Writing Style
 
@@ -58,7 +58,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 Co-Authored-By: Jeffrey Pratt <jeffrey@jeffreypratt.org>
 ```
 
-## Issue Tracking — bd (beads)
+## Issue Tracking: bd (beads)
 
 This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, TaskCreate, or other tracking methods.
 
@@ -103,7 +103,7 @@ bd dolt push / bd dolt pull                           # sync with remote
 
 ### Rules
 
-- Use bd for ALL task tracking — never markdown TODO lists or external trackers
+- Use bd for ALL task tracking, never markdown TODO lists or external trackers
 - Use `--json` flag when parsing output programmatically
 - Link discovered work with `discovered-from` dependencies
 - Check `bd ready` before asking "what should I work on?"
@@ -129,7 +129,7 @@ git push
 git status            # must show "up to date with origin"
 ```
 
-Never stop before pushing — that leaves work stranded locally. If push fails, resolve and retry.
+Never stop before pushing, since that leaves work stranded locally. If push fails, resolve and retry.
 
 ## Ephemeral Planning Documents
 
@@ -139,11 +139,11 @@ Do NOT create planning or design documents (PLAN.md, DESIGN.md, ARCHITECTURE.md,
 
 When `CAO_TERMINAL_ID` is set, you are in a multi-agent session:
 
-- **Supervisor**: Coordinates work via beads issues — never writes code directly
+- **Supervisor**: Coordinates work via beads issues, never writes code directly
 - **Developer**: Implements tasks from `bd show <id>`; iterates on reviewer feedback
 - **Reviewer**: Reviews diffs; approves or requests changes
 
-Beads issues carry all task context (title, description, acceptance criteria, design notes). Pass the issue ID between agents — they fetch details via `bd show <id>`.
+Beads issues carry all task context (title, description, acceptance criteria, design notes). Pass the issue ID between agents; they fetch details via `bd show <id>`.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
@@ -162,9 +162,9 @@ bd close <id>         # Complete work
 
 ### Rules
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- Use `bd` for ALL task tracking; do NOT use TodoWrite, TaskCreate, or markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- Use `bd remember` for persistent knowledge; do NOT use MEMORY.md files
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
 

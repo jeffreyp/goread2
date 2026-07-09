@@ -341,7 +341,7 @@ time curl "https://slow-feed.example.com/rss"
 
 **Solutions**:
 ```bash
-# Deploys are automated via GitHub Actions (see docs/deployment.md) —
+# Deploys are automated via GitHub Actions (see docs/deployment.md):
 # push to main for staging, or trigger production manually:
 gh workflow run deploy-prod.yml --repo jeffreyp/goread2
 
@@ -468,6 +468,8 @@ rm -f test_*.db
 - Environment variable conflicts
 - Test data isolation issues
 - Timing-dependent test failures
+
+**CI-specific**: a red `Tests` run on GitHub covers six separate jobs in `.github/workflows/test.yml`: `test` (Go unit/integration), `lint` (golangci-lint), `frontend-build` (ESLint + Jest + `make build-frontend`), `benchmark` (regression-gated Go benchmarks), `security` (`test/security/` + `govulncheck`), and `build`. Check which job actually failed in the Actions tab before assuming it's a test logic problem; see [testing.md](testing.md#cicd-integration) for what each job runs.
 
 ### Frontend Issues
 
