@@ -216,7 +216,7 @@ Or via the GitHub Actions UI: Actions → Rollback → Run workflow, entering th
 
 The workflow authenticates via the same WIF setup as deploy-staging, runs `gcloud app versions migrate VERSION --service=default`, and prints a confirmation with the version name to the job summary. This is instant (no rebuild) since it's re-pointing traffic at an already-deployed artifact.
 
-**Known gap**: `rollback.yml`'s own "capture currently-live version" and "delete stale versions" steps still filter on `version.id:prod-*`, which no longer matches anything post-promotion (see the naming decision above). The migrate step itself works regardless, since it targets whatever version you pass in, but the workflow's internal cleanup is currently a no-op for `staging-<sha>`-named versions.
+Before migrating, it captures whichever version currently holds `traffic_split=1.0` (for the job summary). Its cleanup step, like `deploy-prod.yml`'s, is scoped to the legacy `prod-*` naming from the old manual `make deploy-prod` path; promoted `staging-<sha>` versions are pruned by `deploy-staging.yml`'s own cleanup instead (see the naming decision above).
 
 ## Google App Engine (Recommended)
 

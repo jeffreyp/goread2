@@ -44,7 +44,7 @@ jobs:
         id: previous
         run: |
           CURRENT=$(gcloud app versions list --service=default --project=goread-467200 \
-            --filter="version.id:prod-* AND traffic_split=1.0" --format="value(version.id)")
+            --filter="traffic_split=1.0" --format="value(version.id)")
           echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
 
       - name: Migrate 100% of traffic to the specified version
@@ -62,6 +62,9 @@ jobs:
           TARGET_VERSION: ${{ inputs.version }}
           PREVIOUS_VERSION: ${{ steps.previous.outputs.version }}
         run: |
+          # Scoped to the legacy prod-* naming from the old manual 'make deploy-prod'
+          # path. Promoted staging-<sha> versions are pruned by deploy-staging.yml's
+          # own cleanup instead (which skips anything with live traffic).
           STALE=$(gcloud app versions list --service=default --project=goread-467200 \
             --filter="version.id:prod-*" --format="value(version.id)" \
             | grep -v -e "^${TARGET_VERSION}$" -e "^${PREVIOUS_VERSION}$" || true)
