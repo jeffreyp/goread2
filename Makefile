@@ -1,4 +1,4 @@
-.PHONY: all build lint test test-quick test-race validate-config clean build-js build-css build-frontend deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
+.PHONY: all build lint test test-quick test-race validate-config clean build-js build-css build-frontend docs deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
 
 # Default target - build everything
 all: build-frontend build test-quick
@@ -21,6 +21,7 @@ help:
 	@echo "  test               Run all tests with coverage (CI/pre-deploy)"
 	@echo "  test-quick         Run tests using Go cache — fast for dev iteration"
 	@echo "  test-race          Run Go tests with race detector — use before merging concurrent code changes"
+	@echo "  docs               Check markdown files for broken relative links and anchors"
 	@echo "  validate-config    Validate application configuration"
 	@echo "  validate-build     Validate config + build frontend + build app"
 	@echo "  deploy-monitoring  Deploy monitoring dashboard and alerts"
@@ -74,6 +75,17 @@ build-css: node_modules
 # Build all frontend assets
 build-frontend: build-js build-css
 	@echo "✅ Frontend build completed"
+
+# Check markdown files for broken relative links and anchors.
+# External http(s) links are ignored (see .markdown-link-check.json) to
+# keep this from flaking on network issues or third-party outages.
+docs: node_modules
+	@echo "📚 Checking documentation links and anchors..."
+	@command -v npm >/dev/null 2>&1 || (echo "❌ npm not found. Please install Node.js" && exit 1)
+	@for f in README.md CONTRIBUTING.md docs/*.md; do \
+		npx markdown-link-check --config .markdown-link-check.json "$$f" || exit 1; \
+	done
+	@echo "✅ Documentation check completed"
 
 # Run tests
 test:

@@ -77,6 +77,7 @@ make build             # Build the Go application binary
 make build-frontend    # Build minified JS and CSS assets
 make lint              # Run golangci-lint code quality checks
 make test              # Run all tests
+make docs              # Check markdown files for broken relative links and anchors
 make validate-build    # Validate config + build frontend + build app
 make clean             # Remove all build artifacts
 ```

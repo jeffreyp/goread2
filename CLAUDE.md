@@ -10,10 +10,11 @@ make build-frontend # minify JS + CSS (requires npm)
 make all            # build-frontend + build + test (default)
 make test           # run test suite via ./test.sh
 make lint           # golangci-lint
+make docs           # check markdown files for broken relative links and anchors (requires npm)
 make dev            # start local dev server (validates config first)
 ```
 
-Run `make test` and `make lint` after any Go changes before committing.
+Run `make test` and `make lint` after any Go changes before committing. Run `make docs` after any changes to root-level or `docs/` markdown files.
 
 ## Documentation Conventions
 
