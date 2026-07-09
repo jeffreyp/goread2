@@ -23,6 +23,7 @@ A modern, multi-user RSS reader inspired by Google Reader and perhaps equally if
 ### Prerequisites
 - Go 1.25+
 - Google Cloud Project (for OAuth)
+- Node.js 16+ (optional, only needed to rebuild minified frontend assets; prebuilt assets are checked into the repo)
 - Stripe Account (optional, for subscriptions)
 
 ### 1. Clone and Setup
@@ -44,7 +45,7 @@ export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
 ```
 
 ### 3. Build Frontend Assets (Optional)
-For production deployments, build minified frontend assets:
+Prebuilt, minified JS and CSS are checked into `web/static/`, so this step is only needed after editing frontend source:
 ```bash
 # Install npm dependencies
 npm install
@@ -59,9 +60,9 @@ make build-css   # Build minified CSS
 
 ### 4. Run the Application
 ```bash
+make dev  # validates config, then starts the dev server
+# Or run directly
 go run main.go
-# Or use make for development with config validation
-make dev
 ```
 
 Access at [http://localhost:8080](http://localhost:8080) and sign in with Google!

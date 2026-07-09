@@ -7,7 +7,7 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 ### Prerequisites
 
 - **Go 1.25+** for backend development
-- **Node.js 16+** for frontend testing
+- **Node.js 16+** for frontend testing and rebuilding minified assets
 - **Git** for version control
 - **Google Cloud Project** for OAuth setup (development)
 
@@ -29,11 +29,10 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
    ```
 
 3. **Set up environment**:
+
+   `.env.example` lists every variable the application reads, but it is a reference only; the application does not load `.env` files, so export the values you need in your shell:
+
    ```bash
-   # Copy example environment
-   cp .env.example .env
-   
-   # Edit .env with your OAuth credentials
    export GOOGLE_CLIENT_ID="your-client-id"
    export GOOGLE_CLIENT_SECRET="your-client-secret"
    export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
@@ -41,12 +40,12 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 
 4. **Run tests**:
    ```bash
-   ./test.sh
+   make test
    ```
 
 5. **Start development server**:
    ```bash
-   go run main.go
+   make dev
    ```
 
 ## Development Workflow

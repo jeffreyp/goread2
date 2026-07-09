@@ -20,6 +20,7 @@ Installation and configuration guide for running GoRead2 locally.
 - **Go 1.25 or later**
 - **Google Cloud Project** (for OAuth authentication)
 - **SQLite3** (automatically included with go-sqlite3)
+- **Node.js 16+** (optional, only needed to rebuild minified frontend assets; prebuilt assets are checked into the repo)
 - **Stripe Account** (optional, for subscription features)
 
 ## Google OAuth Setup
@@ -95,34 +96,43 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
    ```
 
 3. **Set up environment:**
+
+   `.env.example` lists every variable the application reads, but it is a reference only; the application does not load `.env` files, so export the values you need in your shell:
+
    ```bash
-   # Create .env file or export variables
    export GOOGLE_CLIENT_ID="your-client-id"
    export GOOGLE_CLIENT_SECRET="your-client-secret"
    export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
-   
-   # Optional: For subscription features
+
+   # Optional: for subscription features
    export STRIPE_SECRET_KEY="sk_test_your-secret-key"
    export STRIPE_PUBLISHABLE_KEY="pk_test_your-publishable-key"
    export STRIPE_WEBHOOK_SECRET="whsec_your-webhook-secret"
    export STRIPE_PRICE_ID="price_your-price-id"
    ```
 
-4. **Build and run:**
+4. **Build frontend assets (optional):**
+
+   Prebuilt, minified JS and CSS are checked into `web/static/`, so this step is only needed after editing frontend source:
+
    ```bash
-   # Build with the Makefile (recommended)
-   make build
-   ./goread2
+   npm install
+   make build-frontend
+   ```
 
-   # Or build manually
-   go build -o goread2 .
-   ./goread2
-
-   # For development with validation
+5. **Run the application:**
+   ```bash
    make dev
    ```
 
-5. **Access the application:**
+   `make dev` validates configuration before starting the server. Alternatively, build and run the binary directly:
+
+   ```bash
+   make build
+   ./goread2
+   ```
+
+6. **Access the application:**
    Navigate to `http://localhost:8080` and sign in with Google
 
 ## Configuration
