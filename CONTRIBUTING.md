@@ -6,7 +6,7 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 
 ### Prerequisites
 
-- **Go 1.23+** for backend development
+- **Go 1.25+** for backend development
 - **Node.js 16+** for frontend testing
 - **Git** for version control
 - **Google Cloud Project** for OAuth setup (development)
@@ -59,8 +59,8 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 
 3. **Write tests** for new functionality:
    ```bash
-   # Unit tests
-   touch test/unit/your_feature_test.go
+   # Unit tests (co-located with the code they test)
+   touch internal/<package>/your_feature_test.go
    
    # Integration tests
    touch test/integration/your_feature_integration_test.go
@@ -68,8 +68,8 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 
 4. **Run tests frequently**:
    ```bash
-   # Quick test run
-   go test ./test/...
+   # Quick test run (unit tests)
+   go test ./internal/...
 
    # Full test suite using Makefile (recommended)
    make test
@@ -538,11 +538,7 @@ bd search "keyword"
 
 ### Directory Structure
 
-```
-.beads/
-├── issues.jsonl      # Issue data, committed to git
-└── goread2.db        # SQLite database, gitignored
-```
+Issues live in a local Dolt database and sync via `refs/dolt/data` on the git remote. `.beads/issues.jsonl` is a passive export of that data, committed to git for visibility; the rest of `.beads/` (the Dolt database, locks, logs) is local state and gitignored.
 
 ## Issue Reporting
 
@@ -613,8 +609,7 @@ Before releasing:
 
 ### Communication
 
-- **GitHub Issues**: Bug reports and feature requests
-- **GitHub Discussions**: Questions and general discussion
+- **GitHub Issues**: Bug reports, feature requests, and general questions
 - **Pull Requests**: Code review and collaboration
 
 ### Code of Conduct
@@ -630,7 +625,6 @@ Contributors are recognized through:
 
 - **Git commit attribution**: Your commits show your contributions
 - **Release notes**: Significant contributions mentioned
-- **CONTRIBUTORS.md**: List of all project contributors
 
 ## Getting Help
 
@@ -645,7 +639,7 @@ Contributors are recognized through:
 
 Don't hesitate to ask:
 
-- **GitHub Discussions**: For questions about contributing
+- **GitHub Issues**: For questions about contributing
 - **Issue comments**: For clarification on specific issues
 - **Pull request reviews**: For feedback on your code
 
