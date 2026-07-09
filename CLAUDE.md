@@ -19,6 +19,17 @@ Run `make test` and `make lint` after any Go changes before committing.
 
 Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`) — this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `feature-flags.md`).
 
+### Writing Style
+
+All documentation, in `docs/` and at the root, must be written in a professional, plain, and precise tone. Write as if for a colleague reading a reference manual, not a friend. Do not add commentary that the content already demonstrates (for example, avoid a line like "the caching strategy is dead simple" above a section that already shows it is simple).
+
+Follow these rules:
+
+- Avoid em dashes unless there is no other clear way to write the sentence. Use a period, comma, or a "which"/"that" clause instead.
+- Put the main point of a sentence first, not after a leading clause. Write "This is good for both the goose and the gander," not "This is not only good for the goose, it is good for the gander."
+- Before editing a document, read it in full. Look for existing text to streamline or clarify, rather than only appending new material.
+- Documentation describes the current state of the product, not its history. Do not use a doc as a TODO list or a record of past decisions. Record decisions in `history/`, a commit message, or a bd issue, not in `docs/`.
+
 ### Feature area → doc mapping
 
 Before working in a feature area, read the corresponding doc for context. If your change alters behaviour, configuration, or APIs, update the doc in the same commit.
