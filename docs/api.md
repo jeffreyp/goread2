@@ -25,7 +25,7 @@ Reference for GoRead2's REST API endpoints, for developers integrating with or e
 
 GoRead2 provides a RESTful API for managing feeds, articles, and user subscriptions. All endpoints require authentication via session cookies obtained through Google OAuth.
 
-**Base URL**: `http://localhost:8080` (development) or `https://your-domain.com` (production)
+**Base URL**: `http://localhost:8080` in development, or the deployed application domain in production
 
 **Cookie name**: the session cookie is named `session_id_local` in local development and `session_id` in production, to prevent conflicts when testing against both from the same browser. Examples below use `session_id` as a placeholder; substitute the environment-appropriate name.
 
@@ -215,7 +215,7 @@ Unsubscribe user from a feed.
 - `400 Bad Request` - Invalid feed ID
 - `500 Internal Server Error` - Database error
 
-Note: there's no `404` case today. Unsubscribing from a feed ID you were never subscribed to is not distinguished from a successful unsubscribe at the handler level.
+Note: there is no `404` case today. Unsubscribing from a feed ID with no active subscription is not distinguished from a successful unsubscribe at the handler level.
 
 **Example**:
 ```bash
@@ -675,7 +675,7 @@ Stripe webhook endpoint for subscription events.
 
 - `GET /admin/users` - Not yet implemented; returns `501 Not Implemented` with a note to use the CLI instead
 - `GET /admin/users/:email` - Get a user's account and subscription info
-- `POST /admin/users/:email/admin` - Set a user's admin status (`{"is_admin": true|false}`); returns `403` if you try to remove your own admin privileges
+- `POST /admin/users/:email/admin` - Set a user's admin status (`{"is_admin": true|false}`); returns `403` when an admin attempts to remove their own admin privileges
 - `POST /admin/users/:email/free-months` - Grant free subscription months (`{"months": N}`)
 - `GET /admin/audit-logs` - Query the admin action audit log (`limit`, `offset`, `admin_user_id`, `target_user_id`, `operation_type` query params); see [admin.md](admin.md#audit-logging) for response format
 

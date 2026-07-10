@@ -126,7 +126,7 @@ SUBSCRIPTION_ENABLED=false  # Set to true for paid features
 
 #### Environment-Specific Cookies
 
-To prevent authentication state conflicts between local development and production deployments, GoRead2 uses environment-specific cookie names:
+GoRead2 uses environment-specific cookie names to prevent authentication state conflicts between local development and production deployments:
 
 | Environment | Session Cookie | OAuth State Cookie |
 |-------------|----------------|-------------------|
@@ -149,7 +149,7 @@ All state-changing API operations (POST, PUT, DELETE) require a valid CSRF token
 - **Token validation** - Constant-time comparison prevents timing attacks
 - **Session-bound expiration** - Tokens remain valid as long as the session is active
 
-**✅ The official JavaScript files (`app.js`, `account.js`, `modals.js`) include built-in CSRF protection.**
+**✅ `app.js`, `account.js`, and `modals.js`, the official JavaScript files, include built-in CSRF protection.**
 
 **Client implementation example:**
 ```javascript
@@ -239,7 +239,7 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 
 ## Reporting Security Issues
 
-If you discover a security vulnerability, please:
+To report a security vulnerability:
 
 1. **Do NOT create a public GitHub issue**
 2. **Email security concerns** to the maintainer privately

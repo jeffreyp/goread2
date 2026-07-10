@@ -4,7 +4,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/jeffreyp/goread2)](https://go.dev/)
 [![License](https://img.shields.io/github/license/jeffreyp/goread2)](LICENSE)
 
-A modern, multi-user RSS reader inspired by Google Reader and perhaps equally if not more so by [GoRead](https://github.com/madelynnblue/goread).
+A modern, multi-user RSS reader inspired by Google Reader and [GoRead](https://github.com/madelynnblue/goread).
 
 ## Features
 

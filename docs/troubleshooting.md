@@ -573,7 +573,7 @@ rm -f test_*.db
 - Test data isolation issues
 - Timing-dependent test failures
 
-**CI-specific**: a red `Tests` run on GitHub covers six separate jobs in `.github/workflows/test.yml`: `test` (Go unit/integration), `lint` (golangci-lint), `frontend-build` (ESLint + Jest + `make build-frontend`), `benchmark` (regression-gated Go benchmarks), `security` (`test/security/` + `govulncheck`), and `build`. Check which job actually failed in the Actions tab before assuming it's a test logic problem; see [testing.md](testing.md#cicd-integration) for what each job runs.
+**CI-specific**: a red `Tests` run on GitHub covers six separate jobs in `.github/workflows/test.yml`: `test` (Go unit/integration), `lint` (golangci-lint), `frontend-build` (ESLint + Jest + `make build-frontend`), `benchmark` (regression-gated Go benchmarks), `security` (`test/security/` + `govulncheck`), and `build`. Check which job failed in the Actions tab before assuming it's a test logic problem; see [testing.md](testing.md#cicd-integration) for what each job runs.
 
 ### Frontend Issues
 

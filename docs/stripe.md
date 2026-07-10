@@ -102,11 +102,11 @@ go run cmd/setup-stripe/main.go create-product
 📝 Add this to your environment: STRIPE_PRICE_ID=price_1ABC123def456789
 ```
 
-Update your environment variables with the returned Price ID.
+Update the environment variables with the returned Price ID.
 
 ## Step 4: Set Up Webhooks
 
-Webhooks notify your application when subscription events occur.
+Webhooks notify the application when subscription events occur.
 
 ### Development (using Stripe CLI)
 
@@ -238,7 +238,7 @@ Manage subscriptions through the Stripe Dashboard:
 
 ### Subscription Settings
 
-Customize subscription behavior in your environment:
+Customize subscription behavior with these environment variables:
 
 ```bash
 # Required - Enable subscription system

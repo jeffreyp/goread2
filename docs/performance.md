@@ -21,7 +21,7 @@ GoRead2 is designed to be cost-effective while maintaining excellent performance
 
 ## Cost Optimization Strategy
 
-Our pricing model ($9.99/month unlimited feeds) requires aggressive cost optimization to remain profitable. We've implemented several strategies to reduce Google Cloud / Datastore costs:
+GoRead2's pricing model ($9.99/month unlimited feeds) requires aggressive cost optimization to remain profitable. The following strategies reduce Google Cloud / Datastore costs:
 
 ### Current Optimizations
 
@@ -343,7 +343,7 @@ Set up Google Cloud budget alerts:
 
 ## Summary
 
-Through careful optimization, we've reduced operational costs by $590-1,090/month while maintaining excellent performance and user experience. Key strategies:
+These optimizations have reduced operational costs by $590-1,090/month while maintaining excellent performance and user experience. Key strategies:
 
 1. ✅ Smart feed update prioritization
 2. ✅ Remove unbounded queries

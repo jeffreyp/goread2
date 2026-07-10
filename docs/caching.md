@@ -17,7 +17,7 @@ Only cache what's safe and provides real value.
 
 ### What We Cache
 
-**Static Assets (24 hours)** — files that rarely change:
+**Static Assets (24 hours)**, files that rarely change:
 - CSS files (`/static/*.css`)
 - JavaScript files (`/static/*.js`)
 - Images (`/static/*.svg`, `favicon.ico`)
@@ -30,7 +30,7 @@ Only cache what's safe and provides real value.
 - Authentication endpoints
 - User data
 
-Caching dynamic content creates more problems than it solves: users see stale data, changes don't appear immediately, and "it works for me but not you" issues become hard to debug.
+Caching dynamic content creates more problems than it solves: users see stale data, changes don't appear immediately, and inconsistent behavior across environments becomes hard to debug.
 
 ### Implementation
 
@@ -58,7 +58,7 @@ r.Use(func(c *gin.Context) {
 
 ### When Static Files Change
 
-If you update CSS/JS and users have it cached:
+When CSS/JS files are updated and users already have the old version cached:
 1. They'll see the old version for up to 24 hours
 2. Hard refresh (Cmd/Ctrl+Shift+R) clears the cache
 3. Or wait 24 hours
@@ -94,7 +94,7 @@ curl -I http://localhost:8080/api/feeds
 
 ## Application-Level Caching
 
-To reduce database costs (especially for Google Cloud Datastore), GoRead2 implements in-memory caching for expensive queries. All caches are thread-safe and automatically expire.
+GoRead2 implements in-memory caching for expensive queries to reduce database costs, especially for Google Cloud Datastore. All caches are thread-safe and automatically expire.
 
 ### Caches in Use
 

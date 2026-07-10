@@ -1,6 +1,6 @@
 # Contributing Guide
 
-Welcome to GoRead2! This guide explains how to contribute to the project.
+This guide explains how to contribute to GoRead2.
 
 ## Getting Started
 
@@ -15,7 +15,7 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 
 1. **Fork and clone**:
 
-   Fork the repository by clicking "Fork" at [github.com/jeffreyp/goread2](https://github.com/jeffreyp/goread2), then clone your fork:
+   Fork the repository by clicking "Fork" at [github.com/jeffreyp/goread2](https://github.com/jeffreyp/goread2), then clone the fork:
 
    ```bash
    git clone https://github.com/your-username/goread2.git
@@ -30,7 +30,7 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 
 3. **Set up environment**:
 
-   `.env.example` lists every variable the application reads, but it is a reference only; the application does not load `.env` files, so export the values you need in your shell:
+   `.env.example` lists every variable the application reads, but it is a reference only; the application does not load `.env` files, so export the needed values in the shell:
 
    ```bash
    export GOOGLE_CLIENT_ID="your-client-id"
@@ -57,7 +57,7 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
    git checkout -b feature/your-feature-name
    ```
 
-2. **Make your changes** following the coding standards below
+2. **Make changes** following the coding standards below
 
 3. **Write tests** for new functionality:
    ```bash
@@ -94,7 +94,7 @@ Welcome to GoRead2! This guide explains how to contribute to the project.
 
 ### Pull Request Process
 
-1. **Push your branch**:
+1. **Push the branch**:
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -570,7 +570,7 @@ Describe:
 
 ### For Contributors
 
-- **Self-review** your code before submitting
+- **Self-review** code before submitting
 - **Write clear commit messages** explaining the changes
 - **Include tests** for all new functionality
 - **Update documentation** for user-facing changes
@@ -625,7 +625,7 @@ Before releasing:
 
 Contributors are recognized through:
 
-- **Git commit attribution**: Your commits show your contributions
+- **Git commit attribution**: Commit history documents individual contributions
 - **Release notes**: Significant contributions mentioned
 
 ## Getting Help
@@ -639,10 +639,10 @@ Contributors are recognized through:
 
 ### Ask for Help
 
-Don't hesitate to ask:
+Questions can be directed to:
 
 - **GitHub Issues**: For questions about contributing
 - **Issue comments**: For clarification on specific issues
-- **Pull request reviews**: For feedback on your code
+- **Pull request reviews**: For feedback on code
 
-Thank you for contributing to GoRead2! Your help makes this project better for everyone.
+Contributions to GoRead2 are welcome and help improve the project for all users.

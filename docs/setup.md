@@ -34,7 +34,7 @@ Installation and configuration guide for running GoRead2 locally.
 ### 2. Configure OAuth Consent Screen
 
 1. Navigate to APIs & Services → OAuth consent screen
-2. Configure the consent screen with your application details
+2. Configure the consent screen with the application's details
 3. Add test users if in development mode
 
 ### 3. Create OAuth Credentials
@@ -56,12 +56,12 @@ export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
 
 ## Stripe Setup (Optional)
 
-For subscription features, configure Stripe:
+Configure Stripe to enable subscription features:
 
 ### 1. Create Stripe Account
 
 1. Go to [stripe.com](https://stripe.com) and create an account
-2. Get your API keys from the Stripe Dashboard
+2. Get API keys from the Stripe Dashboard
 
 ### 2. Set Stripe Environment Variables
 
@@ -97,7 +97,7 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 
 3. **Set up environment:**
 
-   `.env.example` lists every variable the application reads, but it is a reference only; the application does not load `.env` files, so export the values you need in your shell:
+   Export the required values in the shell; the application does not load `.env` files. `.env.example` lists every variable the application reads, but it is a reference only.
 
    ```bash
    export GOOGLE_CLIENT_ID="your-client-id"
@@ -113,7 +113,7 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 
 4. **Build frontend assets:**
 
-   Minified JS and CSS are not checked into `web/static/`; the app will not render without them, so this step is required before first run and after any change to frontend source:
+   This step is required before first run and after any change to frontend source: minified JS and CSS are not checked into `web/static/`, and the app will not render without them.
 
    ```bash
    npm install
@@ -145,7 +145,7 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 - `GOOGLE_REDIRECT_URL` - OAuth redirect URL
 - `CSRF_SECRET` - HMAC secret for CSRF token generation
 
-In production (App Engine), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CSRF_SECRET`, `ADMIN_TOKEN`, and `INITIAL_ADMIN_EMAILS` are not set as plain env vars. They're fetched from Secret Manager at startup (`internal/secrets/secrets.go`) using secret names configured in `app.yaml`; local development still reads them directly from the environment.
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CSRF_SECRET`, `ADMIN_TOKEN`, and `INITIAL_ADMIN_EMAILS` are not set as plain env vars in production (App Engine). They're fetched from Secret Manager at startup (`internal/secrets/secrets.go`) using secret names configured in `app.yaml`; local development still reads them directly from the environment.
 
 **Optional:**
 - `GOOGLE_CLOUD_PROJECT` - Use Google Cloud Datastore (if set)
@@ -197,7 +197,7 @@ See [Feature Flags Guide](feature-flags.md) for complete details.
 1. Navigate to the application URL
 2. Click "Login with Google" to authenticate
 3. Grant necessary permissions
-4. You'll be redirected to your personal dashboard
+4. The login redirects to the user's personal dashboard
 
 ### 2. Managing Feeds
 
@@ -207,7 +207,7 @@ See [Feature Flags Guide](feature-flags.md) for complete details.
 
 ### 3. Admin Setup (Optional)
 
-Make yourself an admin user:
+Grant admin access to a user account:
 
 ```bash
 # Replace with your email

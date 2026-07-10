@@ -16,7 +16,7 @@ Configuration options for enabling or disabling GoRead2 features, primarily the 
 
 ### Overview
 
-The subscription system can be enabled or disabled using the `SUBSCRIPTION_ENABLED` environment variable. This allows you to:
+The subscription system can be enabled or disabled using the `SUBSCRIPTION_ENABLED` environment variable. This makes it possible to:
 
 - **Safely deploy** subscription features without affecting existing users
 - **Run GoRead2 as a free service** without any subscription limits

@@ -383,7 +383,7 @@ func TestDatastoreAdminTokens(t *testing.T) {
 ```
 
 **Coverage includes:**
-- **Admin Token Security System**: Comprehensive testing of the new secure admin authentication
+- **Admin Token Security System**: Comprehensive testing of the secure admin authentication
   - Cryptographic token generation (64-char hex, SHA-256 hashing)
   - Database-based token validation (SQLite + Google Datastore)
   - Token lifecycle management (create, validate, list, revoke)
@@ -681,7 +681,7 @@ Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` (the production 
 3. `gcloud beta emulators datastore start --host-port=localhost:8081 --no-store-on-disk --consistency=1.0` runs in the background; the step polls `http://localhost:8081/` until it responds before continuing.
 4. `DATASTORE_EMULATOR_HOST=localhost:8081` is exported for the rest of the job, so `go test ./internal/...` picks up the gated tests instead of skipping them.
 
-**`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which made `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier: a real flake, not a fluke, reproduced locally before this was pinned to full consistency.
+**`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which made `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier, reproduced locally before this was pinned to full consistency.
 
 **Local setup** (to run these tests outside CI):
 ```bash
@@ -753,7 +753,7 @@ Current test coverage status and targets:
   - **Core frontend tests**: 28 tests for DOM manipulation, events, forms, utilities
   - **Error handler tests**: 18 tests for connection monitoring, error display, toast notifications
   - **Pagination tests**: 18 tests for Load More button, cursor-based pagination, article rendering
-- **Admin Token System**: Comprehensive test coverage for the new secure authentication system
+- **Admin Token System**: Comprehensive test coverage for the secure authentication system
   - 6 SQLite backend test suites with 20+ individual test cases
   - 6 Datastore backend test suites, run for real against a Cloud Datastore emulator in CI (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above); skip locally unless `DATASTORE_EMULATOR_HOST` is set
   - Security integration tests for bootstrap protection and token lifecycle
@@ -840,7 +840,7 @@ On-disk XML fixtures (as opposed to the inline string constants above) exercised
 
 ### Generating Test Articles
 
-For testing pagination, feed loading, and article navigation, use the `generate-test-articles` utility to create test data in your local SQLite database:
+Use the `generate-test-articles` utility to create test data in a local SQLite database for testing pagination, feed loading, and article navigation:
 
 ```bash
 # Generate test articles for a user and feed
@@ -933,7 +933,7 @@ func TestAPIRequiresAuthentication(t *testing.T) {
 
 ### Admin Token Security Testing
 
-Critical tests for the new secure admin authentication system:
+Critical tests for the secure admin authentication system:
 
 ```go
 func TestAdminTokenGeneration(t *testing.T) {
@@ -1050,7 +1050,7 @@ jobs:
 
 ### Post-Deploy Smoke Check (`scripts/smoke-check.sh`)
 
-Separate from the `test.yml` CI pipeline above, `scripts/smoke-check.sh <base-url>` runs unauthenticated HTTP assertions against a live, already-deployed App Engine version. It verifies the deploy itself (app started, static assets built, OAuth config loaded, security headers present, no backdoor auth endpoint), not application logic. Called by both `deploy-staging.yml` (against the new `staging-<sha>` URL) and `deploy-prod.yml` (against `https://goreadapp.com` after promotion); see [deployment.md](deployment.md#post-deploy-smoke-check-scriptssmoke-checksh) for the full assertion list.
+`scripts/smoke-check.sh <base-url>` runs unauthenticated HTTP assertions against a live, already-deployed App Engine version, separate from the `test.yml` CI pipeline above. It verifies the deploy itself (app started, static assets built, OAuth config loaded, security headers present, no backdoor auth endpoint), not application logic. Called by both `deploy-staging.yml` (against the new `staging-<sha>` URL) and `deploy-prod.yml` (against `https://goreadapp.com` after promotion); see [deployment.md](deployment.md#post-deploy-smoke-check-scriptssmoke-checksh) for the full assertion list.
 
 ## Writing New Tests
 

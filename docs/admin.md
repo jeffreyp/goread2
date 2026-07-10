@@ -69,7 +69,7 @@ The admin token system works with both database backends:
 #### Local Development (SQLite)
 
 **Step 1: Create First User and Admin**
-1. Start the web application and create your first user account through the normal signup process
+1. Start the web application and create the first user account through the normal signup process
 2. Set the user as admin by directly updating the database:
    ```bash
    sqlite3 goread2.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"
@@ -100,7 +100,7 @@ go run cmd/admin/main.go list-users
 
 **Step 1: Create First User and Admin**
 1. Deploy the application to Google App Engine
-2. Create your first user account through the web interface
+2. Create the first user account through the web interface
 3. Set the user as admin using Google Cloud Console web interface to manually set `is_admin = true`, or using gcloud CLI:
    ```bash
    gcloud datastore entities update --kind=User --key-id=USER_ID --set-property=is_admin:boolean=true
@@ -207,7 +207,7 @@ chmod +x admin.sh
 
 ### Manual Commands
 
-You can also run admin commands directly:
+Admin commands can also be run directly:
 
 ```bash
 # Set security token
@@ -395,7 +395,7 @@ curl -X POST "https://yourdomain.com/admin/users/user@example.com/free-months" \
 - **Bypass all restrictions**: All subscription checks are skipped
 - **Status display**: Shows "Admin" or "Unlimited Access" in the UI
 - **Permanent**: Remains until explicitly revoked
-- **Use case**: Yourself, co-admins, permanent free users
+- **Use case**: Primary administrator, co-admins, permanent free users
 
 **Benefits:**
 - ✅ Unlimited feeds
@@ -494,7 +494,7 @@ Users see different indicators based on their access level:
 
 ## Direct Database Access
 
-For advanced users, you can modify the database directly:
+For advanced use cases, the database can be modified directly:
 
 ### SQLite (Local Development)
 
@@ -747,7 +747,7 @@ sqlite3 goread2.db "SELECT email, is_admin, free_months_remaining FROM users WHE
 
 ### Programmatic User Management
 
-For advanced integrations, you can manage users programmatically:
+For advanced integrations, users can be managed programmatically:
 
 ```go
 // Example: Grant admin access via API

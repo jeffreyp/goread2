@@ -29,7 +29,7 @@ The monitoring setup helps identify cost optimization opportunities and detect u
 
 ### Monitoring Costs
 
-**Good news**: The metrics used in this dashboard are **free** under Google Cloud's monitoring pricing model.
+The metrics used in this dashboard are **free** under Google Cloud's monitoring pricing model.
 
 - **Free tier**: First 150 MB of Monitoring data per month (includes all GCP service metrics)
 - **GCP service metrics**: Datastore and App Engine metrics are included at no charge
@@ -56,7 +56,7 @@ This minimal dashboard tracks the only 3 operational metrics available for App E
 
 1. **App Engine Instance Count** - Number of running instances (instance-hours = primary cost driver)
    - Cost: Varies by instance class (F1/F2/F4/F4_1G)
-   - Your config: F1, 256MB RAM
+   - Current config: F1, 256MB RAM
 
 2. **Network Egress** - Outbound bandwidth usage
    - Cost: $0.12/GB (after free tier of 1GB/day)
@@ -82,7 +82,7 @@ Older dashboard configuration with similar metrics. Use `dashboard-cost-tracking
 
 ## Tracking Actual Costs and Usage
 
-Since most operational metrics are not available through Cloud Monitoring for App Engine Standard, use these alternative methods:
+Most operational metrics are not available through Cloud Monitoring for App Engine Standard. Use these alternative methods instead:
 
 ### For Billing/Costs
 
@@ -110,7 +110,7 @@ Shows:
 
 ### For HTTP Request Metrics
 
-Since request count and response code metrics are not available in Cloud Monitoring, use:
+Request count and response code metrics are not available in Cloud Monitoring. Use:
 
 **App Engine Logs**:
 ```bash
@@ -157,28 +157,28 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes six policies
 - **Auto-close**: 30 minutes
 
 ### 5. Datastore Entity Read Spike
-- **Threshold**: >1000 entity reads/hour (baseline, adjust for your usage)
+- **Threshold**: >1000 entity reads/hour (baseline, adjust for measured usage)
 - **Purpose**: Catch query fanout or sudden traffic increase
 - **Actions**: Investigate recent code changes, check for N+1 queries
 - **Auto-close**: 1 hour
-- **Note**: Adjust threshold based on your baseline after monitoring
+- **Note**: Adjust threshold based on the observed baseline after monitoring
 
 ### 6. High HTTP Error Rate (5xx)
 - **Threshold**: >0.1 errors/second (>1% of typical traffic) sustained for 3 minutes
 - **Purpose**: Detect application errors or resource exhaustion
 - **Actions**: Check application logs immediately, review recent deployments
-- **Auto-close**: 30 minutes (GCP enforces a 30-minute minimum; the originally documented 15 minutes was never a valid value and was corrected at deploy time)
+- **Auto-close**: 30 minutes (GCP enforces a 30-minute minimum)
 - **Critical**: May indicate production outage
 
 ## Post-Promote Health Watch (a second consumer of these signals)
 
-`scripts/post-promote-health-watch.sh`, invoked from `deploy-prod.yml` after every production promotion (see [deployment.md](deployment.md#auto-rollback-post-promote-safety-net)), polls the same five signals as policies 1, 2, 3, 4, and 6 above directly via the Cloud Monitoring REST API, plus p95 latency, which has no alert policy of its own. It mirrors each policy's filter, aligner, reducer, threshold, and duration so the two stay in sync; if you change a threshold or duration here, update the script's matching `THRESHOLD`/`DURATION_SECONDS` entries too; they are not read from `alert-policies.yaml` at runtime.
+`scripts/post-promote-health-watch.sh`, invoked from `deploy-prod.yml` after every production promotion (see [deployment.md](deployment.md#auto-rollback-post-promote-safety-net)), polls the same five signals as policies 1, 2, 3, 4, and 6 above directly via the Cloud Monitoring REST API, plus p95 latency, which has no alert policy of its own. It mirrors each policy's filter, aligner, reducer, threshold, and duration so the two stay in sync. The script's matching `THRESHOLD`/`DURATION_SECONDS` entries must be updated too whenever a threshold or duration changes here; they are not read from `alert-policies.yaml` at runtime.
 
 This is a separate mechanism from the alert policies, not a replacement: alert policies page a human at any time via the notification channel below; the health watch only runs in the ~15-minute window right after a promotion and auto-triggers `rollback.yml` on its own. Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com` (added 2026-07-05); the alert policies never needed this since they're evaluated by GCP itself, not queried by a workflow.
 
 ## Billing Budget
 
-Unlike the alert policies above (which track operational proxies, such as Datastore ops, egress, and instance count, because the Monitoring API can't see actual billing data), a Cloud Billing Budget is a hard dollar-based backstop that Google computes independently from real invoiced spend.
+A Cloud Billing Budget is a hard dollar-based backstop that Google computes independently from real invoiced spend, unlike the alert policies above, which track operational proxies such as Datastore ops, egress, and instance count because the Monitoring API can't see actual billing data.
 
 **Current configuration**: `GoRead2 Monthly Budget`, $20/month, calendar-month period, scoped to `projects/goread-467200` only. Alerts fire at 50%, 80%, and 100% of spend via the same email channel used by the operational alerts (`projects/goread-467200/notificationChannels/5854116738752263410`), plus GCP's default IAM recipients (billing account admins).
 
@@ -194,7 +194,7 @@ gcloud billing budgets update BUDGET_ID --billing-account=016C57-9F50ED-4C680E -
 
 The default thresholds are conservative. To adjust:
 
-1. **Monitor for 1-2 weeks** to establish your baseline
+1. **Monitor for 1-2 weeks** to establish a baseline
 2. **Calculate thresholds**: Baseline average + (2 × standard deviation)
 3. **Edit** `monitoring/alert-policies.yaml`
 4. **Redeploy** alerts using gcloud command
@@ -242,7 +242,7 @@ The dashboard will be created in Cloud Monitoring. If it already exists, update 
 
 **Current state**: all 6 policies are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
 
-**Unrelated pre-existing alert, disabled**: the project also had a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`), likely a GCP console/suggested default predating this setup. It compared live traffic against a *forecasted* baseline and fired on a 100% increase. Since this app's baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run, any normal cron burst looked like an "infinite % increase" and triggered it every cycle. It went unnoticed until the notification channel above was attached (2026-07-03), at which point it started emailing every ~2 hours for entirely routine cron activity. Disabled via `gcloud alpha monitoring policies update ... --no-enabled`; the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) already covers this signal without the false-positive-prone forecast comparison.
+**Unrelated pre-existing alert, disabled**: the project also had a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`), likely a GCP console/suggested default predating this setup. It compared live traffic against a *forecasted* baseline and fired on a 100% increase. Any normal cron burst looked like an "infinite % increase" and triggered it every cycle, since this app's baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run. It went unnoticed until the notification channel above was attached (2026-07-03), at which point it started emailing every ~2 hours for entirely routine cron activity. Disabled via `gcloud alpha monitoring policies update ... --no-enabled`; the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) already covers this signal without the false-positive-prone forecast comparison.
 
 #### Step 1: Set Up Notification Channels
 
@@ -265,7 +265,7 @@ gcloud alpha monitoring channels list
 
 #### Step 2: Configure Alert Policies
 
-`monitoring/alert-policies.yaml` already has the email channel ID in every policy's `notificationChannels` array. Add a second channel ID to the array (one per line) if you want alerts to also go to Slack.
+`monitoring/alert-policies.yaml` already has the email channel ID in every policy's `notificationChannels` array. Add a second channel ID to the array (one per line) to also send alerts to Slack.
 
 #### Step 3: Deploy Alerts
 
@@ -280,7 +280,7 @@ gcloud components install alpha
 gcloud alpha monitoring policies update POLICY_NAME --add-notification-channels=CHANNEL_ID
 ```
 
-**Gotcha hit during initial deploy**: `alertStrategy.autoClose` has a 30-minute (`"1800s"`) minimum. The original "High HTTP Error Rate" policy specified `"900s"` (15 minutes) and was rejected by the API until corrected.
+**Note**: `alertStrategy.autoClose` has a 30-minute (`"1800s"`) minimum. The original "High HTTP Error Rate" policy specified `"900s"` (15 minutes), which the API rejected until corrected.
 
 ### Alternative: Use Deployment Scripts
 
@@ -311,20 +311,20 @@ make deploy-monitoring            # both
 
 ### Updating Thresholds
 
-The alert thresholds are configured for moderate usage. You may need to adjust them based on your actual traffic patterns:
+The alert thresholds are configured for moderate usage and may need adjustment based on actual traffic patterns:
 
 1. Monitor the dashboard for a few days to establish baseline metrics
 2. Edit `monitoring/alert-policies.yaml` to update thresholds
 3. Redeploy the changed policy with `gcloud alpha monitoring policies update POLICY_NAME ...` (see [Step 3](#step-3-deploy-alerts) above); `deploy-alerts.sh` only creates new policies and skips ones that already exist
 
 Recommended adjustments:
-- Increase thresholds if you get too many false positives
+- Increase thresholds if there are too many false positives
 - Decrease thresholds for stricter monitoring
-- Add new alerts for specific metrics that matter to your use case
+- Add new alerts for specific metrics relevant to the deployment
 
 ## Cost Estimation
 
-While the dashboard shows operational metrics, you can estimate costs using:
+Costs can be estimated from the operational metrics shown on the dashboard:
 
 ### Datastore Costs
 - Read operations: $0.06 per 100,000 entities
@@ -353,7 +353,7 @@ If the dashboard shows:
 To update the dashboard configuration:
 
 1. Edit `monitoring/cost-dashboard.json`
-2. Find your dashboard ID:
+2. Find the dashboard ID:
    ```bash
    gcloud monitoring dashboards list
    ```
