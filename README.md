@@ -52,7 +52,8 @@ make test   # Run all tests
 make lint   # Run golangci-lint code quality checks
 ```
 
-Deployment is automated via GitHub Actions, not the Makefile. See [docs/deployment.md](docs/deployment.md).
+Deployment is automated via GitHub Actions, not the Makefile. See
+[Deployment Guide](docs/deployment.md).
 
 ## Documentation
 
@@ -76,7 +77,7 @@ Deployment is automated via GitHub Actions, not the Makefile. See [docs/deployme
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the fork, branch, and pull request workflow.
+See [CONTRIBUTING](CONTRIBUTING.md) for the fork, branch, and pull request workflow.
 
 ## License
 
