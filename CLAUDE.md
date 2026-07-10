@@ -28,6 +28,8 @@ Follow these rules:
 
 - Avoid em dashes unless there is no other clear way to write the sentence. Use a period, comma, or a "which"/"that" clause instead.
 - Put the main point of a sentence first, not after a leading clause. Write "This is good for both the goose and the gander," not "This is not only good for the goose, it is good for the gander."
+- Name the specific thing first, then describe it in an appositive, rather than burying the name in a parenthetical. Write "GoRead2 uses Inter, a clean, sans-serif font," not "GoRead2 uses a clean, sans-serif font (Inter)."
+- Do not address the reader as "you" or "your." Refer to features and actions generically instead: write "shows subscribed feeds," not "shows your subscribed feeds"; "on navigating away," not "when you navigate away."
 - Before editing a document, read it in full. Look for existing text to streamline or clarify, rather than only appending new material.
 - Documentation describes the current state of the product, not its history. Do not use a doc as a TODO list or a record of past decisions. Record decisions in `history/`, a commit message, or a bd issue, not in `docs/`.
 

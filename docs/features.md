@@ -15,12 +15,12 @@ Guide to GoRead2's features and how to use them, for end users of the applicatio
 
 ## Reading Experience
 
-GoRead2 uses a clean, sans-serif font (Inter) optimized for screen reading with excellent legibility. The font setting only applies to article content, while the interface maintains consistent UI typography.
+GoRead2 uses Inter, a clean, sans-serif font optimized for screen reading with excellent legibility. The font setting only applies to article content, while the interface maintains consistent UI typography.
 
 ## Navigation
 
 ### Three-Pane Layout
-- **Feed Pane (Left)**: Shows your subscribed feeds with unread counts
+- **Feed Pane (Left)**: Shows subscribed feeds with unread counts
 - **Article Pane (Center)**: Lists articles from the selected feed
 - **Content Pane (Right)**: Displays the full article content
 
@@ -41,13 +41,13 @@ GoRead2 provides efficient keyboard navigation:
 | `?` | Open the help modal |
 
 ### Help Modal
-Press `?` at any time to open the help modal, which lists every keyboard shortcut and a summary of GoRead2's features. Its footer also shows the app's build version (a CalVer `YYYY.MM.DD` string), useful for confirming which deploy you're running against when reporting an issue.
+Press `?` at any time to open the help modal, which lists every keyboard shortcut and a summary of GoRead2's features. Its footer also shows the app's build version (the App Engine version ID, e.g. `staging-a1b2c3d`), useful for confirming which deploy is running when reporting an issue.
 
 ### Mobile and Tablet Navigation
 
 #### Phone (Portrait Mode)
 On mobile devices, use the bottom navigation bar to switch between panes:
-- 📑 **Feeds**: View your feed subscriptions
+- 📑 **Feeds**: View feed subscriptions
 - 📄 **Articles**: Browse articles from selected feed
 - 📖 **Content**: Read the selected article
 
@@ -55,7 +55,7 @@ On mobile devices, use the bottom navigation bar to switch between panes:
 On tablets in portrait orientation, GoRead2 provides a reading-optimized layout:
 - **Content pane** takes the full screen width for comfortable reading
 - **"☰ Feeds" button** in the header opens the sidebar with feeds and articles
-- Sidebar automatically hides when you select an article to maximize reading space
+- Sidebar automatically hides when an article is selected, to maximize reading space
 - Tap the dimmed area outside the sidebar to close it
 
 #### Rotation
@@ -67,7 +67,7 @@ When the device is rotated (or the window is resized across a layout breakpoint)
 1. Click "Add Feed" in the header
 2. Enter a website URL or direct RSS feed URL
 3. GoRead2 will automatically discover the RSS feed
-4. The new feed appears in your feed list with recent articles
+4. The new feed appears in the feed list with recent articles
 
 ### Article Import Limits
 When subscribing to a new feed, GoRead2 intelligently limits the number of articles imported to improve performance:
@@ -75,18 +75,18 @@ When subscribing to a new feed, GoRead2 intelligently limits the number of artic
 - **Default**: 100 most recent articles are imported as unread
 - **Configurable**: Change this limit in Account Settings (0-10,000 articles)
 - **Setting 0**: Import unlimited articles (use carefully with large feeds)
-- **Purpose**: Prevents overwhelming your reading list with thousands of old articles
+- **Purpose**: Prevents overwhelming the reading list with thousands of old articles
 
-To adjust your import limit:
-1. Go to `/account` or click your profile
+To adjust the import limit:
+1. Go to `/account` or click the profile menu
 2. Find the "Settings" section
-3. Set your preferred "Maximum articles to import when adding a new feed"
+3. Set the "Maximum articles to import when adding a new feed" field
 4. Click "Save" to apply the setting
 
 ### OPML Import
 Import feeds from other RSS readers:
 1. Click "Import OPML" in the header
-2. Select your exported OPML file (max 10MB)
+2. Select the exported OPML file (max 10MB)
 3. GoRead2 imports all feeds and starts fetching articles
 
 ### Feed Subscription Limits
@@ -97,7 +97,7 @@ Import feeds from other RSS readers:
 ## Article Management
 
 ### Read Status
-- Articles are automatically marked as read when you navigate away
+- Articles are automatically marked as read on navigating away
 - Manually toggle read status with `m` key or the toggle button
 - Filter articles by "Unread" or "All" in the article pane header
 
@@ -116,7 +116,7 @@ Use the radio buttons in the article pane header:
 ### Real-time Updates
 - Unread counts update automatically every 5 minutes
 - Manual refresh with the "Refresh" button or `r` key
-- Background polling keeps your feeds current
+- Background polling keeps feeds current
 
 ### Responsive Design
 - Optimized for desktop, tablet, and mobile devices
@@ -124,7 +124,7 @@ Use the radio buttons in the article pane header:
 - Adaptive layout that works across screen sizes
 
 ### Privacy & Security
-- All feed subscriptions and article status are private to your account
+- All feed subscriptions and article status are private to the account
 - Secure Google OAuth authentication
 - No tracking or data sharing with third parties
 
@@ -157,7 +157,7 @@ Use the radio buttons in the article pane header:
 1. Check "All Articles" for a quick overview
 2. Use `j/k` keys to quickly scan headlines
 3. Press `Enter` to open interesting articles in new tabs
-4. Star articles you want to reference later
+4. Star articles to reference later
 
 ### Performance
 - GoRead2 automatically optimizes for performance
