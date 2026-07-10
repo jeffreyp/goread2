@@ -20,7 +20,7 @@ Installation and configuration guide for running GoRead2 locally.
 - **Go 1.25 or later**
 - **Google Cloud Project** (for OAuth authentication)
 - **SQLite3** (automatically included with go-sqlite3)
-- **Node.js 16+** (optional, only needed to rebuild minified frontend assets; prebuilt assets are checked into the repo)
+- **Node.js 16+** (required to build minified frontend assets; these are not checked into the repo)
 - **Stripe Account** (optional, for subscription features)
 
 ## Google OAuth Setup
@@ -111,9 +111,9 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
    export STRIPE_PRICE_ID="price_your-price-id"
    ```
 
-4. **Build frontend assets (optional):**
+4. **Build frontend assets:**
 
-   Prebuilt, minified JS and CSS are checked into `web/static/`, so this step is only needed after editing frontend source:
+   Minified JS and CSS are not checked into `web/static/`; the app will not render without them, so this step is required before first run and after any change to frontend source:
 
    ```bash
    npm install

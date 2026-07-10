@@ -21,7 +21,7 @@ See the [Features Guide](docs/features.md) for the complete list and usage tips.
 ### Prerequisites
 - Go 1.25+
 - Google Cloud Project (for OAuth)
-- Node.js 16+ (optional, only needed to rebuild minified frontend assets; prebuilt assets are checked into the repo)
+- Node.js 16+ (required to build minified frontend assets; these are not checked into the repo)
 - Stripe Account (optional, for subscriptions)
 
 ### Setup
@@ -29,6 +29,8 @@ See the [Features Guide](docs/features.md) for the complete list and usage tips.
 git clone https://github.com/jeffreyp/goread2.git
 cd goread2
 go mod tidy
+npm install
+make build-frontend  # builds minified JS/CSS; the app won't render without this
 
 export GOOGLE_CLIENT_ID="your-client-id"
 export GOOGLE_CLIENT_SECRET="your-client-secret"
