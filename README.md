@@ -6,19 +6,17 @@
 
 A modern, multi-user RSS reader inspired by Google Reader and perhaps equally if not more so by [GoRead](https://github.com/madelynnblue/goread).
 
-## ✨ Features
+## Features
 
-- **Multi-user support** with Google OAuth authentication
-- **Three-pane layout** (feeds → articles → content) like Google Reader
-- **RSS/Atom feed support** with OPML import and export capabilities
-- **Smart feed updates** with background polling and intelligent prioritization
-- **Per-user article management** (read/unread, starred status)
-- **Subscription system** with 30-day free trial and Stripe integration
-- **Keyboard shortcuts** for efficient navigation
-- **Reading optimization** with clean sans-serif typography
-- **Cost-optimized** with intelligent caching and query optimization
+- Multi-user support with Google OAuth authentication
+- Three-pane layout (feeds → articles → content) like Google Reader
+- RSS/Atom feed support with OPML import and export
+- Keyboard shortcuts for efficient navigation
+- Subscription system with a 30-day free trial and Stripe integration
 
-## 🚀 Quick Start
+See the [Features Guide](docs/features.md) for the complete list and usage tips.
+
+## Quick Start
 
 ### Prerequisites
 - Go 1.25+
@@ -26,65 +24,35 @@ A modern, multi-user RSS reader inspired by Google Reader and perhaps equally if
 - Node.js 16+ (optional, only needed to rebuild minified frontend assets; prebuilt assets are checked into the repo)
 - Stripe Account (optional, for subscriptions)
 
-### 1. Clone and Setup
+### Setup
 ```bash
 git clone https://github.com/jeffreyp/goread2.git
 cd goread2
 go mod tidy
-```
 
-### 2. Google OAuth Setup
-1. Create a Google Cloud Project at [console.cloud.google.com](https://console.cloud.google.com/)
-2. Enable APIs & Services → Credentials → Create OAuth 2.0 Client ID
-3. Set authorized redirect URI: `http://localhost:8080/auth/callback`
-4. Export your credentials:
-```bash
 export GOOGLE_CLIENT_ID="your-client-id"
 export GOOGLE_CLIENT_SECRET="your-client-secret"
 export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
-```
 
-### 3. Build Frontend Assets (Optional)
-Prebuilt, minified JS and CSS are checked into `web/static/`, so this step is only needed after editing frontend source:
-```bash
-# Install npm dependencies
-npm install
-
-# Build all frontend assets (JS + CSS)
-make build-frontend
-
-# Or build individually
-make build-js    # Build minified JavaScript
-make build-css   # Build minified CSS
-```
-
-### 4. Run the Application
-```bash
 make dev  # validates config, then starts the dev server
-# Or run directly
-go run main.go
 ```
 
-Access at [http://localhost:8080](http://localhost:8080) and sign in with Google!
+Access at [http://localhost:8080](http://localhost:8080) and sign in with Google.
 
-## 🔧 Build System
+See the [Setup Guide](docs/setup.md) for Google OAuth configuration, frontend asset builds, and full environment variable reference.
 
-The project includes a Makefile with the following targets:
+## Build System
 
 ```bash
-make help              # Show all available commands
-make build             # Build the Go application binary
-make build-frontend    # Build minified JS and CSS assets
-make lint              # Run golangci-lint code quality checks
-make test              # Run all tests
-make docs              # Check markdown files for broken relative links and anchors
-make validate-build    # Validate config + build frontend + build app
-make clean             # Remove all build artifacts
+make help   # Show all available commands
+make build  # Build the Go application binary
+make test   # Run all tests
+make lint   # Run golangci-lint code quality checks
 ```
 
 Deployment is automated via GitHub Actions, not the Makefile. See [docs/deployment.md](docs/deployment.md).
 
-## 📚 Documentation
+## Documentation
 
 | Guide | Purpose |
 |-------|---------|
@@ -104,63 +72,11 @@ Deployment is automated via GitHub Actions, not the Makefile. See [docs/deployme
 | [**Troubleshooting**](docs/troubleshooting.md) | Common issues and solutions |
 | [**Contributing**](CONTRIBUTING.md) | Development and contribution guide |
 
-## 🏗️ Architecture
+## Contributing
 
-- **Authentication**: Google OAuth 2.0 with secure session management
-- **Database**: SQLite (local) or Google Cloud Datastore (production)
-- **Frontend**: Vanilla JavaScript with clean three-pane interface
-- **Backend**: Go with Gin framework
-- **Payments**: Stripe integration for subscriptions
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the fork, branch, and pull request workflow.
 
-## 🖼️ Interface
-
-The interface features three main sections:
-- **Left pane**: Personal feed subscriptions with unread counts
-- **Center pane**: Article list with personal read/unread status  
-- **Right pane**: Full article content with original formatting
-
-## ⌨️ Keyboard Shortcuts
-
-- `j/k` - Navigate articles up/down
-- `o/Enter` - Open article in new tab
-- `v` - Open article in place (current tab)
-- `m` - Toggle read/unread status
-- `s` - Star/unstar article
-- `r` - Refresh all feeds
-- `u` - Refresh the current feed
-- `a` - Mark all articles as read
-- `?` - Open help
-
-## 🔒 Security & Privacy
-
-- **Complete user data isolation** - users only see their own feeds and article status
-- **Secure authentication** via Google OAuth (no password storage)
-- **Session security** with HTTP-only cookies and CSRF protection
-- **Input validation** and XSS protection throughout
-
-## 🧪 Testing
-
-Run the comprehensive test suite:
-```bash
-make test  # Runs both backend and frontend tests
-```
-
-- **Multi-user isolation testing** to ensure data security
-- **Integration tests** for API endpoints, authentication, and admin functionality
-- **Dual database support testing** (SQLite + Google Datastore) 
-- **Frontend tests** with Jest and jsdom
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure `make test` passes
-5. Submit a pull request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
-
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
 
