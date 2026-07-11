@@ -2,6 +2,7 @@
 # Deploy Cloud Monitoring alerting policies for GoRead2 cost tracking
 
 set -e
+set -o pipefail
 
 POLICIES_FILE="monitoring/alert-policies.yaml"
 
@@ -49,6 +50,8 @@ fi
 
 echo "Creating alerting policies..."
 
+FAILURES=0
+
 for policy_file in "${POLICY_FILES[@]}"; do
     POLICY_NAME=$(grep -m1 '^displayName:' "$policy_file" | sed -E 's/^displayName:[[:space:]]*"?([^"]*)"?$/\1/')
     echo "  Creating policy: $POLICY_NAME"
@@ -61,9 +64,17 @@ for policy_file in "${POLICY_FILES[@]}"; do
         else
             echo "  ❌ Failed to create: $POLICY_NAME"
             cat /tmp/alert-deploy.log
+            FAILURES=$((FAILURES + 1))
         fi
     fi
 done
+
+if [ "$FAILURES" -gt 0 ]; then
+    echo ""
+    echo "❌ $FAILURES polic$([ "$FAILURES" -eq 1 ] && echo y || echo ies) failed to deploy"
+    rm -f /tmp/alert-deploy.log
+    exit 1
+fi
 
 echo ""
 echo "✅ Alerting policies deployment complete!"

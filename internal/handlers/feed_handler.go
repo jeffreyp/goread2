@@ -673,7 +673,7 @@ func (fh *FeedHandler) UpdateMaxArticlesOnFeedAdd(c *gin.Context) {
 	}
 
 	var req struct {
-		MaxArticles int `json:"max_articles" binding:"required,min=0,max=10000"`
+		MaxArticles int `json:"max_articles" binding:"min=0,max=10000"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {

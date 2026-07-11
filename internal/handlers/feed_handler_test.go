@@ -1459,6 +1459,46 @@ func TestUpdateMaxArticlesOnFeedAdd(t *testing.T) {
 		}
 	})
 
+	t.Run("max_articles of 0 (unlimited) succeeds", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
+			RequestsPerMinute: 10,
+			BurstSize:         1,
+		})
+		feedService := services.NewFeedService(db, rateLimiter)
+		handler := NewFeedHandler(feedService, nil, nil, db)
+
+		testUser := &database.User{
+			ID:    1,
+			Email: "test@example.com",
+			Name:  "Test User",
+		}
+
+		requestBody := map[string]int{"max_articles": 0}
+		bodyBytes, _ := json.Marshal(requestBody)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/settings/max-articles", bytes.NewReader(bodyBytes))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Set("user", testUser)
+
+		handler.UpdateMaxArticlesOnFeedAdd(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		var response map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if response["max_articles"] != float64(0) {
+			t.Errorf("Expected max_articles 0, got %v", response["max_articles"])
+		}
+	})
+
 	t.Run("no authentication returns 401", func(t *testing.T) {
 		db := newMockDBFeedHandler()
 		rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
