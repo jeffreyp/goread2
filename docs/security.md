@@ -222,7 +222,7 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 
 ### Endpoint Protection
 
-- **Debug endpoints** - Restricted to admin users only (moved to `/api/debug/*`)
+- **Debug endpoints** (`/api/debug/*`) - Restricted to admin users only
 - **Cron endpoints** - Protected by App Engine cron header validation (production) or admin auth (local)
 - **Admin endpoints** - Require authenticated admin session
 

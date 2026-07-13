@@ -174,7 +174,7 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes six policies
 
 `scripts/post-promote-health-watch.sh`, invoked from `deploy-prod.yml` after every production promotion (see [deployment.md](deployment.md#auto-rollback-post-promote-safety-net)), polls the same five signals as policies 1, 2, 3, 4, and 6 above directly via the Cloud Monitoring REST API, plus p95 latency, which has no alert policy of its own. It mirrors each policy's filter, aligner, reducer, threshold, and duration so the two stay in sync. The script's matching `THRESHOLD`/`DURATION_SECONDS` entries must be updated too whenever a threshold or duration changes here; they are not read from `alert-policies.yaml` at runtime.
 
-This is a separate mechanism from the alert policies, not a replacement: alert policies page a human at any time via the notification channel below; the health watch only runs in the ~15-minute window right after a promotion and auto-triggers `rollback.yml` on its own. Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com` (added 2026-07-05); the alert policies never needed this since they're evaluated by GCP itself, not queried by a workflow.
+This is a separate mechanism from the alert policies, not a replacement: alert policies page a human at any time via the notification channel below; the health watch only runs in the ~15-minute window right after a promotion and auto-triggers `rollback.yml` on its own. Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com`; the alert policies never needed this since they're evaluated by GCP itself, not queried by a workflow.
 
 ## Billing Budget
 
@@ -188,7 +188,7 @@ gcloud billing budgets list --billing-account=016C57-9F50ED-4C680E
 gcloud billing budgets update BUDGET_ID --billing-account=016C57-9F50ED-4C680E --budget-amount=NEW_AMOUNTUSD
 ```
 
-**Note**: the billing account also has a pre-existing `$10 Monthly Budget Alert` (thresholds 50/90/100/150%) that predates this setup and was not created as part of this work. Review whether to keep both or consolidate.
+**Note**: the billing account also has a separate, independently managed `$10 Monthly Budget Alert` (thresholds 50/90/100/150%) that is not part of this repo's tracked configuration.
 
 ### Customizing Alert Thresholds
 
@@ -242,7 +242,7 @@ The dashboard will be created in Cloud Monitoring. If it already exists, update 
 
 **Current state**: all 6 policies are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
 
-**Unrelated pre-existing alert, disabled**: the project also had a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`), likely a GCP console/suggested default predating this setup. It compared live traffic against a *forecasted* baseline and fired on a 100% increase. Any normal cron burst looked like an "infinite % increase" and triggered it every cycle, since this app's baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run. It went unnoticed until the notification channel above was attached (2026-07-03), at which point it started emailing every ~2 hours for entirely routine cron activity. Disabled via `gcloud alpha monitoring policies update ... --no-enabled`; the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) already covers this signal without the false-positive-prone forecast comparison.
+**Unrelated pre-existing alert, disabled**: the project also has a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`). It compares live traffic against a *forecasted* baseline and fires on a 100% increase, which is unreliable for this app: baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run, so any normal cron burst looks like an "infinite % increase." Disabled via `gcloud alpha monitoring policies update ... --no-enabled`; the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) covers this signal without the false-positive-prone forecast comparison.
 
 #### Step 1: Set Up Notification Channels
 
@@ -280,7 +280,7 @@ gcloud components install alpha
 gcloud alpha monitoring policies update POLICY_NAME --add-notification-channels=CHANNEL_ID
 ```
 
-**Note**: `alertStrategy.autoClose` has a 30-minute (`"1800s"`) minimum. The original "High HTTP Error Rate" policy specified `"900s"` (15 minutes), which the API rejected until corrected.
+**Note**: `alertStrategy.autoClose` has a 30-minute (`"1800s"`) minimum; the API rejects shorter values.
 
 ### Alternative: Use Deployment Scripts
 

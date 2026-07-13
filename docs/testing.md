@@ -14,7 +14,7 @@ Testing guide for GoRead2's multi-user RSS reader application.
 - [Security Testing](#security-testing)
 - [CI/CD Integration](#cicd-integration)
 - [Writing New Tests](#writing-new-tests)
-- [Test Performance Optimizations](#test-performance-optimizations)
+- [Test Performance](#test-performance)
 - [Performance Testing](#performance-testing)
 - [Debugging Tests](#debugging-tests)
 - [Troubleshooting](#troubleshooting)
@@ -501,7 +501,7 @@ func TestAdminWorkflow(t *testing.T) {
 
 #### Performance Benchmarks (`test/integration/performance_test.go`)
 
-`TestPerformanceBaseline` used to record timing via `t.Logf` with nothing checked against it: no pass/fail signal, just numbers in the log. It's been replaced with real `testing.B` benchmarks, run by a dedicated `benchmark` CI job rather than `go test`'s normal test run (see [CI regression gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) below):
+Timing is measured with `testing.B` benchmarks, run by a dedicated `benchmark` CI job rather than `go test`'s normal test run (see [CI regression gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) below):
 
 ```go
 func BenchmarkGetUserFeeds100(b *testing.B)           // Query all feeds for a user subscribed to 100
@@ -510,7 +510,7 @@ func BenchmarkGetUserUnreadCounts(b *testing.B)       // Per-feed unread counts 
 func BenchmarkConcurrentReads(b *testing.B)           // 10 users concurrently reading a shared feed
 ```
 
-Fixture setup (creating the feeds/articles/users) happens once per `-count` repetition via `b.ResetTimer()`, so only the operation named is measured, not the setup cost. `TestConcurrentUserOperations` (correctness of concurrent reads *and* writes under `-race`) is unchanged, since it's a concurrency-safety test, not a timing one.
+Fixture setup (creating the feeds/articles/users) happens once per `-count` repetition via `b.ResetTimer()`, so only the operation named is measured, not the setup cost. `TestConcurrentUserOperations` covers correctness of concurrent reads *and* writes under `-race` separately, as a concurrency-safety test rather than a timing one.
 
 Run locally:
 
@@ -526,7 +526,7 @@ The `benchmark` job in `test.yml` runs the four benchmarks above with `-benchtim
 - Every push to `main` whose benchmarks *don't* regress rolls the cache forward to that run's numbers, so the baseline tracks main over time instead of drifting stale.
 - `scripts/check-benchmark-regression.sh <baseline> <current> [threshold-pct]` (default threshold 20%) parses `benchstat -format csv` output and fails only on sec/op deltas that are both `>threshold%` *and* statistically significant per benchstat's own test; a change benchstat marks `~` is noise and is ignored regardless of the raw percentage. `B/op`/`allocs/op` deltas are printed but not gated on.
 - A regression fails the `benchmark` job, which fails the whole `test.yml` workflow, which blocks `deploy-staging.yml` (gated on `workflow_run.conclusion == 'success'`, the same mechanism as every other required job; see gr-vu1d's neighbor jobs). On a pull request, a regression additionally posts the benchstat report as a PR comment via `gh pr comment`.
-- The very first run after this job shipped has no cache to restore, so it skips the comparison and just bootstraps the baseline.
+- If no cache is available to restore (for example, after cache eviction), the job skips the comparison and bootstraps a fresh baseline.
 
 Part of epic gr-f6v (gr-4o2f).
 
@@ -681,7 +681,7 @@ Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` (the production 
 3. `gcloud beta emulators datastore start --host-port=localhost:8081 --no-store-on-disk --consistency=1.0` runs in the background; the step polls `http://localhost:8081/` until it responds before continuing.
 4. `DATASTORE_EMULATOR_HOST=localhost:8081` is exported for the rest of the job, so `go test ./internal/...` picks up the gated tests instead of skipping them.
 
-**`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which made `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier, reproduced locally before this was pinned to full consistency.
+**`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which makes `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier.
 
 **Local setup** (to run these tests outside CI):
 ```bash
@@ -1035,18 +1035,18 @@ jobs:
 ```
 
 **Pipeline features:**
-- Go 1.25 testing, pinned to match `go.mod` (bumped from 1.24 to clear govulncheck findings GO-2026-5039/GO-2026-5037, both fixed in go1.25.11; see gr-5ar0)
+- Go 1.25 testing, pinned to match `go.mod`
 - Package-level unit tests (`go test -short -race -coverprofile=coverage.out ./internal/...`)
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov
 - Linting with golangci-lint
-- ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`), catching undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed (gr-il9c)
-- Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build now fails CI instead of shipping silently (gr-v9ki)
-- Benchmark regression gate (`benchmark` job): see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above (gr-4o2f)
-- Security regression suite (`./test/security/...`): blocking gate covering CSRF enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and `FreeTrialFeedLimit` enforcement, all exercised through the real HTTP handlers rather than scattered across `test/integration` and package-level unit tests with no dedicated CI signal (gr-rrt)
+- ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`), catching undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed
+- Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build fails CI
+- Benchmark regression gate (`benchmark` job): see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above
+- Security regression suite (`./test/security/...`): blocking gate covering CSRF enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and `FreeTrialFeedLimit` enforcement, all exercised through the real HTTP handlers
 - `govulncheck` as a non-blocking reporting job, run in the same `security` job after the regression suite
-- Single-platform build artifact (`goread2` binary): dropped darwin/windows builds, since deployment is GAE-only and those artifacts served no purpose
-- All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review, matching the deploy workflows; see the workflow file's inline `# vX` comments for the corresponding version (gr-3ls6)
+- Single-platform build artifact (`goread2` binary): does not include darwin/windows builds, since deployment is GAE-only
+- All actions are pinned to commit SHA (not floating tags like `@v4`) for supply-chain hardening, matching the deploy workflows; see the workflow file's inline `# vX` comments for the corresponding version
 
 ### Post-Deploy Smoke Check (`scripts/smoke-check.sh`)
 
@@ -1124,36 +1124,19 @@ func TestAPIIntegration(t *testing.T) {
 }
 ```
 
-## Test Performance Optimizations
+## Test Performance
 
-GoRead2's test suite has been optimized for faster execution:
+### In-Memory Database
 
-### In-Memory Database (2-3x Faster)
-
-**Before:** File-based SQLite databases with temporary files
-```go
-tmpFile := fmt.Sprintf("/tmp/goread2_test_%d.db", time.Now().UnixNano())
-db, err := sql.Open("sqlite3", tmpFile)
-// Cleanup: os.Remove(tmpFile)
-```
-
-**After:** In-memory SQLite with shared cache
+Tests use in-memory SQLite with a shared cache rather than file-based databases:
 ```go
 db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
-// No file I/O overhead, automatic cleanup
 ```
+This eliminates disk I/O and temporary file creation/deletion, and supports concurrent access via the shared cache.
 
-**Performance Impact:**
-- ✅ Eliminates disk I/O completely
-- ✅ No temporary file creation/deletion
-- ✅ 2-3x faster database operations
-- ✅ Supports concurrent access via shared cache
+### Mock HTTP Clients
 
-### Mock HTTP Clients (5-10x Faster)
-
-**Before:** Real HTTP calls or no feed fetching tests
-
-**After:** Mock HTTP servers with dependency injection
+Feed fetching tests inject a mock HTTP client instead of making real network calls:
 ```go
 // Define HTTP client interface
 type HTTPClient interface {
@@ -1164,16 +1147,11 @@ type HTTPClient interface {
 mockServer := httptest.NewServer(...)
 fs.SetHTTPClient(&mockHTTPClient{Server: mockServer})
 ```
+This eliminates network latency and gives deterministic, controlled responses. Production code is unaffected: a nil client falls back to real HTTP.
 
-**Performance Impact:**
-- ✅ Eliminates network latency (0.3s+ per fetch)
-- ✅ Deterministic, controlled responses
-- ✅ 5-10x faster network-dependent tests
-- ✅ Production code unchanged (nil client = real HTTP)
+### Test Helpers
 
-### Test Helper Improvements
-
-New test helpers in `test/helpers/`:
+Test helpers in `test/helpers/`:
 ```go
 // HTTP mocking
 NewMockFeedServer(t, feedXML)                    // Single feed server
@@ -1186,15 +1164,6 @@ CreateTestDB(t)              // In-memory SQLite database
 CreateTestUser(t, db, ...)   // Test user creation
 CreateTestFeed(t, db, ...)   // Test feed creation
 ```
-
-### Performance Results
-
-Total test execution time improvements:
-- **Database tests:** ~40% faster (file I/O eliminated)
-- **Feed service tests:** ~80% faster (network calls mocked)
-- **Integration tests:** ~75% faster (combined optimizations)
-
-**Overall:** Test suite runs ~80% faster (75s → 15s)
 
 ## Performance Testing
 

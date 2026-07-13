@@ -783,10 +783,7 @@ All protected endpoints validate:
 
 ## API Versioning
 
-Currently using v1 (implicit). Future versions will use:
-- **URL versioning**: `/api/v2/feeds`
-- **Header versioning**: `Accept: application/vnd.goread.v2+json`
-- **Backward compatibility**: v1 maintained during transition periods
+The API is unversioned; all endpoints are implicitly v1.
 
 ## Examples and SDKs
 

@@ -27,17 +27,13 @@ GoRead2's pricing model ($9.99/month unlimited feeds) requires aggressive cost o
 
 #### 1. Smart Feed Update Prioritization ($30-60/month savings)
 
-**Problem:** Checking every feed every hour was still expensive and unnecessary for infrequently-updated feeds.
+Feed refresh runs on an hourly cron schedule and prioritizes feeds based on their observed update patterns, implemented in both `FeedService.RefreshFeeds()` and `FeedScheduler.updateSingleFeed()`:
+- **Feeds with known update frequency**: checked at 50% of their average update interval
+- **Active feeds** (< 1 week since last update): checked every 30 minutes
+- **Regular feeds** (< 1 month): checked every 1 hour
+- **Dormant feeds** (> 1 month): checked every 6 hours
 
-**Solution:**
-- Reduced cron schedule from every 30 minutes to **every 1 hour**
-- Implemented smart prioritization based on feed update patterns in both `FeedService.RefreshFeeds()` and `FeedScheduler.updateSingleFeed()`:
-  - **Feeds with known update frequency**: checked at 50% of their average update interval
-  - **Active feeds** (< 1 week since last update): checked every 30 minutes
-  - **Regular feeds** (< 1 month): checked every 1 hour
-  - **Dormant feeds** (> 1 month): checked every 6 hours
-- Track feed update patterns with weighted running average (70% historical, 30% new)
-- Automatically learn each feed's update frequency over time
+Each feed's update frequency is tracked with a weighted running average (70% historical, 30% new), so the schedule adapts automatically over time.
 
 **Implementation:**
 - Smart prioritization logic: `internal/services/feed_service.go:789-857`
@@ -46,20 +42,12 @@ GoRead2's pricing model ($9.99/month unlimited feeds) requires aggressive cost o
 
 **Impact:**
 - 20-40% reduction in unnecessary feed fetches (compared to checking all feeds every hour)
-- Adaptive learning improves efficiency over time
 - Better resource utilization for dormant feeds
 - Expected savings: $30-60/month in bandwidth and compute costs
 
-#### 2. Remove Unbounded Queries ($300-500/month savings)
+#### 2. Bounded Queries ($300-500/month savings)
 
-**Problem:** `GetAllArticles()` method performed full table scans without limits.
-
-**Solution:**
-- Completely removed the legacy method
-- All queries now use feed-specific or user-specific bounded queries
-- Use `GetArticles(feedID)` or `GetUserArticles(userID)` instead
-
-**Implementation:** Removed from all database implementations
+All article queries are feed-specific or user-specific and bounded, via `GetArticles(feedID)` or `GetUserArticles(userID)`. No code path performs an unbounded full-table scan.
 
 **Impact:**
 - Eliminates unbounded Datastore entity reads
@@ -67,37 +55,23 @@ GoRead2's pricing model ($9.99/month unlimited feeds) requires aggressive cost o
 
 #### 3. Cursor-Based Pagination ($100-200/month savings)
 
-**Problem:** Offset-based pagination was inefficient, especially for Datastore:
-- SQLite: Had to scan through all skipped rows with OFFSET
-- Datastore: Fetched `limit + offset + 50` extra articles per feed
-- Each page deeper required more reads
-
-**Solution:**
-- Implemented cursor-based pagination using keyset pagination for SQLite
-- For Datastore: reduced per-feed fetch from `limit + offset + 50` to `limit * 2`
-- Cursors encode the last article's timestamp and ID for precise positioning
-- No need to scan skipped rows - jump directly to the right position
+Pagination uses cursors that encode the last article's timestamp and ID, avoiding the cost of scanning or fetching skipped rows:
+- SQLite: keyset pagination via a `WHERE` clause gives O(1) positioning instead of O(offset) scanning.
+- Datastore: per-feed fetch size is `limit * 2` rather than the `limit + offset + 50` an offset-based approach would require.
 
 **Implementation:**
-- SQLite: `internal/database/schema.go:814-909` (keyset pagination with WHERE clause)
-- Datastore: `internal/database/datastore.go:733-940` (reduced fetch size)
+- SQLite: `internal/database/schema.go:814-909`
+- Datastore: `internal/database/datastore.go:733-940`
 - API: `internal/handlers/feed_handler.go:132-161` (cursor parameter)
 
 **Impact:**
-- **SQLite**: O(1) positioning instead of O(offset) scanning
-- **Datastore**: Eliminates wasteful `+50` article fetching
-- For user with 10 feeds on page 2: saves ~500+ entity reads
-- Scales better with deep pagination
+- Scales with deep pagination instead of degrading
+- For a user with 10 feeds on page 2: saves ~500+ entity reads compared to offset-based pagination
 - Expected savings: $100-200/month
 
 #### 4. Cache GetAllUserFeeds() ($50-100/month savings)
 
-**Problem:** `GetAllUserFeeds()` was called 48 times per day (hourly refresh) with no caching.
-
-**Solution:**
-- Implemented `FeedListCache` with 20-minute TTL
-- Cache automatically invalidated on subscribe/unsubscribe
-- Reduces queries from 48/day to ~3/day
+`FeedListCache` caches the result of `GetAllUserFeeds()` with a 20-minute TTL, invalidated automatically on subscribe/unsubscribe. This reduces the call from 48 queries/day (once per hourly refresh) to about 3/day.
 
 **Implementation:** `internal/cache/feed_list_cache.go`
 
@@ -107,18 +81,7 @@ GoRead2's pricing model ($9.99/month unlimited feeds) requires aggressive cost o
 
 #### 5. Deferred Cleanup for UnsubscribeUserFromFeed ($20-50/month savings)
 
-**Problem:** Unsubscribing from a feed triggered expensive cleanup of all user-article relationships:
-- SQLite: DELETE with subquery on every unsubscribe
-- Datastore: Queried all articles in feed, then all UserArticle entities (potentially thousands of reads)
-- Users experienced slow unsubscribe operations
-- Cost spike on every unsubscribe
-
-**Solution:**
-- Removed synchronous cleanup from `UnsubscribeUserFromFeed()`
-- Unsubscribe now only deletes the UserFeed subscription (instant operation)
-- Implemented `CleanupOrphanedUserArticles()` method for batch cleanup
-- Daily cron job cleans up orphaned records older than 7 days
-- Articles from unsubscribed feeds don't appear in UI (filtered by `GetUserArticlesPaginated`)
+`UnsubscribeUserFromFeed()` only deletes the `UserFeed` subscription record, an instant operation. Cleanup of the associated user-article relationships (which would otherwise require a subquery DELETE on SQLite or querying every article and `UserArticle` entity in the feed on Datastore) is deferred to `CleanupOrphanedUserArticles()`, run by a daily cron job that removes orphaned records older than 7 days. Articles from unsubscribed feeds are filtered out of the UI by `GetUserArticlesPaginated` in the meantime.
 
 **Implementation:**
 - Database methods: `internal/database/schema.go:787-794`, `internal/database/datastore.go:664-677`
@@ -127,32 +90,23 @@ GoRead2's pricing model ($9.99/month unlimited feeds) requires aggressive cost o
 - Cron schedule: `cron.yaml:11-18`
 
 **Impact:**
-- 10-100x faster unsubscribe operations
-- Spreads cleanup cost over time instead of spike per unsubscribe
-- Better user experience (instant unsubscribe)
+- 10-100x faster unsubscribe operations than synchronous cleanup
+- Spreads cleanup cost over time instead of a spike per unsubscribe
 - Expected savings: $20-50/month
 
 #### 6. HTTP Conditional Requests (ETag/If-Modified-Since) ($40-80/month savings)
 
-**Problem:** Every hourly feed refresh downloads the full feed content even when nothing has changed. Most feeds update infrequently, wasting bandwidth and processing time.
-
-**Solution:**
-- Store `ETag` and `Last-Modified` response headers from feed servers
-- Send `If-None-Match` and `If-Modified-Since` headers on subsequent requests
-- Handle `304 Not Modified` responses to skip re-downloading and re-parsing unchanged feeds
-- New `FetchOptions` struct enables conditional request headers
+Feed fetches store the `ETag` and `Last-Modified` response headers from feed servers and send them back as `If-None-Match` and `If-Modified-Since` on subsequent requests. A `304 Not Modified` response skips re-downloading and re-parsing the feed, which most hourly refreshes hit since feeds update infrequently.
 
 **Implementation:**
 - Database fields: `Feed.ETag`, `Feed.LastModified` (both SQLite and Datastore)
-- Schema migration: `internal/database/schema.go` (idempotent ALTER TABLE)
 - Conditional request logic: `internal/services/feed_service.go` (`fetchFeed` with `FetchOptions`)
 - Cache header persistence: `Database.UpdateFeedCacheHeaders()`
 - Integration in `RefreshFeeds()`: builds `FetchOptions` from stored headers, handles 304
 
 **Impact:**
 - Estimated ~90% bandwidth reduction for unchanged feeds
-- Faster refresh cycles (304 responses are instant, no body parsing needed)
-- Reduced CPU usage from skipped XML parsing
+- Faster refresh cycles (304 responses skip body parsing)
 - Expected savings: $40-80/month in bandwidth and compute costs
 
 ### Total Cost Savings
@@ -313,7 +267,7 @@ go tool pprof mem.prof
 go test ./test/integration -run TestConcurrentUserOperations
 ```
 
-Timing-based performance checks now live as Go benchmarks (`BenchmarkGetUserArticlesPaginatedFirstPage`, `BenchmarkGetUserUnreadCounts`, etc. in `internal/database/schema_bench_test.go`) rather than a single integration test, and are gated in CI by a dedicated `benchmark` job. See [testing.md](testing.md#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) for details.
+Timing-based performance checks are Go benchmarks (`BenchmarkGetUserArticlesPaginatedFirstPage`, `BenchmarkGetUserUnreadCounts`, etc. in `internal/database/schema_bench_test.go`), gated in CI by a dedicated `benchmark` job. See [testing.md](testing.md#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) for details.
 
 ## Deployment Considerations
 

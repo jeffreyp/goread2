@@ -229,7 +229,7 @@ A `Host` header that doesn't match either one (e.g. a per-SHA staging URL, or an
 
 **Caveat**: staging shares the production Datastore and live Stripe keys. Do not exercise Stripe subscription flows on staging, since webhooks point at the production domain only.
 
-**Local dev**: `STAGING_REDIRECT_URL` is unset locally, so the allowlist only contains whatever host `GOOGLE_REDIRECT_URL` resolves to (typically `localhost:8080`); behavior is unchanged from before this feature existed.
+**Local dev**: `STAGING_REDIRECT_URL` is unset locally, so the allowlist only contains whatever host `GOOGLE_REDIRECT_URL` resolves to (typically `localhost:8080`).
 
 ### Testing
 

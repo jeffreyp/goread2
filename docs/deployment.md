@@ -92,8 +92,6 @@ steps:
   - run: gcloud app deploy ...
 ```
 
-Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow: authenticated successfully and ran `gcloud app describe` as `cicd-deploy@...`. The smoke-test workflow was removed after verification; the real deploy-staging/deploy-prod workflows are separate tracked work.
-
 ## Production Approval Gate (GitHub Environment)
 
 A GitHub Environment named `production` provides the human approval gate for production deploys. Any workflow job that declares `environment: production` pauses and waits for an approval before running.
@@ -114,7 +112,6 @@ jobs:
       - run: gcloud app versions migrate ...
 ```
 
-Verified 2026-07-04 with a throwaway `workflow_dispatch` smoke-test workflow declaring `environment: production`. The run entered `waiting` status and the Actions API confirmed a pending deployment awaiting review from `jeffreyp`. Cancelled (not approved; approval should always be a real human decision) and the smoke-test workflow removed after verification.
 
 ## Automated Staging Deploys (`.github/workflows/deploy-staging.yml`)
 

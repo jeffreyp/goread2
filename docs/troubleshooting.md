@@ -82,7 +82,7 @@ See [authentication.md](authentication.md#session-management) for how sessions a
 ### Logged Out When Switching Between Local and Production
 
 **Common Causes**:
-- Using an old build predating environment-specific cookie names (see [authentication.md](authentication.md#environment-isolation))
+- Running a build that lacks environment-specific cookie names (see [authentication.md](authentication.md#environment-isolation))
 - Stale cookies from a previous session
 
 **Solution**: Clear cookies and log in again; verify environment variables are set correctly.
