@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,15 +132,15 @@ func TestOAuthStateExpiration(t *testing.T) {
 
 	// Store a state
 	state := "test-state-12345"
-	sessionManager.StoreOAuthState(state)
+	sessionManager.StoreOAuthState(state, false)
 
 	// Validate immediately - should succeed
-	if !sessionManager.ValidateAndConsumeOAuthState(state) {
+	if valid, _ := sessionManager.ValidateAndConsumeOAuthState(state); !valid {
 		t.Error("Fresh state should be valid")
 	}
 
 	// Try to validate again - should fail (already consumed)
-	if sessionManager.ValidateAndConsumeOAuthState(state) {
+	if valid, _ := sessionManager.ValidateAndConsumeOAuthState(state); valid {
 		t.Error("Consumed state should not be valid again")
 	}
 }
@@ -149,9 +151,191 @@ func TestOAuthStateInvalidState(t *testing.T) {
 	sessionManager := auth.NewSessionManager(db)
 
 	// Try to validate a state that was never stored
-	if sessionManager.ValidateAndConsumeOAuthState("unknown-state") {
+	if valid, _ := sessionManager.ValidateAndConsumeOAuthState("unknown-state"); valid {
 		t.Error("Unknown state should be invalid")
 	}
+}
+
+// TestOAuthStateMobileFlag tests that the mobile flag round-trips through the
+// state store, since the callback relies on it to pick the goread2:// handoff.
+func TestOAuthStateMobileFlag(t *testing.T) {
+	db := &mockDBAuthHandler{}
+	sessionManager := auth.NewSessionManager(db)
+
+	sessionManager.StoreOAuthState("web-state", false)
+	sessionManager.StoreOAuthState("ios-state", true)
+
+	if valid, mobile := sessionManager.ValidateAndConsumeOAuthState("web-state"); !valid || mobile {
+		t.Errorf("web state: expected valid=true mobile=false, got valid=%v mobile=%v", valid, mobile)
+	}
+	if valid, mobile := sessionManager.ValidateAndConsumeOAuthState("ios-state"); !valid || !mobile {
+		t.Errorf("ios state: expected valid=true mobile=true, got valid=%v mobile=%v", valid, mobile)
+	}
+}
+
+// TestAuthCodeExchange tests the one-time code lifecycle used by the mobile
+// auth handoff: a code redeems exactly once and unknown codes are rejected.
+func TestAuthCodeExchange(t *testing.T) {
+	db := &mockDBAuthHandler{}
+	sessionManager := auth.NewSessionManager(db)
+
+	expiresAt := time.Now().Add(7 * 24 * time.Hour).Truncate(time.Second)
+	session := &auth.Session{ID: "session-abc", ExpiresAt: expiresAt}
+
+	code, err := sessionManager.CreateAuthCode(session)
+	if err != nil {
+		t.Fatalf("CreateAuthCode failed: %v", err)
+	}
+	if code == "" || code == session.ID {
+		t.Fatalf("expected a distinct non-empty code, got %q", code)
+	}
+
+	sessionID, sessionExpiresAt, ok := sessionManager.ExchangeAuthCode(code)
+	if !ok {
+		t.Fatal("fresh code should exchange successfully")
+	}
+	if sessionID != session.ID {
+		t.Errorf("expected session ID %q, got %q", session.ID, sessionID)
+	}
+	if !sessionExpiresAt.Equal(expiresAt) {
+		t.Errorf("expected session expiry %v, got %v", expiresAt, sessionExpiresAt)
+	}
+
+	if _, _, ok := sessionManager.ExchangeAuthCode(code); ok {
+		t.Error("consumed code should not exchange again")
+	}
+	if _, _, ok := sessionManager.ExchangeAuthCode("unknown-code"); ok {
+		t.Error("unknown code should not exchange")
+	}
+}
+
+func TestToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newHandler := func() *AuthHandler {
+		db := &mockDBAuthHandler{}
+		sessionManager := auth.NewSessionManager(db)
+		csrfManager := auth.NewCSRFManager()
+		return NewAuthHandler(nil, sessionManager, csrfManager)
+	}
+
+	t.Run("valid code returns session token", func(t *testing.T) {
+		handler := newHandler()
+		expiresAt := time.Now().Add(7 * 24 * time.Hour)
+		code, err := handler.sessionManager.CreateAuthCode(&auth.Session{ID: "session-xyz", ExpiresAt: expiresAt})
+		if err != nil {
+			t.Fatalf("CreateAuthCode failed: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := strings.NewReader(`{"code":"` + code + `"}`)
+		c.Request = httptest.NewRequest("POST", "/auth/token", body)
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.Token(c)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if resp["session_token"] != "session-xyz" {
+			t.Errorf("expected session_token session-xyz, got %v", resp["session_token"])
+		}
+		if resp["cookie_name"] != "session_id_local" {
+			t.Errorf("expected cookie_name session_id_local in tests, got %v", resp["cookie_name"])
+		}
+		if resp["expires_at"] == nil {
+			t.Error("response missing expires_at")
+		}
+	})
+
+	t.Run("invalid code returns 401", func(t *testing.T) {
+		handler := newHandler()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/auth/token", strings.NewReader(`{"code":"bogus"}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.Token(c)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing code returns 400", func(t *testing.T) {
+		handler := newHandler()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/auth/token", strings.NewReader(`{}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.Token(c)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
+	})
+}
+
+func TestLoginMobileRedirect(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newHandler := func() *AuthHandler {
+		db := &mockDBAuthHandler{}
+		sessionManager := auth.NewSessionManager(db)
+		csrfManager := auth.NewCSRFManager()
+		return NewAuthHandler(auth.NewAuthService(db), sessionManager, csrfManager)
+	}
+
+	t.Run("client=ios redirects to Google and flags state mobile", func(t *testing.T) {
+		handler := newHandler()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/auth/login?client=ios", nil)
+
+		handler.Login(c)
+
+		if w.Code != http.StatusFound {
+			t.Fatalf("expected 302, got %d: %s", w.Code, w.Body.String())
+		}
+		location := w.Header().Get("Location")
+		locURL, err := url.Parse(location)
+		if err != nil || locURL.Host != "accounts.google.com" {
+			t.Fatalf("expected redirect to accounts.google.com, got %q", location)
+		}
+		state := locURL.Query().Get("state")
+		if state == "" {
+			t.Fatal("redirect URL missing state parameter")
+		}
+		if valid, mobile := handler.sessionManager.ValidateAndConsumeOAuthState(state); !valid || !mobile {
+			t.Errorf("expected stored state to be valid and mobile, got valid=%v mobile=%v", valid, mobile)
+		}
+	})
+
+	t.Run("web login still returns auth_url JSON", func(t *testing.T) {
+		handler := newHandler()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/auth/login", nil)
+
+		handler.Login(c)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if resp["auth_url"] == nil {
+			t.Error("response missing auth_url")
+		}
+	})
 }
 
 func TestCleanupExpiredSessions_CronAuth(t *testing.T) {

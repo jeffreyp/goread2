@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -35,14 +36,26 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Mobile clients (client=ios) get the goread2:// handoff on callback
+	// instead of the redirect to /.
+	mobile := c.Query("client") == "ios"
+
 	// Store state in session manager for one-time use validation
-	ah.sessionManager.StoreOAuthState(state)
+	ah.sessionManager.StoreOAuthState(state, mobile)
 
 	// Store state in cookie for validation (backward compatibility)
 	// Use environment-specific cookie name to avoid conflicts
 	c.SetCookie(getOAuthStateCookieName(), state, 600, "/", "", false, true) // 10 minutes
 
 	authURL := ah.authService.GetAuthURL(state, c.Request.Host)
+	if mobile {
+		// The mobile flow opens this endpoint as a top-level navigation
+		// inside ASWebAuthenticationSession, so the state cookie above must
+		// land in that browser context; redirect straight to Google rather
+		// than returning JSON the web frontend would navigate to itself.
+		c.Redirect(http.StatusFound, authURL)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"auth_url": authURL})
 }
 
@@ -58,7 +71,8 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// Validate and consume state (one-time use check)
-	if !ah.sessionManager.ValidateAndConsumeOAuthState(queryState) {
+	valid, mobile := ah.sessionManager.ValidateAndConsumeOAuthState(queryState)
+	if !valid {
 		log.Printf("SECURITY: OAuth state expired or replayed from IP %s", auth.GetSecureClientIP(c))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter has expired or has already been used. Please try signing in again."})
 		return
@@ -69,7 +83,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 
 	code := c.Query("code")
 	if code == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "The authorization code is missing from the OAuth callback."})
+		ah.callbackError(c, mobile, http.StatusBadRequest, "The authorization code is missing from the OAuth callback.")
 		return
 	}
 
@@ -77,7 +91,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	user, err := ah.authService.HandleCallback(code, c.Request.Host)
 	if err != nil {
 		log.Printf("OAuth callback error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication failed. Please try signing in again."})
+		ah.callbackError(c, mobile, http.StatusInternalServerError, "Authentication failed. Please try signing in again.")
 		return
 	}
 
@@ -90,7 +104,21 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	// Create session
 	session, err := ah.sessionManager.CreateSession(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Session creation failed. Please try signing in again."})
+		ah.callbackError(c, mobile, http.StatusInternalServerError, "Session creation failed. Please try signing in again.")
+		return
+	}
+
+	if mobile {
+		// Hand the session off via a one-time code so the session token never
+		// appears in the goread2:// URL. No session cookie is set here: the
+		// ASWebAuthenticationSession browser context is discarded after the
+		// redirect, and the app claims the session via POST /auth/token.
+		authCode, err := ah.sessionManager.CreateAuthCode(session)
+		if err != nil {
+			ah.callbackError(c, mobile, http.StatusInternalServerError, "Session creation failed. Please try signing in again.")
+			return
+		}
+		c.Redirect(http.StatusFound, mobileCallbackURL+"?code="+url.QueryEscape(authCode))
 		return
 	}
 
@@ -99,6 +127,47 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 
 	// Redirect to app
 	c.Redirect(http.StatusTemporaryRedirect, "/")
+}
+
+// mobileCallbackURL is the custom URL scheme the iOS app registers; redirecting
+// to it completes the app's ASWebAuthenticationSession.
+const mobileCallbackURL = "goread2://auth"
+
+// callbackError reports a callback failure appropriately per client: mobile
+// flows get a redirect to the app's URL scheme (so the auth sheet dismisses
+// and the app can show the error), web flows get the JSON error as before.
+func (ah *AuthHandler) callbackError(c *gin.Context, mobile bool, status int, message string) {
+	if mobile {
+		c.Redirect(http.StatusFound, mobileCallbackURL+"?error="+url.QueryEscape(message))
+		return
+	}
+	c.JSON(status, gin.H{"error": message})
+}
+
+// Token exchanges a one-time code minted by the mobile OAuth callback for the
+// session token. The app stores the token as its session cookie; subsequent
+// API calls then authenticate exactly like the web frontend's.
+func (ah *AuthHandler) Token(c *gin.Context) {
+	var req struct {
+		Code string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "A one-time authorization code is required."})
+		return
+	}
+
+	sessionID, expiresAt, ok := ah.sessionManager.ExchangeAuthCode(req.Code)
+	if !ok {
+		log.Printf("SECURITY: invalid or expired auth code exchange attempt from IP %s", auth.GetSecureClientIP(c))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "The authorization code is invalid or has expired. Please try signing in again."})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_token": sessionID,
+		"cookie_name":   ah.sessionManager.SessionCookieName(),
+		"expires_at":    expiresAt,
+	})
 }
 
 func (ah *AuthHandler) Logout(c *gin.Context) {
@@ -209,6 +278,7 @@ func (ah *AuthHandler) CleanupExpiredSessions(c *gin.Context) {
 	// Also cleanup in-memory cache
 	ah.sessionManager.CleanupExpiredCache()
 	ah.sessionManager.CleanupExpiredOAuthStates()
+	ah.sessionManager.CleanupExpiredAuthCodes()
 
 	log.Printf("Session cleanup completed successfully")
 	c.JSON(http.StatusOK, gin.H{"message": "Session cleanup completed"})

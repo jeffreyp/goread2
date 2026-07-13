@@ -45,7 +45,10 @@ GoRead2 provides a RESTful API for managing feeds, articles, and user subscripti
 #### `GET /auth/login`
 Initiate Google OAuth authentication flow.
 
-**Response**: Redirects to Google OAuth consent screen
+**Parameters**:
+- `client` (query, optional) - `ios` marks the flow as a native mobile login; the callback then hands off to the app instead of the web frontend (see `POST /auth/token`)
+
+**Response**: JSON containing `auth_url`, the Google OAuth consent URL. With `client=ios`, a `302` redirect to the consent URL instead, since mobile clients open this endpoint as a top-level navigation inside ASWebAuthenticationSession.
 
 **Example**:
 ```bash
@@ -59,7 +62,30 @@ OAuth callback handler (configured in Google Cloud Console).
 - `code` (query) - Authorization code from Google
 - `state` (query) - CSRF protection state parameter
 
-**Response**: Redirects to main application with session cookie
+**Response**: Redirects to the main application with a session cookie. For flows started with `client=ios`, redirects to `goread2://auth?code=<one-time-code>` instead, without setting a session cookie; the app exchanges the code via `POST /auth/token`. Mobile-flow failures redirect to `goread2://auth?error=<message>` so the in-app auth sheet dismisses.
+
+#### `POST /auth/token`
+Exchange a one-time code from the mobile OAuth callback for the session token. Codes are single-use and expire after 2 minutes. This endpoint keeps session tokens out of the `goread2://` callback URL, where they could leak into device logs.
+
+**Request**:
+```json
+{
+  "code": "one-time-code-from-callback"
+}
+```
+
+**Response**:
+```json
+{
+  "session_token": "session-token-value",
+  "cookie_name": "session_id",
+  "expires_at": "2026-07-20T12:00:00Z"
+}
+```
+
+The client stores `session_token` as a cookie named `cookie_name`; subsequent requests then authenticate exactly like browser requests.
+
+**Errors**: `400` if `code` is missing, `401` if the code is invalid, expired, or already used.
 
 #### `POST /auth/logout`
 Logout and clear session.

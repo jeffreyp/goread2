@@ -71,6 +71,31 @@ Inject user into request context
 Process request
 ```
 
+### Mobile Client Flow (iOS)
+
+Native apps cannot complete the web flow above: the OAuth sheet (ASWebAuthenticationSession) only dismisses when redirected to the app's registered `goread2://` URL scheme, and cookies set inside the sheet's browsing context never reach the app's `HTTPCookieStorage`. The mobile flow therefore diverges at three points:
+
+```
+App opens /auth/login?client=ios inside ASWebAuthenticationSession
+  ↓
+Server stores the OAuth state flagged as mobile and 302-redirects to Google
+(top-level navigation, so the state cookie lands in the sheet's browser context)
+  ↓
+Google redirects to /auth/callback; state validates as in the web flow
+  ↓
+Server creates the session, then redirects to goread2://auth?code=<one-time-code>
+instead of / and sets no session cookie
+  ↓
+App exchanges the code via POST /auth/token for the session token
+  ↓
+App stores the token as the session cookie in HTTPCookieStorage;
+all later API calls authenticate exactly like browser requests
+```
+
+One-time codes are single-use and expire after 2 minutes. The code indirection keeps session tokens out of the `goread2://` callback URL, where they could leak into device logs. Callback failures on the mobile path redirect to `goread2://auth?error=<message>` so the auth sheet dismisses and the app can surface the error. `POST /auth/token` returns the environment-specific session cookie name alongside the token, so a client pointed at a local backend sets `session_id_local` without hardcoding the environment logic.
+
+Expired codes are purged by the same `/cron/cleanup-sessions` job that removes expired OAuth states.
+
 ## Session Management
 
 ### Session Creation
@@ -247,8 +272,9 @@ req.AddCookie(&http.Cookie{
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/auth/login` | GET | Initiate OAuth flow |
+| `/auth/login` | GET | Initiate OAuth flow (`?client=ios` for the mobile handoff) |
 | `/auth/callback` | GET | OAuth callback handler |
+| `/auth/token` | POST | Exchange a mobile one-time code for the session token |
 | `/auth/logout` | POST | End session |
 | `/auth/me` | GET | Get current user info |
 
