@@ -20,8 +20,6 @@
 				"Features/FeedList/.gitkeep",
 				"Features/Settings/.gitkeep",
 				Info.plist,
-				"Models/.gitkeep",
-				"Networking/.gitkeep",
 			);
 			target = 6F00000000000000000000B0 /* GoRead2 */;
 		};
