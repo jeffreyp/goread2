@@ -315,6 +315,10 @@ env_variables:
 
 `SECRET_CLIENT_ID_NAME`/`SECRET_CLIENT_SECRET_NAME` override which Secret Manager secret name to fetch the OAuth credentials from; omit them to fall back to the defaults `google-client-id`/`google-client-secret`.
 
+### .gcloudignore
+
+`.gcloudignore`, at the repository root, controls which files `gcloud app deploy` uploads. Besides development artifacts, it excludes `ios/`, the native iOS app, which is not part of the App Engine service.
+
 ### cron.yaml Configuration
 
 ```yaml

@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-goread2
+/goread2
 
 # Test binary, built with `go test -c`
 *.test
@@ -22,6 +22,11 @@ go.work
 # Local database file
 *.db
 goread2.db
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
 
 # IDE files
 .vscode/
@@ -51,7 +56,6 @@ Thumbs.db
 logs/
 
 # App Engine
-.gcloudignore
 app.yaml.tmp
 
 # Temporary files
