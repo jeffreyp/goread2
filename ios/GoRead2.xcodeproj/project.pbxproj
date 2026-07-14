@@ -16,7 +16,6 @@
 			membershipExceptions = (
 				"Features/ArticleList/.gitkeep",
 				"Features/ArticleReader/.gitkeep",
-				"Features/Auth/.gitkeep",
 				"Features/FeedList/.gitkeep",
 				"Features/Settings/.gitkeep",
 				Info.plist,
