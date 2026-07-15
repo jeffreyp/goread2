@@ -38,7 +38,7 @@ struct FeedListView: View {
                 }
             }
             .navigationDestination(for: FeedSelection.self) { selection in
-                ArticleListPlaceholderView(selection: selection)
+                ArticleListView(selection: selection)
             }
         }
         .alert("Add Feed", isPresented: $showingAddFeed) {
@@ -135,18 +135,6 @@ struct FeedListView: View {
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
         )
-    }
-}
-
-/// Placeholder destination until the article list screen (gr-u32y) lands.
-private struct ArticleListPlaceholderView: View {
-    let selection: FeedSelection
-
-    var body: some View {
-        Text("Articles for \(selection.title)")
-            .foregroundStyle(.secondary)
-            .navigationTitle(selection.title)
-            .navigationBarTitleDisplayMode(.inline)
     }
 }
 
