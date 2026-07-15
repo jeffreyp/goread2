@@ -2,8 +2,9 @@ import SwiftUI
 
 /// Full-article reading screen: the content renders in a WKWebView, and a
 /// bottom toolbar carries previous/next navigation, star, open-in-browser,
-/// and share. Opening an article (including via previous/next) marks it read.
-/// The standard edge-swipe pops back to the article list.
+/// and share. Swiping left/right on the content also moves to the
+/// next/previous article. Opening an article (including via previous/next)
+/// marks it read. The standard edge-swipe pops back to the article list.
 ///
 /// The view shares the list's view model so star and read changes made here
 /// show up in the list rows immediately.
@@ -28,7 +29,7 @@ struct ArticleReaderView: View {
     var body: some View {
         Group {
             if let article {
-                ArticleWebView(article: article) { url in
+                ArticleWebView(article: article, onLinkTap: { url in
                     if let item = SafariItem(url) {
                         safariItem = item
                     } else {
@@ -36,7 +37,9 @@ struct ArticleReaderView: View {
                         // system handler.
                         UIApplication.shared.open(url)
                     }
-                }
+                }, onSwipe: { offset in
+                    move(offset)
+                })
             } else {
                 // A refresh can replace the list while the reader is open;
                 // the article may no longer be loaded.

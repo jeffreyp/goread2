@@ -4,10 +4,13 @@ import WebKit
 /// WKWebView wrapper that renders one article's HTML inside a stylesheet
 /// matching the web app's reading typography, with automatic Dark Mode via
 /// prefers-color-scheme. Tapped links are handed to `onLinkTap` instead of
-/// navigating in place.
+/// navigating in place. Horizontal swipes report an offset (-1 for a right
+/// swipe, +1 for a left swipe) through `onSwipe` so the reader can move
+/// between articles.
 struct ArticleWebView: UIViewRepresentable {
     let article: Article
     let onLinkTap: (URL) -> Void
+    var onSwipe: ((Int) -> Void)?
 
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
@@ -18,11 +21,25 @@ struct ArticleWebView: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
+
+        let nextSwipe = UISwipeGestureRecognizer(
+            target: context.coordinator, action: #selector(Coordinator.didSwipeToNext))
+        nextSwipe.direction = .left
+        nextSwipe.delegate = context.coordinator
+        webView.addGestureRecognizer(nextSwipe)
+
+        let previousSwipe = UISwipeGestureRecognizer(
+            target: context.coordinator, action: #selector(Coordinator.didSwipeToPrevious))
+        previousSwipe.direction = .right
+        previousSwipe.delegate = context.coordinator
+        webView.addGestureRecognizer(previousSwipe)
+
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.onLinkTap = onLinkTap
+        context.coordinator.onSwipe = onSwipe
         // updateUIView also fires for unrelated state changes (star toggles,
         // sheet presentation); only reload when showing a different article,
         // or the scroll position would reset.
@@ -38,12 +55,36 @@ struct ArticleWebView: UIViewRepresentable {
         Coordinator(onLinkTap: onLinkTap)
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate,
+                             UIGestureRecognizerDelegate {
         var onLinkTap: (URL) -> Void
+        var onSwipe: ((Int) -> Void)?
         var loadedArticleID: Int?
 
         init(onLinkTap: @escaping (URL) -> Void) {
             self.onLinkTap = onLinkTap
+        }
+
+        @objc func didSwipeToNext() { onSwipe?(1) }
+        @objc func didSwipeToPrevious() { onSwipe?(-1) }
+
+        // The scroll view's pan recognizer would otherwise claim every touch
+        // and the swipes would never fire.
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith
+                               otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            true
+        }
+
+        // Touches starting at the leading edge belong to the navigation
+        // controller's interactive pop; the previous-article swipe must not
+        // race it.
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldReceive touch: UITouch) -> Bool {
+            guard let swipe = gestureRecognizer as? UISwipeGestureRecognizer,
+                  swipe.direction == .right,
+                  let window = touch.window else { return true }
+            return touch.location(in: window).x > 44
         }
 
         func webView(_ webView: WKWebView,
