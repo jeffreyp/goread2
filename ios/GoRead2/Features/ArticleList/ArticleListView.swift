@@ -2,10 +2,14 @@ import SwiftUI
 
 /// Paginated article list for one feed or the merged "All Articles" stream:
 /// infinite scroll via cursor pagination, an unread-only filter, and
-/// pull-to-refresh. Opening an article marks it read immediately.
+/// pull-to-refresh. Opening an article marks it read immediately. Rows offer
+/// star (leading) and mark read/unread (trailing) swipe actions, and the
+/// All Articles list carries a mark-all-read toolbar button (the endpoint is
+/// account-wide, so per-feed lists do not offer it).
 struct ArticleListView: View {
     @EnvironmentObject private var authManager: AuthManager
     @StateObject private var viewModel: ArticleListViewModel
+    @State private var showMarkAllReadConfirmation = false
 
     private let selection: FeedSelection
 
@@ -27,7 +31,14 @@ struct ArticleListView: View {
         .navigationTitle(selection.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if case .all = selection {
+                    Button {
+                        showMarkAllReadConfirmation = true
+                    } label: {
+                        Label("Mark All Read", systemImage: "checkmark.circle")
+                    }
+                }
                 Button {
                     Task { await viewModel.toggleUnreadFilter() }
                 } label: {
@@ -38,9 +49,15 @@ struct ArticleListView: View {
                 }
             }
         }
+        .confirmationDialog("Mark all articles as read?",
+                            isPresented: $showMarkAllReadConfirmation,
+                            titleVisibility: .visible) {
+            Button("Mark All Read") {
+                Task { await viewModel.markAllRead() }
+            }
+        }
         .navigationDestination(for: Article.self) { article in
-            ArticleReaderPlaceholderView(article: article)
-                .task { await viewModel.markRead(article) }
+            ArticleReaderView(viewModel: viewModel, articleID: article.id)
         }
         .alert("Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}
@@ -62,6 +79,24 @@ struct ArticleListView: View {
             ForEach(viewModel.articles) { article in
                 NavigationLink(value: article) {
                     ArticleRow(article: article)
+                }
+                .swipeActions(edge: .leading) {
+                    Button {
+                        Task { await viewModel.toggleStar(article) }
+                    } label: {
+                        Label(article.isStarred ? "Unstar" : "Star",
+                              systemImage: article.isStarred ? "star.slash" : "star")
+                    }
+                    .tint(.yellow)
+                }
+                .swipeActions(edge: .trailing) {
+                    Button {
+                        Task { await viewModel.setRead(article, isRead: !article.isRead) }
+                    } label: {
+                        Label(article.isRead ? "Mark Unread" : "Mark Read",
+                              systemImage: article.isRead ? "circle.fill" : "checkmark.circle")
+                    }
+                    .tint(.blue)
                 }
             }
 
@@ -126,6 +161,10 @@ private struct ArticleRow: View {
                     .lineLimit(2)
 
                 HStack(spacing: 4) {
+                    if article.isStarred {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(.yellow)
+                    }
                     if let feedTitle = article.feedTitle, !feedTitle.isEmpty {
                         Text(feedTitle)
                             .lineLimit(1)
@@ -138,24 +177,6 @@ private struct ArticleRow: View {
             }
         }
         .padding(.vertical, 2)
-    }
-}
-
-/// Placeholder destination until the article reader screen (gr-znsq) lands.
-private struct ArticleReaderPlaceholderView: View {
-    let article: Article
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Text(article.title)
-                .font(.title3.bold())
-                .multilineTextAlignment(.center)
-            Text("Reader coming soon")
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .navigationTitle(article.feedTitle ?? "")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

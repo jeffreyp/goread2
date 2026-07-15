@@ -77,18 +77,54 @@ final class ArticleListViewModel: ObservableObject {
     /// server. Articles already read are left alone so re-opening one does
     /// not disturb server-side unread counts.
     func markRead(_ article: Article) async {
-        guard !article.isRead,
+        await setRead(article, isRead: true)
+    }
+
+    /// Sets the read state of `article`, optimistically in the list and then
+    /// on the server, reverting on failure. No-op when the state already
+    /// matches, so server-side unread counts are never double-adjusted.
+    func setRead(_ article: Article, isRead: Bool) async {
+        guard article.isRead != isRead,
               let index = articles.firstIndex(where: { $0.id == article.id }) else { return }
-        articles[index].isRead = true
+        articles[index].isRead = isRead
         do {
             try await client.markRead(articleID: article.id,
-                                      isRead: true,
+                                      isRead: isRead,
                                       feedID: article.feedId,
-                                      wasRead: false)
+                                      wasRead: !isRead)
         } catch {
             if let index = articles.firstIndex(where: { $0.id == article.id }) {
-                articles[index].isRead = false
+                articles[index].isRead = !isRead
             }
+            handle(error)
+        }
+    }
+
+    /// Toggles the star on `article`, optimistically in the list and then on
+    /// the server, reverting on failure.
+    func toggleStar(_ article: Article) async {
+        guard let index = articles.firstIndex(where: { $0.id == article.id }) else { return }
+        articles[index].isStarred.toggle()
+        do {
+            try await client.toggleStar(articleID: article.id)
+        } catch {
+            if let index = articles.firstIndex(where: { $0.id == article.id }) {
+                articles[index].isStarred.toggle()
+            }
+            handle(error)
+        }
+    }
+
+    /// Marks every article read. The endpoint is account-wide, so this is
+    /// only offered from the All Articles list; loaded rows update in place
+    /// after the server confirms.
+    func markAllRead() async {
+        do {
+            try await client.markAllRead()
+            for index in articles.indices {
+                articles[index].isRead = true
+            }
+        } catch {
             handle(error)
         }
     }
