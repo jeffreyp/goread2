@@ -14,10 +14,10 @@
 		6F00000000000000000000E1 /* Exceptions for "GoRead2" folder in "GoRead2" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Features/ArticleList/.gitkeep",
-				"Features/ArticleReader/.gitkeep",
-				"Features/FeedList/.gitkeep",
-				"Features/Settings/.gitkeep",
+				Features/ArticleList/.gitkeep,
+				Features/ArticleReader/.gitkeep,
+				Features/FeedList/.gitkeep,
+				Features/Settings/.gitkeep,
 				Info.plist,
 			);
 			target = 6F00000000000000000000B0 /* GoRead2 */;
@@ -29,10 +29,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				6F00000000000000000000E1 /* Exceptions for "GoRead2" folder in "GoRead2" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
 			);
 			path = GoRead2;
 			sourceTree = "<group>";
@@ -274,6 +270,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NWM5QWDDDW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GoRead2/Info.plist;
@@ -303,6 +300,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NWM5QWDDDW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GoRead2/Info.plist;
