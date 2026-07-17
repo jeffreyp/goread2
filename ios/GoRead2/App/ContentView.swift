@@ -11,7 +11,11 @@ struct ContentView: View {
             case .signedOut:
                 LoginView()
             case .signedIn:
-                FeedListView()
+                if UIDevice.current.userInterfaceIdiom == .pad {
+                    SplitRootView()
+                } else {
+                    StackRootView()
+                }
             }
         }
         .environmentObject(authManager)

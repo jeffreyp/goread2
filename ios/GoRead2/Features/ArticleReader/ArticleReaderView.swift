@@ -7,16 +7,14 @@ import SwiftUI
 /// marks it read. The standard edge-swipe pops back to the article list.
 ///
 /// The view shares the list's view model so star and read changes made here
-/// show up in the list rows immediately.
+/// show up in the list rows immediately. The current article is a binding:
+/// on iPad the split view passes its selection through, so previous/next
+/// moves the list highlight as well; on iPhone `ArticleReaderScreen` holds
+/// it as local state.
 struct ArticleReaderView: View {
     @ObservedObject var viewModel: ArticleListViewModel
-    @State private var currentID: Int
+    @Binding var currentID: Int
     @State private var safariItem: SafariItem?
-
-    init(viewModel: ArticleListViewModel, articleID: Int) {
-        self.viewModel = viewModel
-        _currentID = State(initialValue: articleID)
-    }
 
     private var currentIndex: Int? {
         viewModel.articles.firstIndex { $0.id == currentID }
@@ -120,18 +118,27 @@ struct ArticleReaderView: View {
     }
 }
 
+/// iPhone wrapper for the pushed reader: holds the current article as local
+/// state, seeded from the tapped row.
+struct ArticleReaderScreen: View {
+    @ObservedObject var viewModel: ArticleListViewModel
+    @State private var currentID: Int
+
+    init(viewModel: ArticleListViewModel, articleID: Int) {
+        self.viewModel = viewModel
+        _currentID = State(initialValue: articleID)
+    }
+
+    var body: some View {
+        ArticleReaderView(viewModel: viewModel, currentID: $currentID)
+    }
+}
+
 /// Fallback when the current article is no longer in the loaded list.
 private struct ContentUnavailableCompatView: View {
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "doc.questionmark")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Article Unavailable")
-                .font(.title2.bold())
-            Text("This article is no longer in the loaded list.")
-                .foregroundStyle(.secondary)
-        }
-        .padding()
+        EmptyStateView(systemImage: "doc.questionmark",
+                       title: "Article Unavailable",
+                       message: "This article is no longer in the loaded list.")
     }
 }

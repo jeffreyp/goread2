@@ -3,6 +3,7 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject private var authManager: AuthManager
     @State private var isSigningIn = false
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 56
 
     var body: some View {
         VStack(spacing: 24) {
@@ -10,7 +11,7 @@ struct LoginView: View {
 
             VStack(spacing: 12) {
                 Image(systemName: "book")
-                    .font(.system(size: 56))
+                    .font(.system(size: iconSize))
                     .foregroundStyle(.tint)
                 Text("GoRead2")
                     .font(.largeTitle.bold())

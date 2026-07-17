@@ -6,17 +6,17 @@ import SwiftUI
 /// star (leading) and mark read/unread (trailing) swipe actions, and the
 /// All Articles list carries a mark-all-read toolbar button (the endpoint is
 /// account-wide, so per-feed lists do not offer it).
+///
+/// On iPhone the rows are navigation links that push the reader; on iPad,
+/// where `selectedArticleID` is provided, the rows drive the split view's
+/// article selection instead.
 struct ArticleListView: View {
     @EnvironmentObject private var authManager: AuthManager
-    @StateObject private var viewModel: ArticleListViewModel
+    @ObservedObject var viewModel: ArticleListViewModel
+    let selection: FeedSelection
+    var selectedArticleID: Binding<Int?>?
+
     @State private var showMarkAllReadConfirmation = false
-
-    private let selection: FeedSelection
-
-    init(selection: FeedSelection) {
-        self.selection = selection
-        _viewModel = StateObject(wrappedValue: ArticleListViewModel(selection: selection))
-    }
 
     var body: some View {
         Group {
@@ -56,9 +56,6 @@ struct ArticleListView: View {
                 Task { await viewModel.markAllRead() }
             }
         }
-        .navigationDestination(for: Article.self) { article in
-            ArticleReaderView(viewModel: viewModel, articleID: article.id)
-        }
         .alert("Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -75,11 +72,23 @@ struct ArticleListView: View {
     }
 
     private var articleList: some View {
-        List {
-            ForEach(viewModel.articles) { article in
-                NavigationLink(value: article) {
-                    ArticleRow(article: article)
-                }
+        Group {
+            if let selectedArticleID {
+                List(selection: selectedArticleID) { articleRows }
+            } else {
+                List { articleRows }
+            }
+        }
+        .listStyle(.plain)
+        .refreshable {
+            await viewModel.load()
+        }
+    }
+
+    @ViewBuilder
+    private var articleRows: some View {
+        ForEach(viewModel.articles) { article in
+            row(for: article)
                 .swipeActions(edge: .leading) {
                     Button {
                         Task { await viewModel.toggleStar(article) }
@@ -98,38 +107,38 @@ struct ArticleListView: View {
                     }
                     .tint(.blue)
                 }
-            }
+        }
 
-            if viewModel.hasMorePages {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .onAppear {
-                    Task { await viewModel.loadMore() }
-                }
+        if viewModel.hasMorePages {
+            HStack {
+                Spacer()
+                ProgressView()
+                Spacer()
+            }
+            .onAppear {
+                Task { await viewModel.loadMore() }
             }
         }
-        .listStyle(.plain)
-        .refreshable {
-            await viewModel.load()
+    }
+
+    @ViewBuilder
+    private func row(for article: Article) -> some View {
+        if selectedArticleID != nil {
+            ArticleRow(article: article)
+                .tag(article.id)
+        } else {
+            NavigationLink(value: article) {
+                ArticleRow(article: article)
+            }
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: viewModel.unreadOnly ? "checkmark.circle" : "tray")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text(viewModel.unreadOnly ? "All Caught Up" : "No Articles")
-                .font(.title2.bold())
-            Text(viewModel.unreadOnly
-                 ? "Every article here has been read."
-                 : "Articles will appear once this feed has content.")
-                .foregroundStyle(.secondary)
-        }
-        .padding()
+        EmptyStateView(systemImage: viewModel.unreadOnly ? "checkmark.circle" : "tray",
+                       title: viewModel.unreadOnly ? "All Caught Up" : "No Articles",
+                       message: viewModel.unreadOnly
+                           ? "Every article here has been read."
+                           : "Articles will appear once this feed has content.")
     }
 
     private var errorBinding: Binding<Bool> {
@@ -137,6 +146,26 @@ struct ArticleListView: View {
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
         )
+    }
+}
+
+/// iPhone wrapper for the pushed article list: owns the view model for the
+/// screen's lifetime and hosts the reader's push destination.
+struct ArticleListScreen: View {
+    @StateObject private var viewModel: ArticleListViewModel
+
+    private let selection: FeedSelection
+
+    init(selection: FeedSelection) {
+        self.selection = selection
+        _viewModel = StateObject(wrappedValue: ArticleListViewModel(selection: selection))
+    }
+
+    var body: some View {
+        ArticleListView(viewModel: viewModel, selection: selection)
+            .navigationDestination(for: Article.self) { article in
+                ArticleReaderScreen(viewModel: viewModel, articleID: article.id)
+            }
     }
 }
 
@@ -182,7 +211,7 @@ private struct ArticleRow: View {
 
 #Preview {
     NavigationStack {
-        ArticleListView(selection: .all)
+        ArticleListScreen(selection: .all)
             .environmentObject(AuthManager())
     }
 }

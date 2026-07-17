@@ -150,14 +150,14 @@ struct ArticleWebView: UIViewRepresentable {
 
     /// Mirrors the web app's .article-content rules (styles.css), with the
     /// system font standing in for Inter and a prefers-color-scheme block for
-    /// Dark Mode.
+    /// Dark Mode. The `-apple-system-body` font keyword makes the base size
+    /// track the Dynamic Type setting, so every other size is relative (em).
     private static let stylesheet = """
     :root { color-scheme: light dark; }
     body {
-        font-family: -apple-system, system-ui, sans-serif;
+        font: -apple-system-body;
         margin: 0;
         padding: 20px;
-        font-size: 17px;
         line-height: 1.6;
         color: #3c4043;
         background: transparent;
@@ -165,14 +165,14 @@ struct ArticleWebView: UIViewRepresentable {
         overflow-wrap: break-word;
     }
     h1.title {
-        font-size: 26px;
+        font-size: 1.5em;
         font-weight: 600;
         line-height: 1.3;
         color: #202124;
         margin: 0 0 12px;
     }
     .meta {
-        font-size: 14px;
+        font-size: 0.82em;
         color: #5f6368;
         margin-bottom: 20px;
         padding-bottom: 16px;
@@ -197,7 +197,7 @@ struct ArticleWebView: UIViewRepresentable {
         background: rgba(128, 128, 128, 0.1);
         border-radius: 6px;
     }
-    code { font-family: ui-monospace, monospace; font-size: 15px; }
+    code { font-family: ui-monospace, monospace; font-size: 0.88em; }
     figure { margin: 16px 0; }
     @media (prefers-color-scheme: dark) {
         body { color: #e8eaed; }
