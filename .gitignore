@@ -27,6 +27,13 @@ goread2.db
 xcuserdata/
 DerivedData/
 *.xcuserstate
+ios/build/
+ios/vendor/
+ios/.bundle/
+
+# fastlane runtime output
+ios/fastlane/report.xml
+ios/fastlane/README.md
 
 # IDE files
 .vscode/

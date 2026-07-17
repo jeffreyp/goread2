@@ -13,6 +13,7 @@ Guide for deploying GoRead2 to Google App Engine, the only supported production 
 - [Post-Deploy Smoke Check](#post-deploy-smoke-check-scriptssmoke-checksh)
 - [Auto-Rollback](#auto-rollback-post-promote-safety-net)
 - [Rollback](#rollback-githubworkflowsrollbackyml)
+- [iOS Release Pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml)
 - [Google App Engine Configuration](#google-app-engine-configuration)
 - [Environment Variables](#environment-variables)
 - [Security Considerations](#security-considerations)
@@ -229,6 +230,51 @@ Or via the GitHub Actions UI: Actions → Rollback → Run workflow, entering th
 The workflow authenticates via the same WIF setup as deploy-staging, runs `gcloud app versions migrate VERSION --service=default`, and prints a confirmation with the version name to the job summary. This is instant (no rebuild) since it's re-pointing traffic at an already-deployed artifact.
 
 Before migrating, it captures whichever version currently holds `traffic_split=1.0` (for the job summary). Its cleanup step, like `deploy-prod.yml`'s, is scoped to the legacy `prod-*` naming from the old manual `make deploy-prod` path; promoted `staging-<sha>` versions are pruned by `deploy-staging.yml`'s own cleanup instead (see the naming decision above).
+
+## iOS Release Pipeline (`.github/workflows/ios-release.yml`)
+
+Every push to `main` that touches `ios/**` builds the native iOS app on a GitHub-hosted macOS runner and uploads the result to TestFlight. The workflow is a thin wrapper around [fastlane](https://fastlane.tools/): it runs `bundle exec fastlane beta` in `ios/`, and the `beta` lane in `ios/fastlane/Fastfile` fetches signing assets, builds a signed Release IPA with the shared `GoRead2-Release` scheme, and uploads it through the App Store Connect API. The fastlane version is pinned by `ios/Gemfile.lock`. Until the one-time setup below populates the `APPLE_TEAM_ID` repository variable, the job skips itself, so iOS commits do not fail the Actions run before Apple credentials exist.
+
+### Code signing: fastlane match, not Xcode Cloud
+
+Code signing uses [fastlane match](https://docs.fastlane.tools/actions/match/): the App Store distribution certificate and provisioning profile live encrypted in a separate private git repository, and CI fetches them read-only into a temporary keychain created by `setup_ci`. Xcode Cloud's managed signing was the alternative and was rejected because its configuration lives in the App Store Connect UI rather than in this repository. Running on GitHub Actions keeps the iOS pipeline reviewable, versioned, and consistent with the Go pipeline above.
+
+The Xcode project stays on automatic signing for local development. The `beta` lane switches the runner's working copy to manual signing via `update_code_signing_settings`, pointing at the match-provisioned profile; nothing is committed back.
+
+### Versioning
+
+- **Build number (`CFBundleVersion`)**: the commit count on `main` (`git rev-list --count HEAD`), injected at build time as `CURRENT_PROJECT_VERSION`. Every push produces a strictly increasing build number without version-bump commits. The workflow checks out full history (`fetch-depth: 0`) to make the count available, and serializes runs (`concurrency` without `cancel-in-progress`) because TestFlight rejects a build number it has already processed.
+- **Marketing version (`CFBundleShortVersionString`)**: manual. Edit `MARKETING_VERSION` in `ios/GoRead2.xcodeproj` when cutting a user-visible release; TestFlight groups builds under it.
+
+### One-time setup
+
+1. **App record**: register the `org.jeffreypratt.goread2` bundle ID and create the app in [App Store Connect](https://appstoreconnect.apple.com/). TestFlight uploads require the app record to exist.
+2. **App Store Connect API key**: under Users and Access → Integrations, create a team key with the App Manager role. Record the Key ID and Issuer ID, and download the `.p8` file.
+3. **Certificates repository**: create a private git repository (for example `goread2-certificates`) to hold the encrypted signing assets, plus a fine-grained personal access token with read access to it for CI.
+4. **Generate signing assets** from a developer machine. match prompts for an encryption passphrase, which becomes `MATCH_PASSWORD`:
+
+   ```bash
+   cd ios
+   bundle install
+   MATCH_GIT_URL=https://github.com/jeffreyp/goread2-certificates.git \
+   APPLE_TEAM_ID=<team id> \
+   bundle exec fastlane match appstore
+   ```
+
+   Certificate rotation (Apple distribution certificates expire after roughly a year) repeats this step; CI only ever reads.
+5. **GitHub configuration** (repository Settings → Secrets and variables → Actions):
+
+   | Name | Kind | Value |
+   |------|------|-------|
+   | `APPLE_TEAM_ID` | variable | Apple Developer Team ID. Also gates the workflow: the job skips while this is unset. |
+   | `ASC_KEY_ID` | secret | App Store Connect API Key ID |
+   | `ASC_ISSUER_ID` | secret | App Store Connect API Issuer ID |
+   | `ASC_KEY_CONTENT` | secret | Base64 of the `.p8` key: `base64 -i AuthKey_XXXXXXXX.p8` |
+   | `MATCH_GIT_URL` | secret | HTTPS URL of the certificates repository |
+   | `MATCH_GIT_BASIC_AUTHORIZATION` | secret | `echo -n "<github user>:<PAT>" \| base64` |
+   | `MATCH_PASSWORD` | secret | match encryption passphrase from step 4 |
+
+After the first successful run, the build appears in App Store Connect → TestFlight once Apple finishes processing it. Distribution to devices is managed there by adding testers to an internal group.
 
 ## Google App Engine Configuration
 

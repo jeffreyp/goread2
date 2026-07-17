@@ -1,0 +1,8 @@
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+type("appstore")
+app_identifier(["org.jeffreypratt.goread2"])
+
+# readonly is intentionally not set here: the CI lane passes readonly: true
+# itself, while `bundle exec fastlane match appstore` on a developer machine
+# must be able to generate and rotate the signing assets.

@@ -1,0 +1,48 @@
+name: iOS Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-release.yml'
+
+# TestFlight rejects a build number it has already processed, and the
+# commit-count build number only grows with main's history, so runs must land
+# in order. Serialize instead of canceling: a killed run after the upload
+# started could leave App Store Connect mid-processing.
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    # Skips cleanly until the one-time Apple setup (docs/deployment.md,
+    # "iOS Release Pipeline") has populated the repository variable.
+    if: vars.APPLE_TEAM_ID != ''
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # The build number is the commit count, which needs full history.
+          fetch-depth: 0
+
+      - name: Install fastlane
+        run: bundle install
+
+      - name: Build and upload to TestFlight
+        run: bundle exec fastlane beta
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}

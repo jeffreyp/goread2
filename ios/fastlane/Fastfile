@@ -1,0 +1,48 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build a signed Release IPA and upload it to TestFlight"
+  lane :beta do
+    setup_ci
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_CONTENT"),
+      is_key_content_base64: true
+    )
+
+    match(type: "appstore", readonly: true, api_key: api_key)
+
+    # Build number = commit count on the current branch, so every push to main
+    # yields a strictly increasing CFBundleVersion without any file in the repo
+    # having to change. Requires a full clone (checkout with fetch-depth: 0).
+    build_number = sh("git rev-list --count HEAD").strip
+
+    # The project is set to automatic signing for local development; CI signs
+    # manually with the match-provisioned distribution assets. This rewrites
+    # the runner's working copy of the pbxproj only.
+    update_code_signing_settings(
+      path: "GoRead2.xcodeproj",
+      use_automatic_signing: false,
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      code_sign_identity: "Apple Distribution",
+      bundle_identifier: "org.jeffreypratt.goread2",
+      profile_name: "match AppStore org.jeffreypratt.goread2"
+    )
+
+    build_app(
+      project: "GoRead2.xcodeproj",
+      scheme: "GoRead2-Release",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build",
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}"
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end
