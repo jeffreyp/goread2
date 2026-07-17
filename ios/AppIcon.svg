@@ -1,0 +1,26 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed background; iOS applies the corner mask -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- RSS wave symbol, dot centred at (202, 704) -->
+  <circle cx="202" cy="704" r="60" fill="white"/>
+  <path d="M 202 564 A 140 140 0 0 1 342 704"
+        fill="none" stroke="white" stroke-width="48" stroke-linecap="round"/>
+  <path d="M 202 424 A 280 280 0 0 1 482 704"
+        fill="none" stroke="white" stroke-width="48" stroke-linecap="round"/>
+  <path d="M 202 284 A 420 420 0 0 1 622 704"
+        fill="none" stroke="white" stroke-width="48" stroke-linecap="round"/>
+
+  <!-- Reading lines, wrapped around the outer arc -->
+  <rect x="600" y="424" width="284" height="28" fill="white" rx="14" opacity="0.9"/>
+  <rect x="649" y="508" width="213" height="28" fill="white" rx="14" opacity="0.7"/>
+  <rect x="678" y="592" width="162" height="28" fill="white" rx="14" opacity="0.5"/>
+  <rect x="688" y="676" width="130" height="28" fill="white" rx="14" opacity="0.3"/>
+</svg>

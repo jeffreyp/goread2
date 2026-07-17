@@ -7,6 +7,7 @@ This guide covers local development and testing on a physical device. Release di
 ## Table of Contents
 
 - [Schemes and the API Base URL](#schemes-and-the-api-base-url)
+- [App Icon](#app-icon)
 - [Building and Running in the Simulator](#building-and-running-in-the-simulator)
 - [Running on a Physical Device](#running-on-a-physical-device)
 - [Free-Account Limitations](#free-account-limitations)
@@ -25,6 +26,18 @@ The Debug value suits the simulator, where localhost is the Mac running `make de
 
 - **Use the `GoRead2-Release` scheme** to talk to production. This is the simplest option and exercises the real OAuth flow.
 - **Point Debug at the Mac's LAN address**: change the Debug `API_BASE_URL` in the project's build settings to `http://<mac-lan-ip>:8080` and start the dev server with `make dev`. `Info.plist` already sets `NSAllowsLocalNetworking`, so App Transport Security permits the plain-HTTP connection on the local network.
+
+## App Icon
+
+The app icon lives in `ios/GoRead2/Assets.xcassets/AppIcon.appiconset/AppIcon.png`, a single 1024x1024 opaque PNG that Xcode scales for every context. Its source of truth is `ios/AppIcon.svg`, which adapts the web favicon's branding, a white RSS glyph with reading lines on a blue gradient. After editing the SVG, regenerate the PNG on macOS with:
+
+```bash
+qlmanage -t -s 1024 -o /tmp ios/AppIcon.svg
+magick /tmp/AppIcon.svg.png -alpha remove -alpha off \
+  PNG24:ios/GoRead2/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+```
+
+`qlmanage` renders the SVG through WebKit, which handles gradients and arc paths that ImageMagick's built-in SVG renderer does not. The `-alpha` flags strip the alpha channel, which App Store Connect rejects in app icons.
 
 ## Building and Running in the Simulator
 
