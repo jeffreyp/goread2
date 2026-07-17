@@ -7,6 +7,7 @@ struct FeedListView: View {
     @StateObject private var viewModel = FeedListViewModel()
 
     @State private var showingAddFeed = false
+    @State private var showingSettings = false
     @State private var newFeedURL = ""
 
     var body: some View {
@@ -30,16 +31,19 @@ struct FeedListView: View {
                     }
                 }
                 ToolbarItem(placement: .secondaryAction) {
-                    Button(role: .destructive) {
-                        Task { await authManager.signOut() }
+                    Button {
+                        showingSettings = true
                     } label: {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        Label("Settings", systemImage: "gear")
                     }
                 }
             }
             .navigationDestination(for: FeedSelection.self) { selection in
                 ArticleListView(selection: selection)
             }
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
         }
         .alert("Add Feed", isPresented: $showingAddFeed) {
             TextField("Feed URL", text: $newFeedURL)
