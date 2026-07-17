@@ -51,6 +51,7 @@ Before working in a feature area, read the corresponding doc for context. If you
 | Security controls, input validation | `docs/security.md` |
 | Test infrastructure, `test.sh` | `docs/testing.md` |
 | User-facing features (UI, keyboard shortcuts) | `docs/features.md` |
+| `ios/` (SwiftUI app, Xcode project, fastlane) | `docs/ios.md` |
 
 ## Commit Conventions
 

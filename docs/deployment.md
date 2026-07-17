@@ -235,6 +235,8 @@ Before migrating, it captures whichever version currently holds `traffic_split=1
 
 Every push to `main` that touches `ios/**` builds the native iOS app on a GitHub-hosted macOS runner and uploads the result to TestFlight. The workflow is a thin wrapper around [fastlane](https://fastlane.tools/): it runs `bundle exec fastlane beta` in `ios/`, and the `beta` lane in `ios/fastlane/Fastfile` fetches signing assets, builds a signed Release IPA with the shared `GoRead2-Release` scheme, and uploads it through the App Store Connect API. The fastlane version is pinned by `ios/Gemfile.lock`. Until the one-time setup below populates the `APPLE_TEAM_ID` repository variable, the job skips itself, so iOS commits do not fail the Actions run before Apple credentials exist.
 
+This section covers release distribution only. Local development and installing on a personal device without a paid Apple Developer membership are covered in the [iOS App guide](ios.md).
+
 ### Code signing: fastlane match, not Xcode Cloud
 
 Code signing uses [fastlane match](https://docs.fastlane.tools/actions/match/): the App Store distribution certificate and provisioning profile live encrypted in a separate private git repository, and CI fetches them read-only into a temporary keychain created by `setup_ci`. Xcode Cloud's managed signing was the alternative and was rejected because its configuration lives in the App Store Connect UI rather than in this repository. Running on GitHub Actions keeps the iOS pipeline reviewable, versioned, and consistent with the Go pipeline above.
@@ -562,6 +564,7 @@ See [performance.md](performance.md) for the cost-driven optimizations already i
 ## Related Documentation
 
 - [Stripe Setup](stripe.md) - Configuring subscription payments
+- [iOS App](ios.md) - Local development and on-device testing for the native client
 - [Monitoring Setup](monitoring.md) - Dashboards, alerts, and cost tracking
 - [Security Guidelines](security.md) - Security controls and best practices
 - [Troubleshooting Guide](troubleshooting.md) - Common issues
