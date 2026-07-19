@@ -134,11 +134,21 @@ struct ArticleListView: View {
     }
 
     private var emptyState: some View {
-        EmptyStateView(systemImage: viewModel.unreadOnly ? "checkmark.circle" : "tray",
-                       title: viewModel.unreadOnly ? "All Caught Up" : "No Articles",
-                       message: viewModel.unreadOnly
-                           ? "Every article here has been read."
-                           : "Articles will appear once this feed has content.")
+        VStack(spacing: 16) {
+            EmptyStateView(systemImage: viewModel.unreadOnly ? "checkmark.circle" : "tray",
+                           title: viewModel.unreadOnly ? "All Caught Up" : "No Articles",
+                           message: viewModel.unreadOnly
+                               ? "Every article here has been read."
+                               : "Articles will appear once this feed has content.")
+            // The toolbar filter also switches modes, but it is easy to miss
+            // from an empty screen, so the caught-up state offers its own way
+            // to reach the read articles.
+            if viewModel.unreadOnly {
+                Button("View All Articles") {
+                    Task { await viewModel.toggleUnreadFilter() }
+                }
+            }
+        }
     }
 
     private var errorBinding: Binding<Bool> {

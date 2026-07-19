@@ -10,7 +10,9 @@ final class ArticleListViewModel: ObservableObject {
     /// the empty state so it never flashes before data arrives.
     @Published private(set) var hasLoaded = false
     @Published private(set) var isLoadingMore = false
-    @Published private(set) var unreadOnly = false
+    /// The All Articles stream opens unread-only, since its common use is
+    /// catching up; per-feed lists open showing everything.
+    @Published private(set) var unreadOnly: Bool
     @Published var errorMessage: String?
 
     /// Called when the API reports 401: the session is gone server-side and
@@ -24,6 +26,11 @@ final class ArticleListViewModel: ObservableObject {
     init(selection: FeedSelection, client: NetworkClient = .shared) {
         self.selection = selection
         self.client = client
+        if case .all = selection {
+            unreadOnly = true
+        } else {
+            unreadOnly = false
+        }
     }
 
     /// True while the server reports another page after the loaded ones.
