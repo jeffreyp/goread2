@@ -12,7 +12,6 @@ struct FeedListView: View {
 
     @State private var showingAddFeed = false
     @State private var showingSettings = false
-    @State private var newFeedURL = ""
 
     var body: some View {
         Group {
@@ -44,21 +43,10 @@ struct FeedListView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
-        .alert("Add Feed", isPresented: $showingAddFeed) {
-            TextField("Website or Feed URL", text: $newFeedURL)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.URL)
-                .autocorrectionDisabled()
-            Button("Add") {
-                let url = newFeedURL
-                newFeedURL = ""
-                Task { await viewModel.addFeed(url: url) }
+        .sheet(isPresented: $showingAddFeed) {
+            AddFeedView { url in
+                try await viewModel.addFeed(url: url)
             }
-            Button("Cancel", role: .cancel) {
-                newFeedURL = ""
-            }
-        } message: {
-            Text("Enter a website domain (e.g., \"slashdot.org\") or direct feed URL")
         }
         .alert("Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}

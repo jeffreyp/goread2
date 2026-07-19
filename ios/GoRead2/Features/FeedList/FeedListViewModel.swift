@@ -65,15 +65,16 @@ final class FeedListViewModel: ObservableObject {
     }
 
     /// Subscribes to the feed at `url`, then reloads so ordering and counts
-    /// match the server.
-    func addFeed(url: String) async {
-        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+    /// match the server. Throws so the add-feed sheet can show the error
+    /// inline; session expiry is still routed to `onSessionExpired`.
+    func addFeed(url: String) async throws {
         do {
-            _ = try await client.addFeed(url: trimmed)
+            _ = try await client.addFeed(url: url)
         } catch {
-            handle(error)
-            return
+            if case NetworkError.unauthorized = error {
+                onSessionExpired()
+            }
+            throw error
         }
         await load()
     }
