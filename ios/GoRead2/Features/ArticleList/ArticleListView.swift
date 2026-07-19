@@ -136,10 +136,10 @@ struct ArticleListView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             EmptyStateView(systemImage: viewModel.unreadOnly ? "checkmark.circle" : "tray",
-                           title: viewModel.unreadOnly ? "All Caught Up" : "No Articles",
+                           title: viewModel.unreadOnly ? "All Caught Up!" : "No Articles Yet",
                            message: viewModel.unreadOnly
-                               ? "Every article here has been read."
-                               : "Articles will appear once this feed has content.")
+                               ? "You've read all your articles. Great job! New articles will appear here as they're published."
+                               : "This feed doesn't have any articles yet. Check back later for new content.")
             // The toolbar filter also switches modes, but it is easy to miss
             // from an empty screen, so the caught-up state offers its own way
             // to reach the read articles.

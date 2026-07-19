@@ -15,7 +15,7 @@ struct LoginView: View {
                     .foregroundStyle(.tint)
                 Text("GoRead2")
                     .font(.largeTitle.bold())
-                Text("An RSS reader")
+                Text("Sign in with Google to access your RSS feeds")
                     .foregroundStyle(.secondary)
             }
 

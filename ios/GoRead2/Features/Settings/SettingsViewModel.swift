@@ -95,7 +95,9 @@ final class SettingsViewModel: ObservableObject {
             }
             let data = try Data(contentsOf: url)
             let count = try await client.importOPML(data, filename: url.lastPathComponent)
-            infoMessage = count == 1 ? "Imported 1 feed." : "Imported \(count) feeds."
+            infoMessage = count == 1
+                ? "Successfully imported 1 feed from OPML file"
+                : "Successfully imported \(count) feeds from OPML file"
         } catch {
             handle(error)
         }

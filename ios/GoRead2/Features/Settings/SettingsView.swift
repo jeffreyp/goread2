@@ -107,7 +107,7 @@ struct SettingsView: View {
 
     private func subscriptionSection(_ subscription: SubscriptionInfo) -> some View {
         Section("Subscription") {
-            LabeledContent("Status", value: statusLabel(subscription.status))
+            LabeledContent("Status", value: statusLabel(subscription))
 
             if subscription.status == "trial" {
                 LabeledContent("Trial ends") {
@@ -115,7 +115,7 @@ struct SettingsView: View {
                 }
             }
             if let nextBillingDate = subscription.nextBillingDate {
-                LabeledContent("Next billing",
+                LabeledContent("Next billing date",
                                value: nextBillingDate.formatted(date: .abbreviated, time: .omitted))
             }
 
@@ -130,22 +130,24 @@ struct SettingsView: View {
         }
     }
 
-    private func statusLabel(_ status: String) -> String {
-        switch status {
-        case "trial": return "Trial"
-        case "active": return "Active"
+    /// Mirrors the status labels of the web app's account page (account.js).
+    private func statusLabel(_ subscription: SubscriptionInfo) -> String {
+        switch subscription.status {
+        case "trial":
+            return subscription.trialEndsAt < .now ? "Trial Expired" : "Free Trial"
+        case "active": return "GoRead2 Pro"
         case "cancelled": return "Cancelled"
-        case "expired": return "Expired"
-        case "admin": return "Admin"
-        case "unlimited": return "Unlimited"
-        default: return status.capitalized
+        case "admin": return "Admin + GoRead2 Pro"
+        case "admin_trial": return "Admin (Unlimited)"
+        case "unlimited": return "Unlimited Access"
+        default: return subscription.status.capitalized
         }
     }
 
     private func trialEndsLabel(_ subscription: SubscriptionInfo) -> String {
         let date = subscription.trialEndsAt.formatted(date: .abbreviated, time: .omitted)
         guard let days = subscription.trialDaysRemaining else { return date }
-        return days == 1 ? "\(date) (1 day left)" : "\(date) (\(days) days left)"
+        return days == 1 ? "\(date) (1 day remaining)" : "\(date) (\(days) days remaining)"
     }
 
     private func feedUsageLabel(_ subscription: SubscriptionInfo) -> String {
@@ -175,7 +177,7 @@ struct SettingsView: View {
         } header: {
             Text("Preferences")
         } footer: {
-            Text("Limits how many articles are imported when subscribing to a new feed. 0 means no limit.")
+            Text("Limit the number of articles imported when subscribing to a new feed. Set to 0 for unlimited. Higher numbers may slow down feed addition.")
         }
     }
 

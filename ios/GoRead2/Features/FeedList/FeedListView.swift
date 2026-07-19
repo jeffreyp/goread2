@@ -45,7 +45,7 @@ struct FeedListView: View {
             SettingsView()
         }
         .alert("Add Feed", isPresented: $showingAddFeed) {
-            TextField("Feed URL", text: $newFeedURL)
+            TextField("Website or Feed URL", text: $newFeedURL)
                 .textInputAutocapitalization(.never)
                 .keyboardType(.URL)
                 .autocorrectionDisabled()
@@ -58,7 +58,7 @@ struct FeedListView: View {
                 newFeedURL = ""
             }
         } message: {
-            Text("Enter the URL of an RSS or Atom feed, or of a site that links to one.")
+            Text("Enter a website domain (e.g., \"slashdot.org\") or direct feed URL")
         }
         .alert("Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}
@@ -137,9 +137,9 @@ struct FeedListView: View {
     private var emptyState: some View {
         VStack(spacing: 8) {
             EmptyStateView(systemImage: "tray",
-                           title: "No Feeds",
-                           message: "Subscribe to an RSS feed to start reading.")
-            Button("Add Feed") {
+                           title: "Welcome to GoRead2!",
+                           message: "Get started by adding your first RSS feed. You can add feeds from your favorite blogs, news sites, and more.")
+            Button("Add Your First Feed") {
                 showingAddFeed = true
             }
             .buttonStyle(.borderedProminent)
