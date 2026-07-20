@@ -166,6 +166,10 @@ func main() {
 		c.Next()
 	})
 
+	// Explicit 404 for unmatched paths; see middleware.NotFoundHandler for why
+	// Gin's built-in fallback is not sufficient under the gzip middleware.
+	r.NoRoute(middleware.NotFoundHandler())
+
 	r.LoadHTMLGlob("web/templates/*")
 
 	// Static files are handled by app.yaml in App Engine

@@ -225,6 +225,7 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 - **Debug endpoints** (`/api/debug/*`) - Restricted to admin users only
 - **Cron endpoints** - Protected by App Engine cron header validation (production) or admin auth (local)
 - **Admin endpoints** - Require authenticated admin session
+- **Unmatched paths** - Return an explicit 404 via `middleware.NotFoundHandler` (`internal/middleware/not_found.go`). Gin's built-in fallback writes its 404 after the gzip middleware has closed its writer, so clients that accept gzip received an empty response that the App Engine frontend reported as status 200, which vulnerability scanners interpreted as a hit.
 
 ### Regression Test Coverage
 
