@@ -44,6 +44,14 @@ final class ArticleListViewModel: ObservableObject {
         nextCursor != nil
     }
 
+    /// True when every loaded article is read and the server has no further
+    /// pages, so advancing past the last article means the unread list is
+    /// finished. The reader shows the caught-up screen there instead of
+    /// ignoring the move.
+    var isCaughtUp: Bool {
+        !hasMorePages && articles.allSatisfy(\.isRead)
+    }
+
     /// Loads the first page, discarding any previously loaded pages. Used
     /// for the initial load, pull-to-refresh, and filter changes.
     func load() async {
