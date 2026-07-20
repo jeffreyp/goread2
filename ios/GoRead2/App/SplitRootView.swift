@@ -13,6 +13,14 @@ struct SplitRootView: View {
     @State private var articleViewModel: ArticleListViewModel?
     @State private var selectedArticleID: Int?
 
+    /// Launches with All Articles selected so unread articles are visible
+    /// immediately, without a trip to the sidebar (which starts hidden in
+    /// portrait).
+    init() {
+        _feedSelection = State(initialValue: .all)
+        _articleViewModel = State(initialValue: ArticleListViewModel(selection: .all))
+    }
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             FeedListView(viewModel: feedViewModel, sidebarSelection: $feedSelection)
