@@ -9,8 +9,21 @@ import WebKit
 /// between articles.
 struct ArticleWebView: UIViewRepresentable {
     let article: Article
+    /// True while the article's full content is empty but still expected to
+    /// arrive; renders shimmer lines in place of the body rather than the
+    /// truncated description.
+    var showsContentPlaceholder = false
     let onLinkTap: (URL) -> Void
     var onSwipe: ((Int) -> Void)?
+
+    /// What the web view last rendered; a reload happens only when this
+    /// changes, so the content fills in when a lazy fetch completes but
+    /// unrelated state changes leave the scroll position alone.
+    struct PageState: Equatable {
+        let articleID: Int
+        let hasContent: Bool
+        let showsPlaceholder: Bool
+    }
 
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
@@ -40,15 +53,19 @@ struct ArticleWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.onLinkTap = onLinkTap
         context.coordinator.onSwipe = onSwipe
-        // updateUIView also fires for unrelated state changes (star toggles,
-        // sheet presentation); only reload when showing a different article,
-        // or the scroll position would reset.
-        guard context.coordinator.loadedArticleID != article.id else { return }
-        context.coordinator.loadedArticleID = article.id
+        let state = PageState(articleID: article.id,
+                              hasContent: !article.content.isEmpty,
+                              showsPlaceholder: showsContentPlaceholder)
+        guard context.coordinator.loadedPage != state else { return }
+        let isSameArticle = context.coordinator.loadedPage?.articleID == article.id
+        context.coordinator.loadedPage = state
         // The article URL as base resolves relative image and link paths in
         // feed content.
-        webView.loadHTMLString(Self.page(for: article), baseURL: URL(string: article.url))
-        webView.scrollView.setContentOffset(.zero, animated: false)
+        webView.loadHTMLString(Self.page(for: article, showsContentPlaceholder: showsContentPlaceholder),
+                               baseURL: URL(string: article.url))
+        if !isSameArticle {
+            webView.scrollView.setContentOffset(.zero, animated: false)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -59,7 +76,7 @@ struct ArticleWebView: UIViewRepresentable {
                              UIGestureRecognizerDelegate {
         var onLinkTap: (URL) -> Void
         var onSwipe: ((Int) -> Void)?
-        var loadedArticleID: Int?
+        var loadedPage: PageState?
 
         init(onLinkTap: @escaping (URL) -> Void) {
             self.onLinkTap = onLinkTap
@@ -118,8 +135,10 @@ struct ArticleWebView: UIViewRepresentable {
     // MARK: - HTML template
 
     /// Wraps the article in a full page: title, meta line (feed, author,
-    /// date), and the feed-provided content HTML.
-    static func page(for article: Article) -> String {
+    /// date), and the feed-provided content HTML. While the full content is
+    /// loading, shimmer lines stand in for the body, matching the web app's
+    /// article skeleton.
+    static func page(for article: Article, showsContentPlaceholder: Bool = false) -> String {
         var meta = [String]()
         if let feedTitle = article.feedTitle, !feedTitle.isEmpty {
             meta.append(escape(feedTitle))
@@ -129,7 +148,14 @@ struct ArticleWebView: UIViewRepresentable {
         }
         meta.append(escape(article.publishedAt.formatted(date: .abbreviated, time: .shortened)))
 
-        let body = article.content.isEmpty ? article.description : article.content
+        let body: String
+        if !article.content.isEmpty {
+            body = article.content
+        } else if showsContentPlaceholder {
+            body = skeletonBody
+        } else {
+            body = article.description
+        }
 
         return """
         <!DOCTYPE html>
@@ -199,14 +225,36 @@ struct ArticleWebView: UIViewRepresentable {
     }
     code { font-family: ui-monospace, monospace; font-size: 0.88em; }
     figure { margin: 16px 0; }
+    @keyframes skeleton-shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    .skeleton-line {
+        height: 0.85em;
+        margin-bottom: 12px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, #e1e5e9 25%, #f0f2f4 50%, #e1e5e9 75%);
+        background-size: 200% 100%;
+        animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    }
     @media (prefers-color-scheme: dark) {
         body { color: #e8eaed; }
         h1.title { color: #f1f3f4; }
         .meta { color: #9aa0a6; border-color: #3c4043; }
         a { color: #8ab4f8; }
         blockquote { border-color: #3c4043; color: #9aa0a6; }
+        .skeleton-line {
+            background: linear-gradient(90deg, #3c4043 25%, #494d51 50%, #3c4043 75%);
+            background-size: 200% 100%;
+        }
     }
     """
+
+    /// Body stand-in while the full content loads: shimmer lines with the
+    /// same widths as the web app's article skeleton.
+    private static let skeletonBody = [100, 95, 88, 100, 72, 96, 84, 100, 91, 78]
+        .map { #"<div class="skeleton-line" style="width: \#($0)%"></div>"# }
+        .joined()
 
     private static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;")

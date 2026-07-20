@@ -14,6 +14,10 @@ final class ArticleListViewModel: ObservableObject {
     /// catching up; per-feed lists open showing everything.
     @Published private(set) var unreadOnly: Bool
     @Published var errorMessage: String?
+    /// Articles whose full content could not be fetched (or is genuinely
+    /// empty); the reader falls back to the description for these instead of
+    /// showing a loading placeholder forever.
+    @Published private(set) var contentUnavailable: Set<Int> = []
 
     /// Called when the API reports 401: the session is gone server-side and
     /// the app should return to the login screen.
@@ -22,6 +26,8 @@ final class ArticleListViewModel: ObservableObject {
     private let selection: FeedSelection
     private let client: NetworkClient
     private var nextCursor: String?
+    /// Full-content fetches currently in flight, keyed by article ID.
+    private var contentFetches: Set<Int> = []
 
     init(selection: FeedSelection, client: NetworkClient = .shared) {
         self.selection = selection
@@ -78,6 +84,37 @@ final class ArticleListViewModel: ObservableObject {
         nextCursor = nil
         hasLoaded = false
         await load()
+    }
+
+    /// Fetches the full content of the article with `id` and fills it into
+    /// the list, like the web app does on selection: the list API often
+    /// omits content, leaving only the truncated description. Safe to call
+    /// repeatedly (the reader prefetches neighbours); requests already
+    /// satisfied, in flight, or known to fail are no-ops.
+    func loadContent(for id: Int) async {
+        guard let index = articles.firstIndex(where: { $0.id == id }),
+              articles[index].content.isEmpty,
+              !contentFetches.contains(id),
+              !contentUnavailable.contains(id) else { return }
+        contentFetches.insert(id)
+        defer { contentFetches.remove(id) }
+        do {
+            let full = try await client.getArticle(id: id)
+            guard let index = articles.firstIndex(where: { $0.id == id }) else { return }
+            if full.content.isEmpty {
+                contentUnavailable.insert(id)
+            } else {
+                articles[index].content = full.content
+            }
+        } catch {
+            // A cancelled fetch (navigating away mid-load) may be retried
+            // later; only real failures fall back to the description.
+            guard !Task.isCancelled else { return }
+            if case NetworkError.unauthorized = error {
+                onSessionExpired()
+            }
+            contentUnavailable.insert(id)
+        }
     }
 
     /// Marks `article` read, optimistically in the list and then on the

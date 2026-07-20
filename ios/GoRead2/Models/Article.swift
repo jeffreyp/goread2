@@ -7,7 +7,9 @@ struct Article: Codable, Identifiable, Hashable {
     let feedTitle: String?
     let title: String
     let url: String
-    let content: String
+    /// Often empty in list responses; the reader lazily fetches the full
+    /// content via GET /api/articles/:id and fills it in.
+    var content: String
     let description: String
     let author: String
     let publishedAt: Date

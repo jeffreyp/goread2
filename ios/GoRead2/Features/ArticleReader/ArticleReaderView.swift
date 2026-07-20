@@ -27,7 +27,10 @@ struct ArticleReaderView: View {
     var body: some View {
         Group {
             if let article {
-                ArticleWebView(article: article, onLinkTap: { url in
+                ArticleWebView(article: article,
+                               showsContentPlaceholder: article.content.isEmpty
+                                   && !viewModel.contentUnavailable.contains(article.id),
+                               onLinkTap: { url in
                     if let item = SafariItem(url) {
                         safariItem = item
                     } else {
@@ -52,8 +55,18 @@ struct ArticleReaderView: View {
                 .ignoresSafeArea()
         }
         .task(id: currentID) {
-            if let article {
-                await viewModel.markRead(article)
+            guard let article else { return }
+            async let read: Void = viewModel.markRead(article)
+            // The list API often omits full content; fetch it like the web
+            // app does on selection.
+            await viewModel.loadContent(for: article.id)
+            await read
+            // Prefetch neighbours, after the current article, so swipe
+            // navigation lands on already-loaded content.
+            for offset in [-1, 1] {
+                guard let index = currentIndex,
+                      viewModel.articles.indices.contains(index + offset) else { continue }
+                await viewModel.loadContent(for: viewModel.articles[index + offset].id)
             }
         }
     }

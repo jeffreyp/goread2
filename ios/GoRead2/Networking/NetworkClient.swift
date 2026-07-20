@@ -83,6 +83,12 @@ final class NetworkClient {
                                 from: get("/api/feeds/\(feedID)/articles", query: query))
     }
 
+    /// Fetches a single article, including the full content that the list
+    /// endpoint often omits.
+    func getArticle(id: Int) async throws -> Article {
+        try await decode(Article.self, from: get("/api/articles/\(id)"))
+    }
+
     func markRead(articleID: Int, isRead: Bool, feedID: Int, wasRead: Bool) async throws {
         struct Request: Encodable {
             let isRead: Bool
