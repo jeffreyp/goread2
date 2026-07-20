@@ -15,6 +15,9 @@ struct ArticleListView: View {
     @ObservedObject var viewModel: ArticleListViewModel
     let selection: FeedSelection
     var selectedArticleID: Binding<Int?>?
+    /// Replaces the default pull-to-refresh (re-querying this list). The
+    /// iPad split view passes an action that refreshes every pane at once.
+    var refreshAction: (() async -> Void)?
 
     @State private var showMarkAllReadConfirmation = false
 
@@ -81,7 +84,11 @@ struct ArticleListView: View {
         }
         .listStyle(.plain)
         .refreshable {
-            await viewModel.load()
+            if let refreshAction {
+                await refreshAction()
+            } else {
+                await viewModel.load()
+            }
         }
     }
 

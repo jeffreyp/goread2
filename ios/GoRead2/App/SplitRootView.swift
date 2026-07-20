@@ -23,12 +23,15 @@ struct SplitRootView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            FeedListView(viewModel: feedViewModel, sidebarSelection: $feedSelection)
+            FeedListView(viewModel: feedViewModel,
+                         sidebarSelection: $feedSelection,
+                         refreshAction: refreshAllPanes)
         } content: {
             if let articleViewModel, let feedSelection {
                 ArticleListView(viewModel: articleViewModel,
                                 selection: feedSelection,
-                                selectedArticleID: $selectedArticleID)
+                                selectedArticleID: $selectedArticleID,
+                                refreshAction: refreshAllPanes)
                     .id(feedSelection)
             } else {
                 EmptyStateView(systemImage: "tray.full",
@@ -59,6 +62,24 @@ struct SplitRootView: View {
         .background(shortcutButtons)
     }
 
+    /// Pull-to-refresh (either pane) and the r shortcut: one server-side
+    /// refresh that updates all three panes. The sidebar reloads its feeds
+    /// and counts, the article list re-queries, and the reader opens the
+    /// first newly arrived unread article.
+    private func refreshAllPanes() async {
+        await feedViewModel.refresh()
+        guard let articleViewModel else { return }
+        let knownIDs = Set(articleViewModel.articles.map(\.id))
+        await articleViewModel.load()
+        // The selection changing mid-refresh replaces the view model; the
+        // new articles belong to the old list, so leave the reader alone.
+        guard articleViewModel === self.articleViewModel,
+              let firstNew = articleViewModel.articles.first(where: {
+                  !$0.isRead && !knownIDs.contains($0.id)
+              }) else { return }
+        selectedArticleID = firstNew.id
+    }
+
     /// The reader drives article selection through this binding, so its
     /// previous/next controls also move the list highlight.
     private func readerSelection(fallback articleID: Int) -> Binding<Int> {
@@ -82,7 +103,7 @@ struct SplitRootView: View {
                 .keyboardShortcut("m", modifiers: [])
             Button("Star or Unstar") { toggleSelectedStar() }
                 .keyboardShortcut("s", modifiers: [])
-            Button("Refresh Feeds") { Task { await feedViewModel.refresh() } }
+            Button("Refresh Feeds") { Task { await refreshAllPanes() } }
                 .keyboardShortcut("r", modifiers: [])
         }
         .opacity(0)

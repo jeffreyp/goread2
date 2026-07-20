@@ -9,6 +9,10 @@ struct FeedListView: View {
     @EnvironmentObject private var authManager: AuthManager
     @ObservedObject var viewModel: FeedListViewModel
     var sidebarSelection: Binding<FeedSelection?>?
+    /// Replaces the default pull-to-refresh (refreshing feeds and counts).
+    /// The iPad split view passes an action that refreshes every pane at
+    /// once.
+    var refreshAction: (() async -> Void)?
 
     @State private var showingAddFeed = false
     @State private var showingSettings = false
@@ -68,7 +72,11 @@ struct FeedListView: View {
             }
         }
         .refreshable {
-            await viewModel.refresh()
+            if let refreshAction {
+                await refreshAction()
+            } else {
+                await viewModel.refresh()
+            }
         }
         .onAppear {
             // Re-fires when a pushed article screen pops; picks up counts
