@@ -67,6 +67,13 @@ struct FeedListView: View {
         Group {
             if let sidebarSelection {
                 List(selection: sidebarSelection) { feedRows }
+                    // The system sidebar list style is translucent by
+                    // default, so on iPad the content column's selected-
+                    // article highlight can bleed through behind it in
+                    // landscape. An opaque background keeps the sidebar
+                    // fully covering whatever renders underneath.
+                    .scrollContentBackground(.hidden)
+                    .background(Color(.systemBackground))
             } else {
                 List { feedRows }
             }
