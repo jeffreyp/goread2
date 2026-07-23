@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,11 +17,20 @@ import (
 	"github.com/jeffreyp/goread2/internal/services"
 )
 
+// TaskQueue enqueues async work for a task handler endpoint to process. It is
+// satisfied by *services.CloudTasksQueue; tests and environments without
+// Cloud Tasks configured leave it nil, which falls back to running cron work
+// synchronously/in-process instead of failing.
+type TaskQueue interface {
+	Enqueue(ctx context.Context, relativeURI string) error
+}
+
 type FeedHandler struct {
 	feedService         *services.FeedService
 	subscriptionService *services.SubscriptionService
 	feedScheduler       *services.FeedScheduler
 	db                  database.Database
+	taskQueue           TaskQueue
 }
 
 func NewFeedHandler(feedService *services.FeedService, subscriptionService *services.SubscriptionService, feedScheduler *services.FeedScheduler, db database.Database) *FeedHandler {
@@ -30,6 +40,14 @@ func NewFeedHandler(feedService *services.FeedService, subscriptionService *serv
 		feedScheduler:       feedScheduler,
 		db:                  db,
 	}
+}
+
+// SetTaskQueue wires up async dispatch for the cron endpoints. Called once
+// from main after construction, only when Cloud Tasks is configured
+// (production App Engine); left unset, cron handlers keep doing their own
+// in-process work.
+func (fh *FeedHandler) SetTaskQueue(tq TaskQueue) {
+	fh.taskQueue = tq
 }
 
 func (fh *FeedHandler) GetFeeds(c *gin.Context) {
@@ -291,17 +309,25 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 		if !auth.VerifyCronRequest(c) {
 			return
 		}
-		// Cron path: return immediately so GAE doesn't hold the instance.
-		// Feed refresh runs in the background; cron retries handle failures.
+		if fh.taskQueue != nil {
+			// Enqueue and return immediately; Cloud Tasks dispatches to
+			// /tasks/refresh-feeds and owns retries, so the work survives
+			// this instance shutting down mid-refresh.
+			if err := fh.taskQueue.Enqueue(c.Request.Context(), "/tasks/refresh-feeds"); err != nil {
+				log.Printf("Failed to enqueue feed refresh task: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enqueue feed refresh"})
+				return
+			}
+			c.JSON(http.StatusAccepted, gin.H{"message": "Feed refresh enqueued"})
+			return
+		}
+		// No task queue configured (local dev): fall back to a background
+		// goroutine so GAE doesn't hold the instance. Not guaranteed to
+		// complete if the instance is killed mid-refresh; cron retries are
+		// the only safety net in this path.
 		log.Printf("Cron feed refresh started at %v (background)", time.Now())
 		go func() {
-			var err error
-			if fh.feedScheduler != nil {
-				err = fh.feedScheduler.RefreshFeedsStaggered()
-			} else {
-				err = fh.feedService.RefreshFeeds()
-			}
-			if err != nil {
+			if err := fh.doRefreshFeeds(); err != nil {
 				log.Printf("Cron feed refresh failed: %v", err)
 			} else {
 				log.Printf("Cron feed refresh completed at %v", time.Now())
@@ -309,19 +335,11 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 		}()
 		c.JSON(http.StatusAccepted, gin.H{"message": "Feed refresh started"})
 		return
-	} else {
-		log.Printf("Manual feed refresh started at %v", time.Now())
 	}
 
 	// Manual (API) path: run synchronously so the caller gets a result.
-	var err error
-	if fh.feedScheduler != nil {
-		err = fh.feedScheduler.RefreshFeedsStaggered()
-	} else {
-		err = fh.feedService.RefreshFeeds()
-	}
-
-	if err != nil {
+	log.Printf("Manual feed refresh started at %v", time.Now())
+	if err := fh.doRefreshFeeds(); err != nil {
 		log.Printf("Feed refresh failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh feeds. Please try again."})
 		return
@@ -331,10 +349,46 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Feeds refreshed successfully"})
 }
 
+// TaskRefreshFeeds is the Cloud Tasks worker endpoint for /tasks/refresh-feeds.
+// It performs the same work RefreshFeeds does for the cron path, but runs
+// synchronously so its response (success or failure) reports the outcome to
+// Cloud Tasks, which retries on non-2xx per the queue's retry policy.
+func (fh *FeedHandler) TaskRefreshFeeds(c *gin.Context) {
+	if !auth.VerifyTaskRequest(c) {
+		return
+	}
+
+	log.Printf("Task feed refresh started at %v", time.Now())
+	if err := fh.doRefreshFeeds(); err != nil {
+		log.Printf("Task feed refresh failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh feeds"})
+		return
+	}
+
+	log.Printf("Task feed refresh completed at %v", time.Now())
+	c.JSON(http.StatusOK, gin.H{"message": "Feeds refreshed successfully"})
+}
+
+func (fh *FeedHandler) doRefreshFeeds() error {
+	if fh.feedScheduler != nil {
+		return fh.feedScheduler.RefreshFeedsStaggered()
+	}
+	return fh.feedService.RefreshFeeds()
+}
+
 func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 	// If this is the cron endpoint, verify it's authorized
 	if c.Request.URL.Path == "/cron/cleanup-orphaned-articles" {
 		if !auth.VerifyCronRequest(c) {
+			return
+		}
+		if fh.taskQueue != nil {
+			if err := fh.taskQueue.Enqueue(c.Request.Context(), "/tasks/cleanup-orphaned-articles"); err != nil {
+				log.Printf("Failed to enqueue cleanup task: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enqueue cleanup"})
+				return
+			}
+			c.JSON(http.StatusAccepted, gin.H{"message": "Cleanup enqueued"})
 			return
 		}
 		log.Printf("Cron cleanup started at %v", time.Now())
@@ -342,8 +396,7 @@ func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 		log.Printf("Manual cleanup started at %v", time.Now())
 	}
 
-	// Clean up user articles orphaned for more than 7 days
-	deletedCount, err := fh.db.CleanupOrphanedUserArticles(7)
+	deletedCount, err := fh.doCleanupOrphanedArticles()
 	if err != nil {
 		log.Printf("Cleanup failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clean up orphaned articles. Please try again."})
@@ -355,6 +408,34 @@ func (fh *FeedHandler) CleanupOrphanedUserArticles(c *gin.Context) {
 		"message":       "Cleanup completed successfully",
 		"deleted_count": deletedCount,
 	})
+}
+
+// TaskCleanupOrphanedArticles is the Cloud Tasks worker endpoint for
+// /tasks/cleanup-orphaned-articles. See TaskRefreshFeeds for why this runs
+// synchronously rather than backgrounding the work.
+func (fh *FeedHandler) TaskCleanupOrphanedArticles(c *gin.Context) {
+	if !auth.VerifyTaskRequest(c) {
+		return
+	}
+
+	log.Printf("Task cleanup started at %v", time.Now())
+	deletedCount, err := fh.doCleanupOrphanedArticles()
+	if err != nil {
+		log.Printf("Task cleanup failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clean up orphaned articles"})
+		return
+	}
+
+	log.Printf("Task cleanup completed at %v, deleted %d orphaned records", time.Now(), deletedCount)
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Cleanup completed successfully",
+		"deleted_count": deletedCount,
+	})
+}
+
+func (fh *FeedHandler) doCleanupOrphanedArticles() (int, error) {
+	// Orphaned for more than 7 days.
+	return fh.db.CleanupOrphanedUserArticles(7)
 }
 
 func (fh *FeedHandler) DebugFeed(c *gin.Context) {

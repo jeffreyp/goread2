@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"mime/multipart"
@@ -1147,6 +1148,121 @@ func TestCleanupOrphanedUserArticles(t *testing.T) {
 			t.Errorf("Expected status 500, got %d", w.Code)
 		}
 	})
+
+	t.Run("cron path enqueues via task queue when configured", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		handler := NewFeedHandler(nil, nil, nil, newMockDBFeedHandler())
+		tq := &fakeTaskQueue{}
+		handler.SetTaskQueue(tq)
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+		c.Set("user", adminUser)
+
+		handler.CleanupOrphanedUserArticles(c)
+
+		if w.Code != http.StatusAccepted {
+			t.Errorf("expected 202, got %d: %s", w.Code, w.Body.String())
+		}
+		if len(tq.enqueued) != 1 || tq.enqueued[0] != "/tasks/cleanup-orphaned-articles" {
+			t.Errorf("expected /tasks/cleanup-orphaned-articles enqueued once, got %v", tq.enqueued)
+		}
+	})
+
+	t.Run("cron path returns 500 when enqueue fails", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		handler := NewFeedHandler(nil, nil, nil, newMockDBFeedHandler())
+		handler.SetTaskQueue(&fakeTaskQueue{shouldFail: true})
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+		c.Set("user", adminUser)
+
+		handler.CleanupOrphanedUserArticles(c)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestTaskCleanupOrphanedArticles(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("unauthorized without queue header or admin auth", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		handler := NewFeedHandler(nil, nil, nil, newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/tasks/cleanup-orphaned-articles", nil)
+		handler.TaskCleanupOrphanedArticles(c)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("succeeds via admin auth fallback", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		db := newMockDBFeedHandler()
+		db.articlesDeleted = 7
+		handler := NewFeedHandler(nil, nil, nil, db)
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/tasks/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+		c.Set("user", adminUser)
+
+		handler.TaskCleanupOrphanedArticles(c)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp map[string]interface{}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if resp["deleted_count"] != float64(7) {
+			t.Errorf("expected deleted_count 7, got %v", resp["deleted_count"])
+		}
+	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		db := newMockDBFeedHandler()
+		db.shouldFailCleanupOrphaned = true
+		handler := NewFeedHandler(nil, nil, nil, db)
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/tasks/cleanup-orphaned-articles", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+		c.Set("user", adminUser)
+
+		handler.TaskCleanupOrphanedArticles(c)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
 }
 
 func TestDebugFeed(t *testing.T) {
@@ -1644,6 +1760,21 @@ func TestUpdateMaxArticlesOnFeedAdd(t *testing.T) {
 			t.Errorf("Expected status 500, got %d", w.Code)
 		}
 	})
+}
+
+// fakeTaskQueue is a TaskQueue test double that records enqueued URIs and
+// can be made to fail on demand.
+type fakeTaskQueue struct {
+	shouldFail bool
+	enqueued   []string
+}
+
+func (q *fakeTaskQueue) Enqueue(ctx context.Context, relativeURI string) error {
+	if q.shouldFail {
+		return errors.New("enqueue failed")
+	}
+	q.enqueued = append(q.enqueued, relativeURI)
+	return nil
 }
 
 func newFeedHandlerWithSubscription(db *mockDBFeedHandler) *FeedHandler {
@@ -2219,6 +2350,112 @@ func TestRefreshFeeds(t *testing.T) {
 		handler.RefreshFeeds(c)
 		if w.Code != http.StatusForbidden {
 			t.Errorf("expected 403, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("cron path enqueues via task queue when configured", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		tq := &fakeTaskQueue{}
+		handler.SetTaskQueue(tq)
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/refresh-feeds", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+		c.Set("user", adminUser)
+
+		handler.RefreshFeeds(c)
+
+		if w.Code != http.StatusAccepted {
+			t.Errorf("expected 202, got %d: %s", w.Code, w.Body.String())
+		}
+		if len(tq.enqueued) != 1 || tq.enqueued[0] != "/tasks/refresh-feeds" {
+			t.Errorf("expected /tasks/refresh-feeds enqueued once, got %v", tq.enqueued)
+		}
+	})
+
+	t.Run("cron path returns 500 when enqueue fails", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		handler.SetTaskQueue(&fakeTaskQueue{shouldFail: true})
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/cron/refresh-feeds", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+		c.Set("user", adminUser)
+
+		handler.RefreshFeeds(c)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestTaskRefreshFeeds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("unauthorized without queue header or admin auth", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/tasks/refresh-feeds", nil)
+		handler.TaskRefreshFeeds(c)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("succeeds via admin auth fallback", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/tasks/refresh-feeds", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+		c.Set("user", adminUser)
+
+		handler.TaskRefreshFeeds(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+		secrets.ResetCacheForTesting()
+		t.Cleanup(secrets.ResetCacheForTesting)
+		db := newMockDBFeedHandler()
+		db.shouldFailGetFeeds = true
+		handler := newFeedHandlerWithSubscription(db)
+
+		adminUser := &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/tasks/refresh-feeds", nil)
+		c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+		c.Set("user", adminUser)
+
+		handler.TaskRefreshFeeds(c)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())
 		}
 	})
 }

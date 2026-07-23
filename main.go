@@ -114,6 +114,24 @@ func main() {
 
 	// Initialize handlers
 	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler, db)
+
+	// Wire up Cloud Tasks for the cron endpoints, production App Engine only.
+	// Local dev and tests leave this unset, so cron handlers fall back to
+	// their in-process behavior (see FeedHandler.RefreshFeeds).
+	if os.Getenv("GAE_ENV") == "standard" {
+		taskQueue, err := services.NewCloudTasksQueue(ctx)
+		if err != nil {
+			log.Printf("Warning: Cloud Tasks unavailable, cron jobs will run in-process: %v", err)
+		} else {
+			defer func() {
+				if err := taskQueue.Close(); err != nil {
+					log.Printf("Warning: failed to close Cloud Tasks client: %v", err)
+				}
+			}()
+			feedHandler.SetTaskQueue(taskQueue)
+		}
+	}
+
 	articleHandler := handlers.NewArticleHandler(feedService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
@@ -240,6 +258,15 @@ func main() {
 		cronRoutes.POST("/cleanup-sessions", authHandler.CleanupExpiredSessions)
 		cronRoutes.GET("/cleanup-orphaned-articles", feedHandler.CleanupOrphanedUserArticles)
 		cronRoutes.POST("/cleanup-orphaned-articles", feedHandler.CleanupOrphanedUserArticles)
+	}
+
+	// Cloud Tasks worker endpoints - dispatched only by the cron handlers
+	// above (via Cloud Tasks), authenticated via the X-AppEngine-QueueName
+	// header App Engine attaches to genuine task dispatches.
+	taskRoutes := r.Group("/tasks")
+	{
+		taskRoutes.POST("/refresh-feeds", feedHandler.TaskRefreshFeeds)
+		taskRoutes.POST("/cleanup-orphaned-articles", feedHandler.TaskCleanupOrphanedArticles)
 	}
 
 	// Protected API routes

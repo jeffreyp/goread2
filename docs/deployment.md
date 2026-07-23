@@ -15,6 +15,7 @@ Guide for deploying GoRead2 to Google App Engine, the only supported production 
 - [Rollback](#rollback-githubworkflowsrollbackyml)
 - [iOS Release Pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml)
 - [Google App Engine Configuration](#google-app-engine-configuration)
+- [Async Task Processing (Cloud Tasks)](#async-task-processing-cloud-tasks)
 - [Environment Variables](#environment-variables)
 - [Security Considerations](#security-considerations)
 - [Monitoring and Maintenance](#monitoring-and-maintenance)
@@ -435,6 +436,42 @@ cron:
 - **User isolation**: All queries filtered by authenticated user ID
 - **Scalability**: Handles multiple concurrent users efficiently
 
+## Async Task Processing (Cloud Tasks)
+
+The `/cron/refresh-feeds` and `/cron/cleanup-orphaned-articles` cron handlers enqueue their work as Cloud Tasks instead of running it in the request that App Engine Cron triggers. This keeps the cron request itself under 100ms, so App Engine doesn't hold an instance open for the duration of a feed refresh, and Cloud Tasks retries the work independently of cron's own retry policy if it fails.
+
+Each cron handler enqueues a task targeting a corresponding worker endpoint on the same App Engine service:
+
+- `/cron/refresh-feeds` enqueues `/tasks/refresh-feeds`
+- `/cron/cleanup-orphaned-articles` enqueues `/tasks/cleanup-orphaned-articles`
+
+Tasks are dispatched using Cloud Tasks' `AppEngineHttpRequest` target. App Engine attaches an `X-AppEngine-QueueName` header to genuine task dispatches and strips that header from any external request that tries to set it, the same protection `X-Appengine-Cron` gives the cron endpoints; the task worker endpoints check for its presence (`internal/auth.VerifyTaskRequest`) rather than requiring a separate signature check.
+
+**One-time setup** (project `goread-467200`, matching the App Engine region). This has already been done for the production project; these commands are for standing up a new project or environment:
+
+```bash
+gcloud services enable cloudtasks.googleapis.com
+gcloud tasks queues create cron-tasks --location=us-central1 \
+  --max-attempts=5 \
+  --min-backoff=10s \
+  --max-backoff=300s \
+  --max-doublings=3
+```
+
+The retry flags mirror `cron.yaml`'s `retry_parameters` instead of Cloud Tasks' default (up to 100 attempts backing off to a full hour), which would keep hammering a broken task handler far longer than useful.
+
+The App Engine default service account (`goread-467200@appspot.gserviceaccount.com`) needs `roles/cloudtasks.enqueuer` to create tasks on this queue:
+
+```bash
+gcloud projects add-iam-policy-binding goread-467200 \
+  --member="serviceAccount:goread-467200@appspot.gserviceaccount.com" \
+  --role="roles/cloudtasks.enqueuer"
+```
+
+**Local development and any environment where `GAE_ENV` isn't `standard`**: the app never creates a Cloud Tasks client (it would otherwise need credentials and a real queue to enqueue against), so the cron handlers fall back to doing the work in-process, the same as before Cloud Tasks was introduced. The `/tasks/*` worker endpoints still exist locally but are only reachable by calling them directly with admin authentication, matching `VerifyCronRequest`'s non-GAE fallback.
+
+Queue name and location default to `cron-tasks` and `us-central1`; override with `CLOUD_TASKS_QUEUE` and `CLOUD_TASKS_LOCATION` if a deployment uses different values.
+
 ## Environment Variables
 
 ### Security Note for Google App Engine
@@ -458,6 +495,8 @@ cron:
 - `SUBSCRIPTION_ENABLED` - Enable/disable subscription system (default: false)
 - `ADMIN_TOKEN` - Static token for the `X-Admin-Token` header on cron endpoints outside GAE (fetched from Secret Manager `admin-token` if unset; cron auth is disabled if never configured)
 - `INITIAL_ADMIN_EMAILS` - Comma-separated emails granted admin privileges on first sign-in (fetched from Secret Manager `initial-admin-emails` if unset)
+- `CLOUD_TASKS_QUEUE` - Cloud Tasks queue name for cron job dispatch (default: `cron-tasks`); see [Async Task Processing](#async-task-processing-cloud-tasks)
+- `CLOUD_TASKS_LOCATION` - Cloud Tasks queue location (default: `us-central1`)
 
 ### Stripe Variables (if using subscriptions)
 
@@ -555,6 +594,7 @@ See [Troubleshooting Guide](troubleshooting.md#deployment-issues) for OAuth, ses
 ## Cost Optimization
 
 - **Instance management**: Use automatic scaling with min 0 instances
+- **Async cron processing**: Cron jobs dispatch through Cloud Tasks rather than running in the cron request itself, so instances aren't held open for the duration of a feed refresh; see [Async Task Processing](#async-task-processing-cloud-tasks)
 - **Datastore usage**: Monitor read/write operations
 - **Bandwidth**: Cache RSS feeds to reduce external requests
 - **Free tier**: Leverage GAE free tier limits

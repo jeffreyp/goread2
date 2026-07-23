@@ -5,6 +5,7 @@ go 1.25.0
 toolchain go1.25.11
 
 require (
+	cloud.google.com/go/cloudtasks v1.13.6
 	cloud.google.com/go/datastore v1.20.0
 	cloud.google.com/go/secretmanager v1.15.0
 	github.com/gin-contrib/gzip v1.2.3
