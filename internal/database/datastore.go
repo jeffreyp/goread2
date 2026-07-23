@@ -1769,13 +1769,13 @@ func (db *DatastoreDB) CleanupOrphanedUserArticles(olderThanDays int) (int, erro
 
 		// Delete orphaned UserArticle entities in this batch
 		if len(keysToDelete) > 0 {
-			err := db.client.DeleteMulti(ctx, keysToDelete)
-			if err != nil {
-				// Log but continue with other batches
-				fmt.Printf("Warning: Failed to delete some orphaned user articles: %v\n", err)
-			} else {
-				deletedCount += len(keysToDelete)
+			if err := db.client.DeleteMulti(ctx, keysToDelete); err != nil {
+				// Report what was deleted before the failure so callers (and
+				// Cloud Tasks' retry policy) see this as a failed run rather
+				// than a successful one with an undercounted total.
+				return deletedCount, fmt.Errorf("failed to delete orphaned user articles: %w", err)
 			}
+			deletedCount += len(keysToDelete)
 		}
 
 		// Check if there are more results

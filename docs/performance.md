@@ -86,8 +86,8 @@ Pagination uses cursors that encode the last article's timestamp and ID, avoidin
 **Implementation:**
 - Database methods: `internal/database/schema.go:787-794`, `internal/database/datastore.go:664-677`
 - Cleanup methods: `internal/database/schema.go:1090-1114`, `internal/database/datastore.go:1255-1347`
-- Cron handler: `internal/handlers/feed_handler.go:294-332`
-- Cron schedule: `cron.yaml:11-18`
+- Cron handler: `internal/handlers/feed_handler.go:379-411` (enqueues to the `/tasks/cleanup-orphaned-articles` Cloud Task; see [Async Task Processing](deployment.md#async-task-processing-cloud-tasks))
+- Cron schedule: `cron.yaml:20-27`
 
 **Impact:**
 - 10-100x faster unsubscribe operations than synchronous cleanup
