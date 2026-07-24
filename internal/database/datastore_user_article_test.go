@@ -271,6 +271,38 @@ func TestDatastoreCleanupOrphanedUserArticles(t *testing.T) {
 	}
 }
 
+// TestDatastoreCleanupOrphanedUserArticlesPagination exercises the cursor continuation across
+// multiple pages (batchSize is 500), which the single-item test above never touches.
+func TestDatastoreCleanupOrphanedUserArticlesPagination(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+
+	feed := createDatastoreTestFeed(t, db)
+	article := createDatastoreTestArticle(t, db, feed.ID)
+
+	const total = 550 // exceeds CleanupOrphanedUserArticles' 500-per-page batch size
+	for userID := 1; userID <= total; userID++ {
+		if err := db.MarkUserArticleRead(userID, article.ID, true); err != nil {
+			t.Fatalf("MarkUserArticleRead(%d) failed: %v", userID, err)
+		}
+	}
+	// None of these users ever subscribed to the feed, so every UserArticle is orphaned.
+
+	deleted, err := db.CleanupOrphanedUserArticles(0)
+	if err != nil {
+		t.Fatalf("CleanupOrphanedUserArticles failed: %v", err)
+	}
+	if deleted != total {
+		t.Errorf("expected %d orphaned UserArticles deleted across multiple pages, got %d", total, deleted)
+	}
+
+	if _, err := db.GetUserArticleStatus(1, article.ID); err == nil {
+		t.Error("expected a first-page orphaned UserArticle to be gone after cleanup")
+	}
+	if _, err := db.GetUserArticleStatus(total, article.ID); err == nil {
+		t.Error("expected a last-page orphaned UserArticle to be gone after cleanup")
+	}
+}
+
 // Subscription / admin tests
 
 func TestDatastoreUpdateUserSubscription(t *testing.T) {

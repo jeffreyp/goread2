@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
+	"google.golang.org/api/iterator"
 )
 
 const (
@@ -1702,103 +1703,146 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 // CleanupOrphanedUserArticles removes UserArticle entities that reference articles from feeds
 // the user is no longer subscribed to. Only cleans up articles older than the specified number of days.
 // Returns the number of records deleted.
+//
+// Each page gets its own datastoreTimeout budget instead of sharing one for the whole run, and
+// article/subscription lookups within a page are batched with GetMulti instead of one Get per
+// candidate. A single shared 30s deadline plus per-key round trips (up to two Datastore Gets for
+// every one of up to 500 keys in a page) reliably timed out once orphaned-article volume grew -
+// see gr-dnhv, discovered when this started failing every real cron run in production.
 func (db *DatastoreDB) CleanupOrphanedUserArticles(olderThanDays int) (int, error) {
 	defer logSlowQuery("CleanupOrphanedUserArticles", time.Now())
-	ctx, cancel := newDatastoreContext()
-	defer cancel()
 	deletedCount := 0
 	cutoffDate := time.Now().AddDate(0, 0, -olderThanDays)
 
-	// Query UserArticle entities in batches
-	batchSize := 500
+	const batchSize = 500
 	var cursor *datastore.Cursor
 
 	for {
-		query := datastore.NewQuery("UserArticle").Limit(batchSize)
+		ctx, cancel := newDatastoreContext()
+
+		query := datastore.NewQuery("UserArticle").KeysOnly().Limit(batchSize)
 		if cursor != nil {
 			query = query.Start(*cursor)
 		}
 
-		var userArticles []UserArticleEntity
-		keys, err := db.client.GetAll(ctx, query.KeysOnly(), &userArticles)
-		if err != nil {
-			return deletedCount, fmt.Errorf("failed to query user articles: %w", err)
+		var keys []*datastore.Key
+		it := db.client.Run(ctx, query)
+		for {
+			key, err := it.Next(nil)
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				cancel()
+				return deletedCount, fmt.Errorf("failed to query user articles: %w", err)
+			}
+			keys = append(keys, key)
 		}
 
 		if len(keys) == 0 {
+			cancel()
 			break
 		}
 
-		// Process this batch
-		var keysToDelete []*datastore.Key
-
-		for _, key := range keys {
-			// Parse user_id and article_id from the key name (format: "userID_articleID")
-			keyName := key.Name
-			var userID, articleID int64
-			_, err := fmt.Sscanf(keyName, "%d_%d", &userID, &articleID)
-			if err != nil {
-				continue // Skip malformed keys
-			}
-
-			// Get the article to find its feed_id and created_at
-			articleKey := datastore.IDKey("Article", articleID, nil)
-			var article ArticleEntity
-			err = db.client.Get(ctx, articleKey, &article)
-			if err != nil {
-				// Article doesn't exist, definitely orphaned
-				keysToDelete = append(keysToDelete, key)
-				continue
-			}
-
-			// Check if article is old enough (skip check if olderThanDays is 0)
-			if olderThanDays > 0 && article.CreatedAt.After(cutoffDate) {
-				continue // Too recent, skip
-			}
-
-			// Check if user is still subscribed to this feed
-			userFeedKey := datastore.NameKey("UserFeed", fmt.Sprintf("%d_%d", userID, article.FeedID), nil)
-			var userFeed UserFeedEntity
-			err = db.client.Get(ctx, userFeedKey, &userFeed)
-			if err == datastore.ErrNoSuchEntity {
-				// User is not subscribed, this is orphaned
-				keysToDelete = append(keysToDelete, key)
-			}
-			// If no error, user is still subscribed, keep it
-		}
-
-		// Delete orphaned UserArticle entities in this batch
-		if len(keysToDelete) > 0 {
-			if err := db.client.DeleteMulti(ctx, keysToDelete); err != nil {
-				// Report what was deleted before the failure so callers (and
-				// Cloud Tasks' retry policy) see this as a failed run rather
-				// than a successful one with an undercounted total.
-				return deletedCount, fmt.Errorf("failed to delete orphaned user articles: %w", err)
-			}
-			deletedCount += len(keysToDelete)
-		}
-
-		// Check if there are more results
-		if len(keys) < batchSize {
-			break
-		}
-
-		// Get cursor for next page (note: we need to re-run the query to get the cursor)
-		iter := db.client.Run(ctx, query)
-		for i := 0; i < len(keys); i++ {
-			_, err := iter.Next(nil)
-			if err != nil {
-				break
-			}
-		}
-		nextCursor, err := iter.Cursor()
+		deleted, err := db.deleteOrphanedUserArticlesBatch(ctx, keys, olderThanDays, cutoffDate)
+		deletedCount += deleted
 		if err != nil {
+			cancel()
+			// Report what was deleted before the failure so callers (and
+			// Cloud Tasks' retry policy) see this as a failed run rather
+			// than a successful one with an undercounted total.
+			return deletedCount, err
+		}
+
+		morePages := len(keys) == batchSize
+		var nextCursor datastore.Cursor
+		if morePages {
+			nextCursor, err = it.Cursor()
+		}
+		cancel()
+		if !morePages || err != nil {
 			break
 		}
 		cursor = &nextCursor
 	}
 
 	return deletedCount, nil
+}
+
+// deleteOrphanedUserArticlesBatch resolves and deletes the orphaned entries within one page of
+// UserArticle keys, batching the Article/UserFeed existence checks with GetMulti instead of two
+// Datastore round trips per candidate key.
+func (db *DatastoreDB) deleteOrphanedUserArticlesBatch(ctx context.Context, keys []*datastore.Key, olderThanDays int, cutoffDate time.Time) (int, error) {
+	type candidate struct {
+		key       *datastore.Key
+		userID    int64
+		articleID int64
+	}
+
+	candidates := make([]candidate, 0, len(keys))
+	articleKeys := make([]*datastore.Key, 0, len(keys))
+	for _, key := range keys {
+		// Parse user_id and article_id from the key name (format: "userID_articleID")
+		var userID, articleID int64
+		if _, err := fmt.Sscanf(key.Name, "%d_%d", &userID, &articleID); err != nil {
+			continue // Skip malformed keys
+		}
+		candidates = append(candidates, candidate{key: key, userID: userID, articleID: articleID})
+		articleKeys = append(articleKeys, datastore.IDKey("Article", articleID, nil))
+	}
+
+	if len(candidates) == 0 {
+		return 0, nil
+	}
+
+	articles := make([]ArticleEntity, len(articleKeys))
+	var articleErrs datastore.MultiError
+	if err := db.client.GetMulti(ctx, articleKeys, articles); err != nil && !errors.As(err, &articleErrs) {
+		return 0, fmt.Errorf("failed to batch-get articles: %w", err)
+	}
+
+	var keysToDelete []*datastore.Key
+	userFeedKeys := make([]*datastore.Key, 0, len(candidates))
+	pending := make([]candidate, 0, len(candidates)) // candidates awaiting a UserFeed check, aligned with userFeedKeys
+
+	for i, c := range candidates {
+		if articleErrs != nil && articleErrs[i] != nil {
+			// Article doesn't exist (or failed to load), definitely orphaned.
+			keysToDelete = append(keysToDelete, c.key)
+			continue
+		}
+		article := articles[i]
+		if olderThanDays > 0 && article.CreatedAt.After(cutoffDate) {
+			continue // Too recent, skip
+		}
+		userFeedKeys = append(userFeedKeys, datastore.NameKey("UserFeed", fmt.Sprintf("%d_%d", c.userID, article.FeedID), nil))
+		pending = append(pending, c)
+	}
+
+	if len(userFeedKeys) > 0 {
+		userFeeds := make([]UserFeedEntity, len(userFeedKeys))
+		var userFeedErrs datastore.MultiError
+		if err := db.client.GetMulti(ctx, userFeedKeys, userFeeds); err != nil && !errors.As(err, &userFeedErrs) {
+			return 0, fmt.Errorf("failed to batch-get user feeds: %w", err)
+		}
+		for i, c := range pending {
+			if userFeedErrs != nil && userFeedErrs[i] == datastore.ErrNoSuchEntity {
+				// User is not subscribed, this is orphaned.
+				keysToDelete = append(keysToDelete, c.key)
+			}
+			// Any other outcome (nil, or a non-not-found error): user is still subscribed
+			// or the check was inconclusive, so leave it for the next run.
+		}
+	}
+
+	if len(keysToDelete) == 0 {
+		return 0, nil
+	}
+
+	if err := db.client.DeleteMulti(ctx, keysToDelete); err != nil {
+		return 0, fmt.Errorf("failed to delete orphaned user articles: %w", err)
+	}
+	return len(keysToDelete), nil
 }
 
 // getUserFeedsWithRetry gets user feeds with retry logic to handle eventual consistency
