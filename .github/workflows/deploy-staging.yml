@@ -94,7 +94,7 @@ jobs:
             echo "No changes to cron.yaml or index.yaml — skipping config deploy"
           fi
 
-      - name: Delete stale staging versions (keep only this one)
+      - name: Delete stale staging versions (keep this one + one prior rollback candidate)
         env:
           KEEP_VERSION: ${{ steps.version.outputs.name }}
         run: |
@@ -106,9 +106,15 @@ jobs:
           # version rather than redeploying under a new name, so a past staging-<sha>
           # can be the version currently serving 100% of production traffic. Without
           # this guard, the very next push to main would delete live production here.
-          STALE=$(gcloud app versions list --service=default --project=goread-467200 \
-            --filter="version.id:staging-* AND traffic_split=0" --format="value(version.id)" \
-            | grep -v "^${KEEP_VERSION}$" || true)
+          #
+          # Among the remaining non-serving versions, keep KEEP_VERSION plus the single
+          # most-recently-created other one. That second slot is normally the production
+          # version that was just demoted by the last promotion, so rollback.yml still
+          # has a version to target for at least one more staging deploy cycle (gr-7pjj).
+          CANDIDATES=$(gcloud app versions list --service=default --project=goread-467200 \
+            --filter="version.id:staging-* AND traffic_split=0" \
+            --sort-by="~version.createTime" --format="value(version.id)")
+          STALE=$(echo "$CANDIDATES" | grep -v "^${KEEP_VERSION}$" | tail -n +2 || true)
           if [ -n "$STALE" ]; then
             echo "Deleting stale staging versions: $STALE"
             # shellcheck disable=SC2086
