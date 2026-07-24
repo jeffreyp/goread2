@@ -6,20 +6,17 @@ import SwiftUI
 /// instead of tiling. Hardware keyboard shortcuts match the web app:
 /// j/k select the next/previous article, m toggles read, s toggles the
 /// star, and r refreshes every feed.
+///
+/// The sidebar starts with nothing selected; once the feed list finishes
+/// loading, `selectAllArticlesIfNeeded` picks All Articles for an account
+/// with subscriptions, or opens the sidebar for a brand-new account so its
+/// welcome screen is reachable instead of an empty All Articles list.
 struct SplitRootView: View {
     @StateObject private var feedViewModel = FeedListViewModel()
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var feedSelection: FeedSelection?
     @State private var articleViewModel: ArticleListViewModel?
     @State private var selectedArticleID: Int?
-
-    /// Launches with All Articles selected so unread articles are visible
-    /// immediately, without a trip to the sidebar (which starts hidden in
-    /// portrait).
-    init() {
-        _feedSelection = State(initialValue: .all)
-        _articleViewModel = State(initialValue: ArticleListViewModel(selection: .all))
-    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -53,6 +50,8 @@ struct SplitRootView: View {
             selectedArticleID = nil
             articleViewModel = selection.map { ArticleListViewModel(selection: $0) }
         }
+        .onChange(of: feedViewModel.hasLoaded) { _ in selectAllArticlesIfNeeded() }
+        .onChange(of: feedViewModel.feeds.count) { _ in selectAllArticlesIfNeeded() }
         .onChange(of: selectedArticleID) { _ in
             // Opening an article marks it read; keep the sidebar's unread
             // badges current.
@@ -60,6 +59,21 @@ struct SplitRootView: View {
             Task { await feedViewModel.refreshUnreadCounts() }
         }
         .background(shortcutButtons)
+    }
+
+    /// Picks the initial sidebar selection once the feed list load settles:
+    /// All Articles for an account with subscriptions (so unread articles
+    /// are visible without a trip to the sidebar), or nothing for a
+    /// brand-new account, forcing the sidebar open so the welcome screen's
+    /// "Add Your First Feed" is reachable instead of hidden behind an empty
+    /// All Articles list. Only runs once, before any explicit selection.
+    private func selectAllArticlesIfNeeded() {
+        guard feedViewModel.hasLoaded, feedSelection == nil else { return }
+        if feedViewModel.feeds.isEmpty {
+            columnVisibility = .all
+        } else {
+            feedSelection = .all
+        }
     }
 
     /// Pull-to-refresh (either pane) and the r shortcut: one server-side
