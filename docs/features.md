@@ -116,7 +116,8 @@ Use the radio buttons in the article pane header:
 ### Real-time Updates
 - Unread counts update automatically every 5 minutes
 - Manual refresh with the "Refresh" button or `r` key
-- Background polling keeps feeds current
+- Background polling keeps feed unread counts current
+- When background polling detects new unread articles for the feed or view currently open, a "N new articles available" banner appears above the article list; clicking "Refresh" on the banner reloads the article list. The article list and reading pane are otherwise left untouched by background polling, so an open article is never replaced out from under the reader
 
 ### Responsive Design
 - Optimized for desktop, tablet, and mobile devices

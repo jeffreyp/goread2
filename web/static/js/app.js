@@ -307,6 +307,9 @@ class GoReadApp {
     constructor() {
         this.currentFeed = null;
         this.currentArticle = null;
+        // Unread count for the current feed/view as of the last article list load,
+        // used to detect new articles arriving during background unread-count sync.
+        this.newArticlesBaselineCount = null;
         this.feeds = [];
         this.articles = [];
         this.user = null;
@@ -427,6 +430,15 @@ class GoReadApp {
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
                 this.refreshFeeds();
+            });
+        }
+
+        const newArticlesRefreshBtn = document.getElementById('new-articles-refresh');
+        if (newArticlesRefreshBtn) {
+            newArticlesRefreshBtn.addEventListener('click', () => {
+                if (this.currentFeed) {
+                    this.loadArticles(this.currentFeed);
+                }
             });
         }
 
@@ -1157,6 +1169,8 @@ class GoReadApp {
                 this.articles = [];
                 this.nextCursor = '';
                 this.loadedArticleIds = new Set(); // Track loaded article IDs to prevent duplicates
+                this.newArticlesBaselineCount = this.getCurrentViewUnreadCount(feedId);
+                this.hideNewArticlesBanner();
             }
 
             const limit = 50;
@@ -2203,11 +2217,58 @@ class GoReadApp {
         }
     }
 
+    // Reads the unread badge count currently shown for a feed/view (defaults to the
+    // active one), so callers can diff against it without a network round trip.
+    getCurrentViewUnreadCount(feedId = this.currentFeed) {
+        if (!feedId) {
+            return 0;
+        }
+
+        if (feedId === 'all') {
+            const allUnreadElement = document.getElementById('all-unread-count');
+            return allUnreadElement ? parseInt(allUnreadElement.dataset.count, 10) || 0 : 0;
+        }
+
+        const countElement = document.querySelector(`[data-feed-id="${feedId}"] .unread-count`);
+        return countElement ? parseInt(countElement.dataset.count, 10) || 0 : 0;
+    }
+
+    showNewArticlesBanner(count) {
+        const banner = document.getElementById('new-articles-banner');
+        if (!banner) return;
+
+        const textEl = banner.querySelector('.new-articles-text');
+        if (textEl) {
+            textEl.textContent = `${count} new article${count === 1 ? '' : 's'} available`;
+        }
+        banner.hidden = false;
+    }
+
+    hideNewArticlesBanner() {
+        const banner = document.getElementById('new-articles-banner');
+        if (banner) {
+            banner.hidden = true;
+        }
+    }
+
     // Periodically sync unread counts with server to correct any drift
     startUnreadCountSync() {
         // Sync every 5 minutes to catch any discrepancies
-        setInterval(() => {
-            this.updateUnreadCounts();
+        setInterval(async () => {
+            await this.updateUnreadCounts();
+
+            // Surface an opt-in banner in the article pane rather than silently
+            // yanking the reader's current list/scroll position out from under them.
+            if (!this.currentFeed || this.newArticlesBaselineCount === null) {
+                return;
+            }
+
+            const currentCount = this.getCurrentViewUnreadCount();
+            if (currentCount > this.newArticlesBaselineCount) {
+                this.showNewArticlesBanner(currentCount - this.newArticlesBaselineCount);
+            } else {
+                this.hideNewArticlesBanner();
+            }
         }, 5 * 60 * 1000); // 5 minutes
     }
 

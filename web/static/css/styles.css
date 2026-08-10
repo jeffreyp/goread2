@@ -392,6 +392,26 @@ body.app-body {
     gap: 12px;
 }
 
+.new-articles-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 20px;
+    background-color: #e8f0fe;
+    border-bottom: 1px solid #d2e3fc;
+    color: #1a73e8;
+    font-size: 14px;
+}
+
+.new-articles-banner[hidden] {
+    display: none;
+}
+
+.new-articles-banner .new-articles-text {
+    font-weight: 500;
+}
+
 /* Subscription Panel */
 .subscription-panel {
     padding: 12px 20px;
