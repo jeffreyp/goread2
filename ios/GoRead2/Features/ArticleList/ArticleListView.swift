@@ -86,7 +86,19 @@ struct ArticleListView: View {
     private var articleList: some View {
         Group {
             if let selectedArticleID {
-                List(selection: selectedArticleID) { articleRows }
+                // List(selection:) highlights the row on a programmatic
+                // selection change (e.g. the j/k shortcuts in SplitRootView)
+                // but does not scroll to reveal it, so the highlight can
+                // move off-screen while paging. Follow it explicitly.
+                ScrollViewReader { proxy in
+                    List(selection: selectedArticleID) { articleRows }
+                        .onChange(of: selectedArticleID.wrappedValue) { newValue in
+                            guard let newValue else { return }
+                            withAnimation {
+                                proxy.scrollTo(newValue, anchor: .center)
+                            }
+                        }
+                }
             } else {
                 List { articleRows }
             }
