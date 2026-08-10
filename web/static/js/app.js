@@ -1590,7 +1590,41 @@ class GoReadApp {
             }
         }
 
-        articleItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        this.scrollArticleIntoView(articleItem);
+    }
+
+    // Finds the nearest ancestor that actually scrolls. Layout varies by
+    // breakpoint (e.g. .sidebar-wrapper is `display: contents` on desktop,
+    // so .article-pane is the real scroll container there but not on
+    // tablet-portrait), so this walks up rather than hardcoding a selector.
+    getScrollParent(el) {
+        let node = el.parentElement;
+        while (node) {
+            const style = getComputedStyle(node);
+            if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight) {
+                return node;
+            }
+            node = node.parentElement;
+        }
+        return document.scrollingElement || document.documentElement;
+    }
+
+    // Keeps the selected article visible within its scroll container without
+    // relying on scrollIntoView, which can silently no-op on iOS Safari when
+    // called repeatedly in quick succession (e.g. holding 'j' to page through
+    // articles), leaving the selection scrolled off-screen. Also keeps a
+    // little lookahead below the item so upcoming articles stay in view.
+    scrollArticleIntoView(articleItem) {
+        const container = this.getScrollParent(articleItem);
+        const containerRect = container.getBoundingClientRect();
+        const itemRect = articleItem.getBoundingClientRect();
+        const lookahead = itemRect.height * 2;
+
+        if (itemRect.top < containerRect.top) {
+            container.scrollTop -= (containerRect.top - itemRect.top);
+        } else if (itemRect.bottom + lookahead > containerRect.bottom) {
+            container.scrollTop += (itemRect.bottom + lookahead - containerRect.bottom);
+        }
     }
 
 
