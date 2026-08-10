@@ -22,6 +22,7 @@ const globals = {
   IntersectionObserver: 'readonly',
   MutationObserver: 'readonly',
   matchMedia: 'readonly',
+  getComputedStyle: 'readonly',
   alert: 'readonly',
   confirm: 'readonly',
   prompt: 'readonly',
