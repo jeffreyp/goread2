@@ -1224,9 +1224,20 @@ class GoReadApp {
 
             this.renderArticlesOptimized(append);
 
-            // Auto-select first unread article from newly loaded batch after "load more"
-            if (append && this.articles.length > newArticlesStartIndex) {
-                this.autoSelectFirstUnreadFromNewBatch(newArticlesStartIndex);
+            if (append) {
+                // Auto-select first unread article from newly loaded batch after "load more"
+                if (this.articles.length > newArticlesStartIndex) {
+                    this.autoSelectFirstUnreadFromNewBatch(newArticlesStartIndex);
+                }
+            } else if (this.articles.length > 0) {
+                // Pre-select the first unread article on initial load, like Mail/News-style
+                // readers. Skipped in phone portrait, where the panes are stacked full-screen
+                // and selecting would silently jump straight to the reader before any tap.
+                const isPhonePortrait = window.innerWidth < 768 &&
+                    window.matchMedia('(orientation: portrait)').matches;
+                if (!isPhonePortrait) {
+                    this.autoSelectFirstUnreadFromNewBatch(0);
+                }
             }
         } catch (error) {
             console.error('Failed to load articles:', error);

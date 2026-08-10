@@ -9,7 +9,8 @@ import SwiftUI
 ///
 /// On iPhone the rows are navigation links that push the reader; on iPad,
 /// where `selectedArticleID` is provided, the rows drive the split view's
-/// article selection instead.
+/// article selection instead, and the first unread article is pre-selected
+/// once the initial load completes.
 struct ArticleListView: View {
     @EnvironmentObject private var authManager: AuthManager
     @ObservedObject var viewModel: ArticleListViewModel
@@ -71,6 +72,14 @@ struct ArticleListView: View {
             // mid-scroll.
             guard !viewModel.hasLoaded else { return }
             await viewModel.load()
+            // On iPad, pre-select the first unread article so the reader
+            // pane isn't empty on launch, matching Mail/News-style split
+            // views. iPhone has no selectedArticleID binding, and an
+            // existing selection (e.g. restored across a feed re-selection)
+            // is left alone.
+            if let selectedArticleID, selectedArticleID.wrappedValue == nil {
+                selectedArticleID.wrappedValue = viewModel.articles.first(where: { !$0.isRead })?.id
+            }
         }
     }
 
