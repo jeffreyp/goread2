@@ -459,6 +459,9 @@ class GoReadApp {
         // Setup touch swipe gestures for article navigation on phones
         this.setupSwipeGestures();
 
+        // Setup swipe-to-close for the tablet portrait sidebar
+        this.setupSidebarSwipeToClose();
+
         // Setup pull-to-refresh for mobile
         this.setupPullToRefresh();
 
@@ -603,6 +606,38 @@ class GoReadApp {
             sidebarBackdrop.addEventListener('touchend', closeSidebar);
         }
 
+        // Divider between the feed pane and article pane — collapses the feed
+        // pane to give articles more room (tablet portrait sidebar only).
+        const sidebarDivider = document.getElementById('sidebar-divider');
+        if (sidebarDivider && sidebarWrapper) {
+            const toggleFeedPane = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const collapsed = sidebarWrapper.classList.toggle('feed-collapsed');
+                sidebarDivider.setAttribute('aria-expanded', String(!collapsed));
+                sidebarDivider.setAttribute('aria-label', collapsed ? 'Expand feed list' : 'Collapse feed list');
+            };
+            sidebarDivider.addEventListener('click', toggleFeedPane);
+            sidebarDivider.addEventListener('touchend', toggleFeedPane);
+        }
+
+        // Dismissible first-time tablet help message
+        const tabletHelpMessage = document.getElementById('tablet-help-message');
+        const tabletHelpDismiss = document.getElementById('tablet-help-dismiss');
+        if (tabletHelpMessage) {
+            if (localStorage.getItem('tabletHelpDismissed') === 'true') {
+                tabletHelpMessage.style.display = 'none';
+            }
+            if (tabletHelpDismiss) {
+                tabletHelpDismiss.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    localStorage.setItem('tabletHelpDismissed', 'true');
+                    tabletHelpMessage.style.display = 'none';
+                });
+            }
+        }
+
         // Mobile pane navigation - only for phones (under 768px) in portrait mode
         const mobileNavButtons = document.querySelectorAll('.mobile-nav-btn');
         const feedPane = document.querySelector('.feed-pane');
@@ -723,6 +758,7 @@ class GoReadApp {
         if (feedPane) feedPane.classList.remove('active');
         if (articlePane) articlePane.classList.remove('active');
         if (sidebarWrapper) sidebarWrapper.classList.remove('show');
+        if (sidebarWrapper) sidebarWrapper.classList.remove('feed-collapsed');
         if (sidebarBackdrop) sidebarBackdrop.classList.remove('show');
         mobileNavButtons.forEach(btn => btn.classList.remove('active'));
 
@@ -783,11 +819,17 @@ class GoReadApp {
         let touchStartY = 0;
         let touchEndX = 0;
         let touchEndY = 0;
+        let isEdgeSwipe = false;
 
         // Minimum swipe distance in pixels
         const minSwipeDistance = 50;
         // Maximum vertical movement allowed for horizontal swipe
         const maxVerticalMovement = 100;
+        // Touches starting within this many px of the left edge open the sidebar instead
+        const edgeThreshold = 24;
+
+        const isTabletPortrait = () => window.innerWidth >= 768 && window.innerWidth < 1024 &&
+            window.matchMedia('(orientation: portrait)').matches;
 
         contentPane.addEventListener('touchstart', (e) => {
             // Enable swipes on phones (under 768px) and tablets in portrait mode
@@ -795,23 +837,38 @@ class GoReadApp {
 
             touchStartX = e.changedTouches[0].screenX;
             touchStartY = e.changedTouches[0].screenY;
+
+            const sidebarWrapper = document.querySelector('.sidebar-wrapper');
+            isEdgeSwipe = isTabletPortrait() && touchStartX <= edgeThreshold &&
+                sidebarWrapper && !sidebarWrapper.classList.contains('show');
         }, { passive: true });
 
         contentPane.addEventListener('touchend', (e) => {
             // Enable swipes on phones (under 768px) and tablets in portrait mode
             if (window.innerWidth >= 1024) return;
-            if (this.currentArticle === null || this.articles.length === 0) return;
 
             touchEndX = e.changedTouches[0].screenX;
             touchEndY = e.changedTouches[0].screenY;
 
             const horizontalDistance = touchEndX - touchStartX;
             const verticalDistance = Math.abs(touchEndY - touchStartY);
+            const isHorizontalSwipe = Math.abs(horizontalDistance) > minSwipeDistance &&
+                verticalDistance < maxVerticalMovement;
+
+            // Swiping in from the left edge on tablet portrait opens the sidebar,
+            // taking priority over article navigation.
+            if (isEdgeSwipe) {
+                isEdgeSwipe = false;
+                if (isHorizontalSwipe && horizontalDistance > 0) {
+                    this.openTabletSidebar();
+                }
+                return;
+            }
+
+            if (this.currentArticle === null || this.articles.length === 0) return;
 
             // Check if this is a horizontal swipe (not vertical scroll)
-            if (Math.abs(horizontalDistance) > minSwipeDistance &&
-                verticalDistance < maxVerticalMovement) {
-
+            if (isHorizontalSwipe) {
                 if (horizontalDistance < 0) {
                     // Swipe left - next article
                     this.selectNextArticleAndMarkCurrentAsRead();
@@ -825,6 +882,49 @@ class GoReadApp {
                         this.selectPreviousArticle();
                     }
                 }
+            }
+        }, { passive: true });
+    }
+
+    openTabletSidebar() {
+        document.querySelector('.sidebar-wrapper')?.classList.add('show');
+        document.getElementById('sidebar-backdrop')?.classList.add('show');
+    }
+
+    closeTabletSidebar() {
+        document.querySelector('.sidebar-wrapper')?.classList.remove('show');
+        document.getElementById('sidebar-backdrop')?.classList.remove('show');
+    }
+
+    setupSidebarSwipeToClose() {
+        const sidebarWrapper = document.querySelector('.sidebar-wrapper');
+        if (!sidebarWrapper) return;
+
+        let startX = 0;
+        let startY = 0;
+        const minSwipeDistance = 50;
+        const maxVerticalMovement = 100;
+
+        const isTabletPortrait = () => window.innerWidth >= 768 && window.innerWidth < 1024 &&
+            window.matchMedia('(orientation: portrait)').matches;
+
+        sidebarWrapper.addEventListener('touchstart', (e) => {
+            if (!isTabletPortrait()) return;
+            startX = e.changedTouches[0].screenX;
+            startY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        sidebarWrapper.addEventListener('touchend', (e) => {
+            if (!isTabletPortrait()) return;
+
+            const endX = e.changedTouches[0].screenX;
+            const endY = e.changedTouches[0].screenY;
+            const horizontalDistance = endX - startX;
+            const verticalDistance = Math.abs(endY - startY);
+
+            // Swiping the open sidebar back toward the left edge closes it
+            if (horizontalDistance < -minSwipeDistance && verticalDistance < maxVerticalMovement) {
+                this.closeTabletSidebar();
             }
         }, { passive: true });
     }

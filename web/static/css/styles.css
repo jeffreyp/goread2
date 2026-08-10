@@ -274,6 +274,11 @@ body.app-body {
     display: contents;
 }
 
+/* Feed/article divider handle — only shown in the stacked tablet-portrait sidebar */
+.sidebar-divider {
+    display: none;
+}
+
 .feed-pane {
     width: 300px;
     background-color: #fff;
@@ -1714,7 +1719,7 @@ body.app-body {
         position: fixed !important;
         top: 56px;
         left: 0;
-        width: 340px;
+        width: 320px;
         height: calc(100% - 56px);
         transform: translate3d(-100%, 0, 0);
         transition: transform 0.3s ease;
@@ -1743,13 +1748,51 @@ body.app-body {
         flex-shrink: 0;
         max-height: 55%;
         background-color: #fff;
+        transition: max-height 0.2s ease;
+    }
+
+    /* Divider between feed pane and article pane — collapses the feed pane */
+    .sidebar-divider {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 22px;
+        flex-shrink: 0;
+        border: none;
+        border-top: 1px solid #e1e5e9;
+        border-bottom: 1px solid #e1e5e9;
+        background-color: #f8f9fa;
+        padding: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .sidebar-divider::before {
+        content: '';
+        width: 36px;
+        height: 4px;
+        border-radius: 2px;
+        background-color: #dadce0;
+        transition: background-color 0.15s ease;
+    }
+
+    .sidebar-divider:hover::before,
+    .sidebar-divider:active::before {
+        background-color: #9aa0a6;
+    }
+
+    /* Collapsed state: feed pane shrinks to nothing, articles take the rest */
+    .sidebar-wrapper.feed-collapsed .feed-pane {
+        max-height: 0;
+        overflow: hidden;
     }
 
     /* Articles pane inside sidebar, below feeds */
     .article-pane {
         width: 100% !important;
         border-right: none !important;
-        border-top: 2px solid #e1e5e9;
         overflow-y: auto !important;
         display: block !important;
         flex: 1;
@@ -1792,12 +1835,21 @@ body.app-body {
         left: 0;
         width: 100%;
         height: calc(100% - 56px);
-        background-color: rgba(0, 0, 0, 0.3);
+        background-color: rgba(0, 0, 0, 0.45);
         z-index: 50;
     }
 
     .sidebar-backdrop.show {
         display: block !important;
+    }
+
+    /* Soften the content pane behind the sidebar while it's open */
+    .content-pane {
+        transition: filter 0.2s ease;
+    }
+
+    .sidebar-wrapper.show ~ .content-pane {
+        filter: blur(2px);
     }
 
     /* Replace FAB with a visible header button on tablet portrait */

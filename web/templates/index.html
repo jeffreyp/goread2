@@ -83,6 +83,9 @@
                     </div>
                 </div>
 
+                <!-- Drag handle that collapses/expands the feed pane (tablet portrait only) -->
+                <button type="button" class="sidebar-divider" id="sidebar-divider" aria-label="Collapse feed list" aria-expanded="true"></button>
+
                 <!-- Article List -->
                 <div class="article-pane">
                     <div class="pane-header">
@@ -114,8 +117,9 @@
                     <div class="placeholder">
                         <p>Welcome to GoRead2!</p>
                         <p>Select a feed from the left panel to view articles, then click on an article to read it here.</p>
-                        <p class="tablet-help-message" style="margin-top: 20px; font-size: 14px; color: #666;">
-                            <strong>On tablet?</strong> Tap the <span style="background: #1a73e8; color: white; padding: 2px 6px; border-radius: 3px;">☰</span> button in the bottom-right corner to access your feeds and articles.
+                        <p class="tablet-help-message" id="tablet-help-message" style="margin-top: 20px; font-size: 14px; color: #666;">
+                            <strong>On tablet?</strong> Tap the <span style="background: #1a73e8; color: white; padding: 2px 6px; border-radius: 3px;">☰ Feeds</span> button in the top toolbar to access feeds and articles.
+                            <button type="button" id="tablet-help-dismiss" style="display: block; margin: 8px auto 0; background: none; border: none; color: #1a73e8; font-size: 13px; font-weight: 500; cursor: pointer; padding: 4px;">Got it</button>
                         </p>
                     </div>
                 </div>
