@@ -637,11 +637,51 @@ func (fs *FeedService) fetchFeed(ctx context.Context, url string, opts ...*Fetch
 	return nil, fmt.Errorf("%w: unsupported feed format or invalid XML", ErrInvalidFeedFormat)
 }
 
+// rssDateLayouts are the date layouts commonly seen in RSS pubDate fields,
+// tried in order until one succeeds. RFC1123Z/RFC1123 cover the RFC 822
+// formats mandated by the RSS 2.0 spec (numeric and named time zones);
+// the rest accommodate common deviations feeds actually publish in
+// practice (2-digit years, missing seconds, RFC3339).
+var rssDateLayouts = []string{
+	time.RFC1123Z,
+	time.RFC1123,
+	"Mon, 2 Jan 2006 15:04:05 -0700",
+	"Mon, 2 Jan 2006 15:04:05 MST",
+	"02 Jan 2006 15:04:05 -0700",
+	"02 Jan 2006 15:04:05 MST",
+	"Mon, 02 Jan 2006 15:04 -0700",
+	"Mon, 02 Jan 06 15:04:05 -0700",
+	time.RFC3339,
+}
+
+// rdfDateLayouts covers ISO 8601 variants seen in RDF/RSS 1.0 dc:date fields.
+var rdfDateLayouts = []string{
+	time.RFC3339,
+	"2006-01-02T15:04:05",
+	"2006-01-02",
+}
+
+// parseFeedDate tries each layout in order and returns the first successful
+// parse, so a feed's real publish time is preserved even when it deviates
+// from the single strictly-expected layout.
+func parseFeedDate(value string, layouts []string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
 func (fs *FeedService) convertRSSToFeedData(rss *RSS, feedURL string) *FeedData {
 	articles := make([]ArticleData, len(rss.Channel.Items))
 	for i, item := range rss.Channel.Items {
-		publishedAt, _ := time.Parse(time.RFC1123Z, item.PubDate)
-		if publishedAt.IsZero() {
+		publishedAt, ok := parseFeedDate(item.PubDate, rssDateLayouts)
+		if !ok {
 			publishedAt = time.Now()
 		}
 
@@ -665,8 +705,8 @@ func (fs *FeedService) convertRSSToFeedData(rss *RSS, feedURL string) *FeedData 
 func (fs *FeedService) convertRDFToFeedData(rdf *RDF, feedURL string) *FeedData {
 	articles := make([]ArticleData, len(rdf.Items))
 	for i, item := range rdf.Items {
-		publishedAt, _ := time.Parse(time.RFC3339, item.Date)
-		if publishedAt.IsZero() {
+		publishedAt, ok := parseFeedDate(item.Date, rdfDateLayouts)
+		if !ok {
 			publishedAt = time.Now()
 		}
 
@@ -690,9 +730,9 @@ func (fs *FeedService) convertRDFToFeedData(rdf *RDF, feedURL string) *FeedData 
 func (fs *FeedService) convertAtomToFeedData(atom *Atom, feedURL string) *FeedData {
 	articles := make([]ArticleData, len(atom.Entries))
 	for i, entry := range atom.Entries {
-		publishedAt, _ := time.Parse(time.RFC3339, entry.Published)
-		if publishedAt.IsZero() {
-			if updatedAt, err := time.Parse(time.RFC3339, entry.Updated); err == nil {
+		publishedAt, ok := parseFeedDate(entry.Published, rdfDateLayouts)
+		if !ok {
+			if updatedAt, updatedOk := parseFeedDate(entry.Updated, rdfDateLayouts); updatedOk {
 				publishedAt = updatedAt
 			} else {
 				publishedAt = time.Now()

@@ -127,6 +127,108 @@ func TestParseEmptyTitleRSSFeed(t *testing.T) {
 	}
 }
 
+// TestParseFeedDate verifies that publish dates in common non-strict formats
+// are parsed correctly instead of silently falling back to time.Now(), which
+// was causing articles across a whole feed to cluster together by fetch time
+// (gr-gvt6).
+func TestParseFeedDate(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	fs := NewFeedService(db, nil)
+
+	t.Run("RSS pubDate with named timezone (RFC1123)", func(t *testing.T) {
+		const xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <item>
+      <title>Article</title>
+      <link>https://test.com/a</link>
+      <pubDate>Mon, 01 Jan 2023 12:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>`
+		feedData, err := fs.parseFeedFromBytes([]byte(xmlBody), "https://test.com/feed")
+		if err != nil {
+			t.Fatalf("Failed to parse RSS feed: %v", err)
+		}
+		got := feedData.Articles[0].PublishedAt
+		want := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
+		if !got.Equal(want) {
+			t.Errorf("PublishedAt = %v, want %v (should not fall back to time.Now())", got, want)
+		}
+	})
+
+	t.Run("RSS pubDate with 2-digit year", func(t *testing.T) {
+		const xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <item>
+      <title>Article</title>
+      <link>https://test.com/a</link>
+      <pubDate>Mon, 01 Jan 23 12:00:00 +0000</pubDate>
+    </item>
+  </channel>
+</rss>`
+		feedData, err := fs.parseFeedFromBytes([]byte(xmlBody), "https://test.com/feed")
+		if err != nil {
+			t.Fatalf("Failed to parse RSS feed: %v", err)
+		}
+		got := feedData.Articles[0].PublishedAt
+		if got.Year() != 2023 {
+			t.Errorf("PublishedAt year = %d, want 2023 (should not fall back to time.Now())", got.Year())
+		}
+	})
+
+	t.Run("RDF date-only ISO8601", func(t *testing.T) {
+		const xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Test RDF Feed</title>
+  </channel>
+  <item>
+    <title>Article</title>
+    <link>https://test.com/a</link>
+    <dc:date>2023-01-01</dc:date>
+  </item>
+</rdf:RDF>`
+		feedData, err := fs.parseFeedFromBytes([]byte(xmlBody), "https://test.com/feed")
+		if err != nil {
+			t.Fatalf("Failed to parse RDF feed: %v", err)
+		}
+		got := feedData.Articles[0].PublishedAt
+		want := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+		if !got.Equal(want) {
+			t.Errorf("PublishedAt = %v, want %v (should not fall back to time.Now())", got, want)
+		}
+	})
+
+	t.Run("unparseable date still falls back to time.Now()", func(t *testing.T) {
+		const xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <item>
+      <title>Article</title>
+      <link>https://test.com/a</link>
+      <pubDate>not a date</pubDate>
+    </item>
+  </channel>
+</rss>`
+		before := time.Now()
+		feedData, err := fs.parseFeedFromBytes([]byte(xmlBody), "https://test.com/feed")
+		if err != nil {
+			t.Fatalf("Failed to parse RSS feed: %v", err)
+		}
+		got := feedData.Articles[0].PublishedAt
+		if got.Before(before) || got.After(time.Now()) {
+			t.Errorf("PublishedAt = %v, want approximately now", got)
+		}
+	})
+}
+
 func TestStripHTMLTags(t *testing.T) {
 	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()
