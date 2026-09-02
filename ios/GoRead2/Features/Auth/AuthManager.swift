@@ -66,6 +66,8 @@ final class AuthManager: ObservableObject {
             state = .signedIn(me.user)
         } catch let authError as ASWebAuthenticationSessionError where authError.code == .canceledLogin {
             // The user dismissed the sheet; not an error.
+        } catch is CancellationError {
+            // The task was cancelled (e.g. the view went away); not an error.
         } catch {
             errorMessage = error.localizedDescription
         }

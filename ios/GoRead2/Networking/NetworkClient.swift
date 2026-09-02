@@ -223,8 +223,28 @@ final class NetworkClient {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch is CancellationError {
+            // The owning task (e.g. a SwiftUI `.task`) was cancelled, which
+            // happens routinely on iPad when split-view/multitasking tears
+            // down and recreates a view mid-request. Not a network failure.
+            throw CancellationError()
+        } catch let urlError as URLError {
+            switch urlError.code {
+            case .cancelled:
+                // Same as above: URLSession reports task cancellation as a
+                // URLError rather than Swift's CancellationError.
+                throw CancellationError()
+            case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed,
+                 .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed,
+                 .internationalRoamingOff, .callIsActive:
+                throw NetworkError.noConnection
+            default:
+                // Other URLErrors (timeouts, TLS issues, etc.) are real
+                // failures but not evidence of a missing connection.
+                throw NetworkError.serverError(statusCode: 0, message: urlError.localizedDescription)
+            }
         } catch {
-            throw NetworkError.noConnection
+            throw NetworkError.serverError(statusCode: 0, message: error.localizedDescription)
         }
 
         guard let http = response as? HTTPURLResponse else {

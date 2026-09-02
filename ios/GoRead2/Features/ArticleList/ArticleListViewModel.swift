@@ -182,6 +182,7 @@ final class ArticleListViewModel: ObservableObject {
     }
 
     private func handle(_ error: Error) {
+        if error is CancellationError { return }
         if case NetworkError.unauthorized = error {
             onSessionExpired()
             return
