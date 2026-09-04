@@ -47,6 +47,7 @@ struct LoginView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(isSigningIn)
+            .macContentWidth(280)
             .padding(.horizontal, 32)
             .padding(.bottom, 48)
         }

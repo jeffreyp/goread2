@@ -62,6 +62,31 @@ extension View {
         #endif
     }
 
+    /// Bounds for a `NavigationSplitView` column. iOS and iPadOS size their
+    /// columns from the device, so the constraint applies on macOS only,
+    /// where a window can be any width and the three panes need floors to
+    /// stay usable.
+    @ViewBuilder
+    func splitColumnWidth(min: CGFloat, ideal: CGFloat, max: CGFloat = .infinity) -> some View {
+        #if os(macOS)
+        navigationSplitViewColumnWidth(min: min, ideal: ideal, max: max)
+        #else
+        self
+        #endif
+    }
+
+    /// Caps a full-width control on macOS, where a window is far wider than
+    /// a phone and an edge-to-edge button looks wrong. iOS keeps the
+    /// full-width layout.
+    @ViewBuilder
+    func macContentWidth(_ width: CGFloat) -> some View {
+        #if os(macOS)
+        frame(maxWidth: width)
+        #else
+        self
+        #endif
+    }
+
     /// Capsule border for small icon buttons. macOS gained the shape in
     /// 14.0, so on Ventura the button keeps its default border.
     @ViewBuilder

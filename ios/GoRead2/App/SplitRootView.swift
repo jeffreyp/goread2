@@ -23,6 +23,7 @@ struct SplitRootView: View {
             FeedListView(viewModel: feedViewModel,
                          sidebarSelection: $feedSelection,
                          refreshAction: refreshAllPanes)
+                .splitColumnWidth(min: 180, ideal: 240, max: 360)
         } content: {
             if let articleViewModel, let feedSelection {
                 ArticleListView(viewModel: articleViewModel,
@@ -30,10 +31,12 @@ struct SplitRootView: View {
                                 selectedArticleID: $selectedArticleID,
                                 refreshAction: refreshAllPanes)
                     .id(feedSelection)
+                    .splitColumnWidth(min: 260, ideal: 340, max: 520)
             } else {
                 EmptyStateView(systemImage: "tray.full",
                                title: "No Feed Selected",
                                message: "Choose a feed from the sidebar.")
+                    .splitColumnWidth(min: 260, ideal: 340, max: 520)
             }
         } detail: {
             if let articleViewModel, let articleID = selectedArticleID {

@@ -75,6 +75,8 @@ Shared views carry an `#if os(...)` branch only where platform behaviour genuine
 | Behaviour | iOS and iPadOS | macOS |
 |-----------|----------------|-------|
 | Root layout | Three-pane split on iPad, navigation stack on iPhone | Always the three-pane split |
+| Window size | Managed by the system | Opens at 1200x800, floor 720x480, with column minimums of 180pt (sidebar) and 260pt (article list) |
+| Refresh | Pull-to-refresh, or the `r` key on iPad | The `r` key |
 | External links | In-app `SFSafariViewController` sheet | Default browser |
 | OPML export | Share sheet | Revealed in the Finder |
 | Article web view | `UIViewRepresentable`, with swipe gestures between articles | `NSViewRepresentable`, no swipe gestures |
