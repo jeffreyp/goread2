@@ -33,7 +33,7 @@ struct ArticleListView: View {
             }
         }
         .navigationTitle(selection.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 if case .all = selection {

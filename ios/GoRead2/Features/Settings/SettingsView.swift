@@ -21,7 +21,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
@@ -30,13 +30,8 @@ struct SettingsView: View {
                 }
             }
         }
-        .sheet(item: $viewModel.portalItem) { item in
-            SafariView(url: item.url)
-                .ignoresSafeArea()
-        }
-        .sheet(item: $viewModel.exportedOPML) { export in
-            ActivityView(items: [export.url])
-        }
+        .webPage(item: $viewModel.portalItem)
+        .fileExport(item: $viewModel.exportedOPML)
         .fileImporter(isPresented: $showingImporter,
                       allowedContentTypes: opmlContentTypes) { result in
             switch result {
@@ -165,7 +160,7 @@ struct SettingsView: View {
                 Text("Max articles on feed add")
                 Spacer()
                 TextField("Max", value: $viewModel.maxArticles, format: .number)
-                    .keyboardType(.numberPad)
+                    .numericKeyboard()
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 80)
             }

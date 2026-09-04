@@ -23,6 +23,7 @@ struct ArticleReaderView: View {
     @ObservedObject var viewModel: ArticleListViewModel
     @Binding var currentID: Int
     @State private var safariItem: SafariItem?
+    @Environment(\.openURL) private var openURL
 
     private var currentIndex: Int? {
         viewModel.articles.firstIndex { $0.id == currentID }
@@ -46,7 +47,7 @@ struct ArticleReaderView: View {
                     } else {
                         // Non-web links (mailto, app schemes) go to the
                         // system handler.
-                        UIApplication.shared.open(url)
+                        openURL(url)
                     }
                 }, onSwipe: { offset in
                     move(offset)
@@ -58,12 +59,9 @@ struct ArticleReaderView: View {
             }
         }
         .navigationTitle(article?.feedTitle ?? "")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar { toolbarContent }
-        .sheet(item: $safariItem) { item in
-            SafariView(url: item.url)
-                .ignoresSafeArea()
-        }
+        .webPage(item: $safariItem)
         .task(id: currentID) {
             guard let article else { return }
             async let read: Void = viewModel.markRead(article)
@@ -83,7 +81,7 @@ struct ArticleReaderView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .bottomBar) {
+        ToolbarItemGroup(placement: readerToolbarPlacement) {
             Button {
                 move(-1)
             } label: {

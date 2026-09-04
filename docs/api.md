@@ -46,9 +46,9 @@ GoRead2 provides a RESTful API for managing feeds, articles, and user subscripti
 Initiate Google OAuth authentication flow.
 
 **Parameters**:
-- `client` (query, optional) - `ios` marks the flow as a native mobile login; the callback then hands off to the app instead of the web frontend (see `POST /auth/token`)
+- `client` (query, optional) - `ios` or `macos` marks the flow as a native app login; the callback then hands off to the app instead of the web frontend (see `POST /auth/token`)
 
-**Response**: JSON containing `auth_url`, the Google OAuth consent URL. With `client=ios`, a `302` redirect to the consent URL instead, since mobile clients open this endpoint as a top-level navigation inside ASWebAuthenticationSession.
+**Response**: JSON containing `auth_url`, the Google OAuth consent URL. With `client=ios` or `client=macos`, a `302` redirect to the consent URL instead, since native clients open this endpoint as a top-level navigation inside ASWebAuthenticationSession.
 
 **Example**:
 ```bash
@@ -62,10 +62,10 @@ OAuth callback handler (configured in Google Cloud Console).
 - `code` (query) - Authorization code from Google
 - `state` (query) - CSRF protection state parameter
 
-**Response**: Redirects to the main application with a session cookie. For flows started with `client=ios`, redirects to `goread2://auth?code=<one-time-code>` instead, without setting a session cookie; the app exchanges the code via `POST /auth/token`. Mobile-flow failures redirect to `goread2://auth?error=<message>` so the in-app auth sheet dismisses.
+**Response**: Redirects to the main application with a session cookie. For flows started with `client=ios` or `client=macos`, redirects to `goread2://auth?code=<one-time-code>` instead, without setting a session cookie; the app exchanges the code via `POST /auth/token`. Native-flow failures redirect to `goread2://auth?error=<message>` so the in-app auth sheet dismisses.
 
 #### `POST /auth/token`
-Exchange a one-time code from the mobile OAuth callback for the session token. Codes are single-use and expire after 2 minutes. This endpoint keeps session tokens out of the `goread2://` callback URL, where they could leak into device logs.
+Exchange a one-time code from the native app OAuth callback for the session token. Codes are single-use and expire after 2 minutes. This endpoint keeps session tokens out of the `goread2://` callback URL, where they could leak into device logs.
 
 **Request**:
 ```json

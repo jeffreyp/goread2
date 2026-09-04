@@ -1,5 +1,9 @@
 import AuthenticationServices
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// Async wrapper around ASWebAuthenticationSession. The session object must
 /// stay alive while the sheet is presented, so the wrapper holds it.
@@ -28,10 +32,16 @@ final class WebAuthSession: NSObject, ASWebAuthenticationPresentationContextProv
 
     nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         MainActor.assumeIsolated {
+            #if os(iOS)
             UIApplication.shared.connectedScenes
                 .compactMap { $0 as? UIWindowScene }
                 .flatMap { $0.windows }
                 .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+            #else
+            NSApplication.shared.keyWindow
+                ?? NSApplication.shared.windows.first
+                ?? ASPresentationAnchor()
+            #endif
         }
     }
 }

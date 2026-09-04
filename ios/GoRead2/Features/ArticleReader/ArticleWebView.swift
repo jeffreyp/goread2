@@ -6,8 +6,9 @@ import WebKit
 /// prefers-color-scheme. Tapped links are handed to `onLinkTap` instead of
 /// navigating in place. Horizontal swipes report an offset (-1 for a right
 /// swipe, +1 for a left swipe) through `onSwipe` so the reader can move
-/// between articles.
-struct ArticleWebView: UIViewRepresentable {
+/// between articles. Swipe navigation is an iOS gesture; on macOS the same
+/// moves are keyboard and menu commands.
+struct ArticleWebView: PlatformViewRepresentable {
     let article: Article
     /// True while the article's full content is empty but still expected to
     /// arrive; renders shimmer lines in place of the body rather than the
@@ -25,16 +26,22 @@ struct ArticleWebView: UIViewRepresentable {
         let showsPlaceholder: Bool
     }
 
-    func makeUIView(context: Context) -> WKWebView {
+    private func makeWebView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
-        // A transparent web view lets the SwiftUI systemBackground show
+        // A transparent web view lets the SwiftUI window background show
         // through, avoiding a white flash in Dark Mode while HTML loads.
+        #if os(iOS)
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
+        #else
+        webView.underPageBackgroundColor = .clear
+        return webView
+        #endif
 
+        #if os(iOS)
         let nextSwipe = UISwipeGestureRecognizer(
             target: context.coordinator, action: #selector(Coordinator.didSwipeToNext))
         nextSwipe.direction = .left
@@ -48,9 +55,10 @@ struct ArticleWebView: UIViewRepresentable {
         webView.addGestureRecognizer(previousSwipe)
 
         return webView
+        #endif
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {
+    private func updateWebView(_ webView: WKWebView, context: Context) {
         context.coordinator.onLinkTap = onLinkTap
         context.coordinator.onSwipe = onSwipe
         let state = PageState(articleID: article.id,
@@ -63,45 +71,42 @@ struct ArticleWebView: UIViewRepresentable {
         // feed content.
         webView.loadHTMLString(Self.page(for: article, showsContentPlaceholder: showsContentPlaceholder),
                                baseURL: URL(string: article.url))
+        #if os(iOS)
         if !isSameArticle {
             webView.scrollView.setContentOffset(.zero, animated: false)
         }
+        #else
+        // macOS has no scroll view to reset; reloading the document already
+        // starts the new article at the top.
+        _ = isSameArticle
+        #endif
     }
+
+    #if os(iOS)
+    func makeUIView(context: Context) -> WKWebView { makeWebView(context: context) }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        updateWebView(webView, context: context)
+    }
+    #else
+    func makeNSView(context: Context) -> WKWebView { makeWebView(context: context) }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        updateWebView(webView, context: context)
+    }
+    #endif
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onLinkTap: onLinkTap)
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate,
-                             UIGestureRecognizerDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var onLinkTap: (URL) -> Void
         var onSwipe: ((Int) -> Void)?
         var loadedPage: PageState?
 
         init(onLinkTap: @escaping (URL) -> Void) {
             self.onLinkTap = onLinkTap
-        }
-
-        @objc func didSwipeToNext() { onSwipe?(1) }
-        @objc func didSwipeToPrevious() { onSwipe?(-1) }
-
-        // The scroll view's pan recognizer would otherwise claim every touch
-        // and the swipes would never fire.
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                               shouldRecognizeSimultaneouslyWith
-                               otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-            true
-        }
-
-        // Touches starting at the leading edge belong to the navigation
-        // controller's interactive pop; the previous-article swipe must not
-        // race it.
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                               shouldReceive touch: UITouch) -> Bool {
-            guard let swipe = gestureRecognizer as? UISwipeGestureRecognizer,
-                  swipe.direction == .right,
-                  let window = touch.window else { return true }
-            return touch.location(in: window).x > 44
         }
 
         func webView(_ webView: WKWebView,
@@ -262,3 +267,29 @@ struct ArticleWebView: UIViewRepresentable {
             .replacingOccurrences(of: ">", with: "&gt;")
     }
 }
+
+#if os(iOS)
+extension ArticleWebView.Coordinator: UIGestureRecognizerDelegate {
+    @objc func didSwipeToNext() { onSwipe?(1) }
+    @objc func didSwipeToPrevious() { onSwipe?(-1) }
+
+    // The scroll view's pan recognizer would otherwise claim every touch
+    // and the swipes would never fire.
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith
+                           otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
+    }
+
+    // Touches starting at the leading edge belong to the navigation
+    // controller's interactive pop; the previous-article swipe must not
+    // race it.
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldReceive touch: UITouch) -> Bool {
+        guard let swipe = gestureRecognizer as? UISwipeGestureRecognizer,
+              swipe.direction == .right,
+              let window = touch.window else { return true }
+        return touch.location(in: window).x > 44
+    }
+}
+#endif

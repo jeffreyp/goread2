@@ -36,15 +36,26 @@ final class AuthManager: ObservableObject {
         }
     }
 
-    /// Runs the Google OAuth flow: /auth/login?client=ios inside
-    /// ASWebAuthenticationSession, then exchanges the one-time code from the
-    /// goread2://auth callback for the session token.
+    /// The ?client= value identifying this build to /auth/login. The server
+    /// gives both native clients the goread2:// handoff; the distinct values
+    /// keep the two apps separable in server logs.
+    static let clientName = {
+        #if os(macOS)
+        "macos"
+        #else
+        "ios"
+        #endif
+    }()
+
+    /// Runs the Google OAuth flow: /auth/login?client=ios (or client=macos)
+    /// inside ASWebAuthenticationSession, then exchanges the one-time code
+    /// from the goread2://auth callback for the session token.
     func signIn() async {
         errorMessage = nil
 
         var components = URLComponents(url: client.baseURL, resolvingAgainstBaseURL: false)!
         components.path = "/auth/login"
-        components.queryItems = [URLQueryItem(name: "client", value: "ios")]
+        components.queryItems = [URLQueryItem(name: "client", value: Self.clientName)]
 
         do {
             let callbackURL = try await webSession.authenticate(url: components.url!,

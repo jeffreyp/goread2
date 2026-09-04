@@ -11,11 +11,17 @@ struct ContentView: View {
             case .signedOut:
                 LoginView()
             case .signedIn:
+                #if os(macOS)
+                // Mac windows are always wide enough for the three-pane
+                // layout; there is no compact equivalent.
+                SplitRootView()
+                #else
                 if UIDevice.current.userInterfaceIdiom == .pad {
                     SplitRootView()
                 } else {
                     StackRootView()
                 }
+                #endif
             }
         }
         .environmentObject(authManager)

@@ -29,7 +29,7 @@ type SessionManager struct {
 	cacheMisses int64
 	oauthStates map[string]oauthStateEntry // OAuth state -> entry (for one-time use)
 	stateMu     sync.RWMutex
-	authCodes   map[string]authCodeEntry // one-time code -> session handoff (mobile auth)
+	authCodes   map[string]authCodeEntry // one-time code -> session handoff (native app auth)
 	codeMu      sync.Mutex
 }
 
@@ -37,11 +37,11 @@ type SessionManager struct {
 // started the flow, so the callback knows where to send the user afterwards.
 type oauthStateEntry struct {
 	ExpiresAt time.Time
-	Mobile    bool
+	Native    bool
 }
 
 // authCodeEntry holds a freshly created session waiting to be claimed by a
-// mobile client via POST /auth/token. Codes are single-use and short-lived.
+// native app client via POST /auth/token. Codes are single-use and short-lived.
 type authCodeEntry struct {
 	SessionID        string
 	SessionExpiresAt time.Time
@@ -312,21 +312,22 @@ func generateSessionID() (string, error) {
 }
 
 // StoreOAuthState stores an OAuth state for one-time use with a 10-minute TTL.
-// mobile marks states started by a native app client (/auth/login?client=ios),
-// so the callback redirects to the app's custom URL scheme instead of /.
-func (sm *SessionManager) StoreOAuthState(state string, mobile bool) {
+// native marks states started by a native app client (/auth/login?client=ios
+// or client=macos), so the callback redirects to the app's custom URL scheme
+// instead of /.
+func (sm *SessionManager) StoreOAuthState(state string, native bool) {
 	sm.stateMu.Lock()
 	defer sm.stateMu.Unlock()
 	sm.oauthStates[state] = oauthStateEntry{
 		ExpiresAt: time.Now().Add(10 * time.Minute),
-		Mobile:    mobile,
+		Native:    native,
 	}
 }
 
 // ValidateAndConsumeOAuthState checks if a state exists and hasn't been used.
-// Returns valid=true and the state's mobile flag if so, marking it as used
+// Returns valid=true and the state's native flag if so, marking it as used
 // (deletes it). Returns valid=false if the state doesn't exist or has expired.
-func (sm *SessionManager) ValidateAndConsumeOAuthState(state string) (valid, mobile bool) {
+func (sm *SessionManager) ValidateAndConsumeOAuthState(state string) (valid, native bool) {
 	sm.stateMu.Lock()
 	defer sm.stateMu.Unlock()
 
@@ -343,7 +344,7 @@ func (sm *SessionManager) ValidateAndConsumeOAuthState(state string) (valid, mob
 
 	// Valid state - consume it (delete so it can't be reused)
 	delete(sm.oauthStates, state)
-	return true, entry.Mobile
+	return true, entry.Native
 }
 
 // CleanupExpiredOAuthStates removes expired OAuth states from memory
@@ -360,12 +361,12 @@ func (sm *SessionManager) CleanupExpiredOAuthStates() {
 	}
 }
 
-// authCodeTTL bounds how long a mobile client has to exchange its one-time
+// authCodeTTL bounds how long a native app client has to exchange its one-time
 // code after the OAuth callback fires; the exchange happens immediately in
 // practice, so this only needs to absorb network latency.
 const authCodeTTL = 2 * time.Minute
 
-// CreateAuthCode issues a single-use code a mobile client exchanges for the
+// CreateAuthCode issues a single-use code a native app client exchanges for the
 // session token via POST /auth/token. The indirection keeps session tokens
 // out of the goread2:// callback URL, where they could leak into device logs.
 func (sm *SessionManager) CreateAuthCode(session *Session) (string, error) {

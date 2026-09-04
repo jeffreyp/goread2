@@ -20,9 +20,7 @@ struct AddFeedView: View {
                     HStack {
                         TextField("example.com or https://example.com/feed.xml",
                                   text: $url)
-                            .keyboardType(.URL)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                            .urlFieldInput()
                             .focused($urlFieldFocused)
                             .onSubmit(submit)
                         if url.isEmpty {
@@ -33,7 +31,7 @@ struct AddFeedView: View {
                                 }
                             }
                             .labelStyle(.iconOnly)
-                            .buttonBorderShape(.capsule)
+                            .capsuleButtonShape()
                             .controlSize(.small)
                         }
                     }
@@ -51,7 +49,7 @@ struct AddFeedView: View {
                 }
             }
             .navigationTitle("Add Feed")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -68,7 +66,7 @@ struct AddFeedView: View {
             }
             .disabled(isSubmitting)
         }
-        .presentationDetents([.medium])
+        .mediumSheet()
         .interactiveDismissDisabled(isSubmitting)
         .onAppear { urlFieldFocused = true }
     }

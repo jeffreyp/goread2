@@ -1,14 +1,18 @@
-# iOS App
+# iOS and macOS Apps
 
-GoRead2 ships a native iOS/iPadOS client, a SwiftUI app in `ios/` that consumes the same REST API as the web frontend. The Xcode project is `ios/GoRead2.xcodeproj`, the bundle identifier is `org.jeffreypratt.goread2`, and the deployment target is iOS 16.
+GoRead2 ships a native client for iOS, iPadOS, and macOS, a SwiftUI app in `ios/` that consumes the same REST API as the web frontend. The Xcode project is `ios/GoRead2.xcodeproj`, the bundle identifier is `org.jeffreypratt.goread2`, and the deployment targets are iOS 16 and macOS 13.
 
-This guide covers local development and testing on a physical device. Release distribution through TestFlight is automated; see the [iOS Release Pipeline](deployment.md#ios-release-pipeline-githubworkflowsios-releaseyml) section of the deployment guide. The mobile OAuth handoff is described in the [authentication guide](authentication.md#mobile-client-flow-ios).
+One target, `GoRead2`, builds for every platform. `SDKROOT` is `auto` and `SUPPORTED_PLATFORMS` lists `iphoneos iphonesimulator macosx`, so the SwiftUI views, `NetworkClient`, and models compile once for all three platforms with no duplicated sources or per-platform target membership. The project uses a filesystem-synchronized root group, so new files under `ios/GoRead2/` join the build automatically.
+
+This guide covers local development and testing on a physical device. Release distribution through TestFlight is automated; see the [iOS Release Pipeline](deployment.md#ios-release-pipeline-githubworkflowsios-releaseyml) section of the deployment guide. The native OAuth handoff is described in the [authentication guide](authentication.md#native-client-flow-ios-and-macos).
 
 ## Table of Contents
 
 - [Schemes and the API Base URL](#schemes-and-the-api-base-url)
 - [App Icon](#app-icon)
 - [Building and Running in the Simulator](#building-and-running-in-the-simulator)
+- [Building for macOS](#building-for-macos)
+- [Platform Differences](#platform-differences)
 - [Running on a Physical Device](#running-on-a-physical-device)
 - [Free-Account Limitations](#free-account-limitations)
 - [TestFlight](#testflight)
@@ -50,6 +54,32 @@ xcodebuild -project ios/GoRead2.xcodeproj -scheme GoRead2 \
 ```
 
 Simulator builds need no signing identity or Apple account.
+
+## Building for macOS
+
+Select the `My Mac` destination in Xcode and run, or from the command line:
+
+```bash
+xcodebuild -project ios/GoRead2.xcodeproj -scheme GoRead2 \
+  -destination 'platform=macOS' build
+```
+
+The Mac build is a native AppKit-backed SwiftUI app, not Mac Catalyst and not the iPad build running on Apple silicon: `SUPPORTS_MACCATALYST` and `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD` are both `NO`.
+
+`ios/GoRead2/GoRead2-macOS.entitlements` applies to the macOS SDK only and enables the App Sandbox, outgoing network access, and read/write access to user-selected files for OPML import and export. The hardened runtime is on for both configurations. The shared `Info.plist` registers the `goread2://` URL scheme for the OAuth callback on every platform, and the UIKit-only `INFOPLIST_KEY_UI*` settings are scoped to the iOS SDKs so they stay out of the Mac bundle.
+
+## Platform Differences
+
+Shared views carry an `#if os(...)` branch only where platform behaviour genuinely differs. `ios/GoRead2/Components/PlatformCompat.swift` holds the shims for modifiers that exist on one platform, so call sites read the same everywhere.
+
+| Behaviour | iOS and iPadOS | macOS |
+|-----------|----------------|-------|
+| Root layout | Three-pane split on iPad, navigation stack on iPhone | Always the three-pane split |
+| External links | In-app `SFSafariViewController` sheet | Default browser |
+| OPML export | Share sheet | Revealed in the Finder |
+| Article web view | `UIViewRepresentable`, with swipe gestures between articles | `NSViewRepresentable`, no swipe gestures |
+| OAuth anchor | Key window of the active `UIWindowScene` | `NSApplication.shared.keyWindow` |
+| `?client=` value | `ios` | `macos` |
 
 ## Running on a Physical Device
 

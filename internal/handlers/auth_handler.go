@@ -36,20 +36,18 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Mobile clients (client=ios) get the goread2:// handoff on callback
-	// instead of the redirect to /.
-	mobile := c.Query("client") == "ios"
+	native := isNativeClient(c.Query("client"))
 
 	// Store state in session manager for one-time use validation
-	ah.sessionManager.StoreOAuthState(state, mobile)
+	ah.sessionManager.StoreOAuthState(state, native)
 
 	// Store state in cookie for validation (backward compatibility)
 	// Use environment-specific cookie name to avoid conflicts
 	c.SetCookie(getOAuthStateCookieName(), state, 600, "/", "", false, true) // 10 minutes
 
 	authURL := ah.authService.GetAuthURL(state, c.Request.Host)
-	if mobile {
-		// The mobile flow opens this endpoint as a top-level navigation
+	if native {
+		// The native flow opens this endpoint as a top-level navigation
 		// inside ASWebAuthenticationSession, so the state cookie above must
 		// land in that browser context; redirect straight to Google rather
 		// than returning JSON the web frontend would navigate to itself.
@@ -71,7 +69,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// Validate and consume state (one-time use check)
-	valid, mobile := ah.sessionManager.ValidateAndConsumeOAuthState(queryState)
+	valid, native := ah.sessionManager.ValidateAndConsumeOAuthState(queryState)
 	if !valid {
 		log.Printf("SECURITY: OAuth state expired or replayed from IP %s", auth.GetSecureClientIP(c))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter has expired or has already been used. Please try signing in again."})
@@ -83,7 +81,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 
 	code := c.Query("code")
 	if code == "" {
-		ah.callbackError(c, mobile, http.StatusBadRequest, "The authorization code is missing from the OAuth callback.")
+		ah.callbackError(c, native, http.StatusBadRequest, "The authorization code is missing from the OAuth callback.")
 		return
 	}
 
@@ -91,7 +89,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	user, err := ah.authService.HandleCallback(code, c.Request.Host)
 	if err != nil {
 		log.Printf("OAuth callback error: %v", err)
-		ah.callbackError(c, mobile, http.StatusInternalServerError, "Authentication failed. Please try signing in again.")
+		ah.callbackError(c, native, http.StatusInternalServerError, "Authentication failed. Please try signing in again.")
 		return
 	}
 
@@ -104,21 +102,21 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	// Create session
 	session, err := ah.sessionManager.CreateSession(user)
 	if err != nil {
-		ah.callbackError(c, mobile, http.StatusInternalServerError, "Session creation failed. Please try signing in again.")
+		ah.callbackError(c, native, http.StatusInternalServerError, "Session creation failed. Please try signing in again.")
 		return
 	}
 
-	if mobile {
+	if native {
 		// Hand the session off via a one-time code so the session token never
 		// appears in the goread2:// URL. No session cookie is set here: the
 		// ASWebAuthenticationSession browser context is discarded after the
 		// redirect, and the app claims the session via POST /auth/token.
 		authCode, err := ah.sessionManager.CreateAuthCode(session)
 		if err != nil {
-			ah.callbackError(c, mobile, http.StatusInternalServerError, "Session creation failed. Please try signing in again.")
+			ah.callbackError(c, native, http.StatusInternalServerError, "Session creation failed. Please try signing in again.")
 			return
 		}
-		c.Redirect(http.StatusFound, mobileCallbackURL+"?code="+url.QueryEscape(authCode))
+		c.Redirect(http.StatusFound, nativeCallbackURL+"?code="+url.QueryEscape(authCode))
 		return
 	}
 
@@ -129,22 +127,29 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, "/")
 }
 
-// mobileCallbackURL is the custom URL scheme the iOS app registers; redirecting
-// to it completes the app's ASWebAuthenticationSession.
-const mobileCallbackURL = "goread2://auth"
+// nativeCallbackURL is the custom URL scheme the iOS and macOS apps register;
+// redirecting to it completes the app's ASWebAuthenticationSession.
+const nativeCallbackURL = "goread2://auth"
 
-// callbackError reports a callback failure appropriately per client: mobile
+// isNativeClient reports whether a /auth/login ?client= value identifies one of
+// the native apps. Native clients get the goread2:// handoff on callback
+// instead of the redirect to /; every other value takes the web flow.
+func isNativeClient(client string) bool {
+	return client == "ios" || client == "macos"
+}
+
+// callbackError reports a callback failure appropriately per client: native
 // flows get a redirect to the app's URL scheme (so the auth sheet dismisses
 // and the app can show the error), web flows get the JSON error as before.
-func (ah *AuthHandler) callbackError(c *gin.Context, mobile bool, status int, message string) {
-	if mobile {
-		c.Redirect(http.StatusFound, mobileCallbackURL+"?error="+url.QueryEscape(message))
+func (ah *AuthHandler) callbackError(c *gin.Context, native bool, status int, message string) {
+	if native {
+		c.Redirect(http.StatusFound, nativeCallbackURL+"?error="+url.QueryEscape(message))
 		return
 	}
 	c.JSON(status, gin.H{"error": message})
 }
 
-// Token exchanges a one-time code minted by the mobile OAuth callback for the
+// Token exchanges a one-time code minted by the native OAuth callback for the
 // session token. The app stores the token as its session cookie; subsequent
 // API calls then authenticate exactly like the web frontend's.
 func (ah *AuthHandler) Token(c *gin.Context) {

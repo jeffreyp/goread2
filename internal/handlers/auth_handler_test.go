@@ -156,25 +156,42 @@ func TestOAuthStateInvalidState(t *testing.T) {
 	}
 }
 
-// TestOAuthStateMobileFlag tests that the mobile flag round-trips through the
+// TestOAuthStateNativeFlag tests that the native flag round-trips through the
 // state store, since the callback relies on it to pick the goread2:// handoff.
-func TestOAuthStateMobileFlag(t *testing.T) {
+func TestOAuthStateNativeFlag(t *testing.T) {
 	db := &mockDBAuthHandler{}
 	sessionManager := auth.NewSessionManager(db)
 
 	sessionManager.StoreOAuthState("web-state", false)
-	sessionManager.StoreOAuthState("ios-state", true)
+	sessionManager.StoreOAuthState("native-state", true)
 
-	if valid, mobile := sessionManager.ValidateAndConsumeOAuthState("web-state"); !valid || mobile {
-		t.Errorf("web state: expected valid=true mobile=false, got valid=%v mobile=%v", valid, mobile)
+	if valid, native := sessionManager.ValidateAndConsumeOAuthState("web-state"); !valid || native {
+		t.Errorf("web state: expected valid=true native=false, got valid=%v native=%v", valid, native)
 	}
-	if valid, mobile := sessionManager.ValidateAndConsumeOAuthState("ios-state"); !valid || !mobile {
-		t.Errorf("ios state: expected valid=true mobile=true, got valid=%v mobile=%v", valid, mobile)
+	if valid, native := sessionManager.ValidateAndConsumeOAuthState("native-state"); !valid || !native {
+		t.Errorf("native state: expected valid=true native=true, got valid=%v native=%v", valid, native)
 	}
 }
 
-// TestAuthCodeExchange tests the one-time code lifecycle used by the mobile
-// auth handoff: a code redeems exactly once and unknown codes are rejected.
+// TestIsNativeClient pins which ?client= values take the goread2:// handoff.
+// Anything else, including an empty value, must stay on the web flow.
+func TestIsNativeClient(t *testing.T) {
+	for client, want := range map[string]bool{
+		"ios":     true,
+		"macos":   true,
+		"":        false,
+		"web":     false,
+		"android": false,
+		"iOS":     false,
+	} {
+		if got := isNativeClient(client); got != want {
+			t.Errorf("isNativeClient(%q) = %v, want %v", client, got, want)
+		}
+	}
+}
+
+// TestAuthCodeExchange tests the one-time code lifecycle used by the native
+// app auth handoff: a code redeems exactly once and unknown codes are rejected.
 func TestAuthCodeExchange(t *testing.T) {
 	db := &mockDBAuthHandler{}
 	sessionManager := auth.NewSessionManager(db)
@@ -282,7 +299,7 @@ func TestToken(t *testing.T) {
 	})
 }
 
-func TestLoginMobileRedirect(t *testing.T) {
+func TestLoginNativeRedirect(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	newHandler := func() *AuthHandler {
@@ -292,30 +309,32 @@ func TestLoginMobileRedirect(t *testing.T) {
 		return NewAuthHandler(auth.NewAuthService(db), sessionManager, csrfManager)
 	}
 
-	t.Run("client=ios redirects to Google and flags state mobile", func(t *testing.T) {
-		handler := newHandler()
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/auth/login?client=ios", nil)
+	for _, client := range []string{"ios", "macos"} {
+		t.Run("client="+client+" redirects to Google and flags state native", func(t *testing.T) {
+			handler := newHandler()
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("GET", "/auth/login?client="+client, nil)
 
-		handler.Login(c)
+			handler.Login(c)
 
-		if w.Code != http.StatusFound {
-			t.Fatalf("expected 302, got %d: %s", w.Code, w.Body.String())
-		}
-		location := w.Header().Get("Location")
-		locURL, err := url.Parse(location)
-		if err != nil || locURL.Host != "accounts.google.com" {
-			t.Fatalf("expected redirect to accounts.google.com, got %q", location)
-		}
-		state := locURL.Query().Get("state")
-		if state == "" {
-			t.Fatal("redirect URL missing state parameter")
-		}
-		if valid, mobile := handler.sessionManager.ValidateAndConsumeOAuthState(state); !valid || !mobile {
-			t.Errorf("expected stored state to be valid and mobile, got valid=%v mobile=%v", valid, mobile)
-		}
-	})
+			if w.Code != http.StatusFound {
+				t.Fatalf("expected 302, got %d: %s", w.Code, w.Body.String())
+			}
+			location := w.Header().Get("Location")
+			locURL, err := url.Parse(location)
+			if err != nil || locURL.Host != "accounts.google.com" {
+				t.Fatalf("expected redirect to accounts.google.com, got %q", location)
+			}
+			state := locURL.Query().Get("state")
+			if state == "" {
+				t.Fatal("redirect URL missing state parameter")
+			}
+			if valid, native := handler.sessionManager.ValidateAndConsumeOAuthState(state); !valid || !native {
+				t.Errorf("expected stored state to be valid and native, got valid=%v native=%v", valid, native)
+			}
+		})
+	}
 
 	t.Run("web login still returns auth_url JSON", func(t *testing.T) {
 		handler := newHandler()
