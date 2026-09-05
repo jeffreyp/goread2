@@ -75,6 +75,20 @@ extension View {
         #endif
     }
 
+    /// Presents the account screen. iOS shows it in a sheet raised from the
+    /// feed list; macOS reaches the same screen through the Settings scene in
+    /// the app menu, so no sheet is attached there.
+    @ViewBuilder
+    func settingsSheet(isPresented: Binding<Bool>) -> some View {
+        #if os(iOS)
+        sheet(isPresented: isPresented) {
+            SettingsView()
+        }
+        #else
+        self
+        #endif
+    }
+
     /// Caps a full-width control on macOS, where a window is far wider than
     /// a phone and an edge-to-edge button looks wrong. iOS keeps the
     /// full-width layout.

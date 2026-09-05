@@ -12,48 +12,83 @@ struct SettingsView: View {
     @State private var showingImporter = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.hasLoaded {
-                    settingsForm
-                } else {
-                    ProgressView()
+        chrome
+            .webPage(item: $viewModel.portalItem)
+            .fileExport(item: $viewModel.exportedOPML)
+            .fileImporter(isPresented: $showingImporter,
+                          allowedContentTypes: opmlContentTypes) { result in
+                switch result {
+                case .success(let url):
+                    Task { await viewModel.importOPML(from: url) }
+                case .failure(let error):
+                    viewModel.errorMessage = error.localizedDescription
                 }
             }
-            .navigationTitle("Settings")
-            .inlineNavigationTitle()
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
+            .alert("OPML Import", isPresented: infoBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.infoMessage ?? "")
+            }
+            .alert("Error", isPresented: errorBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.errorMessage ?? "")
+            }
+            .task {
+                viewModel.onSessionExpired = { authManager.sessionExpired() }
+                guard case .signedIn = authManager.state else { return }
+                await viewModel.load()
+            }
+    }
+
+    /// Window chrome around the form. The macOS Settings scene supplies its
+    /// own title bar and close button, so the form stands alone at a fixed
+    /// size; iOS presents the same form in a sheet, which needs a navigation
+    /// bar to carry the Done button.
+    @ViewBuilder
+    private var chrome: some View {
+        #if os(macOS)
+        macSettingsBody
+            .formStyle(.grouped)
+            .frame(width: 520, height: 720)
+        #else
+        NavigationStack {
+            loadedForm
+                .navigationTitle("Settings")
+                .inlineNavigationTitle()
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            dismiss()
+                        }
                     }
                 }
-            }
         }
-        .webPage(item: $viewModel.portalItem)
-        .fileExport(item: $viewModel.exportedOPML)
-        .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: opmlContentTypes) { result in
-            switch result {
-            case .success(let url):
-                Task { await viewModel.importOPML(from: url) }
-            case .failure(let error):
-                viewModel.errorMessage = error.localizedDescription
-            }
+        #endif
+    }
+
+    #if os(macOS)
+    /// Cmd-, opens Settings whether or not anyone is signed in, so the
+    /// signed-out case gets a prompt instead of an authenticated load that
+    /// would fail with a 401 alert.
+    @ViewBuilder
+    private var macSettingsBody: some View {
+        if case .signedIn = authManager.state {
+            loadedForm
+        } else {
+            EmptyStateView(systemImage: "person.crop.circle",
+                           title: "Not Signed In",
+                           message: "Sign in from the main window to manage this account.")
         }
-        .alert("OPML Import", isPresented: infoBinding) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.infoMessage ?? "")
-        }
-        .alert("Error", isPresented: errorBinding) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "")
-        }
-        .task {
-            viewModel.onSessionExpired = { authManager.sessionExpired() }
-            await viewModel.load()
+    }
+    #endif
+
+    @ViewBuilder
+    private var loadedForm: some View {
+        if viewModel.hasLoaded {
+            settingsForm
+        } else {
+            ProgressView()
         }
     }
 

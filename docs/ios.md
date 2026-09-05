@@ -72,11 +72,14 @@ The Mac build is a native AppKit-backed SwiftUI app, not Mac Catalyst and not th
 
 Shared views carry an `#if os(...)` branch only where platform behaviour genuinely differs. `ios/GoRead2/Components/PlatformCompat.swift` holds the shims for modifiers that exist on one platform, so call sites read the same everywhere.
 
+`GoRead2App` owns the single `AuthManager` and injects it into both scenes. The macOS `Settings` scene is a sibling of the window group rather than a child of `ContentView`, so it cannot inherit the manager from the window's environment; signing out in Settings has to move the same object the main window observes.
+
 | Behaviour | iOS and iPadOS | macOS |
 |-----------|----------------|-------|
 | Root layout | Three-pane split on iPad, navigation stack on iPhone | Always the three-pane split |
 | Window size | Managed by the system | Opens at 1200x800, floor 720x480, with column minimums of 180pt (sidebar) and 260pt (article list) |
 | Refresh | Pull-to-refresh, or the `r` key on iPad | The `r` key |
+| Settings | Sheet raised from the feed list toolbar | `Settings` scene in the app menu, under the standard ⌘, shortcut |
 | External links | In-app `SFSafariViewController` sheet | Default browser |
 | OPML export | Share sheet | Revealed in the Finder |
 | Article web view | `UIViewRepresentable`, with swipe gestures between articles | `NSViewRepresentable`, no swipe gestures |

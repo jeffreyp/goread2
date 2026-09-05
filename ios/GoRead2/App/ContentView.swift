@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authManager = AuthManager()
+    @EnvironmentObject private var authManager: AuthManager
 
     var body: some View {
         Group {
@@ -24,7 +24,6 @@ struct ContentView: View {
                 #endif
             }
         }
-        .environmentObject(authManager)
         .task {
             await authManager.bootstrap()
         }
@@ -33,4 +32,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(AuthManager())
 }

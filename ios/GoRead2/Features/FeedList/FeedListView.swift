@@ -36,6 +36,7 @@ struct FeedListView: View {
                     Label("Add Feed", systemImage: "plus")
                 }
             }
+            #if os(iOS)
             ToolbarItem(placement: .secondaryAction) {
                 Button {
                     showingSettings = true
@@ -43,10 +44,9 @@ struct FeedListView: View {
                     Label("Settings", systemImage: "gear")
                 }
             }
+            #endif
         }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView()
-        }
+        .settingsSheet(isPresented: $showingSettings)
         .sheet(isPresented: $showingAddFeed) {
             AddFeedView { url in
                 try await viewModel.addFeed(url: url)
