@@ -3,6 +3,12 @@ storage_mode("git")
 type("appstore")
 app_identifier(["org.jeffreypratt.goread2"])
 
-# readonly is intentionally not set here: the CI lane passes readonly: true
-# itself, while `bundle exec fastlane match appstore` on a developer machine
+# readonly is intentionally not set here: the CI lanes pass readonly: true
+# themselves, while `bundle exec fastlane match appstore` on a developer machine
 # must be able to generate and rotate the signing assets.
+#
+# The repository holds two independent sets of assets, one per distribution
+# channel, kept apart by match's own storage layout: the iOS App Store
+# certificate and profile (`match appstore`, the type defaulted above), and the
+# macOS Developer ID certificate and profile used for the notarized DMG
+# (`match developer_id --platform macos`, which has to name both).

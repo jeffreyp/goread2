@@ -1,0 +1,84 @@
+name: macOS Release
+
+# macOS is distributed directly rather than through the Mac App Store, so there
+# is no TestFlight equivalent to feed on every commit: a run produces a public,
+# notarized DMG. Releases are cut deliberately by pushing a `macos-v*` tag;
+# workflow_dispatch builds the same artifact without publishing it.
+on:
+  push:
+    tags:
+      - 'macos-v*'
+  workflow_dispatch:
+
+# Notarization submissions and the release upload both go to shared state, so
+# runs are serialized rather than canceled.
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  dmg:
+    # Skips cleanly until the one-time Apple setup (docs/deployment.md,
+    # "macOS Release Pipeline") has populated the repository variable.
+    if: vars.APPLE_TEAM_ID != ''
+    runs-on: macos-15
+    permissions:
+      # Creating the release and attaching the DMG to it.
+      contents: write
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # The build number is the commit count, which needs full history.
+          fetch-depth: 0
+
+      - name: Derive the release version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/macos-v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/macos-v}" >> "$GITHUB_OUTPUT"
+          else
+            # Empty means "use MARKETING_VERSION from the project".
+            echo "version=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install fastlane
+        run: bundle install
+
+      - name: Build, sign, and notarize the DMG
+        run: bundle exec fastlane mac release
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MACOS_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Upload the DMG as a workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: GoRead2-macOS
+          path: ios/build/*.dmg
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        if: startsWith(github.ref, 'refs/tags/macos-v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" build/*.dmg --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" build/*.dmg \
+              --title "GoRead2 for macOS $VERSION" \
+              --notes "Signed and notarized build for macOS 13 and later. Open the disk image and drag GoRead2 to Applications."
+          fi

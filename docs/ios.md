@@ -4,7 +4,7 @@ GoRead2 ships a native client for iOS, iPadOS, and macOS, a SwiftUI app in `ios/
 
 One target, `GoRead2`, builds for every platform. `SDKROOT` is `auto` and `SUPPORTED_PLATFORMS` lists `iphoneos iphonesimulator macosx`, so the SwiftUI views, `NetworkClient`, and models compile once for all three platforms with no duplicated sources or per-platform target membership. The project uses a filesystem-synchronized root group, so new files under `ios/GoRead2/` join the build automatically.
 
-This guide covers local development and testing on a physical device. Release distribution through TestFlight is automated; see the [iOS Release Pipeline](deployment.md#ios-release-pipeline-githubworkflowsios-releaseyml) section of the deployment guide. The native OAuth handoff is described in the [authentication guide](authentication.md#native-client-flow-ios-and-macos).
+This guide covers local development and testing on a physical device. Release distribution is automated for both platforms and documented in the deployment guide: iOS goes to TestFlight through the [iOS Release Pipeline](deployment.md#ios-release-pipeline-githubworkflowsios-releaseyml), macOS to a notarized DMG through the [macOS Release Pipeline](deployment.md#macos-release-pipeline-githubworkflowsmacos-releaseyml). The native OAuth handoff is described in the [authentication guide](authentication.md#native-client-flow-ios-and-macos).
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This guide covers local development and testing on a physical device. Release di
 - [Platform Differences](#platform-differences)
 - [Running on a Physical Device](#running-on-a-physical-device)
 - [Free-Account Limitations](#free-account-limitations)
-- [TestFlight](#testflight)
+- [Release Distribution](#release-distribution)
 
 ## Schemes and the API Base URL
 
@@ -112,6 +112,12 @@ Personal Team signing carries restrictions that paid memberships do not:
 - No TestFlight and no App Store distribution.
 - No entitlement-gated capabilities such as push notifications. GoRead2 currently uses none, so this does not affect the app.
 
-## TestFlight
+## Release Distribution
 
-Distributing builds to testers' devices without a cable requires the paid Apple Developer Program and goes through TestFlight. The CI pipeline builds and uploads automatically on pushes to `main`; the pipeline, its one-time Apple setup, and the versioning scheme are documented in the [deployment guide](deployment.md#ios-release-pipeline-githubworkflowsios-releaseyml).
+The two platforms ship through different channels, both requiring the paid Apple Developer Program.
+
+**iOS and iPadOS** go to TestFlight, the only way to put a build on a tester's device without a cable. The CI pipeline builds and uploads automatically on pushes to `main`.
+
+**macOS** ships as a signed and notarized DMG on the repository's releases page rather than through the Mac App Store, because App Review guideline 3.1.1 conflicts with the Stripe subscription the app already sells on the web. A release is cut by pushing a `macos-v*` tag. The app carries a stapled notarization ticket, so it launches with no Gatekeeper prompt and no need to right-click Open.
+
+Both pipelines, their one-time Apple setup, and the versioning schemes are documented in the deployment guide, under [iOS Release Pipeline](deployment.md#ios-release-pipeline-githubworkflowsios-releaseyml) and [macOS Release Pipeline](deployment.md#macos-release-pipeline-githubworkflowsmacos-releaseyml).

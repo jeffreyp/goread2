@@ -14,6 +14,7 @@ Guide for deploying GoRead2 to Google App Engine, the only supported production 
 - [Auto-Rollback](#auto-rollback-post-promote-safety-net)
 - [Rollback](#rollback-githubworkflowsrollbackyml)
 - [iOS Release Pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml)
+- [macOS Release Pipeline](#macos-release-pipeline-githubworkflowsmacos-releaseyml)
 - [Google App Engine Configuration](#google-app-engine-configuration)
 - [Async Task Processing (Cloud Tasks)](#async-task-processing-cloud-tasks)
 - [Environment Variables](#environment-variables)
@@ -278,6 +279,63 @@ The Xcode project stays on automatic signing for local development. The `beta` l
    | `MATCH_PASSWORD` | secret | match encryption passphrase from step 4 |
 
 After the first successful run, the build appears in App Store Connect → TestFlight once Apple finishes processing it. Distribution to devices is managed there by adding testers to an internal group.
+
+## macOS Release Pipeline (`.github/workflows/macos-release.yml`)
+
+Pushing a `macos-v*` tag builds the Mac app on a GitHub-hosted macOS runner, signs it with a Developer ID certificate, notarizes it, and publishes the resulting disk image as a GitHub release. The workflow runs `bundle exec fastlane mac release` in `ios/`, and the `release` lane in `ios/fastlane/Fastfile` does the signing, notarization, and DMG packaging. `workflow_dispatch` runs the same lane without publishing, leaving the DMG as a workflow artifact. As with iOS, the job skips itself until the `APPLE_TEAM_ID` repository variable exists.
+
+The Mac app shares its target with the iOS app, so most of this pipeline mirrors the iOS one. The differences all follow from the distribution channel.
+
+### Developer ID, not the Mac App Store
+
+GoRead2 sells its subscription through Stripe and the macOS Settings window links out to the Stripe customer portal. App Review guideline 3.1.1 does not permit that arrangement, so a Mac App Store build would mean adding StoreKit in-app purchase for a subscription that already exists on the web. Developer ID signing plus notarization keeps the existing billing intact and takes App Review off the release path entirely, an option iOS does not have.
+
+The trade-offs of direct distribution are accepted deliberately:
+
+- **Updates are manual.** There is no App Store update mechanism; a new release means downloading a new DMG. An in-app updater is tracked as issue gr-i0zo.
+- **No universal purchase.** The Mac app is not bundled with the iOS app on the App Store.
+- **Distribution is self-hosted.** The DMG lives on the repository's GitHub releases page.
+
+### Signing and notarization
+
+Signing uses the same `fastlane match` certificates repository as iOS, holding a second, independent set of assets: a Developer ID Application certificate and profile under match's `macos` platform. The lane reads the profile name from match's `MATCH_PROVISIONING_PROFILE_MAPPING` rather than hard-coding it, because match derives the macOS profile name itself.
+
+Notarization runs twice, on the app and again on the disk image, through `xcrun notarytool` with the App Store Connect API key:
+
+1. The exported `GoRead2.app` is notarized and stapled. Stapling before packaging means the ticket travels with the bundle after it is dragged to `/Applications`, so a first launch on a machine with no network still passes Gatekeeper.
+2. The DMG is built from the stapled app, signed with the same Developer ID certificate, then notarized and stapled itself. Gatekeeper checks the disk image separately when it is opened from a quarantined download.
+
+The hardened runtime is already enabled for both configurations in `ios/GoRead2.xcodeproj`, which notarization requires. The macOS entitlements are unchanged from the sandboxed set described in the [iOS and macOS app guide](ios.md#building-for-macos); the App Sandbox is optional outside the Mac App Store but there is no reason to give it up.
+
+### Versioning
+
+- **Build number (`CFBundleVersion`)**: the commit count, as on iOS.
+- **Marketing version (`CFBundleShortVersionString`)**: taken from the tag. Pushing `macos-v1.2.0` builds and names version 1.2.0, so cutting a release needs no companion edit to `MARKETING_VERSION`. A `workflow_dispatch` run has no tag and falls back to the project's value.
+
+Cutting a release:
+
+```bash
+git tag macos-v1.2.0
+git push origin macos-v1.2.0
+```
+
+### One-time setup
+
+The App Store Connect API key, certificates repository, and GitHub secrets are shared with the [iOS pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml); complete that setup first. Two additional steps are needed:
+
+1. **Enable macOS on the App ID.** In the Apple Developer portal, the `org.jeffreypratt.goread2` identifier must support macOS, otherwise match cannot create a Developer ID profile for it.
+2. **Generate the Developer ID assets** from a developer machine, into the same certificates repository:
+
+   ```bash
+   cd ios
+   MATCH_GIT_URL=https://github.com/jeffreyp/goread2-certificates.git \
+   APPLE_TEAM_ID=<team id> \
+   bundle exec fastlane match developer_id --platform macos
+   ```
+
+   Apple allows a limited number of Developer ID Application certificates per account and they cannot be revoked freely, so generate one and let match reuse it. CI only ever reads.
+
+No new GitHub secrets or variables are required. The workflow uses the built-in `GITHUB_TOKEN` to publish the release.
 
 ## Google App Engine Configuration
 

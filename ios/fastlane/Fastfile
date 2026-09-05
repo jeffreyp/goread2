@@ -1,5 +1,7 @@
 default_platform(:ios)
 
+BUNDLE_IDENTIFIER = "org.jeffreypratt.goread2".freeze
+
 platform :ios do
   desc "Build a signed Release IPA and upload it to TestFlight"
   lane :beta do
@@ -27,8 +29,8 @@ platform :ios do
       use_automatic_signing: false,
       team_id: ENV.fetch("APPLE_TEAM_ID"),
       code_sign_identity: "Apple Distribution",
-      bundle_identifier: "org.jeffreypratt.goread2",
-      profile_name: "match AppStore org.jeffreypratt.goread2"
+      bundle_identifier: BUNDLE_IDENTIFIER,
+      profile_name: "match AppStore #{BUNDLE_IDENTIFIER}"
     )
 
     build_app(
@@ -44,5 +46,97 @@ platform :ios do
       api_key: api_key,
       skip_waiting_for_build_processing: true
     )
+  end
+end
+
+platform :mac do
+  desc "Build, sign, and notarize a Developer ID DMG for direct distribution"
+  lane :release do
+    setup_ci
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_CONTENT"),
+      is_key_content_base64: true
+    )
+
+    # Developer ID rather than Mac App Store: GoRead2 bills through Stripe and
+    # links out to the Stripe customer portal from Settings, which App Review
+    # guideline 3.1.1 does not permit. Direct distribution keeps the existing
+    # billing intact and takes App Review off the release path.
+    match(type: "developer_id", platform: "macos", readonly: true, api_key: api_key)
+    profile_name = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING].fetch(BUNDLE_IDENTIFIER)
+
+    # fastlane runs a lane from the directory holding fastlane/, so this is ios/.
+    # The sh action's working directory is not guaranteed to be the same one, so
+    # every shell command below gets an absolute path.
+    build_dir = File.join(Dir.pwd, "build")
+
+    # Same scheme as iOS: the build number is the commit count, so it rises with
+    # main's history without a version-bump commit (needs fetch-depth: 0).
+    build_number = sh("git rev-list --count HEAD").strip
+
+    # A tag names its own release, so cutting one does not also require editing
+    # MARKETING_VERSION. Ad-hoc runs fall back to the value in the project.
+    marketing_version = ENV["MACOS_RELEASE_VERSION"].to_s.empty? ?
+      get_version_number(xcodeproj: "GoRead2.xcodeproj", target: "GoRead2") :
+      ENV["MACOS_RELEASE_VERSION"]
+
+    # As on iOS, the project stays on automatic signing for local development and
+    # only the runner's working copy is switched to the match-provisioned assets.
+    update_code_signing_settings(
+      path: "GoRead2.xcodeproj",
+      use_automatic_signing: false,
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      code_sign_identity: "Developer ID Application",
+      bundle_identifier: BUNDLE_IDENTIFIER,
+      profile_name: profile_name
+    )
+
+    build_mac_app(
+      project: "GoRead2.xcodeproj",
+      scheme: "GoRead2-Release",
+      configuration: "Release",
+      # GoRead2 is one multiplatform target, so the destination is what selects
+      # the Mac build over the iOS one.
+      destination: "generic/platform=macOS",
+      export_method: "developer-id",
+      export_options: {
+        signingStyle: "manual",
+        teamID: ENV.fetch("APPLE_TEAM_ID"),
+        provisioningProfiles: { BUNDLE_IDENTIFIER => profile_name }
+      },
+      output_directory: build_dir,
+      output_name: "GoRead2",
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} MARKETING_VERSION=#{marketing_version}"
+    )
+
+    app_path = File.join(build_dir, "GoRead2.app")
+
+    # The app is notarized and stapled before it goes into the disk image, so the
+    # ticket travels with the bundle once it is dragged to /Applications. With
+    # only the DMG notarized, a first launch on a machine that cannot reach
+    # Apple's servers would be refused.
+    notarize(package: app_path, api_key: api_key, print_log: true)
+
+    dmg_path = File.join(build_dir, "GoRead2-#{marketing_version}.dmg")
+    staging_dir = File.join(build_dir, "dmg")
+    FileUtils.rm_rf(staging_dir)
+    FileUtils.mkdir_p(staging_dir)
+    # ditto, not cp: it preserves the extended attributes of a signed bundle.
+    sh("ditto #{app_path.shellescape} #{File.join(staging_dir, 'GoRead2.app').shellescape}")
+    FileUtils.ln_s("/Applications", File.join(staging_dir, "Applications"))
+    FileUtils.rm_f(dmg_path)
+    sh("hdiutil create -volname GoRead2 -srcfolder #{staging_dir.shellescape} -ov -format UDZO #{dmg_path.shellescape}")
+
+    # Gatekeeper checks the disk image itself when it is opened from a
+    # quarantined download, so the DMG needs its own signature and ticket even
+    # though the app inside already has both. The identity is matched by prefix,
+    # which is unambiguous in the temporary keychain setup_ci creates.
+    sh("codesign --sign 'Developer ID Application' --timestamp #{dmg_path.shellescape}")
+    notarize(package: dmg_path, api_key: api_key, print_log: true)
+
+    UI.success("Notarized #{dmg_path}")
   end
 end
