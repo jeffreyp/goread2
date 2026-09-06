@@ -143,7 +143,11 @@ platform :mac do
     # though the app inside already has both. The identity is matched by prefix,
     # which is unambiguous in the temporary keychain setup_ci creates.
     sh("codesign --sign 'Developer ID Application' --timestamp #{dmg_path.shellescape}")
-    notarize(package: dmg_path, api_key: api_key, print_log: true)
+    # bundle_id is explicit here but not on the .app call above because notarize
+    # only auto-detects it for a .app, reading Contents/Info.plist behind an
+    # `if File.extname(package_path) == '.app'` guard. A .dmg never gets one, so
+    # without this the action aborts before it submits anything to Apple.
+    notarize(package: dmg_path, bundle_id: BUNDLE_IDENTIFIER, api_key: api_key, print_log: true)
 
     UI.success("Notarized #{dmg_path}")
   end
