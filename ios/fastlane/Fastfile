@@ -68,10 +68,12 @@ platform :mac do
     match(type: "developer_id", platform: "macos", readonly: true, api_key: api_key)
     profile_name = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING].fetch(BUNDLE_IDENTIFIER)
 
-    # fastlane runs a lane from the directory holding fastlane/, so this is ios/.
-    # The sh action's working directory is not guaranteed to be the same one, so
-    # every shell command below gets an absolute path.
-    build_dir = File.join(Dir.pwd, "build")
+    # fastlane runs a lane with Dir.pwd set to the fastlane/ folder itself, so
+    # ios/ is one level up. Getting this wrong puts the DMG in ios/fastlane/build
+    # while macos-release.yml looks for it in ios/build. The sh action's working
+    # directory is not guaranteed to match either, so every shell command below
+    # gets an absolute path.
+    build_dir = File.expand_path("../build", Dir.pwd)
 
     # Same scheme as iOS: the build number is the commit count, so it rises with
     # main's history without a version-bump commit (needs fetch-depth: 0).
@@ -98,9 +100,15 @@ platform :mac do
       project: "GoRead2.xcodeproj",
       scheme: "GoRead2-Release",
       configuration: "Release",
-      # GoRead2 is one multiplatform target, so the destination is what selects
-      # the Mac build over the iOS one.
+      # GoRead2 is one multiplatform target (SUPPORTED_PLATFORMS lists both
+      # iphoneos and macosx), so both of these are needed and they do different
+      # jobs. `destination` is what xcodebuild archives for. `sdk` is what gym
+      # keys its packaging off: building_multiplatform_for_mac? requires
+      # Gym.config[:sdk] == "macosx", and without it gym takes the iOS branch,
+      # looks for an .ipa a Mac build never produces, and fails with
+      # "IPA invalid" after a perfectly good archive.
       destination: "generic/platform=macOS",
+      sdk: "macosx",
       export_method: "developer-id",
       export_options: {
         signingStyle: "manual",
