@@ -322,7 +322,12 @@ git push origin macos-v1.2.0
 
 ### One-time setup
 
-The App Store Connect API key, certificates repository, and GitHub secrets are shared with the [iOS pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml), so steps 2 through 5 of that setup are prerequisites here. The App Store Connect **app record** (step 1) is not: Developer ID distribution never reaches App Review or the store, and notarization does not require the app to exist. The API key is still needed despite living in App Store Connect, because `xcrun notarytool` and match authenticate with it.
+The App Store Connect API key, certificates repository, and GitHub secrets are shared with the [iOS pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml), so steps 2, 3, and 5 of that setup are prerequisites here. Two of its steps are not:
+
+- The App Store Connect **app record** (step 1). Developer ID distribution never reaches App Review or the store, and notarization does not require the app to exist.
+- The **iOS App Store signing assets** (step 4, `match appstore`). This pipeline uses the Developer ID assets generated below instead.
+
+The API key is required despite living in App Store Connect, because `xcrun notarytool` and match authenticate with it. Within step 5, leave `IOS_TESTFLIGHT_ENABLED` unset unless the iOS pipeline is being enabled at the same time.
 
 Two additional steps are needed:
 
