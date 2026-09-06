@@ -235,7 +235,7 @@ Before migrating, it captures whichever version currently holds `traffic_split=1
 
 ## iOS Release Pipeline (`.github/workflows/ios-release.yml`)
 
-Every push to `main` that touches `ios/**` builds the native iOS app on a GitHub-hosted macOS runner and uploads the result to TestFlight. The workflow is a thin wrapper around [fastlane](https://fastlane.tools/): it runs `bundle exec fastlane beta` in `ios/`, and the `beta` lane in `ios/fastlane/Fastfile` fetches signing assets, builds a signed Release IPA with the shared `GoRead2-Release` scheme, and uploads it through the App Store Connect API. The fastlane version is pinned by `ios/Gemfile.lock`. Until the one-time setup below populates the `APPLE_TEAM_ID` repository variable, the job skips itself, so iOS commits do not fail the Actions run before Apple credentials exist.
+Every push to `main` that touches `ios/**` builds the native iOS app on a GitHub-hosted macOS runner and uploads the result to TestFlight. The workflow is a thin wrapper around [fastlane](https://fastlane.tools/): it runs `bundle exec fastlane beta` in `ios/`, and the `beta` lane in `ios/fastlane/Fastfile` fetches signing assets, builds a signed Release IPA with the shared `GoRead2-Release` scheme, and uploads it through the App Store Connect API. The fastlane version is pinned by `ios/Gemfile.lock`. Until the one-time setup below populates the `IOS_TESTFLIGHT_ENABLED` and `APPLE_TEAM_ID` repository variables, the job skips itself, so iOS commits do not fail the Actions run before Apple credentials exist. The separate `IOS_TESTFLIGHT_ENABLED` gate keeps this pipeline dormant while the macOS one runs, since macOS ships through Developer ID and needs neither an App Store Connect app record nor TestFlight.
 
 This section covers release distribution only. Local development and installing on a personal device without a paid Apple Developer membership are covered in the [iOS App guide](ios.md).
 
@@ -270,7 +270,8 @@ The Xcode project stays on automatic signing for local development. The `beta` l
 
    | Name | Kind | Value |
    |------|------|-------|
-   | `APPLE_TEAM_ID` | variable | Apple Developer Team ID. Also gates the workflow: the job skips while this is unset. |
+   | `APPLE_TEAM_ID` | variable | Apple Developer Team ID. Shared with the macOS pipeline. |
+   | `IOS_TESTFLIGHT_ENABLED` | variable | Any non-empty value. Gates this workflow alone: the job skips while it is unset, so set it last, once the App Store Connect app record and the secrets below are in place. |
    | `ASC_KEY_ID` | secret | App Store Connect API Key ID |
    | `ASC_ISSUER_ID` | secret | App Store Connect API Issuer ID |
    | `ASC_KEY_CONTENT` | secret | Base64 of the `.p8` key: `base64 -i AuthKey_XXXXXXXX.p8` |
@@ -282,7 +283,7 @@ After the first successful run, the build appears in App Store Connect → TestF
 
 ## macOS Release Pipeline (`.github/workflows/macos-release.yml`)
 
-Pushing a `macos-v*` tag builds the Mac app on a GitHub-hosted macOS runner, signs it with a Developer ID certificate, notarizes it, and publishes the resulting disk image as a GitHub release. The workflow runs `bundle exec fastlane mac release` in `ios/`, and the `release` lane in `ios/fastlane/Fastfile` does the signing, notarization, and DMG packaging. `workflow_dispatch` runs the same lane without publishing, leaving the DMG as a workflow artifact. As with iOS, the job skips itself until the `APPLE_TEAM_ID` repository variable exists.
+Pushing a `macos-v*` tag builds the Mac app on a GitHub-hosted macOS runner, signs it with a Developer ID certificate, notarizes it, and publishes the resulting disk image as a GitHub release. The workflow runs `bundle exec fastlane mac release` in `ios/`, and the `release` lane in `ios/fastlane/Fastfile` does the signing, notarization, and DMG packaging. `workflow_dispatch` runs the same lane without publishing, leaving the DMG as a workflow artifact. The job skips itself until the `APPLE_TEAM_ID` repository variable exists. That variable gates this pipeline alone; the iOS pipeline has its own `IOS_TESTFLIGHT_ENABLED` gate, so the notarized DMG can ship without an App Store presence.
 
 The Mac app shares its target with the iOS app, so most of this pipeline mirrors the iOS one. The differences all follow from the distribution channel.
 
@@ -321,7 +322,9 @@ git push origin macos-v1.2.0
 
 ### One-time setup
 
-The App Store Connect API key, certificates repository, and GitHub secrets are shared with the [iOS pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml); complete that setup first. Two additional steps are needed:
+The App Store Connect API key, certificates repository, and GitHub secrets are shared with the [iOS pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml), so steps 2 through 5 of that setup are prerequisites here. The App Store Connect **app record** (step 1) is not: Developer ID distribution never reaches App Review or the store, and notarization does not require the app to exist. The API key is still needed despite living in App Store Connect, because `xcrun notarytool` and match authenticate with it.
+
+Two additional steps are needed:
 
 1. **Enable macOS on the App ID.** In the Apple Developer portal, the `org.jeffreypratt.goread2` identifier must support macOS, otherwise match cannot create a Developer ID profile for it.
 2. **Generate the Developer ID assets** from a developer machine, into the same certificates repository:

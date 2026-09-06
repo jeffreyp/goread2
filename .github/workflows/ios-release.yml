@@ -20,9 +20,12 @@ permissions:
 
 jobs:
   testflight:
+    # Gated separately from the macOS pipeline so the two can be enabled
+    # independently: macOS ships via Developer ID and needs no App Store
+    # presence, while TestFlight uploads need an App Store Connect app record.
     # Skips cleanly until the one-time Apple setup (docs/deployment.md,
-    # "iOS Release Pipeline") has populated the repository variable.
-    if: vars.APPLE_TEAM_ID != ''
+    # "iOS Release Pipeline") has populated both repository variables.
+    if: vars.IOS_TESTFLIGHT_ENABLED != '' && vars.APPLE_TEAM_ID != ''
     runs-on: macos-15
     defaults:
       run:
