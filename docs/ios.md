@@ -13,6 +13,7 @@ This guide covers local development and testing on a physical device. Release di
 - [Building and Running in the Simulator](#building-and-running-in-the-simulator)
 - [Building for macOS](#building-for-macos)
 - [Platform Differences](#platform-differences)
+- [Menu Bar and Keyboard Shortcuts](#menu-bar-and-keyboard-shortcuts)
 - [Running on a Physical Device](#running-on-a-physical-device)
 - [Free-Account Limitations](#free-account-limitations)
 - [Ruby Toolchain for fastlane](#ruby-toolchain-for-fastlane)
@@ -79,13 +80,38 @@ Shared views carry an `#if os(...)` branch only where platform behaviour genuine
 |-----------|----------------|-------|
 | Root layout | Three-pane split on iPad, navigation stack on iPhone | Always the three-pane split |
 | Window size | Managed by the system | Opens at 1200x800, floor 720x480, with column minimums of 180pt (sidebar) and 260pt (article list) |
-| Refresh | Pull-to-refresh, or the `r` key on iPad | The `r` key |
+| Refresh | Pull-to-refresh, or the `r` key on iPad | The `r` key, ⌘R, or File > Refresh Feeds |
 | Settings | Sheet raised from the feed list toolbar | `Settings` scene in the app menu, under the standard ⌘, shortcut |
+| Menu bar | None | File and View commands, described below |
 | External links | In-app `SFSafariViewController` sheet | Default browser |
-| OPML export | Share sheet | Revealed in the Finder |
+| OPML import | Document picker, from Settings | Open panel, from Settings or File > Import OPML |
+| OPML export | Share sheet | Save panel, from Settings or File > Export OPML |
 | Article web view | `UIViewRepresentable`, with swipe gestures between articles | `NSViewRepresentable`, no swipe gestures |
 | OAuth anchor | Key window of the active `UIWindowScene` | `NSApplication.shared.keyWindow` |
 | `?client=` value | `ios` | `macos` |
+
+The API calls behind OPML import and export live in `OPMLTransfer`, shared by the settings screen and the Mac File menu. Only the presentation is platform-specific, in `OPMLExportPresentation.swift`.
+
+## Menu Bar and Keyboard Shortcuts
+
+The Mac window publishes its actions as a focused scene value, `ReaderActions`, and `ios/GoRead2/App/ReaderCommands.swift` builds the File and View menus from it. An item is disabled whenever the action behind it is absent, so every command greys out at the login screen or while the Settings window holds focus, and the article commands stay disabled until a feed is selected. Mark All Read follows the article list's own rule and is offered from All Articles only, since the endpoint is account-wide.
+
+The File menu replaces the standard New Window group, which frees ⌘N for adding a feed.
+
+| Menu | Command | Shortcut |
+|------|---------|----------|
+| File | Add Feed | ⌘N |
+| File | Import OPML | ⌘O |
+| File | Export OPML | ⇧⌘E |
+| File | Refresh Feeds | ⌘R |
+| View | Next Article | ⌘↓ |
+| View | Previous Article | ⌘↑ |
+| View | Unread Only | ⇧⌘U |
+| View | Mark All Read | ⇧⌘K |
+
+Unread Only is a toggle and carries a checkmark while the filter is on.
+
+The single-key shortcuts the split view registers apply on iPad and Mac alike: `j` and `k` move between articles, `m` toggles read, `s` toggles the star, and `r` refreshes every pane.
 
 ## Running on a Physical Device
 

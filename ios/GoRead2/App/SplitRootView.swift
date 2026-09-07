@@ -1,7 +1,8 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// iPad root: a three-column split view (feeds sidebar, article list,
-/// reader) mirroring the web app's three-pane layout. The system-provided
+/// iPad and Mac root: a three-column split view (feeds sidebar, article
+/// list, reader) mirroring the web app's three-pane layout. The system-provided
 /// sidebar toggle collapses columns, and in portrait the sidebar overlays
 /// instead of tiling. Hardware keyboard shortcuts match the web app:
 /// j/k select the next/previous article, m toggles read, s toggles the
@@ -11,6 +12,10 @@ import SwiftUI
 /// loading, `selectAllArticlesIfNeeded` picks All Articles for an account
 /// with subscriptions, or opens the sidebar for a brand-new account so its
 /// welcome screen is reachable instead of an empty All Articles list.
+///
+/// On macOS this view is also the menu bar's target: it publishes its
+/// actions as a focused scene value for `ReaderCommands` and hosts the
+/// sheets, panels, and dialogs those commands raise.
 struct SplitRootView: View {
     @StateObject private var feedViewModel = FeedListViewModel()
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
@@ -18,7 +23,20 @@ struct SplitRootView: View {
     @State private var articleViewModel: ArticleListViewModel?
     @State private var selectedArticleID: Int?
 
+    #if os(macOS)
+    @EnvironmentObject private var authManager: AuthManager
+    /// The File menu's OPML commands, which reach the API without the
+    /// Settings window being open.
+    @StateObject private var opml = OPMLActionModel()
+    @State private var showingAddFeed = false
+    @State private var showingMarkAllReadConfirmation = false
+    #endif
+
     var body: some View {
+        menuBarSupport(splitView)
+    }
+
+    private var splitView: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             FeedListView(viewModel: feedViewModel,
                          sidebarSelection: $feedSelection,
@@ -174,6 +192,123 @@ struct SplitRootView: View {
         guard let viewModel = articleViewModel, let article = selectedArticle else { return }
         Task { await viewModel.toggleStar(article) }
     }
+
+    // MARK: - Menu bar
+
+    #if os(macOS)
+    /// Everything the File and View menu commands need: the presentations
+    /// they raise, and the actions themselves, published for whichever
+    /// window is frontmost.
+    ///
+    /// SwiftUI honours one sheet-style presentation per view, and on macOS
+    /// the file panels, the confirmation dialog, and the alert are all
+    /// sheets. Attaching them to one view leaves only the first of them
+    /// working, so each hangs off its own zero-size background instead.
+    @ViewBuilder
+    private func menuBarSupport<Content: View>(_ content: Content) -> some View {
+        content
+            .sheet(isPresented: $showingAddFeed) {
+                AddFeedView { url in
+                    try await feedViewModel.addFeed(url: url)
+                }
+            }
+            .background(markAllReadConfirmation)
+            .background(opmlImporter)
+            .background(opmlExporter)
+            .background(opmlAlert)
+            .focusedSceneValue(\.readerActions, readerActions)
+            .task {
+                opml.onSessionExpired = { authManager.sessionExpired() }
+                opml.onImported = { await feedViewModel.refresh() }
+            }
+    }
+
+    private var markAllReadConfirmation: some View {
+        presentationHost
+            .confirmationDialog("Mark all articles as read?",
+                                isPresented: $showingMarkAllReadConfirmation,
+                                titleVisibility: .visible) {
+                Button("Mark All Read") { markAllRead() }
+            }
+    }
+
+    private var opmlImporter: some View {
+        presentationHost
+            .fileImporter(isPresented: $opml.isImporting,
+                          allowedContentTypes: UTType.opmlImportTypes) { result in
+                switch result {
+                case .success(let url):
+                    Task { await opml.importFile(at: url) }
+                case .failure(let error):
+                    opml.report(error)
+                }
+            }
+    }
+
+    private var opmlExporter: some View {
+        presentationHost
+            .fileExport(item: $opml.export) { opml.report(message: $0) }
+    }
+
+    private var opmlAlert: some View {
+        presentationHost
+            .alert(opml.alert?.title ?? "", isPresented: alertBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(opml.alert?.message ?? "")
+            }
+    }
+
+    /// Carries one presentation and nothing else, so it never covers or
+    /// intercepts anything in the window it sits behind.
+    private var presentationHost: some View {
+        Color.clear.allowsHitTesting(false)
+    }
+
+    private var readerActions: ReaderActions {
+        ReaderActions(
+            addFeed: { showingAddFeed = true },
+            importOPML: { opml.beginImport() },
+            exportOPML: { Task { await opml.exportSubscriptions() } },
+            refresh: { Task { await refreshAllPanes() } },
+            selectNextArticle: articleViewModel.map { _ in { moveSelection(1) } },
+            selectPreviousArticle: articleViewModel.map { _ in { moveSelection(-1) } },
+            unreadOnly: articleViewModel.map { viewModel in
+                Binding(
+                    get: { viewModel.unreadOnly },
+                    set: { _ in Task { await viewModel.toggleUnreadFilter() } }
+                )
+            },
+            // The endpoint is account-wide, so the command follows the
+            // article list's rule of offering this from All Articles only.
+            markAllRead: feedSelection == .all && articleViewModel != nil
+                ? { showingMarkAllReadConfirmation = true }
+                : nil
+        )
+    }
+
+    /// Marks every article read from the menu, then refreshes the sidebar's
+    /// unread badges, which the account-wide endpoint has just zeroed.
+    private func markAllRead() {
+        guard let articleViewModel else { return }
+        Task {
+            await articleViewModel.markAllRead()
+            await feedViewModel.refreshUnreadCounts()
+        }
+    }
+
+    private var alertBinding: Binding<Bool> {
+        Binding(
+            get: { opml.alert != nil },
+            set: { if !$0 { opml.alert = nil } }
+        )
+    }
+    #else
+    /// iOS has no menu bar, so the window needs no command wiring.
+    private func menuBarSupport<Content: View>(_ content: Content) -> Content {
+        content
+    }
+    #endif
 }
 
 #Preview {

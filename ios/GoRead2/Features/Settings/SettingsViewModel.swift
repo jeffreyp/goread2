@@ -24,7 +24,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var infoMessage: String?
     /// Stripe customer portal URL, presented in SFSafariViewController.
     @Published var portalItem: SafariItem?
-    /// Exported OPML written to a temporary file for the share sheet.
+    /// Finished OPML export, awaiting the share sheet or the save panel.
     @Published var exportedOPML: OPMLExport?
 
     /// Called when the API reports 401: the session is gone server-side and
@@ -32,9 +32,11 @@ final class SettingsViewModel: ObservableObject {
     var onSessionExpired: () -> Void = {}
 
     private let client: NetworkClient
+    private let opml: OPMLTransfer
 
     init(client: NetworkClient = .shared) {
         self.client = client
+        opml = OPMLTransfer(client: client)
     }
 
     var maxArticlesEdited: Bool {
@@ -84,36 +86,23 @@ final class SettingsViewModel: ObservableObject {
     }
 
     /// Uploads the OPML document at `url` (a security-scoped URL from the
-    /// document picker) and reports how many feeds were imported.
+    /// file panel) and reports how many feeds were imported.
     func importOPML(from url: URL) async {
         isBusy = true
         defer { isBusy = false }
         do {
-            let accessing = url.startAccessingSecurityScopedResource()
-            defer {
-                if accessing { url.stopAccessingSecurityScopedResource() }
-            }
-            let data = try Data(contentsOf: url)
-            let count = try await client.importOPML(data, filename: url.lastPathComponent)
-            infoMessage = count == 1
-                ? "Successfully imported 1 feed from OPML file"
-                : "Successfully imported \(count) feeds from OPML file"
+            infoMessage = try await opml.importFile(at: url)
         } catch {
             handle(error)
         }
     }
 
-    /// Downloads the OPML export to a temporary file and exposes it for the
-    /// share sheet.
+    /// Downloads the OPML export and exposes it for presentation.
     func exportOPML() async {
         isBusy = true
         defer { isBusy = false }
         do {
-            let data = try await client.exportOPML()
-            let fileURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("goread2-subscriptions.opml")
-            try data.write(to: fileURL, options: .atomic)
-            exportedOPML = OPMLExport(url: fileURL)
+            exportedOPML = try await opml.export()
         } catch {
             handle(error)
         }
@@ -141,11 +130,4 @@ final class SettingsViewModel: ObservableObject {
         }
         errorMessage = error.localizedDescription
     }
-}
-
-/// Identifiable temporary-file URL box for sheet(item:) presentation of the
-/// OPML export share sheet.
-struct OPMLExport: Identifiable {
-    let url: URL
-    var id: URL { url }
 }

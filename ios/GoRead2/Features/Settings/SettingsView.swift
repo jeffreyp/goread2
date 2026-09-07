@@ -14,9 +14,9 @@ struct SettingsView: View {
     var body: some View {
         chrome
             .webPage(item: $viewModel.portalItem)
-            .fileExport(item: $viewModel.exportedOPML)
+            .fileExport(item: $viewModel.exportedOPML) { viewModel.errorMessage = $0 }
             .fileImporter(isPresented: $showingImporter,
-                          allowedContentTypes: opmlContentTypes) { result in
+                          allowedContentTypes: UTType.opmlImportTypes) { result in
                 switch result {
                 case .success(let url):
                     Task { await viewModel.importOPML(from: url) }
@@ -24,15 +24,14 @@ struct SettingsView: View {
                     viewModel.errorMessage = error.localizedDescription
                 }
             }
-            .alert("OPML Import", isPresented: infoBinding) {
+            // One alert carries both outcomes: SwiftUI honours a single
+            // alert per view, and the view model raises only one message at
+            // a time.
+            .alert(viewModel.infoMessage != nil ? "OPML Import" : "Error",
+                   isPresented: messageBinding) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(viewModel.infoMessage ?? "")
-            }
-            .alert("Error", isPresented: errorBinding) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(viewModel.errorMessage ?? "")
+                Text(viewModel.infoMessage ?? viewModel.errorMessage ?? "")
             }
             .task {
                 viewModel.onSessionExpired = { authManager.sessionExpired() }
@@ -245,27 +244,14 @@ struct SettingsView: View {
 
     // MARK: - Helpers
 
-    /// OPML documents commonly use the .opml extension, which does not
-    /// conform to public.xml, so both types are accepted.
-    private var opmlContentTypes: [UTType] {
-        var types: [UTType] = [.xml]
-        if let opml = UTType(filenameExtension: "opml") {
-            types.append(opml)
-        }
-        return types
-    }
-
-    private var infoBinding: Binding<Bool> {
+    private var messageBinding: Binding<Bool> {
         Binding(
-            get: { viewModel.infoMessage != nil },
-            set: { if !$0 { viewModel.infoMessage = nil } }
-        )
-    }
-
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.errorMessage != nil },
-            set: { if !$0 { viewModel.errorMessage = nil } }
+            get: { viewModel.infoMessage != nil || viewModel.errorMessage != nil },
+            set: { presented in
+                guard !presented else { return }
+                viewModel.infoMessage = nil
+                viewModel.errorMessage = nil
+            }
         )
     }
 }

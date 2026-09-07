@@ -33,6 +33,7 @@ struct GoRead2App: App {
         // Wide enough that all three panes open tiled rather than the sidebar
         // starting collapsed.
         .defaultSize(width: 1200, height: 800)
+        .commands { ReaderCommands() }
     }
     #else
     private var mainWindow: some Scene {
