@@ -15,6 +15,7 @@ This guide covers local development and testing on a physical device. Release di
 - [Platform Differences](#platform-differences)
 - [Running on a Physical Device](#running-on-a-physical-device)
 - [Free-Account Limitations](#free-account-limitations)
+- [Ruby Toolchain for fastlane](#ruby-toolchain-for-fastlane)
 - [Release Distribution](#release-distribution)
 
 ## Schemes and the API Base URL
@@ -111,6 +112,14 @@ Personal Team signing carries restrictions that paid memberships do not:
 - At most 3 sideloaded apps on a device at once, and at most 10 unique bundle IDs registered per week.
 - No TestFlight and no App Store distribution.
 - No entitlement-gated capabilities such as push notifications. GoRead2 currently uses none, so this does not affect the app.
+
+## Ruby Toolchain for fastlane
+
+fastlane drives the signing and release commands in `ios/`, and both halves of the Ruby toolchain it runs on are pinned in the repository, because both drift by default.
+
+`ios/.ruby-version` selects Ruby 3.4.8, which rbenv, chruby, and rvm read on entering the directory. Install it once with `rbenv install 3.4.8`. The version matters for architecture rather than language features: an x86_64 Ruby on an Apple silicon Mac fails `bundle install` outright, because the native extensions in fastlane's dependency graph cannot link against a `libruby` of the wrong architecture.
+
+`ios/Gemfile.lock` pins fastlane and its transitive dependencies, and its `BUNDLED WITH` stanza names bundler 2.5.9. Bundler re-executes the version named there whenever that version is installed, so a one-time `gem install bundler -v 2.5.9` makes every later `bundle install` and `bundle exec` respect the lock. Without it a newer bundler re-resolves the whole graph and rewrites `Gemfile.lock`, changing the fastlane version the release pipelines were verified against. A `bundle install` that leaves `Gemfile.lock` untouched confirms the pin is working.
 
 ## Release Distribution
 
