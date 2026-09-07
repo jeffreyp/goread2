@@ -96,3 +96,6 @@ node_modules/
 
 # Claude Code local settings (machine-specific permissions)
 .claude/settings.local.json
+
+# Beads / Dolt files (added by bd init)
+.beads/proxieddb/
