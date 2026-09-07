@@ -107,6 +107,8 @@ The reader carries its actions in one toolbar group, placed in the bottom bar on
 
 Open in Browser and links tapped inside the article content take the same path, `webPage(item:)` in `SafariView.swift`: an `SFSafariViewController` sheet on iOS and iPadOS, the default browser on macOS. Links with other schemes, such as `mailto`, go to the system handler instead.
 
+On macOS the same action is also a View menu command, ⌘⏎, published through `ReaderActions` like the other article commands and greyed out under the same rule as the toolbar button.
+
 ## Menu Bar and Keyboard Shortcuts
 
 The Mac window publishes its actions as a focused scene value, `ReaderActions`, and `ios/GoRead2/App/ReaderCommands.swift` builds the File and View menus from it. An item is disabled whenever the action behind it is absent, so every command greys out at the login screen or while the Settings window holds focus, and the article commands stay disabled until a feed is selected. Mark All Read follows the article list's own rule and is offered from All Articles only, since the endpoint is account-wide.
@@ -121,6 +123,7 @@ The File menu replaces the standard New Window group, which frees ⌘N for addin
 | File | Refresh Feeds | ⌘R |
 | View | Next Article | ⌘↓ |
 | View | Previous Article | ⌘↑ |
+| View | Open in Browser | ⌘⏎ |
 | View | Unread Only | ⇧⌘U |
 | View | Mark All Read | ⇧⌘K |
 

@@ -25,6 +25,10 @@ struct SplitRootView: View {
 
     #if os(macOS)
     @EnvironmentObject private var authManager: AuthManager
+    /// The View menu's Open in Browser command. Mac apps hand external pages
+    /// to the default browser, which is also where the reader's own toolbar
+    /// button sends them.
+    @Environment(\.openURL) private var openURL
     /// The File menu's OPML commands, which reach the API without the
     /// Settings window being open.
     @StateObject private var opml = OPMLActionModel()
@@ -273,6 +277,10 @@ struct SplitRootView: View {
             refresh: { Task { await refreshAllPanes() } },
             selectNextArticle: articleViewModel.map { _ in { moveSelection(1) } },
             selectPreviousArticle: articleViewModel.map { _ in { moveSelection(-1) } },
+            // Absent unless an article with an openable source URL is
+            // selected, the same rule the reader toolbar's button follows.
+            openArticleInBrowser: SafariItem(selectedArticle.flatMap { URL(string: $0.url) })
+                .map { page in { openURL(page.url) } },
             unreadOnly: articleViewModel.map { viewModel in
                 Binding(
                     get: { viewModel.unreadOnly },

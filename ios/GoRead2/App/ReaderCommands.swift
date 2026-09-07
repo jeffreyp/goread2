@@ -7,9 +7,9 @@ import SwiftUI
 /// Settings window has focus or before anyone signs in.
 ///
 /// The optional actions stand for state the window may not have yet: there
-/// is no article list until a feed is selected, and Mark All Read follows
-/// the article list's own rule of appearing only for All Articles, since the
-/// endpoint is account-wide.
+/// is no article list until a feed is selected, no article to open until one
+/// is chosen, and Mark All Read follows the article list's own rule of
+/// appearing only for All Articles, since the endpoint is account-wide.
 struct ReaderActions {
     var addFeed: () -> Void
     var importOPML: () -> Void
@@ -17,6 +17,7 @@ struct ReaderActions {
     var refresh: () -> Void
     var selectNextArticle: (() -> Void)?
     var selectPreviousArticle: (() -> Void)?
+    var openArticleInBrowser: (() -> Void)?
     var unreadOnly: Binding<Bool>?
     var markAllRead: (() -> Void)?
 }
@@ -68,6 +69,11 @@ struct ReaderCommands: Commands {
             Button("Previous Article") { actions?.selectPreviousArticle?() }
                 .keyboardShortcut(.upArrow, modifiers: .command)
                 .disabled(actions?.selectPreviousArticle == nil)
+            // Command-Return is the open-in-browser shortcut Mac RSS
+            // readers use.
+            Button("Open in Browser") { actions?.openArticleInBrowser?() }
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(actions?.openArticleInBrowser == nil)
             Divider()
             unreadOnlyItem
             Button("Mark All Read") { actions?.markAllRead?() }
