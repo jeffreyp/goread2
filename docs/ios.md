@@ -13,6 +13,7 @@ This guide covers local development and testing on a physical device. Release di
 - [Building and Running in the Simulator](#building-and-running-in-the-simulator)
 - [Building for macOS](#building-for-macos)
 - [Platform Differences](#platform-differences)
+- [Article Reader Actions](#article-reader-actions)
 - [Menu Bar and Keyboard Shortcuts](#menu-bar-and-keyboard-shortcuts)
 - [Running on a Physical Device](#running-on-a-physical-device)
 - [Free-Account Limitations](#free-account-limitations)
@@ -91,6 +92,20 @@ Shared views carry an `#if os(...)` branch only where platform behaviour genuine
 | `?client=` value | `ios` | `macos` |
 
 The API calls behind OPML import and export live in `OPMLTransfer`, shared by the settings screen and the Mac File menu. Only the presentation is platform-specific, in `OPMLExportPresentation.swift`.
+
+## Article Reader Actions
+
+The reader carries its actions in one toolbar group, placed in the bottom bar on iOS and iPadOS and in the window toolbar on macOS, which has no bottom bar. `ios/GoRead2/Features/ArticleReader/ArticleReaderView.swift` builds the group; the navigation controls are always present and the rest appear once an article is loaded.
+
+| Action | SF Symbol | Behaviour |
+|--------|-----------|-----------|
+| Previous Article | `chevron.up` | Moves back one article, and from the caught-up screen to the last article |
+| Next Article | `chevron.down` | Moves forward one article, or to the caught-up screen past the last one |
+| Star | `star`, filled when starred | Toggles the starred flag through the shared list view model |
+| Open in Browser | `safari` | Opens the article's source URL outside the reader's `WKWebView`. Hidden when the article carries no http or https URL |
+| Share | `square.and.arrow.up` | Raises the system share sheet for the source URL |
+
+Open in Browser and links tapped inside the article content take the same path, `webPage(item:)` in `SafariView.swift`: an `SFSafariViewController` sheet on iOS and iPadOS, the default browser on macOS. Links with other schemes, such as `mailto`, go to the system handler instead.
 
 ## Menu Bar and Keyboard Shortcuts
 

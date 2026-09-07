@@ -107,10 +107,14 @@ struct ArticleReaderView: View {
                 }
                 .tint(article.isStarred ? .yellow : nil)
 
-                Button {
-                    safariItem = SafariItem(URL(string: article.url))
-                } label: {
-                    Label("Open in Browser", systemImage: "safari")
+                // Hidden rather than shown inert when the source URL is
+                // missing or is a scheme no browser opens.
+                if let sourcePage = SafariItem(URL(string: article.url)) {
+                    Button {
+                        safariItem = sourcePage
+                    } label: {
+                        Label("Open in Browser", systemImage: "safari")
+                    }
                 }
 
                 if let url = URL(string: article.url) {
