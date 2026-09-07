@@ -115,11 +115,11 @@ Personal Team signing carries restrictions that paid memberships do not:
 
 ## Ruby Toolchain for fastlane
 
-fastlane drives the signing and release commands in `ios/`, and both halves of the Ruby toolchain it runs on are pinned in the repository, because both drift by default.
+fastlane drives the signing and release commands in `ios/`, and the repository fixes the toolchain it runs on: a Ruby version file, and a Gemfile lock that also names the bundler that reads it.
 
 `ios/.ruby-version` selects Ruby 3.4.8, which rbenv, chruby, and rvm read on entering the directory. Install it once with `rbenv install 3.4.8`. The version matters for architecture rather than language features: an x86_64 Ruby on an Apple silicon Mac fails `bundle install` outright, because the native extensions in fastlane's dependency graph cannot link against a `libruby` of the wrong architecture.
 
-`ios/Gemfile.lock` pins fastlane and its transitive dependencies, and its `BUNDLED WITH` stanza names bundler 2.5.9. Bundler re-executes the version named there whenever that version is installed, so a one-time `gem install bundler -v 2.5.9` makes every later `bundle install` and `bundle exec` respect the lock. Without it a newer bundler re-resolves the whole graph and rewrites `Gemfile.lock`, changing the fastlane version the release pipelines were verified against. A `bundle install` that leaves `Gemfile.lock` untouched confirms the pin is working.
+`ios/Gemfile.lock` pins fastlane and its transitive dependencies, and its `BUNDLED WITH` stanza names bundler 2.5.9. A newer bundler reads that stanza, installs 2.5.9, and restarts under it, so the locked versions hold with no manual step. The release runners take the same path, which is why CI and a developer machine resolve the same fastlane. Forcing a newer bundler explicitly, as in `bundle _4.0.20_ install`, still honours every locked gem version but rewrites `BUNDLED WITH`; that rewrite drops the pin for the next reader and should not be committed.
 
 ## Release Distribution
 
