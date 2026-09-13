@@ -29,3 +29,17 @@
 .beads.tmp/
 # iOS app (not part of the App Engine service)
 ios/
+
+# npm/frontend build tooling (not needed at runtime; the built
+# web/static/js/*.min.js and web/static/css/*.min.css artifacts are
+# generated before deploy and are uploaded despite being gitignored).
+# node_modules/ alone can be 10000+ files, which is enough on its own
+# to hit App Engine's per-version file limit.
+node_modules/
+coverage.html
+web/coverage/
+web/tests/
+
+# Local dev artifacts
+/goread2
+goread2.db
