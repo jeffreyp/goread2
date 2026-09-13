@@ -231,6 +231,17 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 
 `test/security/` is the consolidated, CI-gated regression suite for the controls above: CSRF token enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and free-trial feed-limit enforcement. It runs as a blocking step in the `security` job in `.github/workflows/test.yml`, separate from the advisory `govulncheck` scan. See [testing.md](testing.md#cicd-integration) for details.
 
+### Dependency Vulnerability Alerts
+
+Dependabot is configured in `.github/dependabot.yml` and opens pull requests for known-vulnerable or outdated dependencies on a weekly schedule, across four ecosystems:
+
+- `gomod` (root `go.mod`) - Go module dependencies
+- `npm` (root `package.json`) - frontend build tooling
+- `bundler` (`ios/Gemfile`) - fastlane and its Ruby dependencies
+- `github-actions` (`.github/workflows/`) - action versions pinned by commit SHA
+
+This complements the advisory `govulncheck` scan above: `govulncheck` checks whether a vulnerability is reachable from the code, while Dependabot flags any known-vulnerable version regardless of reachability and proposes the update itself.
+
 ### Audit & Monitoring
 
 - **Admin action logging** - All privilege changes are logged
