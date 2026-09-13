@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	cloud.google.com/go/cloudtasks v1.19.0
-	cloud.google.com/go/datastore v1.25.0
+	cloud.google.com/go/datastore v1.26.0
 	cloud.google.com/go/secretmanager v1.20.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.12.0
