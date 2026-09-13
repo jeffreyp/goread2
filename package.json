@@ -14,7 +14,7 @@
     "watch:js": "chokidar 'web/static/js/app.js' 'web/static/js/modals.js' 'web/static/js/account.js' -c 'npm run build:js'"
   },
   "devDependencies": {
-    "@jest/globals": "^29.7.0",
+    "@jest/globals": "^30.5.1",
     "chokidar-cli": "^3.0.0",
     "csso-cli": "^4.0.2",
     "eslint": "^9.39.4",
