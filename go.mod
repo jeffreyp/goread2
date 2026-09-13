@@ -1,8 +1,6 @@
 module github.com/jeffreyp/goread2
 
-go 1.25.0
-
-toolchain go1.25.11
+go 1.26.0
 
 require (
 	cloud.google.com/go/cloudtasks v1.13.6
@@ -16,7 +14,7 @@ require (
 	golang.org/x/net v0.55.0
 	golang.org/x/oauth2 v0.30.0
 	golang.org/x/text v0.37.0
-	golang.org/x/time v0.12.0
+	golang.org/x/time v0.16.0
 	google.golang.org/api v0.237.0
 )
 
