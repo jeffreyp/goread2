@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/secretmanager v1.20.0
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.12.0
-	github.com/mattn/go-sqlite3 v1.14.29
+	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stripe/stripe-go/v78 v78.12.0
 	golang.org/x/net v0.59.0
