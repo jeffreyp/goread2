@@ -416,7 +416,7 @@ The Stripe placeholders were removed 2026-07-04 while debugging why the first au
 This is the actual production `app.yaml`. It carries no OAuth or Stripe values at all, only the Secret Manager secret *names* to look up; `CSRF_SECRET`, `ADMIN_TOKEN`, `INITIAL_ADMIN_EMAILS`, and the four Stripe variables aren't listed here because they're fetched from Secret Manager under fixed default names with no `app.yaml` entry needed at all (see the Secret Reference Convention note above).
 
 ```yaml
-runtime: go125
+runtime: go126
 
 env_variables:
   GIN_MODE: release
