@@ -64,7 +64,7 @@ Co-Authored-By: Jeffrey Pratt <jeffrey@jeffreypratt.org>
 
 ## Issue Tracking: bd (beads)
 
-This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, TaskCreate, or other tracking methods.
+This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, TodoWrite, TaskCreate, or other tracking methods. Run `bd prime` after compaction or at the start of a new session to reload full workflow context.
 
 ### Workflow
 
@@ -72,19 +72,20 @@ This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TOD
 2. **Claim atomically**: `bd update <id> --claim`
 3. **Implement, test, document**
 4. **Discovered new work?** `bd create --title="Found bug" --description="Details" -p 1 --deps discovered-from:<parent-id>`
-5. **Close**: `bd close <id>`
+5. **Close**: `bd close <id>` (or `bd close <id1> <id2> ...` for multiple)
 6. **Commit beads state** alongside code: `.beads/issues.jsonl` should always be committed with the related code changes.
 
 ### Key Commands
 
 ```bash
 bd ready                                              # unblocked issues
+bd show <id>                                          # detailed issue view
 bd create --title="..." --description="..." -t task -p 2  # new issue
 bd update <id> --claim                                # claim + mark in_progress
 bd close <id> --reason "Done"                         # complete
-bd close <id1> <id2> ...                              # close multiple
 bd dep add <issue> <depends-on>                       # add dependency
 bd dolt push / bd dolt pull                           # sync with remote
+bd remember "insight"                                 # persistent knowledge across sessions (not MEMORY.md)
 ```
 
 ### Issue Types & Priorities
@@ -112,6 +113,8 @@ bd dolt push / bd dolt pull                           # sync with remote
 - Link discovered work with `discovered-from` dependencies
 - Check `bd ready` before asking "what should I work on?"
 
+Architecture in one line: issues live in a local Dolt DB; sync uses `refs/dolt/data` on the git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+
 ## Session Completion Protocol
 
 Work is **not done** until `git push` succeeds.
@@ -131,9 +134,11 @@ git pull --rebase
 bd dolt push
 git push
 git status            # must show "up to date with origin"
+
+# 5. Clean up any stashes or stale remote branches, then hand off context for the next session
 ```
 
-Never stop before pushing, since that leaves work stranded locally. If push fails, resolve and retry.
+Never stop before pushing, since that leaves work stranded locally. Never say "ready to push when you are"; push it. If push fails, resolve and retry.
 
 ## Ephemeral Planning Documents
 
@@ -148,52 +153,3 @@ When `CAO_TERMINAL_ID` is set, you are in a multi-agent session:
 - **Reviewer**: Reviews diffs; approves or requests changes
 
 Beads issues carry all task context (title, description, acceptance criteria, design notes). Pass the issue ID between agents; they fetch details via `bd show <id>`.
-
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
-
-### Rules
-
-- Use `bd` for ALL task tracking; do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge; do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
