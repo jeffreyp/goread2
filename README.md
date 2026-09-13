@@ -6,16 +6,6 @@
 
 A modern, multi-user RSS reader inspired by Google Reader and [GoRead](https://github.com/madelynnblue/goread).
 
-## Features
-
-- Multi-user support with Google OAuth authentication
-- Three-pane layout (feeds → articles → content) like Google Reader
-- RSS/Atom feed support with OPML import and export
-- Keyboard shortcuts for efficient navigation
-- Subscription system with a 30-day free trial and Stripe integration
-
-See the [Features Guide](docs/features.md) for the complete list and usage tips.
-
 ## Quick Start
 
 ### Prerequisites
@@ -43,7 +33,7 @@ Access at [http://localhost:8080](http://localhost:8080) and sign in with Google
 
 See the [Setup Guide](docs/setup.md) for Google OAuth configuration, frontend asset builds, and full environment variable reference.
 
-## Build System
+## Build
 
 ```bash
 make help   # Show all available commands
