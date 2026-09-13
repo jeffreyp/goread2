@@ -12,7 +12,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stripe/stripe-go/v78 v78.12.0
 	golang.org/x/net v0.59.0
-	golang.org/x/oauth2 v0.36.0
+	golang.org/x/oauth2 v0.37.0
 	golang.org/x/text v0.42.0
 	golang.org/x/time v0.16.0
 	google.golang.org/api v0.287.1
