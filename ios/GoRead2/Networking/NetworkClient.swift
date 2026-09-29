@@ -218,7 +218,31 @@ final class NetworkClient {
 
     // MARK: - Response handling
 
+    /// Backoff before each retry of a GET that failed with a connectivity
+    /// error. Such failures are often transient at launch or on returning
+    /// from the background: the first requests can go out on pooled
+    /// connections that died while the app was suspended
+    /// (networkConnectionLost), or before the network path is ready.
+    private static let connectivityRetryDelays: [Duration] = [.milliseconds(500), .seconds(1)]
+
+    /// Sends `request`, retrying GETs on connectivity errors. Mutating
+    /// requests are never retried, since the server may already have
+    /// applied the first attempt.
     private func send(_ request: URLRequest) async throws -> Data {
+        let retryDelays = request.httpMethod == "GET" ? Self.connectivityRetryDelays : []
+        var attempt = 0
+        while true {
+            do {
+                return try await sendOnce(request)
+            } catch NetworkError.noConnection where attempt < retryDelays.count {
+                // Throws CancellationError if the owning task goes away.
+                try await Task.sleep(for: retryDelays[attempt])
+                attempt += 1
+            }
+        }
+    }
+
+    private func sendOnce(_ request: URLRequest) async throws -> Data {
         let data: Data
         let response: URLResponse
         do {
