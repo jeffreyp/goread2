@@ -255,6 +255,10 @@ func (fh *FeedHandler) MarkRead(c *gin.Context) {
 	}
 
 	if err := fh.feedService.MarkUserArticleRead(user.ID, id, req.IsRead, req.FeedID, req.WasRead); err != nil {
+		if errors.Is(err, database.ErrArticleAccessDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not subscribed to this article's feed."})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update the article. Please try again."})
 		return
 	}
@@ -277,6 +281,10 @@ func (fh *FeedHandler) ToggleStar(c *gin.Context) {
 	}
 
 	if err := fh.feedService.ToggleUserArticleStar(user.ID, id); err != nil {
+		if errors.Is(err, database.ErrArticleAccessDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not subscribed to this article's feed."})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update the article. Please try again."})
 		return
 	}

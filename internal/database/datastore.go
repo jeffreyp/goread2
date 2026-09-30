@@ -1314,7 +1314,43 @@ func (db *DatastoreDB) SetUserArticleStatus(userID, articleID int, isRead, isSta
 	return nil
 }
 
+// verifyUserSubscribedToArticle confirms userID is subscribed to the feed
+// that articleID belongs to, so per-user article mutations can't be applied
+// to articles from feeds the user never subscribed to. Article IDs are
+// sequential and guessable, so this check can't be skipped just because the
+// caller already knows the ID.
+func (db *DatastoreDB) verifyUserSubscribedToArticle(ctx context.Context, userID, articleID int) error {
+	key := datastore.IDKey("Article", int64(articleID), nil)
+	var entity ArticleEntity
+	if err := db.client.Get(ctx, key, &entity); err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			return ErrArticleAccessDenied
+		}
+		return fmt.Errorf("failed to get article: %w", err)
+	}
+
+	subQuery := datastore.NewQuery("UserFeed").
+		FilterField("user_id", "=", int64(userID)).
+		FilterField("feed_id", "=", entity.FeedID).
+		KeysOnly().
+		Limit(1)
+	subKeys, err := db.client.GetAll(ctx, subQuery, nil)
+	if err != nil {
+		return fmt.Errorf("failed to check user subscription: %w", err)
+	}
+	if len(subKeys) == 0 {
+		return ErrArticleAccessDenied
+	}
+	return nil
+}
+
 func (db *DatastoreDB) MarkUserArticleRead(userID, articleID int, isRead bool) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+	if err := db.verifyUserSubscribedToArticle(ctx, userID, articleID); err != nil {
+		return err
+	}
+
 	// Get existing status or create new one
 	existing, err := db.GetUserArticleStatus(userID, articleID)
 	isStarred := false
@@ -1326,6 +1362,12 @@ func (db *DatastoreDB) MarkUserArticleRead(userID, articleID int, isRead bool) e
 }
 
 func (db *DatastoreDB) ToggleUserArticleStar(userID, articleID int) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+	if err := db.verifyUserSubscribedToArticle(ctx, userID, articleID); err != nil {
+		return err
+	}
+
 	// Get existing status
 	existing, err := db.GetUserArticleStatus(userID, articleID)
 	isRead := false

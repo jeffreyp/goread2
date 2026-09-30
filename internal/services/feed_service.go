@@ -687,7 +687,7 @@ func (fs *FeedService) convertRSSToFeedData(rss *RSS, feedURL string) *FeedData 
 
 		articles[i] = ArticleData{
 			Title:       fs.sanitizeArticleTitle(item.Title, item.Link, item.Description),
-			Link:        item.Link,
+			Link:        fs.sanitizeArticleLink(item.Link, feedURL),
 			Description: fs.sanitizeHTML(item.Description),
 			Content:     fs.sanitizeHTML(item.Content),
 			Author:      item.Author,
@@ -712,7 +712,7 @@ func (fs *FeedService) convertRDFToFeedData(rdf *RDF, feedURL string) *FeedData 
 
 		articles[i] = ArticleData{
 			Title:       fs.sanitizeArticleTitle(item.Title, item.Link, item.Description),
-			Link:        item.Link,
+			Link:        fs.sanitizeArticleLink(item.Link, feedURL),
 			Description: fs.sanitizeHTML(item.Description),
 			Content:     fs.sanitizeHTML(item.Description), // RDF doesn't usually have separate content
 			Author:      item.Creator,
@@ -746,7 +746,7 @@ func (fs *FeedService) convertAtomToFeedData(atom *Atom, feedURL string) *FeedDa
 
 		articles[i] = ArticleData{
 			Title:       fs.sanitizeArticleTitle(entry.Title, entry.Link.Href, entry.Summary),
-			Link:        entry.Link.Href,
+			Link:        fs.sanitizeArticleLink(entry.Link.Href, feedURL),
 			Description: fs.sanitizeHTML(entry.Summary),
 			Content:     fs.sanitizeHTML(content),
 			Author:      entry.Author.Name,
@@ -1318,6 +1318,32 @@ func (fs *FeedService) sanitizeArticleTitle(title, link, description string) str
 	title = fs.cleanTitle(title)
 
 	return title
+}
+
+// sanitizeArticleLink resolves an article link against the feed's own URL
+// (so relative and scheme-relative links become usable absolute links) and
+// rejects the result unless it's an absolute http(s) URL. Feed content is
+// attacker-controlled, so this also stops a malicious feed from storing a
+// javascript: URI or other non-http(s) scheme that a client might later
+// render into a clickable link.
+func (fs *FeedService) sanitizeArticleLink(link, feedURL string) string {
+	link = strings.TrimSpace(link)
+	if link == "" {
+		return ""
+	}
+	base, err := url.Parse(feedURL)
+	if err != nil {
+		return ""
+	}
+	ref, err := url.Parse(link)
+	if err != nil {
+		return ""
+	}
+	resolved := base.ResolveReference(ref)
+	if (resolved.Scheme != "http" && resolved.Scheme != "https") || resolved.Host == "" {
+		return ""
+	}
+	return resolved.String()
 }
 
 func (fs *FeedService) isInvalidTitle(title string) bool {

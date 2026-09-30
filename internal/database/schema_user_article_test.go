@@ -349,6 +349,9 @@ func TestMarkUserArticleRead(t *testing.T) {
 
 	user := createTestUser(t, db)
 	feed := createTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 	article := createTestArticle(t, db, feed.ID)
 
 	// Mark as read
@@ -391,6 +394,9 @@ func TestToggleUserArticleStar(t *testing.T) {
 
 	user := createTestUser(t, db)
 	feed := createTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 	article := createTestArticle(t, db, feed.ID)
 
 	// First toggle - should star

@@ -38,6 +38,9 @@ func TestDatastoreMarkUserArticleRead(t *testing.T) {
 
 	user := createDatastoreTestUser(t, db)
 	feed := createDatastoreTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 	article := createDatastoreTestArticle(t, db, feed.ID)
 
 	// Starring first, then marking read, should preserve the starred flag.
@@ -76,6 +79,9 @@ func TestDatastoreToggleUserArticleStar(t *testing.T) {
 
 	user := createDatastoreTestUser(t, db)
 	feed := createDatastoreTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
 	article := createDatastoreTestArticle(t, db, feed.ID)
 
 	if err := db.MarkUserArticleRead(user.ID, article.ID, true); err != nil {
@@ -281,8 +287,12 @@ func TestDatastoreCleanupOrphanedUserArticlesPagination(t *testing.T) {
 
 	const total = 550 // exceeds CleanupOrphanedUserArticles' 500-per-page batch size
 	for userID := 1; userID <= total; userID++ {
-		if err := db.MarkUserArticleRead(userID, article.ID, true); err != nil {
-			t.Fatalf("MarkUserArticleRead(%d) failed: %v", userID, err)
+		// Uses the unguarded SetUserArticleStatus (not MarkUserArticleRead) to seed
+		// orphaned rows directly: MarkUserArticleRead now rejects writes for users
+		// who aren't subscribed to the article's feed, which is exactly the state
+		// this test needs to set up.
+		if err := db.SetUserArticleStatus(userID, article.ID, true, false); err != nil {
+			t.Fatalf("SetUserArticleStatus(%d) failed: %v", userID, err)
 		}
 	}
 	// None of these users ever subscribed to the feed, so every UserArticle is orphaned.

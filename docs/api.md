@@ -453,6 +453,9 @@ Mark article as read or unread for current user.
 }
 ```
 
+**Error Responses**:
+- `403 Forbidden` - The current user is not subscribed to this article's feed
+
 **Example**:
 ```bash
 # Mark as read
@@ -480,6 +483,9 @@ Toggle star status for article.
   "message": "Article starred status toggled"
 }
 ```
+
+**Error Responses**:
+- `403 Forbidden` - The current user is not subscribed to this article's feed
 
 **Example**:
 ```bash

@@ -323,6 +323,9 @@ func TestFeedService_MarkUserArticleRead(t *testing.T) {
 
 	user := createTestUser(t, db)
 	feed := createTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed: %v", err)
+	}
 	article := createTestArticle(t, db, feed.ID)
 	if err := db.SetUserArticleStatus(user.ID, article.ID, false, false); err != nil {
 		t.Fatalf("SetUserArticleStatus: %v", err)
@@ -339,6 +342,9 @@ func TestFeedService_ToggleUserArticleStar(t *testing.T) {
 
 	user := createTestUser(t, db)
 	feed := createTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed: %v", err)
+	}
 	article := createTestArticle(t, db, feed.ID)
 	if err := db.SetUserArticleStatus(user.ID, article.ID, false, false); err != nil {
 		t.Fatalf("SetUserArticleStatus: %v", err)

@@ -113,7 +113,7 @@ SUBSCRIPTION_ENABLED=false  # Set to true for paid features
 - **Session management** - HTTP-only, secure (in production) session cookies with 7-day expiration
 - **CSRF protection** - Token-based CSRF protection for all state-changing API operations
 - **Admin middleware** - Proper privilege checks for sensitive operations
-- **User data isolation** - Complete separation of user data
+- **User data isolation** - Complete separation of user data. Article state mutations (`POST /api/articles/:id/read`, `/star`) verify the caller is subscribed to the article's feed before writing, since article IDs are sequential and guessable; an unauthorized request gets `403 Forbidden`.
 - **Rate limiting** - IP-based rate limiting to prevent brute force and DoS attacks
 
 ### Session Security
@@ -206,7 +206,7 @@ Protection against brute force and DoS attacks:
 
 ### Input Validation
 
-- **XSS protection** - All user inputs are properly escaped
+- **XSS protection** - All user inputs are properly escaped. Article links from feed content are resolved against the feed's URL and restricted to the `http`/`https` schemes, both at storage time (`sanitizeArticleLink` in `internal/services/feed_service.go`) and at render time (`sanitizeUrl` in `web/static/js/app.js`), so a malicious feed can't store a `javascript:` URI or inject markup through an unescaped link attribute.
 - **URL validation** - Feed URLs are validated before processing
 - **Request size limits** - File uploads limited to 10MB
 - **SQL injection prevention** - All database queries use parameterized statements

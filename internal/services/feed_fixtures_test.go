@@ -111,22 +111,20 @@ func TestParseFeedFixtures(t *testing.T) {
 			},
 		},
 		{
-			// The parser copies <link> verbatim into ArticleData.Link (feed_service.go
-			// convertRSSToFeedData) — there is no url.Parse+ResolveReference against the
-			// feed's own URL. This test documents that current behaviour so a future
-			// change to add real resolution has to update it deliberately rather than
-			// silently regress in either direction.
-			name:          "RSS with relative and scheme-relative links (no resolution performed)",
+			// sanitizeArticleLink (feed_service.go) resolves <link> against the feed's
+			// own URL via url.ResolveReference, so relative and scheme-relative links
+			// become usable absolute http(s) links instead of being stored broken.
+			name:          "RSS with relative and scheme-relative links (resolved against feed URL)",
 			fixture:       "rss2_relative_urls.xml",
 			feedURL:       "https://relative.example.com/rss.xml",
 			expectedTitle: "Relative Link Blog",
 			articleCount:  2,
 			check: func(t *testing.T, fd *FeedData) {
-				if got := fd.Articles[0].Link; got != "/articles/relative-one" {
-					t.Errorf("article[0] link should pass through unresolved, got %q", got)
+				if got := fd.Articles[0].Link; got != "https://relative.example.com/articles/relative-one" {
+					t.Errorf("article[0] link should resolve against feed URL, got %q", got)
 				}
-				if got := fd.Articles[1].Link; got != "//relative.example.com/articles/relative-two" {
-					t.Errorf("article[1] link should pass through unresolved, got %q", got)
+				if got := fd.Articles[1].Link; got != "https://relative.example.com/articles/relative-two" {
+					t.Errorf("article[1] link should resolve against feed URL, got %q", got)
 				}
 			},
 		},

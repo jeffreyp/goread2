@@ -14,6 +14,11 @@ import (
 
 var ErrSelfDemotion = errors.New("cannot remove your own admin privileges")
 
+// ErrArticleAccessDenied is returned when a user attempts to read or mutate
+// per-user state (read/starred status) for an article belonging to a feed
+// they are not subscribed to.
+var ErrArticleAccessDenied = errors.New("not subscribed to this article's feed")
+
 // paginationOverfetch is added to the requested limit to detect whether more results exist.
 // If len(results) > requested limit, there is a next page; results are then trimmed to limit.
 const paginationOverfetch = 1
@@ -1091,7 +1096,31 @@ func (db *DB) SetUserArticleStatus(userID, articleID int, isRead, isStarred bool
 	return err
 }
 
+// isUserSubscribedToArticle reports whether userID is subscribed to the feed
+// that articleID belongs to, so per-user article mutations can't be applied
+// to articles from feeds the user never subscribed to.
+func (db *DB) isUserSubscribedToArticle(userID, articleID int) (bool, error) {
+	var dummy int
+	query := `SELECT 1 FROM articles a JOIN user_feeds uf ON a.feed_id = uf.feed_id
+			  WHERE a.id = ? AND uf.user_id = ?`
+	err := db.QueryRow(query, articleID, userID).Scan(&dummy)
+	switch err {
+	case nil:
+		return true, nil
+	case sql.ErrNoRows:
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
 func (db *DB) MarkUserArticleRead(userID, articleID int, isRead bool) error {
+	if ok, err := db.isUserSubscribedToArticle(userID, articleID); err != nil {
+		return err
+	} else if !ok {
+		return ErrArticleAccessDenied
+	}
+
 	// First check if record exists
 	var dummy int
 	checkQuery := `SELECT 1 FROM user_articles WHERE user_id = ? AND article_id = ?`
@@ -1113,6 +1142,12 @@ func (db *DB) MarkUserArticleRead(userID, articleID int, isRead bool) error {
 }
 
 func (db *DB) ToggleUserArticleStar(userID, articleID int) error {
+	if ok, err := db.isUserSubscribedToArticle(userID, articleID); err != nil {
+		return err
+	} else if !ok {
+		return ErrArticleAccessDenied
+	}
+
 	// First check if record exists
 	var currentStarred bool
 	checkQuery := `SELECT is_starred FROM user_articles WHERE user_id = ? AND article_id = ?`

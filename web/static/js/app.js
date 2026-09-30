@@ -1833,7 +1833,7 @@ class GoReadApp {
             <div class="meta">
                 <span>${publishedDate}</span>
                 ${article.author ? `<span>by ${this.escapeHtml(article.author)}</span>` : ''}
-                <a href="${article.url}" target="_blank" rel="noopener">View Original</a>
+                <a class="article-original-link" target="_blank" rel="noopener">View Original</a>
             </div>
             <div class="content">
                 ${sanitizedContent}
@@ -1843,6 +1843,16 @@ class GoReadApp {
         const backBtn = contentPane.querySelector('.article-back-btn');
         if (backBtn) {
             backBtn.addEventListener('click', () => this.updateMobileNavigation('articles'));
+        }
+
+        const originalLink = contentPane.querySelector('.article-original-link');
+        if (originalLink) {
+            const safeUrl = this.sanitizeUrl(article.url);
+            if (safeUrl) {
+                originalLink.href = safeUrl;
+            } else {
+                originalLink.remove();
+            }
         }
 
         contentPane.querySelectorAll('img').forEach(img => {
@@ -2004,12 +2014,18 @@ class GoReadApp {
         if (this.currentArticle === null) return;
 
         const article = this.articles[this.currentArticle];
-        window.open(article.url, '_blank');
+        const safeUrl = this.sanitizeUrl(article.url);
+        if (safeUrl) {
+            window.open(safeUrl, '_blank');
+        }
     }
 
     openCurrentArticleInPlace() {
         if (this.currentArticle === null) return;
-        window.location.href = this.articles[this.currentArticle].url;
+        const safeUrl = this.sanitizeUrl(this.articles[this.currentArticle].url);
+        if (safeUrl) {
+            window.location.href = safeUrl;
+        }
     }
 
     async markAllRead() {
@@ -2681,6 +2697,21 @@ class GoReadApp {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Returns the URL if it is a safe absolute http(s) URL, otherwise null.
+    // Feed-supplied URLs are attacker-controlled, so reject javascript:/data:
+    // and other schemes before ever assigning them to a DOM property.
+    sanitizeUrl(url) {
+        if (!url) {
+            return null;
+        }
+        try {
+            const parsed = new URL(url, window.location.href);
+            return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.href : null;
+        } catch (e) {
+            return null;
+        }
     }
 
     // Empty state helper
