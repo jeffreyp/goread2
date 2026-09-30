@@ -49,6 +49,7 @@ dolt-server.log
 dolt-server.lock
 dolt-server.port
 dolt-server.activity
+dolt-server-config.yaml
 
 # Corrupt backup directories (created by bd doctor --fix recovery)
 *.corrupt.backup/
@@ -76,3 +77,6 @@ bd.db
 last_pull
 proxieddb/
 proxied_server_client_info.json
+
+# Added by bd (missing required patterns)
+*.gate.lock*
