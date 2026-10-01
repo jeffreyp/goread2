@@ -161,10 +161,10 @@ class AccountApp {
                 </p>
             `;
             actionsHTML = `
-                <button class="btn btn-primary" onclick="accountApp.manageSubscription()">
+                <button class="btn btn-primary" data-action="manage-subscription">
                     Manage Subscription
                 </button>
-                <button class="btn btn-secondary" onclick="accountApp.downloadInvoices()">
+                <button class="btn btn-secondary" data-action="download-invoices">
                     View Billing History
                 </button>
             `;
@@ -184,7 +184,7 @@ class AccountApp {
                 </p>
             `;
             actionsHTML = `
-                <button class="btn btn-primary" onclick="accountApp.startSubscription()">
+                <button class="btn btn-primary" data-action="start-subscription">
                     Subscribe to GoRead2 Pro
                 </button>
             `;
@@ -200,10 +200,10 @@ class AccountApp {
                 </p>
             `;
             actionsHTML = `
-                <button class="btn btn-primary" onclick="accountApp.manageSubscription()">
+                <button class="btn btn-primary" data-action="manage-subscription">
                     Manage Subscription
                 </button>
-                <button class="btn btn-secondary" onclick="accountApp.downloadInvoices()">
+                <button class="btn btn-secondary" data-action="download-invoices">
                     View Billing History
                 </button>
             `;
@@ -221,7 +221,7 @@ class AccountApp {
                     </p>
                 `;
                 actionsHTML = `
-                    <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
+                    <button class="btn btn-primary" data-action="upgrade-subscription">
                         Subscribe to Pro ($9.99/month)
                     </button>
                 `;
@@ -241,7 +241,7 @@ class AccountApp {
                     </p>
                 `;
                 actionsHTML = `
-                    <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
+                    <button class="btn btn-primary" data-action="upgrade-subscription">
                         Upgrade to Pro ($9.99/month)
                     </button>
                 `;
@@ -260,7 +260,7 @@ class AccountApp {
                 </p>
             `;
             actionsHTML = info.feed_limit > 0 ? `
-                <button class="btn btn-primary" onclick="accountApp.upgradeSubscription()">
+                <button class="btn btn-primary" data-action="upgrade-subscription">
                     Subscribe to Pro ($9.99/month)
                 </button>
             ` : '';
@@ -285,6 +285,18 @@ class AccountApp {
                 </div>
             </div>
         `;
+
+        // Bind actions with listeners rather than inline onclick attributes,
+        // which the Content-Security-Policy blocks.
+        const actions = {
+            'manage-subscription': () => this.manageSubscription(),
+            'download-invoices': () => this.downloadInvoices(),
+            'start-subscription': () => this.startSubscription(),
+            'upgrade-subscription': () => this.upgradeSubscription()
+        };
+        subscriptionElement.querySelectorAll('[data-action]').forEach(button => {
+            button.addEventListener('click', actions[button.dataset.action]);
+        });
     }
 
     async loadSettings() {

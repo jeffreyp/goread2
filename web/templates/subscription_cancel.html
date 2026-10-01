@@ -8,12 +8,7 @@
     
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-XYJCPFNCVY"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-XYJCPFNCVY');
-    </script>
+    <script src="/static/js/analytics.js"></script>
 </head>
 <body>
     <div class="privacy-container">
@@ -39,17 +34,6 @@
         </div>
     </div>
 
-    <script>
-        document.getElementById('try-again-btn').addEventListener('click', (e) => {
-            e.preventDefault();
-            window.location.href = '/';
-            // The subscription modal will be triggered from the main app
-        });
-
-        // Auto-redirect to main app after 10 seconds
-        setTimeout(() => {
-            window.location.href = '/';
-        }, 10000);
-    </script>
+    <script src="/static/js/subscription-redirect.js" data-redirect-delay="10000"></script>
 </body>
 </html>

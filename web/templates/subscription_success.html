@@ -8,12 +8,7 @@
     
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-XYJCPFNCVY"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-XYJCPFNCVY');
-    </script>
+    <script src="/static/js/analytics.js"></script>
 </head>
 <body>
     <div class="privacy-container">
@@ -41,11 +36,6 @@
         </div>
     </div>
 
-    <script>
-        // Auto-redirect to main app after 5 seconds
-        setTimeout(() => {
-            window.location.href = '/';
-        }, 5000);
-    </script>
+    <script src="/static/js/subscription-redirect.js" data-redirect-delay="5000"></script>
 </body>
 </html>

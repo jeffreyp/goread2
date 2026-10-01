@@ -84,6 +84,7 @@ CSRF_SECRET="your-base64-encoded-32-byte-secret"
 
 # Optional features
 SUBSCRIPTION_ENABLED=false  # Set to true for paid features
+CSP_REPORT_ONLY=false       # Set to true to report CSP violations without blocking them
 ```
 
 ### Database Security
@@ -215,6 +216,17 @@ Protection against brute force and DoS attacks:
 ### Cross-Origin Requests
 
 CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_ORIGIN` to an exact origin allows that single origin to make credentialed cross-origin requests (`GET, POST, PUT, DELETE, OPTIONS`, headers `Content-Type, Authorization, X-CSRF-Token`); any other origin, or no `ALLOWED_ORIGIN` at all, gets no CORS headers and falls back to the browser's same-origin policy.
+
+### Content Security Policy
+
+`internal/middleware/security_headers.go` sends an enforcing `Content-Security-Policy` header on every response. Setting `CSP_REPORT_ONLY=true` sends the same policy as `Content-Security-Policy-Report-Only` instead, so browsers log violations to the console without blocking them.
+
+`script-src` allows only `'self'`, `https://www.googletagmanager.com` (Google Analytics), and `https://cdn.jsdelivr.net` (DOMPurify). It does not allow `'unsafe-inline'`, so a script injected through feed content does not run even if it gets past sanitization. The frontend follows two rules to stay within this policy:
+
+- Templates load only external scripts. The Google Analytics bootstrap is `web/static/js/analytics.js`, and the subscription success and cancel pages use `web/static/js/subscription-redirect.js`.
+- JavaScript that builds markup binds event handlers with `addEventListener`, never with inline `on*` attributes such as `onclick`.
+
+`style-src` allows `https://fonts.googleapis.com` for the Inter font stylesheet, and still allows `'unsafe-inline'` because sanitized article content and templates carry inline `style` attributes.
 
 ### Request Tracing
 

@@ -8,21 +8,23 @@ import (
 
 // SecurityHeaders returns middleware that sets HTTP security headers on all responses.
 //
-// CSP defaults to report-only mode. Set CSP_ENFORCE=true to block violations.
-// In report-only mode, browsers log violations to the console but don't block
-// resources, letting you audit what would break before enforcing.
+// CSP is enforced by default. Set CSP_REPORT_ONLY=true to fall back to
+// report-only mode, in which browsers log violations to the console but do not
+// block resources.
 func SecurityHeaders() gin.HandlerFunc {
 	isProduction := os.Getenv("GAE_ENV") == "standard"
-	enforceCSP := os.Getenv("CSP_ENFORCE") == "true"
+	reportOnlyCSP := os.Getenv("CSP_REPORT_ONLY") == "true"
 
 	// Content-Security-Policy directives:
-	// - script-src: 'unsafe-inline' required for Google Analytics bootstrap snippet
-	// - style-src: 'unsafe-inline' required for inline styles in templates and article content
+	// - script-src: no 'unsafe-inline'; templates load only external scripts and
+	//   the frontend binds event listeners instead of inline on* attributes
+	// - style-src: 'unsafe-inline' required for inline styles in templates and article content;
+	//   fonts.googleapis.com serves the Inter stylesheet (font files come from fonts.gstatic.com)
 	// - img-src: http: and https: because RSS article content has images from arbitrary domains
 	// - connect-src: GA4 uses regional subdomains (region1.google-analytics.com, etc.)
 	csp := "default-src 'self'; " +
-		"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://cdn.jsdelivr.net; " +
-		"style-src 'self' 'unsafe-inline'; " +
+		"script-src 'self' https://www.googletagmanager.com https://cdn.jsdelivr.net; " +
+		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 		"img-src 'self' data: http: https:; " +
 		"connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; " +
 		"font-src 'self' https://fonts.gstatic.com; " +
@@ -30,9 +32,9 @@ func SecurityHeaders() gin.HandlerFunc {
 		"base-uri 'self'; " +
 		"form-action 'self'"
 
-	cspHeader := "Content-Security-Policy-Report-Only"
-	if enforceCSP {
-		cspHeader = "Content-Security-Policy"
+	cspHeader := "Content-Security-Policy"
+	if reportOnlyCSP {
+		cspHeader = "Content-Security-Policy-Report-Only"
 	}
 
 	return func(c *gin.Context) {
@@ -48,7 +50,7 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Restrict browser features — disable APIs this app never uses
 		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=()")
 
-		// Content Security Policy (report-only by default, set CSP_ENFORCE=true to block)
+		// Content Security Policy (enforced unless CSP_REPORT_ONLY=true)
 		c.Header(cspHeader, csp)
 
 		// HSTS — force HTTPS for all future visits (only in production over TLS)

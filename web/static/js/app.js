@@ -3126,7 +3126,7 @@ class GoReadApp {
                         <div class="status">Free Trial</div>
                         <div class="details">${feedsUsed}/${feedLimit} feeds • ${daysLeft} days left</div>
                     </div>
-                    ${(isNearLimit || daysLeft <= 7) ? '<button class="upgrade-btn" onclick="app.startUpgradeProcess()">Upgrade</button>' : ''}
+                    ${(isNearLimit || daysLeft <= 7) ? '<button class="upgrade-btn">Upgrade</button>' : ''}
                 </div>
             `;
         } else {
@@ -3137,12 +3137,17 @@ class GoReadApp {
                         <div class="status">Trial Expired</div>
                         <div class="details">Subscribe to continue</div>
                     </div>
-                    <button class="upgrade-btn" onclick="app.startUpgradeProcess()">Subscribe</button>
+                    <button class="upgrade-btn">Subscribe</button>
                 </div>
             `;
         }
 
         panel.innerHTML = panelHTML;
+
+        const upgradeBtn = panel.querySelector('.upgrade-btn');
+        if (upgradeBtn) {
+            upgradeBtn.addEventListener('click', () => this.startUpgradeProcess());
+        }
     }
 }
 

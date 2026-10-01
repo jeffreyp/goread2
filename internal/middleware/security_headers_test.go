@@ -28,7 +28,7 @@ func doRequest(r *gin.Engine) *httptest.ResponseRecorder {
 }
 
 func TestSecurityHeaders_AlwaysPresent(t *testing.T) {
-	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+	if err := os.Unsetenv("CSP_REPORT_ONLY"); err != nil {
 		t.Fatal(err)
 	}
 	r := setupSecurityRouter()
@@ -55,28 +55,10 @@ func TestSecurityHeaders_AlwaysPresent(t *testing.T) {
 	}
 }
 
-func TestSecurityHeaders_CSPReportOnlyByDefault(t *testing.T) {
-	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+func TestSecurityHeaders_CSPEnforcedByDefault(t *testing.T) {
+	if err := os.Unsetenv("CSP_REPORT_ONLY"); err != nil {
 		t.Fatal(err)
 	}
-	r := setupSecurityRouter()
-	w := doRequest(r)
-
-	// Should use Report-Only header, not enforcing
-	reportOnly := w.Header().Get("Content-Security-Policy-Report-Only")
-	enforcing := w.Header().Get("Content-Security-Policy")
-
-	if reportOnly == "" {
-		t.Error("expected Content-Security-Policy-Report-Only header, got empty")
-	}
-	if enforcing != "" {
-		t.Errorf("expected no Content-Security-Policy header in report-only mode, got %q", enforcing)
-	}
-}
-
-func TestSecurityHeaders_CSPEnforced(t *testing.T) {
-	t.Setenv("CSP_ENFORCE", "true")
-
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
@@ -84,21 +66,54 @@ func TestSecurityHeaders_CSPEnforced(t *testing.T) {
 	reportOnly := w.Header().Get("Content-Security-Policy-Report-Only")
 
 	if enforcing == "" {
-		t.Error("expected Content-Security-Policy header when CSP_ENFORCE=true, got empty")
+		t.Error("expected Content-Security-Policy header by default, got empty")
 	}
 	if reportOnly != "" {
-		t.Errorf("expected no Report-Only header when enforcing, got %q", reportOnly)
+		t.Errorf("expected no Report-Only header by default, got %q", reportOnly)
 	}
 }
 
-func TestSecurityHeaders_CSPDirectives(t *testing.T) {
-	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+func TestSecurityHeaders_CSPReportOnly(t *testing.T) {
+	t.Setenv("CSP_REPORT_ONLY", "true")
+
+	r := setupSecurityRouter()
+	w := doRequest(r)
+
+	reportOnly := w.Header().Get("Content-Security-Policy-Report-Only")
+	enforcing := w.Header().Get("Content-Security-Policy")
+
+	if reportOnly == "" {
+		t.Error("expected Content-Security-Policy-Report-Only header when CSP_REPORT_ONLY=true, got empty")
+	}
+	if enforcing != "" {
+		t.Errorf("expected no Content-Security-Policy header in report-only mode, got %q", enforcing)
+	}
+}
+
+func TestSecurityHeaders_CSPScriptSrcDisallowsInline(t *testing.T) {
+	if err := os.Unsetenv("CSP_REPORT_ONLY"); err != nil {
 		t.Fatal(err)
 	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
-	csp := w.Header().Get("Content-Security-Policy-Report-Only")
+	csp := w.Header().Get("Content-Security-Policy")
+	for _, d := range strings.Split(csp, ";") {
+		d = strings.TrimSpace(d)
+		if strings.HasPrefix(d, "script-src ") && strings.Contains(d, "'unsafe-inline'") {
+			t.Errorf("script-src must not allow 'unsafe-inline', got %q", d)
+		}
+	}
+}
+
+func TestSecurityHeaders_CSPDirectives(t *testing.T) {
+	if err := os.Unsetenv("CSP_REPORT_ONLY"); err != nil {
+		t.Fatal(err)
+	}
+	r := setupSecurityRouter()
+	w := doRequest(r)
+
+	csp := w.Header().Get("Content-Security-Policy")
 	directives := []string{
 		"default-src 'self'",
 		"script-src 'self'",
@@ -119,13 +134,13 @@ func TestSecurityHeaders_CSPDirectives(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSPAllowsGoogleAnalytics(t *testing.T) {
-	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+	if err := os.Unsetenv("CSP_REPORT_ONLY"); err != nil {
 		t.Fatal(err)
 	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
-	csp := w.Header().Get("Content-Security-Policy-Report-Only")
+	csp := w.Header().Get("Content-Security-Policy")
 
 	// GA script loading
 	if !strings.Contains(csp, "https://www.googletagmanager.com") {
@@ -137,14 +152,30 @@ func TestSecurityHeaders_CSPAllowsGoogleAnalytics(t *testing.T) {
 	}
 }
 
-func TestSecurityHeaders_CSPAllowsDOMPurifyCDN(t *testing.T) {
-	if err := os.Unsetenv("CSP_ENFORCE"); err != nil {
+func TestSecurityHeaders_CSPAllowsGoogleFonts(t *testing.T) {
+	if err := os.Unsetenv("CSP_REPORT_ONLY"); err != nil {
 		t.Fatal(err)
 	}
 	r := setupSecurityRouter()
 	w := doRequest(r)
 
-	csp := w.Header().Get("Content-Security-Policy-Report-Only")
+	csp := w.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com") {
+		t.Error("CSP should allow fonts.googleapis.com in style-src for the Inter stylesheet")
+	}
+	if !strings.Contains(csp, "font-src 'self' https://fonts.gstatic.com") {
+		t.Error("CSP should allow fonts.gstatic.com in font-src")
+	}
+}
+
+func TestSecurityHeaders_CSPAllowsDOMPurifyCDN(t *testing.T) {
+	if err := os.Unsetenv("CSP_REPORT_ONLY"); err != nil {
+		t.Fatal(err)
+	}
+	r := setupSecurityRouter()
+	w := doRequest(r)
+
+	csp := w.Header().Get("Content-Security-Policy")
 	if !strings.Contains(csp, "https://cdn.jsdelivr.net") {
 		t.Error("CSP should allow cdn.jsdelivr.net in script-src for DOMPurify")
 	}
