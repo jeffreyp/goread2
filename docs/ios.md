@@ -107,6 +107,8 @@ The reader carries its actions in one toolbar group, placed in the bottom bar on
 
 Open in Browser and links tapped inside the article content take the same path, `webPage(item:)` in `SafariView.swift`: an `SFSafariViewController` sheet on iOS and iPadOS, the default browser on macOS. Links with other schemes, such as `mailto`, go to the system handler instead.
 
+The reader's `WKWebView` treats feed content as untrusted, although the server sanitizes it. JavaScript is disabled, and the only main-frame navigations it permits are the page the reader itself loads and tapped links, which leave the reader as described above. Anything else the content attempts, such as a meta refresh or a form submission, is cancelled.
+
 On macOS the same action is also a View menu command, ⌘⏎, published through `ReaderActions` like the other article commands and greyed out under the same rule as the toolbar button.
 
 ## Menu Bar and Keyboard Shortcuts

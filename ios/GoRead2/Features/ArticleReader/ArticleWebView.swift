@@ -27,7 +27,12 @@ struct ArticleWebView: PlatformViewRepresentable {
     }
 
     private func makeWebView(context: Context) -> WKWebView {
-        let webView = WKWebView()
+        // Feed content is untrusted. The server sanitizes it, and the page
+        // template needs no script, so JavaScript stays off as a second line
+        // of defence against script-driven navigation.
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         // A transparent web view lets the SwiftUI window background show
@@ -69,8 +74,9 @@ struct ArticleWebView: PlatformViewRepresentable {
         context.coordinator.loadedPage = state
         // The article URL as base resolves relative image and link paths in
         // feed content.
-        webView.loadHTMLString(Self.page(for: article, showsContentPlaceholder: showsContentPlaceholder),
-                               baseURL: URL(string: article.url))
+        context.coordinator.pageNavigation = webView.loadHTMLString(
+            Self.page(for: article, showsContentPlaceholder: showsContentPlaceholder),
+            baseURL: URL(string: article.url))
         #if os(iOS)
         if !isSameArticle {
             webView.scrollView.setContentOffset(.zero, animated: false)
@@ -104,6 +110,10 @@ struct ArticleWebView: PlatformViewRepresentable {
         var onLinkTap: (URL) -> Void
         var onSwipe: ((Int) -> Void)?
         var loadedPage: PageState?
+        /// The navigation started by the latest `loadHTMLString`, held until
+        /// it finishes or fails. While it is set, main-frame navigations are
+        /// treated as that load; afterwards none are allowed.
+        var pageNavigation: WKNavigation?
 
         init(onLinkTap: @escaping (URL) -> Void) {
             self.onLinkTap = onLinkTap
@@ -112,16 +122,46 @@ struct ArticleWebView: PlatformViewRepresentable {
         func webView(_ webView: WKWebView,
                      decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            // Main-frame link taps leave the reader; everything else (the
-            // initial loadHTMLString, iframes) renders in place.
-            if navigationAction.navigationType == .linkActivated,
-               navigationAction.targetFrame?.isMainFrame != false,
-               let url = navigationAction.request.url {
-                decisionHandler(.cancel)
-                onLinkTap(url)
+            // Subframe loads render in place.
+            if navigationAction.targetFrame?.isMainFrame == false {
+                decisionHandler(.allow)
                 return
             }
-            decisionHandler(.allow)
+            // Main-frame link taps leave the reader.
+            if navigationAction.navigationType == .linkActivated {
+                decisionHandler(.cancel)
+                if let url = navigationAction.request.url {
+                    onLinkTap(url)
+                }
+                return
+            }
+            // The page this view loads is the only other main-frame
+            // navigation allowed. Once it has loaded, feed content cannot
+            // redirect the reader through meta refresh, form submission, or
+            // history.
+            decisionHandler(pageNavigation != nil ? .allow : .cancel)
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            endPageNavigation(navigation)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            endPageNavigation(navigation)
+        }
+
+        func webView(_ webView: WKWebView,
+                     didFailProvisionalNavigation navigation: WKNavigation!,
+                     withError error: Error) {
+            endPageNavigation(navigation)
+        }
+
+        /// A superseded load reports its cancellation here too; only the
+        /// latest load's completion closes the window.
+        private func endPageNavigation(_ navigation: WKNavigation?) {
+            if navigation === pageNavigation {
+                pageNavigation = nil
+            }
         }
 
         // target="_blank" links ask for a new web view; open them the same
