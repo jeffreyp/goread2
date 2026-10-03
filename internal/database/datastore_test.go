@@ -460,29 +460,6 @@ func TestDatastoreGetArticles(t *testing.T) {
 	}
 }
 
-func TestDatastoreFindArticleByURL(t *testing.T) {
-	db := setupTestDatastoreDB(t)
-
-	feed := createDatastoreTestFeed(t, db)
-	article := createDatastoreTestArticle(t, db, feed.ID)
-
-	got, err := db.FindArticleByURL(article.URL)
-	if err != nil {
-		t.Fatalf("FindArticleByURL failed: %v", err)
-	}
-	if got == nil || got.ID != article.ID {
-		t.Fatalf("Expected to find article %d, got %+v", article.ID, got)
-	}
-
-	notFound, err := db.FindArticleByURL("https://example.com/does-not-exist")
-	if err != nil {
-		t.Fatalf("FindArticleByURL (not found) failed: %v", err)
-	}
-	if notFound != nil {
-		t.Errorf("Expected nil for unknown URL, got %+v", notFound)
-	}
-}
-
 func TestDatastoreFilterExistingArticleURLs(t *testing.T) {
 	db := setupTestDatastoreDB(t)
 

@@ -899,13 +899,15 @@ func TestCascadeDeleteFeed(t *testing.T) {
 	}
 
 	// Articles should also be deleted (cascade)
-	foundArticle, err := db.FindArticleByURL(article.URL)
+	articles, err := db.GetArticles(feed.ID)
 	if err != nil {
-		t.Fatalf("FindArticleByURL failed: %v", err)
+		t.Fatalf("GetArticles failed: %v", err)
 	}
 
-	if foundArticle != nil {
-		t.Error("Article should have been cascade deleted with feed")
+	for _, a := range articles {
+		if a.ID == article.ID {
+			t.Error("Article should have been cascade deleted with feed")
+		}
 	}
 }
 

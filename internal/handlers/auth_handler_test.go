@@ -43,7 +43,6 @@ func (m *mockDBAuthHandler) SubscribeUserToFeed(int, int) error                 
 func (m *mockDBAuthHandler) UnsubscribeUserFromFeed(int, int) error                  { return nil }
 func (m *mockDBAuthHandler) AddArticle(*database.Article) error                      { return nil }
 func (m *mockDBAuthHandler) GetArticles(int) ([]database.Article, error)             { return nil, nil }
-func (m *mockDBAuthHandler) FindArticleByURL(string) (*database.Article, error)      { return nil, nil }
 func (m *mockDBAuthHandler) GetUserArticles(int) ([]database.Article, error)         { return nil, nil }
 func (m *mockDBAuthHandler) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) {
 	return &database.ArticlePaginationResult{}, nil

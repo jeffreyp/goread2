@@ -898,44 +898,6 @@ func TestGetArticles(t *testing.T) {
 	}
 }
 
-func TestFindArticleByURL(t *testing.T) {
-	db := setupTestDB(t)
-
-	feed := createTestFeed(t, db)
-	originalArticle := createTestArticle(t, db, feed.ID)
-
-	foundArticle, err := db.FindArticleByURL(originalArticle.URL)
-	if err != nil {
-		t.Fatalf("FindArticleByURL failed: %v", err)
-	}
-
-	if foundArticle == nil {
-		t.Fatal("FindArticleByURL returned nil")
-		return
-	}
-
-	if foundArticle.ID != originalArticle.ID {
-		t.Errorf("Expected article ID %d, got %d", originalArticle.ID, foundArticle.ID)
-	}
-
-	if foundArticle.Title != originalArticle.Title {
-		t.Errorf("Expected title %s, got %s", originalArticle.Title, foundArticle.Title)
-	}
-}
-
-func TestFindArticleByURLNotFound(t *testing.T) {
-	db := setupTestDB(t)
-
-	article, err := db.FindArticleByURL("https://nonexistent.com/article")
-	if err != nil {
-		t.Fatalf("FindArticleByURL failed with error: %v", err)
-	}
-
-	if article != nil {
-		t.Error("Expected nil for nonexistent article, got an article")
-	}
-}
-
 // User-feed subscription tests
 
 func TestSubscribeUserToFeed(t *testing.T) {

@@ -1107,11 +1107,6 @@ func (fs *FeedService) ImportOPML(userID int, opmlData []byte) (int, error) {
 	return importedCount, nil
 }
 
-// FindArticleByURL searches for an article by its URL across all feeds
-func (fs *FeedService) FindArticleByURL(url string) (*database.Article, error) {
-	return fs.db.FindArticleByURL(url)
-}
-
 // ImportOPMLWithLimits imports OPML feeds while respecting subscription limits
 func (fs *FeedService) ImportOPMLWithLimits(userID int, opmlData []byte, subscriptionService *SubscriptionService) (int, error) {
 	if err := validateOPMLComplexity(opmlData); err != nil {

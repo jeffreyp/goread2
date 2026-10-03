@@ -66,9 +66,9 @@ internal/
 │   ├── article_handler_test.go  # Article handler tests (GetArticle)
 │   ├── auth_handler_test.go     # Auth handler constructor tests
 │   ├── feed_handler_test.go     # Feed handler request/error-path tests (AddFeed, ImportOPML,
-│   │                            #   GetArticles, RefreshFeeds, DebugAllSubscriptions, etc.)
+│   │                            #   GetArticles, RefreshFeeds, etc.)
 │   └── payment_handler_test.go  # Payment handler tests incl. signed Stripe webhook payloads
-│                                # (handlers package: ~79% coverage)
+│                                # (handlers package: ~82% coverage)
 ├── middleware/
 │   ├── body_limit_test.go        # Request body size limit tests
 │   ├── cors_test.go              # CORS middleware tests
@@ -419,7 +419,7 @@ func TestWebhookHandler_SubscriptionCreatedOrUpdated(t *testing.T) {
 - Auth/validation error paths (401 unauthenticated, 400 malformed body/params)
 - Feed handlers: `AddFeed`, `ImportOPML` (missing file, oversized file, malformed XML,
   subscription-limit errors), `GetArticles` (both the `all` and single-feed branches),
-  `RefreshFeeds` (manual and cron paths), `DebugAllSubscriptions`, `DebugArticleByURL`
+  `RefreshFeeds` (manual and cron paths)
 - Admin handlers: `SetAdminStatus` and `GrantFreeMonths` error paths (missing param,
   invalid body, unauthenticated, user not found, DB error), `GetAuditLogs` DB error
 - Payment handlers: Stripe webhook signature verification, all handled event types

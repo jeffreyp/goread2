@@ -62,7 +62,6 @@ type Database interface {
 	AddArticle(article *Article) error
 	FilterExistingArticleURLs(feedID int, urls []string) (map[string]bool, error)
 	GetArticles(feedID int) ([]Article, error)
-	FindArticleByURL(url string) (*Article, error)
 	GetUserArticles(userID int) ([]Article, error)
 	GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error)
 	GetUserFeedArticles(userID, feedID int) ([]Article, error)
@@ -616,28 +615,6 @@ func (db *DB) GetArticles(feedID int) ([]Article, error) {
 	}
 
 	return articles, nil
-}
-
-func (db *DB) FindArticleByURL(url string) (*Article, error) {
-	query := `SELECT id, feed_id, title, url, content, description, author, published_at, created_at
-			  FROM articles WHERE url = ? LIMIT 1`
-
-	var article Article
-	err := db.QueryRow(query, url).Scan(&article.ID, &article.FeedID, &article.Title, &article.URL,
-		&article.Content, &article.Description, &article.Author, &article.PublishedAt, &article.CreatedAt)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // Article not found
-		}
-		return nil, err
-	}
-
-	// Default read/starred status to false
-	article.IsRead = false
-	article.IsStarred = false
-
-	return &article, nil
 }
 
 // Legacy single-user methods - deprecated in favor of multi-user methods

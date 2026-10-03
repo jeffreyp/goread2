@@ -12,7 +12,6 @@ Reference for GoRead2's REST API endpoints, for developers integrating with or e
 - [Account Endpoints](#account-endpoints)
 - [Webhook Endpoints](#webhook-endpoints)
 - [Admin Endpoints](#admin-endpoints)
-- [Debug Endpoints](#debug-endpoints)
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
 - [CORS Policy](#cors-policy)
@@ -710,30 +709,6 @@ Stripe webhook endpoint for subscription events.
 - `POST /admin/users/:email/admin` - Set a user's admin status (`{"is_admin": true|false}`); returns `403` when an admin attempts to remove their own admin privileges
 - `POST /admin/users/:email/free-months` - Grant free subscription months (`{"months": N}`)
 - `GET /admin/audit-logs` - Query the admin action audit log (`limit`, `offset`, `admin_user_id`, `target_user_id`, `operation_type` query params); see [admin.md](admin.md#audit-logging) for response format
-
-## Debug Endpoints
-
-**⚠️ Admin Only**: All debug endpoints require admin privileges.
-
-### `GET /api/debug/feeds/:id`
-Debug information for feed subscription.
-
-**Authentication**: Requires admin user
-
-**Response**:
-```json
-{
-  "user_id": 1,
-  "feed_id": 1,
-  "is_subscribed": true,
-  "user_feeds_count": 15,
-  "all_articles_count": 250,
-  "user_articles_count": 250,
-  "user_feeds": [...],
-  "all_articles": [...],
-  "user_articles": [...]
-}
-```
 
 ## Error Handling
 

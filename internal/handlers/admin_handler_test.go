@@ -124,7 +124,6 @@ func (m *mockDBAdminHandler) SubscribeUserToFeed(int, int) error                
 func (m *mockDBAdminHandler) UnsubscribeUserFromFeed(int, int) error                  { return nil }
 func (m *mockDBAdminHandler) AddArticle(*database.Article) error                      { return nil }
 func (m *mockDBAdminHandler) GetArticles(int) ([]database.Article, error)             { return nil, nil }
-func (m *mockDBAdminHandler) FindArticleByURL(string) (*database.Article, error)      { return nil, nil }
 func (m *mockDBAdminHandler) GetUserArticles(int) ([]database.Article, error)         { return nil, nil }
 func (m *mockDBAdminHandler) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) {
 	return &database.ArticlePaginationResult{}, nil

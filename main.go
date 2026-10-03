@@ -300,15 +300,6 @@ func main() {
 		}
 	}
 
-	// Debug routes - require admin privileges
-	debug := r.Group("/api/debug")
-	debug.Use(authMiddleware.RequireAdmin())
-	{
-		debug.GET("/feeds/:id", feedHandler.DebugFeed)
-		debug.GET("/article", feedHandler.DebugArticleByURL)
-		debug.GET("/subscriptions", feedHandler.DebugAllSubscriptions)
-	}
-
 	// Admin routes - require admin privileges
 	admin := r.Group("/admin")
 	admin.Use(authMiddleware.RequireAdmin())

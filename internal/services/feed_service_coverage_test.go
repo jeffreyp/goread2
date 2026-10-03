@@ -68,9 +68,6 @@ func (m *mockDBFeed) FilterExistingArticleURLs(int, []string) (map[string]bool, 
 	return map[string]bool{}, nil
 }
 func (m *mockDBFeed) GetArticles(int) ([]database.Article, error) { return m.articles, nil }
-func (m *mockDBFeed) FindArticleByURL(string) (*database.Article, error) {
-	return nil, nil
-}
 func (m *mockDBFeed) GetUserArticles(int) ([]database.Article, error) {
 	if m.shouldFailArticle {
 		return nil, errors.New("db error")

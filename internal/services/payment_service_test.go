@@ -102,9 +102,8 @@ func (m *mockDBPayment) AddArticle(*database.Article) error                     
 func (m *mockDBPayment) FilterExistingArticleURLs(int, []string) (map[string]bool, error) {
 	return nil, nil
 }
-func (m *mockDBPayment) GetArticles(int) ([]database.Article, error)        { return nil, nil }
-func (m *mockDBPayment) FindArticleByURL(string) (*database.Article, error) { return nil, nil }
-func (m *mockDBPayment) GetUserArticles(int) ([]database.Article, error)    { return nil, nil }
+func (m *mockDBPayment) GetArticles(int) ([]database.Article, error)     { return nil, nil }
+func (m *mockDBPayment) GetUserArticles(int) ([]database.Article, error) { return nil, nil }
 func (m *mockDBPayment) GetUserArticlesPaginated(int, int, string, bool) (*database.ArticlePaginationResult, error) {
 	return &database.ArticlePaginationResult{}, nil
 }
