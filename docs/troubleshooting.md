@@ -430,12 +430,19 @@ See [performance.md](performance.md) for the optimizations already in place.
 
 **Solutions**:
 ```bash
-# Monitor memory usage
-top -p $(pgrep goread2)
+# Resident memory of a locally built server (make build && ./goread2)
+ps -o pid,rss,command -p "$(pgrep -x goread2)"
 
-# Check for memory leaks
-go tool pprof http://localhost:8080/debug/pprof/heap
+# Production: App Engine logs a message when an instance exceeds its
+# memory limit and is shut down
+gcloud app logs read -s default --limit 1000 | grep -i "memory limit"
+
+# Allocation profile from the database benchmarks
+go test -run '^$' -bench . -benchmem -memprofile /tmp/goread2-mem.prof ./internal/database/
+go tool pprof -top -sample_index=alloc_space /tmp/goread2-mem.prof
 ```
+
+The server does not register the `net/http/pprof` handlers, so there is no live heap profile endpoint.
 
 **Common Causes**:
 - Database connection leaks

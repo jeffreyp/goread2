@@ -255,9 +255,9 @@ Run `bd ready` to see all available optimization issues.
 go test -bench=. ./internal/database/...
 go test -bench=. ./internal/cache/...
 
-# Profile memory usage
-go test -memprofile=mem.prof ./internal/...
-go tool pprof mem.prof
+# Profile memory allocation (one package per run; -memprofile rejects multiple packages)
+go test -run '^$' -bench . -benchmem -memprofile /tmp/goread2-mem.prof ./internal/database/
+go tool pprof -top -sample_index=alloc_space /tmp/goread2-mem.prof
 ```
 
 ### Load Testing
