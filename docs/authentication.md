@@ -73,7 +73,7 @@ Process request
 
 ### Native Client Flow (iOS and macOS)
 
-Native apps cannot complete the web flow above: the OAuth sheet (ASWebAuthenticationSession) only dismisses when redirected to the app's registered `goread2://` URL scheme, and cookies set inside the sheet's browsing context never reach the app's `HTTPCookieStorage`. The native flow therefore diverges at three points:
+Native apps cannot complete the web flow above: the OAuth sheet (ASWebAuthenticationSession) only dismisses when redirected to the app's registered `goread2://` URL scheme, and cookies set inside the sheet's browsing context never reach the app. The native flow therefore diverges at three points:
 
 ```
 App opens /auth/login?client=ios (or ?client=macos) inside
@@ -89,13 +89,15 @@ instead of / and sets no session cookie
   ↓
 App exchanges the code via POST /auth/token for the session token
   ↓
-App stores the token as the session cookie in HTTPCookieStorage;
-all later API calls authenticate exactly like browser requests
+App stores the token in the Keychain and sends it as the session
+cookie; all later API calls authenticate exactly like browser requests
 ```
 
 The `client` parameter accepts `ios` and `macos`, both of which take the handoff described above. Any other value, including an empty one, takes the web flow, so the two apps share one server-side code path and one `goread2://` URL scheme.
 
 One-time codes are single-use and expire after 2 minutes. The code indirection keeps session tokens out of the `goread2://` callback URL, where they could leak into device logs. Callback failures on the native path redirect to `goread2://auth?error=<message>` so the auth sheet dismisses and the app can surface the error. `POST /auth/token` returns the environment-specific session cookie name alongside the token, so a client pointed at a local backend sets `session_id_local` without hardcoding the environment logic.
+
+The app keeps the token and cookie name in the Keychain, through `SessionStore` in `ios/GoRead2/Networking/`, rather than in a cookie store. On iOS the item is accessible after first unlock and never leaves the device. On macOS it lives in the login keychain. `NetworkClient` uses a `URLSession` with cookie handling disabled and adds the `Cookie` header to each request itself, so the token never enters `HTTPCookieStorage` or its on-disk cookie file. The server extends a session's expiry on activity without re-issuing the cookie, so the stored token stays valid until a 401 or sign-out clears it. On first launch after updating from a build that kept the token in `HTTPCookieStorage`, the app moves it into the Keychain and deletes the old cookies.
 
 Expired codes are purged by the same `/cron/cleanup-sessions` job that removes expired OAuth states.
 

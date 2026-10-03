@@ -17,9 +17,9 @@ struct MeResponse: Decodable {
     let csrfToken: String?
 }
 
-/// Response of POST /auth/token, the mobile auth handoff. The session token
-/// is stored as the session cookie in HTTPCookieStorage; API calls then
-/// authenticate exactly like the web frontend's.
+/// Response of POST /auth/token, the mobile auth handoff. NetworkClient keeps
+/// the session token in the Keychain and sends it as the session cookie, so
+/// API calls authenticate exactly like the web frontend's.
 struct TokenResponse: Decodable {
     let sessionToken: String
     let cookieName: String

@@ -1,7 +1,7 @@
 import AuthenticationServices
 import Foundation
 
-/// Owns the app's session state: bootstrapping from the persisted cookie,
+/// Owns the app's session state: bootstrapping from the persisted session,
 /// the ASWebAuthenticationSession sign-in flow, and sign-out.
 @MainActor
 final class AuthManager: ObservableObject {
@@ -20,14 +20,15 @@ final class AuthManager: ObservableObject {
 
     init(client: NetworkClient = .shared) {
         self.client = client
-        // Session cookies arrive via Set-Cookie on API responses (the backend
-        // refreshes the sliding session); accept them unconditionally.
-        HTTPCookieStorage.shared.cookieAcceptPolicy = .always
     }
 
-    /// Validates the persisted session cookie on launch. Also fetches the
-    /// CSRF token when the session is still valid.
+    /// Validates the persisted session on launch. Also fetches the CSRF
+    /// token when the session is still valid.
     func bootstrap() async {
+        guard client.credential != nil else {
+            state = .signedOut
+            return
+        }
         do {
             let me = try await client.fetchMe()
             state = .signedIn(me.user)
@@ -72,7 +73,7 @@ final class AuthManager: ObservableObject {
             }
 
             let token = try await client.exchangeAuthCode(code)
-            storeSessionCookie(token)
+            try client.storeSession(token)
             let me = try await client.fetchMe()
             state = .signedIn(me.user)
         } catch let authError as ASWebAuthenticationSessionError where authError.code == .canceledLogin {
@@ -96,26 +97,8 @@ final class AuthManager: ObservableObject {
         clearLocalSession()
     }
 
-    private func storeSessionCookie(_ token: TokenResponse) {
-        var properties: [HTTPCookiePropertyKey: Any] = [
-            .name: token.cookieName,
-            .value: token.sessionToken,
-            .domain: client.baseURL.host ?? "",
-            .path: "/",
-            .expires: token.expiresAt,
-        ]
-        if client.baseURL.scheme == "https" {
-            properties[.secure] = "TRUE"
-        }
-        if let cookie = HTTPCookie(properties: properties) {
-            HTTPCookieStorage.shared.setCookie(cookie)
-        }
-    }
-
     private func clearLocalSession() {
-        if let cookies = HTTPCookieStorage.shared.cookies(for: client.baseURL) {
-            cookies.forEach(HTTPCookieStorage.shared.deleteCookie)
-        }
+        client.clearSession()
         state = .signedOut
     }
 }

@@ -4,9 +4,11 @@ import Foundation
 /// through this client so cookies (session), CSRF handling, JSON coding, and
 /// error mapping live in one place.
 ///
-/// Uses URLSession.shared, whose cookie store is HTTPCookieStorage.shared;
-/// the OAuth flow injects the session cookie there and every request here
-/// carries it automatically.
+/// The session credential lives in the Keychain (SessionStore), not a cookie
+/// store. The URLSession here neither stores nor sends cookies; every request
+/// carries the credential as an explicit Cookie header, which is all the
+/// backend reads. The backend slides the session's expiry server-side without
+/// re-issuing the cookie, so no response ever needs to update the credential.
 final class NetworkClient {
     static let shared = NetworkClient()
 
@@ -16,11 +18,15 @@ final class NetworkClient {
     /// every mutating request.
     private(set) var csrfToken: String?
 
+    /// The session credential, mirrored from `sessionStore`.
+    private(set) var credential: SessionCredential?
+
+    private let sessionStore: SessionStore
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    init(baseURL: URL? = nil, session: URLSession = .shared) {
+    init(baseURL: URL? = nil, session: URLSession = NetworkClient.makeSession()) {
         if let baseURL {
             self.baseURL = baseURL
         } else {
@@ -31,6 +37,7 @@ final class NetworkClient {
             self.baseURL = url
         }
         self.session = session
+        sessionStore = SessionStore(baseURL: self.baseURL)
 
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -40,6 +47,8 @@ final class NetworkClient {
 
         encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
+
+        credential = sessionStore.load() ?? migrateLegacySessionCookie()
     }
 
     // MARK: - Feeds
@@ -184,6 +193,49 @@ final class NetworkClient {
         csrfToken = nil
     }
 
+    // MARK: - Session credential
+
+    /// Persists the session from the mobile auth handoff; every later
+    /// request carries it.
+    func storeSession(_ token: TokenResponse) throws {
+        let credential = SessionCredential(cookieName: token.cookieName, token: token.sessionToken)
+        try sessionStore.save(credential)
+        self.credential = credential
+    }
+
+    /// Forgets the session locally, whether or not the server still has it.
+    func clearSession() {
+        sessionStore.clear()
+        credential = nil
+        csrfToken = nil
+    }
+
+    /// A URLSession with cookie handling off, so nothing about the session
+    /// lands in HTTPCookieStorage.
+    static func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.httpCookieStorage = nil
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpShouldSetCookies = false
+        return URLSession(configuration: configuration)
+    }
+
+    /// Builds before the Keychain move kept the session as a cookie in
+    /// HTTPCookieStorage.shared. Moves that cookie into the Keychain so an
+    /// update does not sign the user out, then removes every cookie the old
+    /// builds stored for the backend.
+    private func migrateLegacySessionCookie() -> SessionCredential? {
+        let storage = HTTPCookieStorage.shared
+        guard let cookies = storage.cookies(for: baseURL), !cookies.isEmpty else { return nil }
+        defer { cookies.forEach(storage.deleteCookie) }
+
+        guard let cookie = cookies.first(where: { $0.name.hasPrefix("session_id") }),
+              cookie.expiresDate.map({ $0 > Date() }) ?? true else { return nil }
+        let credential = SessionCredential(cookieName: cookie.name, token: cookie.value)
+        guard (try? sessionStore.save(credential)) != nil else { return nil }
+        return credential
+    }
+
     // MARK: - Request building
 
     private func request(path: String, method: String, query: [URLQueryItem] = []) -> URLRequest {
@@ -195,6 +247,9 @@ final class NetworkClient {
         var req = URLRequest(url: components.url!)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let credential {
+            req.setValue("\(credential.cookieName)=\(credential.token)", forHTTPHeaderField: "Cookie")
+        }
         if method != "GET", let csrfToken {
             req.setValue(csrfToken, forHTTPHeaderField: "X-CSRF-Token")
         }
