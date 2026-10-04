@@ -3,7 +3,7 @@ module github.com/jeffreyp/goread2
 go 1.26.0
 
 require (
-	cloud.google.com/go/cloudtasks v1.19.0
+	cloud.google.com/go/cloudtasks v1.20.0
 	cloud.google.com/go/datastore v1.26.0
 	cloud.google.com/go/secretmanager v1.20.0
 	github.com/gin-contrib/gzip v1.2.3
@@ -24,6 +24,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.12.0 // indirect
+	cloud.google.com/go/longrunning v1.2.0 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
