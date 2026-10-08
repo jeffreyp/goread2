@@ -1038,7 +1038,7 @@ jobs:
 - Go 1.25 testing, pinned to match `go.mod`
 - Package-level unit tests (`go test -short -race -coverprofile=coverage.out ./internal/...`)
 - Integration tests (`./test/integration/...`)
-- Coverage reporting to Codecov
+- Coverage reporting to Codecov, authenticated by the `CODECOV_TOKEN` repository secret. The upload is non-blocking (`fail_ci_if_error: false`), so a missing or invalid token leaves CI green and must be diagnosed from the step's log
 - Linting with golangci-lint
 - ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`), catching undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed
 - Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build fails CI
