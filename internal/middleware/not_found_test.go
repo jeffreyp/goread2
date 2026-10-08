@@ -54,7 +54,9 @@ func TestNotFoundHandlerScannerPaths(t *testing.T) {
 // TestNotFoundHandlerGzip covers the regression from gr-kspw: without an
 // explicit NoRoute handler, Gin's fallback 404 body is written after the gzip
 // writer closes, and clients that accept gzip receive an empty response that
-// the App Engine frontend reports as status 200.
+// the App Engine frontend reports as status 200. Newer gin-contrib/gzip
+// releases leave error responses uncompressed, so either encoding is accepted
+// as long as the body arrives intact.
 func TestNotFoundHandlerGzip(t *testing.T) {
 	router := newNotFoundTestRouter()
 
@@ -66,18 +68,23 @@ func TestNotFoundHandlerGzip(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", w.Code)
 	}
-	if enc := w.Header().Get("Content-Encoding"); enc != "gzip" {
-		t.Fatalf("expected Content-Encoding gzip, got %q", enc)
-	}
 
-	gz, err := gzip.NewReader(w.Body)
-	if err != nil {
-		t.Fatalf("response body is not valid gzip: %v", err)
-	}
-	defer func() { _ = gz.Close() }()
-	body, err := io.ReadAll(gz)
-	if err != nil {
-		t.Fatalf("failed to decompress response body: %v", err)
+	var body []byte
+	switch enc := w.Header().Get("Content-Encoding"); enc {
+	case "gzip":
+		gz, err := gzip.NewReader(w.Body)
+		if err != nil {
+			t.Fatalf("response body is not valid gzip: %v", err)
+		}
+		defer func() { _ = gz.Close() }()
+		body, err = io.ReadAll(gz)
+		if err != nil {
+			t.Fatalf("failed to decompress response body: %v", err)
+		}
+	case "":
+		body = w.Body.Bytes()
+	default:
+		t.Fatalf("unexpected Content-Encoding %q", enc)
 	}
 	if !strings.Contains(string(body), "404 page not found") {
 		t.Errorf("expected 404 body after decompression, got %q", body)

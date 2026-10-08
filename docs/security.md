@@ -251,6 +251,8 @@ Dependabot is configured in `.github/dependabot.yml` and opens pull requests for
 - `bundler` (`ios/Gemfile`) - fastlane and its Ruby dependencies
 - `github-actions` (`.github/workflows/`) - action versions pinned by commit SHA
 
+Within each ecosystem, minor and patch updates are grouped into a single weekly pull request. Major version updates still arrive as individual pull requests so that each breaking change can be reviewed on its own.
+
 This complements the advisory `govulncheck` scan above: `govulncheck` checks whether a vulnerability is reachable from the code, while Dependabot flags any known-vulnerable version regardless of reachability and proposes the update itself.
 
 ### Audit & Monitoring
