@@ -149,7 +149,7 @@ The safest way to set up admin access for new deployments:
 
 #### ADMIN_TOKEN Environment Variable
 - **Purpose**: Contains the actual admin token for authentication
-- **Format**: Exactly 64 hexadecimal characters
+- **Format**: Exactly 64 lowercase hexadecimal characters; other values are rejected before the database lookup
 - **Security**: Validated against database on every use
 - **Usage**: Required for all admin commands except initial bootstrap
 

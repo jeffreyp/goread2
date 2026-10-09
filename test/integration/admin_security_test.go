@@ -104,7 +104,7 @@ func TestAdminSecurityBootstrap(t *testing.T) {
 		}
 
 		outputStr := string(output)
-		if !strings.Contains(outputStr, "ADMIN_TOKEN must be exactly 64 characters") {
+		if !strings.Contains(outputStr, "ADMIN_TOKEN must be exactly 64 lowercase hex characters") {
 			t.Error("Expected error message about token format")
 		}
 	})

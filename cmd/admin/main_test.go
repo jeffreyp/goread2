@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,6 +152,29 @@ func TestTruncate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := truncate(tt.in, tt.max); got != tt.want {
 				t.Errorf("truncate(%q, %d) = %q, want %q", tt.in, tt.max, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsValidAdminTokenFormat(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+		want  bool
+	}{
+		{"lowercase hex", strings.Repeat("0123456789abcdef", 4), true},
+		{"uppercase hex", strings.Repeat("0123456789ABCDEF", 4), false},
+		{"non-hex characters", strings.Repeat("g", 64), false},
+		{"too short", strings.Repeat("a", 63), false},
+		{"too long", strings.Repeat("a", 65), false},
+		{"trailing newline", strings.Repeat("a", 64) + "\n", false},
+		{"empty", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isValidAdminTokenFormat(tt.token); got != tt.want {
+				t.Errorf("isValidAdminTokenFormat(%q) = %v, want %v", tt.token, got, tt.want)
 			}
 		})
 	}

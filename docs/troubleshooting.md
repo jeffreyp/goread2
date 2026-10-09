@@ -389,7 +389,7 @@ Admin and free-month users may still see Stripe UI elements. This is by design: 
 
 ### Admin Token Error Messages
 
-- **"ADMIN_TOKEN must be exactly 64 characters (32 bytes as hex)"**: Token format is invalid. Use `create-token` to generate a valid one.
+- **"ADMIN_TOKEN must be exactly 64 lowercase hex characters (32 bytes)"**: Token format is invalid. Use `create-token` to generate a valid one.
 - **"Invalid ADMIN_TOKEN - token not found in database or inactive"**: Token doesn't exist or was revoked. Generate a new one with `create-token`.
 - **"ADMIN_TOKEN environment variable must be set"**: Set `ADMIN_TOKEN` to a valid 64-character token.
 - **"No admin users found in database"** (bootstrap): create a user account and set it as admin in the database first.
