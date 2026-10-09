@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"log"
 	"net/http"
@@ -62,7 +63,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	storedState, err := c.Cookie(getOAuthStateCookieName())
 	queryState := c.Query("state")
 
-	if err != nil || storedState != queryState {
+	if err != nil || subtle.ConstantTimeCompare([]byte(storedState), []byte(queryState)) != 1 {
 		log.Printf("SECURITY: OAuth state mismatch from IP %s (cookie=%v query=%v)", auth.GetSecureClientIP(c), storedState != "", queryState != "")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter is not valid."})
 		return
