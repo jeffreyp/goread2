@@ -2,6 +2,8 @@ module github.com/jeffreyp/goread2
 
 go 1.26.0
 
+toolchain go1.26.9
+
 require (
 	cloud.google.com/go/cloudtasks v1.20.0
 	cloud.google.com/go/datastore v1.27.0
@@ -11,7 +13,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stripe/stripe-go/v78 v78.12.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/text v0.42.0
 	golang.org/x/time v0.16.0
