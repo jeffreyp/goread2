@@ -1012,7 +1012,7 @@ func TestTokenLifecycle(t *testing.T) {
 
 ### GitHub Actions (`.github/workflows/test.yml`)
 
-The CI pipeline pins Go via a single `GO_VERSION` env var (currently `1.25`, matching `go.mod`) and runs six jobs:
+The CI pipeline takes its Go release from `go.mod`: every `actions/setup-go` step uses `go-version-file: go.mod`, which reads the `toolchain` directive (for example `go1.26.9`). The pipeline runs six jobs:
 
 ```yaml
 name: Tests
@@ -1021,9 +1021,6 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-
-env:
-  GO_VERSION: '1.25'
 
 jobs:
   test:            # unit + integration tests, coverage upload to Codecov
@@ -1035,7 +1032,7 @@ jobs:
 ```
 
 **Pipeline features:**
-- Go 1.25 testing, pinned to match `go.mod`
+- Go release pinned by the `toolchain` directive in `go.mod`. `setup-go` sets `GOTOOLCHAIN=local`, so the directive takes effect only because each step reads `go.mod` directly; a bare major version such as `go-version: '1.26'` can resolve to an older patch release cached on the runner
 - Package-level unit tests (`go test -short -race -coverprofile=coverage.out ./internal/...`)
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov, authenticated by the `CODECOV_TOKEN` repository secret. The upload is non-blocking (`fail_ci_if_error: false`), so a missing or invalid token leaves CI green and must be diagnosed from the step's log
