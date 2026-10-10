@@ -1174,11 +1174,12 @@ func (db *DB) BatchSetUserArticleStatus(userID int, articles []Article, isRead, 
 
 func (db *DB) MarkAllUserArticlesRead(userID int) (int, error) {
 	result, err := db.Exec(`
-		INSERT OR REPLACE INTO user_articles (user_id, article_id, is_read, is_starred)
+		INSERT INTO user_articles (user_id, article_id, is_read, is_starred)
 		SELECT ?, a.id, 1, 0
 		FROM articles a
 		JOIN user_feeds uf ON a.feed_id = uf.feed_id
-		WHERE uf.user_id = ?`, userID, userID)
+		WHERE uf.user_id = ?
+		ON CONFLICT (user_id, article_id) DO UPDATE SET is_read = 1`, userID, userID)
 	if err != nil {
 		return 0, err
 	}

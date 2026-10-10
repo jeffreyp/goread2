@@ -598,6 +598,46 @@ func TestBatchSetUserArticleStatus_OverwriteExistingRows(t *testing.T) {
 	}
 }
 
+func TestMarkAllUserArticlesReadPreservesStars(t *testing.T) {
+	db := setupTestDB(t)
+
+	user := createTestUser(t, db)
+	feed := createTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	starred := createTestArticle(t, db, feed.ID)
+	plain := createTestArticle(t, db, feed.ID)
+
+	if err := db.ToggleUserArticleStar(user.ID, starred.ID); err != nil {
+		t.Fatalf("ToggleUserArticleStar failed: %v", err)
+	}
+
+	count, err := db.MarkAllUserArticlesRead(user.ID)
+	if err != nil {
+		t.Fatalf("MarkAllUserArticlesRead failed: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("Expected 2 articles marked read, got %d", count)
+	}
+
+	for _, tc := range []struct {
+		id          int
+		wantStarred bool
+	}{{starred.ID, true}, {plain.ID, false}} {
+		status, err := db.GetUserArticleStatus(user.ID, tc.id)
+		if err != nil {
+			t.Fatalf("GetUserArticleStatus(%d) failed: %v", tc.id, err)
+		}
+		if !status.IsRead {
+			t.Errorf("Expected article %d to be marked read", tc.id)
+		}
+		if status.IsStarred != tc.wantStarred {
+			t.Errorf("Article %d: IsStarred = %v, want %v", tc.id, status.IsStarred, tc.wantStarred)
+		}
+	}
+}
+
 func TestGetUserUnreadCounts(t *testing.T) {
 	db := setupTestDB(t)
 

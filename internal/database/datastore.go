@@ -1430,16 +1430,33 @@ func (db *DatastoreDB) MarkAllUserArticlesRead(userID int) (int, error) {
 				end = len(articleIDs)
 			}
 			chunk := articleIDs[i:end]
-			entities := make([]*UserArticleEntity, len(chunk))
 			keys := make([]*datastore.Key, len(chunk))
+			for j, aid := range chunk {
+				keys[j] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, aid), nil)
+			}
+
+			// Read existing records so the write keeps each article's star.
+			existing := make([]UserArticleEntity, len(chunk))
+			if err := tx.GetMulti(keys, existing); err != nil {
+				multiErr, ok := err.(datastore.MultiError)
+				if !ok {
+					return fmt.Errorf("failed to read existing status batch: %w", err)
+				}
+				for _, singleErr := range multiErr {
+					if singleErr != nil && singleErr != datastore.ErrNoSuchEntity {
+						return fmt.Errorf("failed to read existing status batch: %w", singleErr)
+					}
+				}
+			}
+
+			entities := make([]*UserArticleEntity, len(chunk))
 			for j, aid := range chunk {
 				entities[j] = &UserArticleEntity{
 					UserID:    int64(userID),
 					ArticleID: aid,
 					IsRead:    true,
-					IsStarred: false,
+					IsStarred: existing[j].IsStarred,
 				}
-				keys[j] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, aid), nil)
 			}
 			if _, err := tx.PutMulti(keys, entities); err != nil {
 				return fmt.Errorf("failed to write read status batch: %w", err)

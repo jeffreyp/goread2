@@ -507,7 +507,7 @@ Mark all articles as read for the current user.
 ```
 
 **Description**:
-This endpoint marks all articles across all subscribed feeds as read for the authenticated user. The response includes the total count of articles that were marked as read.
+This endpoint marks all articles across all subscribed feeds as read for the authenticated user. Starred articles stay starred. The response includes the total count of articles that were marked as read.
 
 **Error Responses**:
 - `401 Unauthorized` - Not authenticated

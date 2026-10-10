@@ -172,6 +172,42 @@ func TestDatastoreMarkAllUserArticlesRead(t *testing.T) {
 	}
 }
 
+func TestDatastoreMarkAllUserArticlesReadPreservesStars(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+
+	user := createDatastoreTestUser(t, db)
+	feed := createDatastoreTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	starred := createDatastoreTestArticle(t, db, feed.ID)
+	plain := createDatastoreTestArticle(t, db, feed.ID)
+
+	if err := db.ToggleUserArticleStar(user.ID, starred.ID); err != nil {
+		t.Fatalf("ToggleUserArticleStar failed: %v", err)
+	}
+
+	if _, err := db.MarkAllUserArticlesRead(user.ID); err != nil {
+		t.Fatalf("MarkAllUserArticlesRead failed: %v", err)
+	}
+
+	for _, tc := range []struct {
+		id          int
+		wantStarred bool
+	}{{starred.ID, true}, {plain.ID, false}} {
+		status, err := db.GetUserArticleStatus(user.ID, tc.id)
+		if err != nil {
+			t.Fatalf("GetUserArticleStatus(%d) failed: %v", tc.id, err)
+		}
+		if !status.IsRead {
+			t.Errorf("Expected article %d to be marked read", tc.id)
+		}
+		if status.IsStarred != tc.wantStarred {
+			t.Errorf("Article %d: IsStarred = %v, want %v", tc.id, status.IsStarred, tc.wantStarred)
+		}
+	}
+}
+
 func TestDatastoreGetUserUnreadCounts(t *testing.T) {
 	db := setupTestDatastoreDB(t)
 
