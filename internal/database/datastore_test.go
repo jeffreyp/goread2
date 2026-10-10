@@ -922,3 +922,196 @@ func TestDatastoreGetUserFeedArticlesPaginated(t *testing.T) {
 		t.Errorf("Expected 0 articles for unsubscribed feed, got %d", len(unsubscribed.Articles))
 	}
 }
+
+// TestDatastorePaginationReachesEveryArticle pages through more than
+// 2*limit articles per feed, the depth that a per-feed query fetching only
+// the newest 2*limit articles cannot reach.
+func TestDatastorePaginationReachesEveryArticle(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+
+	user := createDatastoreTestUser(t, db)
+	feedA := createDatastoreTestFeed(t, db)
+	feedB := createDatastoreTestFeed(t, db)
+	for _, feed := range []*Feed{feedA, feedB} {
+		if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+			t.Fatalf("SubscribeUserToFeed failed: %v", err)
+		}
+	}
+
+	// Interleave the two feeds' publish times so pages mix both feeds.
+	const perFeedA, perFeedB, limit = 35, 30, 10
+	base := time.Now().UTC().Truncate(time.Second)
+	var newestFirst []int // all article IDs, newest first
+	for i := 0; i < perFeedA+perFeedB; i++ {
+		// Odd positions below 2*perFeedB go to feed B; everything else to feed A.
+		feedID := feedA.ID
+		if i%2 == 1 && i < 2*perFeedB {
+			feedID = feedB.ID
+		}
+		article := &Article{
+			FeedID:      feedID,
+			Title:       fmt.Sprintf("Article %d", i),
+			URL:         fmt.Sprintf("https://example.com/deep_%d_%d", i, time.Now().UnixNano()),
+			PublishedAt: base.Add(-time.Duration(i) * time.Minute),
+			CreatedAt:   base,
+		}
+		if err := db.AddArticle(article); err != nil {
+			t.Fatalf("AddArticle failed: %v", err)
+		}
+		newestFirst = append(newestFirst, article.ID)
+	}
+
+	collect := func(t *testing.T, fetch func(cursor string) (*ArticlePaginationResult, error)) []int {
+		t.Helper()
+		var ids []int
+		cursor := ""
+		for page := 0; page < 50; page++ {
+			result, err := fetch(cursor)
+			if err != nil {
+				t.Fatalf("page %d: %v", page, err)
+			}
+			for _, a := range result.Articles {
+				ids = append(ids, a.ID)
+			}
+			if result.NextCursor == "" {
+				return ids
+			}
+			cursor = result.NextCursor
+		}
+		t.Fatal("pagination did not terminate")
+		return nil
+	}
+
+	assertIDs := func(t *testing.T, got, want []int) {
+		t.Helper()
+		if len(got) != len(want) {
+			t.Fatalf("got %d articles, want %d", len(got), len(want))
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("position %d: got article %d, want %d", i, got[i], want[i])
+			}
+		}
+	}
+
+	t.Run("all articles", func(t *testing.T) {
+		got := collect(t, func(cursor string) (*ArticlePaginationResult, error) {
+			return db.GetUserArticlesPaginated(user.ID, limit, cursor, false)
+		})
+		assertIDs(t, got, newestFirst)
+	})
+
+	t.Run("single feed", func(t *testing.T) {
+		var want []int
+		for _, id := range newestFirst {
+			article, err := db.GetArticleByID(user.ID, id)
+			if err != nil {
+				t.Fatalf("GetArticleByID failed: %v", err)
+			}
+			if article.FeedID == feedA.ID {
+				want = append(want, id)
+			}
+		}
+		got := collect(t, func(cursor string) (*ArticlePaginationResult, error) {
+			return db.GetUserFeedArticlesPaginated(user.ID, feedA.ID, limit, cursor, false)
+		})
+		assertIDs(t, got, want)
+	})
+
+	t.Run("unread only past a long run of read articles", func(t *testing.T) {
+		// Mark the newest 25 read: more than the 2*limit candidates a page considers.
+		const readCount = 25
+		for _, id := range newestFirst[:readCount] {
+			if err := db.MarkUserArticleRead(user.ID, id, true); err != nil {
+				t.Fatalf("MarkUserArticleRead failed: %v", err)
+			}
+		}
+		got := collect(t, func(cursor string) (*ArticlePaginationResult, error) {
+			return db.GetUserArticlesPaginated(user.ID, limit, cursor, true)
+		})
+		assertIDs(t, got, newestFirst[readCount:])
+	})
+}
+
+// TestDatastorePaginationAcrossTiedTimestamps pages through a run of
+// articles sharing one publish time that is longer than a page, as happens
+// with feeds that give day-only or no dates.
+func TestDatastorePaginationAcrossTiedTimestamps(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+
+	user := createDatastoreTestUser(t, db)
+	feed := createDatastoreTestFeed(t, db)
+	other := createDatastoreTestFeed(t, db)
+	for _, f := range []*Feed{feed, other} {
+		if err := db.SubscribeUserToFeed(user.ID, f.ID); err != nil {
+			t.Fatalf("SubscribeUserToFeed failed: %v", err)
+		}
+	}
+
+	base := time.Now().UTC().Truncate(time.Second)
+	tied := base.Add(-time.Hour)
+	add := func(feedID int, publishedAt time.Time) int {
+		article := &Article{
+			FeedID:      feedID,
+			Title:       "Tie test",
+			URL:         fmt.Sprintf("https://example.com/tie_%d", time.Now().UnixNano()),
+			PublishedAt: publishedAt,
+			CreatedAt:   base,
+		}
+		if err := db.AddArticle(article); err != nil {
+			t.Fatalf("AddArticle failed: %v", err)
+		}
+		return article.ID
+	}
+
+	want := map[int]bool{}
+	for i := 0; i < 3; i++ {
+		want[add(feed.ID, base.Add(-time.Duration(i)*time.Minute))] = true
+	}
+	for i := 0; i < 25; i++ {
+		want[add(feed.ID, tied)] = true
+	}
+	for i := 0; i < 5; i++ {
+		want[add(feed.ID, tied.Add(-time.Duration(i+1)*time.Minute))] = true
+		want[add(other.ID, tied.Add(-time.Duration(i+1)*time.Minute-time.Second))] = true
+	}
+
+	for _, unreadOnly := range []bool{false, true} {
+		got := map[int]bool{}
+		var prev *Article
+		cursor := ""
+		for page := 0; ; page++ {
+			if page > 20 {
+				t.Fatal("pagination did not terminate")
+			}
+			result, err := db.GetUserArticlesPaginated(user.ID, 10, cursor, unreadOnly)
+			if err != nil {
+				t.Fatalf("GetUserArticlesPaginated failed: %v", err)
+			}
+			for i := range result.Articles {
+				a := result.Articles[i]
+				if got[a.ID] {
+					t.Fatalf("unreadOnly=%v: article %d returned twice", unreadOnly, a.ID)
+				}
+				got[a.ID] = true
+				if prev != nil && (a.PublishedAt.After(prev.PublishedAt) ||
+					(a.PublishedAt.Equal(prev.PublishedAt) && a.ID > prev.ID)) {
+					t.Fatalf("unreadOnly=%v: article %d out of order after %d", unreadOnly, a.ID, prev.ID)
+				}
+				prev = &a
+			}
+			if result.NextCursor == "" {
+				break
+			}
+			cursor = result.NextCursor
+		}
+		if len(got) != len(want) {
+			t.Errorf("unreadOnly=%v: got %d articles, want %d", unreadOnly, len(got), len(want))
+		}
+		for id := range want {
+			if !got[id] {
+				t.Errorf("unreadOnly=%v: article %d never returned", unreadOnly, id)
+			}
+		}
+	}
+}

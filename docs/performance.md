@@ -57,11 +57,11 @@ All article queries are feed-specific or user-specific and bounded, via `GetArti
 
 Pagination uses cursors that encode the last article's timestamp and ID, avoiding the cost of scanning or fetching skipped rows:
 - SQLite: keyset pagination via a `WHERE` clause gives O(1) positioning instead of O(offset) scanning.
-- Datastore: per-feed fetch size is `limit * 2` rather than the `limit + offset + 50` an offset-based approach would require.
+- Datastore: each per-feed projection query filters on `published_at` at or below the cursor and fetches `limit + 1` refs, so every page costs about the same regardless of depth. A feed that fills its window may have older articles, so refs are trusted only down to the frontier, the newest of those feeds' oldest publish times. Articles exactly at the frontier are fetched in full by an equality query, because feeds with day-only or missing dates give many articles the same timestamp. Unread-only pages that skip read articles continue in further rounds below the frontier, capped at 1,000 scanned articles or 10 rounds per request; at the cap the page is returned short, with a cursor.
 
 **Implementation:**
 - SQLite: `internal/database/schema.go:814-909`
-- Datastore: `internal/database/datastore.go:733-940`
+- Datastore: `internal/database/datastore.go:843-1195`
 - API: `internal/handlers/feed_handler.go:132-161` (cursor parameter)
 
 **Impact:**

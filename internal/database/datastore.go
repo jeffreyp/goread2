@@ -22,6 +22,16 @@ const (
 	// With this limit, even 1000 feeds would only load ~200KB of articles
 	maxArticlesPerFeed = 200
 
+	// maxScannedArticleRefs and maxPaginationRounds bound the work of one
+	// page request. When an unread-only scan passes this many read articles
+	// without filling the page, it returns a short page with a cursor.
+	maxScannedArticleRefs = 1000
+	maxPaginationRounds   = 10
+
+	// unreadStatusChunk is how many candidates an unread-only scan checks
+	// per UserArticle GetMulti.
+	unreadStatusChunk = 100
+
 	// unreadCountWindowDays is the lookback window for unread count queries.
 	// Articles older than this are excluded from badge counts to cap read costs.
 	unreadCountWindowDays = 90
@@ -830,6 +840,149 @@ type articlePublishedAtProjection struct {
 	PublishedAt time.Time `datastore:"published_at"`
 }
 
+// scanPosition is where a pagination scan resumes. With inclusive set it is
+// the cursor article: older articles, plus articles at the same time with a
+// lower ID. Without it, only articles strictly older than `at`. A zero `at`
+// starts from the newest article.
+type scanPosition struct {
+	at        time.Time
+	id        int64
+	inclusive bool
+}
+
+func (p scanPosition) admits(ref articleRef) bool {
+	if p.at.IsZero() || ref.publishedAt.Before(p.at) {
+		return true
+	}
+	return p.inclusive && ref.publishedAt.Equal(p.at) && ref.key.ID < p.id
+}
+
+// feedWindow summarises one feed's projection in a pagination round.
+type feedWindow struct {
+	full   bool      // the query returned a full window, so older articles may exist
+	oldest time.Time // publish time of the oldest ref returned
+}
+
+// sortArticleRefs orders refs newest first, breaking ties by key ID
+// descending, the order the pagination cursor encodes.
+func sortArticleRefs(refs []articleRef) {
+	sort.Slice(refs, func(i, j int) bool {
+		if refs[i].publishedAt.Equal(refs[j].publishedAt) {
+			return refs[i].key.ID > refs[j].key.ID
+		}
+		return refs[i].publishedAt.After(refs[j].publishedAt)
+	})
+}
+
+// projectArticleRefs projects up to window refs per feed, newest first, from
+// the articles at or below pos. Feeds with no refs are absent from windows.
+func (db *DatastoreDB) projectArticleRefs(ctx context.Context, feedIDs []int64, pos scanPosition, window int) ([]articleRef, map[int64]feedWindow, error) {
+	type feedResult struct {
+		fid  int64
+		refs []articleRef
+		err  error
+	}
+
+	var refs []articleRef
+	windows := make(map[int64]feedWindow)
+	batchSize := 5
+	for i := 0; i < len(feedIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(feedIDs) {
+			end = len(feedIDs)
+		}
+		batch := feedIDs[i:end]
+		results := make(chan feedResult, len(batch))
+
+		for _, fid := range batch {
+			go func(fid int64) {
+				query := datastore.NewQuery("Article").FilterField("feed_id", "=", fid)
+				if !pos.at.IsZero() {
+					op := "<"
+					if pos.inclusive {
+						op = "<="
+					}
+					query = query.FilterField("published_at", op, pos.at)
+				}
+				query = query.Order("-published_at").Limit(window).Project("published_at")
+
+				var projs []articlePublishedAtProjection
+				keys, err := db.client.GetAll(ctx, query, &projs)
+				if err != nil {
+					results <- feedResult{fid: fid, err: err}
+					return
+				}
+				feedRefs := make([]articleRef, len(projs))
+				for j := range projs {
+					feedRefs[j] = articleRef{key: keys[j], feedID: fid, publishedAt: projs[j].PublishedAt}
+				}
+				results <- feedResult{fid: fid, refs: feedRefs}
+			}(fid)
+		}
+
+		for range batch {
+			r := <-results
+			if r.err != nil {
+				return nil, nil, fmt.Errorf("failed to project articles for feed %d: %w", r.fid, r.err)
+			}
+			if len(r.refs) == 0 {
+				continue
+			}
+			refs = append(refs, r.refs...)
+			windows[r.fid] = feedWindow{
+				full:   len(r.refs) == window,
+				oldest: r.refs[len(r.refs)-1].publishedAt,
+			}
+		}
+	}
+	return refs, windows, nil
+}
+
+// articleRefsAt returns every article in the given feeds published exactly at t.
+func (db *DatastoreDB) articleRefsAt(ctx context.Context, feedIDs []int64, t time.Time) ([]articleRef, error) {
+	var refs []articleRef
+	for _, fid := range feedIDs {
+		query := datastore.NewQuery("Article").
+			FilterField("feed_id", "=", fid).
+			FilterField("published_at", "=", t).
+			KeysOnly()
+		keys, err := db.client.GetAll(ctx, query, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch articles at frontier for feed %d: %w", fid, err)
+		}
+		for _, key := range keys {
+			refs = append(refs, articleRef{key: key, feedID: fid, publishedAt: t})
+		}
+	}
+	return refs, nil
+}
+
+// loadUserArticleStatuses adds the user's read and star status for refs to
+// statusMap. Missing records mean unread and unstarred; on failure the refs
+// are left out, which reads the same way.
+func (db *DatastoreDB) loadUserArticleStatuses(ctx context.Context, userID int, refs []articleRef, statusMap map[int64]UserArticleEntity) {
+	if len(refs) == 0 {
+		return
+	}
+	keys := make([]*datastore.Key, len(refs))
+	for i, ref := range refs {
+		keys[i] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, ref.key.ID), nil)
+	}
+	userArticles := make([]UserArticleEntity, len(keys))
+	err := db.client.GetMulti(ctx, keys, userArticles)
+	if multiErr, ok := err.(datastore.MultiError); ok {
+		for i, singleErr := range multiErr {
+			if singleErr == nil {
+				statusMap[userArticles[i].ArticleID] = userArticles[i]
+			}
+		}
+	} else if err == nil {
+		for _, ua := range userArticles {
+			statusMap[ua.ArticleID] = ua
+		}
+	}
+}
+
 func (db *DatastoreDB) GetUserArticlesPaginated(userID int, limit int, cursor string, unreadOnly bool) (*ArticlePaginationResult, error) {
 	return db.getUserArticlesPaginated(userID, 0, limit, cursor, unreadOnly)
 }
@@ -877,166 +1030,144 @@ func (db *DatastoreDB) getUserArticlesPaginated(userID, feedID int, limit int, c
 		feedTitleMap[feed.ID] = feed.Title
 	}
 
-	// How many refs to project per feed. Same ceiling as before to preserve pagination depth.
-	articlesPerFeed := limit * 2
-	if articlesPerFeed > maxArticlesPerFeed {
-		articlesPerFeed = maxArticlesPerFeed
-	}
-
-	// Pass 1: projection queries — fetch only published_at (an indexed field) per feed.
-	// These are Datastore "small operations" (~1/6 the cost of full entity reads), so we can
-	// project the same number of refs as before without significantly increasing cost, while
-	// deferring full entity reads until we know exactly which articles we need.
-	allRefs := make([]articleRef, 0, len(feedIDs)*articlesPerFeed)
-
-	batchSize := 5
-	for i := 0; i < len(feedIDs); i += batchSize {
-		end := i + batchSize
-		if end > len(feedIDs) {
-			end = len(feedIDs)
-		}
-		batch := feedIDs[i:end]
-		results := make(chan []articleRef, len(batch))
-
-		for _, fid := range batch {
-			go func(fid int64) {
-				query := datastore.NewQuery("Article").
-					FilterField("feed_id", "=", fid).
-					Order("-published_at").
-					Limit(articlesPerFeed).
-					Project("published_at")
-
-				var projs []articlePublishedAtProjection
-				keys, err := db.client.GetAll(ctx, query, &projs)
-				if err != nil {
-					results <- nil
-					return
-				}
-				refs := make([]articleRef, len(projs))
-				for j := range projs {
-					refs[j] = articleRef{
-						key:         keys[j],
-						feedID:      fid,
-						publishedAt: projs[j].PublishedAt,
-					}
-				}
-				results <- refs
-			}(fid)
-		}
-
-		for range batch {
-			if refs := <-results; refs != nil {
-				allRefs = append(allRefs, refs...)
-			}
-		}
-	}
-
-	// Sort refs globally by published_at desc, then by key ID desc for determinism.
-	sort.Slice(allRefs, func(i, j int) bool {
-		if allRefs[i].publishedAt.Equal(allRefs[j].publishedAt) {
-			return allRefs[i].key.ID > allRefs[j].key.ID
-		}
-		return allRefs[i].publishedAt.After(allRefs[j].publishedAt)
-	})
-
-	// Apply cursor to find where the next page starts.
-	startIdx := 0
+	pos := scanPosition{}
 	if cursor != "" {
 		cursorData, err := decodeSQLiteCursor(cursor)
 		if err != nil {
 			return nil, fmt.Errorf("invalid cursor: %w", err)
 		}
-		for i, ref := range allRefs {
-			if ref.publishedAt.Before(cursorData.PublishedAt) ||
-				(ref.publishedAt.Equal(cursorData.PublishedAt) && ref.key.ID < int64(cursorData.ID)) {
-				startIdx = i
-				break
+		pos = scanPosition{at: cursorData.PublishedAt, id: int64(cursorData.ID), inclusive: true}
+	}
+
+	// One more ref per feed than the page needs, so the feed that sets the
+	// frontier (below) always contributes a full page.
+	window := limit + 1
+	if window > maxArticlesPerFeed {
+		window = maxArticlesPerFeed
+	}
+
+	// The scan runs in rounds. Each round projects the next window of refs
+	// per feed below the scan position. A feed that fills its window may have
+	// more articles older than its oldest ref, so refs are only trusted down
+	// to the frontier: the newest of those oldest times. Articles exactly at
+	// the frontier may continue past a window (feeds with day-only or missing
+	// dates share timestamps), so those are fetched in full. A round that
+	// leaves the page short, which happens when unreadOnly skips read
+	// articles, continues strictly below the frontier.
+	page := make([]articleRef, 0, limit)
+	statusMap := make(map[int64]UserArticleEntity)
+	activeFeeds := feedIDs
+	scanned := 0
+	var nextCursor string
+	for round := 0; ; round++ {
+		refs, windows, err := db.projectArticleRefs(ctx, activeFeeds, pos, window)
+		if err != nil {
+			return nil, err
+		}
+
+		var frontier time.Time
+		for _, w := range windows {
+			if w.full && w.oldest.After(frontier) {
+				frontier = w.oldest
 			}
 		}
-	}
-	remainingRefs := allRefs[startIdx:]
-
-	// For unreadOnly we need extra candidates because some will be filtered out.
-	// For all-articles we need exactly limit candidates.
-	candidateCount := limit
-	if unreadOnly {
-		candidateCount = limit * 2
-		if candidateCount > maxArticlesPerFeed {
-			candidateCount = maxArticlesPerFeed
-		}
-	}
-	if candidateCount > len(remainingRefs) {
-		candidateCount = len(remainingRefs)
-	}
-	candidates := remainingRefs[:candidateCount]
-
-	// Pass 2a: batch-fetch UserArticle status for candidates only (not all projected refs).
-	statusMap := make(map[int64]UserArticleEntity)
-	if len(candidates) > 0 {
-		userArticleKeys := make([]*datastore.Key, len(candidates))
-		for i, ref := range candidates {
-			userArticleKeys[i] = datastore.NameKey("UserArticle",
-				fmt.Sprintf("%d_%d", userID, ref.key.ID), nil)
-		}
-		userArticles := make([]UserArticleEntity, len(userArticleKeys))
-		uaErr := db.client.GetMulti(ctx, userArticleKeys, userArticles)
-		if multiErr, ok := uaErr.(datastore.MultiError); ok {
-			for i, singleErr := range multiErr {
-				if singleErr == nil {
-					statusMap[userArticles[i].ArticleID] = userArticles[i]
+		if !frontier.IsZero() {
+			var tieFeeds []int64
+			for fid, w := range windows {
+				if w.full && w.oldest.Equal(frontier) {
+					tieFeeds = append(tieFeeds, fid)
 				}
 			}
-		} else if uaErr == nil {
-			for _, ua := range userArticles {
-				statusMap[ua.ArticleID] = ua
+			ties, err := db.articleRefsAt(ctx, tieFeeds, frontier)
+			if err != nil {
+				return nil, err
 			}
+			refs = append(refs, ties...)
 		}
-	}
 
-	// Determine the page refs, filtering for unread if requested.
-	pageRefs := make([]articleRef, 0, limit)
-	for _, ref := range candidates {
-		if unreadOnly {
-			ua, exists := statusMap[ref.key.ID]
-			if exists && ua.IsRead {
+		seen := make(map[int64]bool, len(refs))
+		candidates := make([]articleRef, 0, len(refs))
+		for _, ref := range refs {
+			if seen[ref.key.ID] || !pos.admits(ref) {
 				continue
 			}
+			if !frontier.IsZero() && ref.publishedAt.Before(frontier) {
+				continue
+			}
+			seen[ref.key.ID] = true
+			candidates = append(candidates, ref)
 		}
-		pageRefs = append(pageRefs, ref)
-		if len(pageRefs) == limit {
+		sortArticleRefs(candidates)
+
+		i := 0
+		statusLoaded := 0
+		for ; i < len(candidates) && len(page) < limit; i++ {
+			if unreadOnly && i == statusLoaded {
+				statusLoaded = i + unreadStatusChunk
+				if statusLoaded > len(candidates) {
+					statusLoaded = len(candidates)
+				}
+				db.loadUserArticleStatuses(ctx, userID, candidates[i:statusLoaded], statusMap)
+			}
+			scanned++
+			if unreadOnly && statusMap[candidates[i].key.ID].IsRead {
+				continue
+			}
+			page = append(page, candidates[i])
+		}
+
+		// A full window means that feed has articles older than this round.
+		moreBelowFrontier := !frontier.IsZero()
+		if len(page) == limit {
+			if i < len(candidates) || moreBelowFrontier {
+				last := page[len(page)-1]
+				nextCursor = encodeSQLiteCursor(int(last.key.ID), last.publishedAt)
+			}
 			break
 		}
-	}
-
-	// Set next cursor if there are more results beyond this page.
-	var nextCursor string
-	if len(pageRefs) == limit {
-		// Check if any refs remain after this page (in candidates or in remainingRefs).
-		if candidateCount > len(pageRefs) || len(remainingRefs) > candidateCount {
-			last := pageRefs[len(pageRefs)-1]
-			nextCursor = encodeSQLiteCursor(int(last.key.ID), last.publishedAt)
+		if !moreBelowFrontier {
+			break
 		}
+		if len(candidates) > 0 && (scanned >= maxScannedArticleRefs || round+1 >= maxPaginationRounds) {
+			// Bound the work per request: return a short page whose cursor
+			// resumes after the last article examined.
+			last := candidates[len(candidates)-1]
+			nextCursor = encodeSQLiteCursor(int(last.key.ID), last.publishedAt)
+			break
+		}
+
+		// Continue below the frontier with the feeds that still have refs there.
+		next := activeFeeds[:0:0]
+		for fid, w := range windows {
+			if w.full || w.oldest.Before(frontier) {
+				next = append(next, fid)
+			}
+		}
+		activeFeeds = next
+		pos = scanPosition{at: frontier}
 	}
 
-	if len(pageRefs) == 0 {
+	if len(page) == 0 {
 		return &ArticlePaginationResult{Articles: []Article{}, NextCursor: nextCursor}, nil
 	}
-
-	// Pass 2b: fetch full article entities for only the page we're returning.
-	articleKeys := make([]*datastore.Key, len(pageRefs))
-	for i, ref := range pageRefs {
+	if !unreadOnly {
+		db.loadUserArticleStatuses(ctx, userID, page, statusMap)
+	}
+	// Fetch full article entities for only the page we're returning.
+	articleKeys := make([]*datastore.Key, len(page))
+	for i, ref := range page {
 		articleKeys[i] = ref.key
 	}
 	articleEntities := make([]ArticleEntity, len(articleKeys))
 	fetchErr := db.client.GetMulti(ctx, articleKeys, articleEntities)
 	multiErr, isME := fetchErr.(datastore.MultiError)
 
-	articles := make([]Article, 0, len(pageRefs))
+	articles := make([]Article, 0, len(page))
 	for i, entity := range articleEntities {
 		if isME && multiErr[i] != nil {
 			continue
 		}
-		entity.ID = pageRefs[i].key.ID
+		entity.ID = page[i].key.ID
 		feedID := int(entity.FeedID)
 		ua := statusMap[entity.ID]
 		articles = append(articles, Article{
