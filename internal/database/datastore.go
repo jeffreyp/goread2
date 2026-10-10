@@ -28,6 +28,10 @@ const (
 	maxScannedArticleRefs = 1000
 	maxPaginationRounds   = 10
 
+	// maxTiedArticleRefs caps how many articles sharing one publish time a
+	// pagination round reads from a single feed.
+	maxTiedArticleRefs = 500
+
 	// unreadStatusChunk is how many candidates an unread-only scan checks
 	// per UserArticle GetMulti.
 	unreadStatusChunk = 100
@@ -938,13 +942,17 @@ func (db *DatastoreDB) projectArticleRefs(ctx context.Context, feedIDs []int64, 
 	return refs, windows, nil
 }
 
-// articleRefsAt returns every article in the given feeds published exactly at t.
+// articleRefsAt returns the articles in the given feeds published exactly at
+// t, up to maxTiedArticleRefs per feed. Feed content is external, so a feed
+// can give any number of articles one timestamp; past the cap, some of those
+// articles are skipped rather than read on every page request.
 func (db *DatastoreDB) articleRefsAt(ctx context.Context, feedIDs []int64, t time.Time) ([]articleRef, error) {
 	var refs []articleRef
 	for _, fid := range feedIDs {
 		query := datastore.NewQuery("Article").
 			FilterField("feed_id", "=", fid).
 			FilterField("published_at", "=", t).
+			Limit(maxTiedArticleRefs).
 			KeysOnly()
 		keys, err := db.client.GetAll(ctx, query, nil)
 		if err != nil {
