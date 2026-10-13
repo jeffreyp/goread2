@@ -683,6 +683,8 @@ Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` (the production 
 
 **`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which makes `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier.
 
+**Aggregation queries are not exercised**: the legacy emulator does not implement `RunAggregationQuery`. `DatastoreDB` counts articles with aggregation count queries in production and falls back to a keys-only query when the server returns `Unimplemented`, so emulator runs cover only the fallback path.
+
 **Local setup** (to run these tests outside CI):
 ```bash
 gcloud components install beta cloud-datastore-emulator

@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
+	"cloud.google.com/go/datastore/apiv1/datastorepb"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -1701,6 +1704,27 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 	return unreadCounts, nil
 }
 
+// countFeedArticles counts a feed's articles with a Datastore aggregation
+// query, which returns only the count rather than every article key. The
+// legacy Cloud Datastore emulator does not implement aggregation queries, so
+// an Unimplemented error falls back to counting keys.
+func (db *DatastoreDB) countFeedArticles(ctx context.Context, feedID int) (int, error) {
+	q := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID))
+	result, err := db.client.RunAggregationQuery(ctx, q.NewAggregationQuery().WithCount("count"))
+	if status.Code(err) == codes.Unimplemented {
+		keys, err := db.client.GetAll(ctx, q.KeysOnly(), nil)
+		return len(keys), err
+	}
+	if err != nil {
+		return 0, err
+	}
+	value, ok := result["count"].(*datastorepb.Value)
+	if !ok {
+		return 0, fmt.Errorf("unexpected count result type %T", result["count"])
+	}
+	return int(value.GetIntegerValue()), nil
+}
+
 func (db *DatastoreDB) GetTotalArticleCount(userID int) (int, error) {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
@@ -1720,11 +1744,8 @@ func (db *DatastoreDB) GetTotalArticleCount(userID int) (int, error) {
 	results := make(chan countResult, len(userFeeds))
 	for _, feed := range userFeeds {
 		go func(feedID int) {
-			q := datastore.NewQuery("Article").
-				FilterField("feed_id", "=", int64(feedID)).
-				KeysOnly()
-			keys, err := db.client.GetAll(ctx, q, nil)
-			results <- countResult{count: len(keys), err: err}
+			count, err := db.countFeedArticles(ctx, feedID)
+			results <- countResult{count: count, err: err}
 		}(feed.ID)
 	}
 
@@ -1761,7 +1782,7 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 
 	cutoff := time.Now().UTC().Add(-unreadCountWindowDays * 24 * time.Hour)
 
-	// Phase 1: per-feed goroutines fetch total article count + recent article keys in parallel.
+	// Phase 1: per-feed goroutines count all articles and fetch recent article keys in parallel.
 	type feedData struct {
 		feedID     int
 		totalCount int
@@ -1772,10 +1793,7 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 	feedResults := make(chan feedData, len(userFeeds))
 	for _, feed := range userFeeds {
 		go func(feedID int) {
-			totalQ := datastore.NewQuery("Article").
-				FilterField("feed_id", "=", int64(feedID)).
-				KeysOnly()
-			totalKeys, err := db.client.GetAll(ctx, totalQ, nil)
+			totalCount, err := db.countFeedArticles(ctx, feedID)
 			if err != nil {
 				feedResults <- feedData{err: err}
 				return
@@ -1791,7 +1809,7 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 				return
 			}
 
-			feedResults <- feedData{feedID: feedID, totalCount: len(totalKeys), recentKeys: recentKeys}
+			feedResults <- feedData{feedID: feedID, totalCount: totalCount, recentKeys: recentKeys}
 		}(feed.ID)
 	}
 
