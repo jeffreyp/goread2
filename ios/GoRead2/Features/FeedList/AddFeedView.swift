@@ -48,6 +48,9 @@ struct AddFeedView: View {
                     }
                 }
             }
+            // macOS defaults to the columns style, which moves the section
+            // header into a label column and clips it and the footer.
+            .formStyle(.grouped)
             .navigationTitle("Add Feed")
             .inlineNavigationTitle()
             .toolbar {
