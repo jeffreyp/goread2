@@ -1687,20 +1687,14 @@ class GoReadApp {
 
         const article = this.articles[index];
 
-        if (!article.content) {
+        if (this.needsArticleContent(article)) {
             document.getElementById('article-content').replaceChildren(this.articleContentSkeleton());
-            try {
-                const response = await fetch(`/api/articles/${article.id}`);
-                if (response.ok) {
-                    const full = await response.json();
-                    article.content = full.content || '';
-                }
-            } catch (_) {
-                // fall through — displayArticle falls back to description
-            }
+            await this.loadArticleContent(article);
         }
 
         this.displayArticle(article);
+        this.prefetchArticleContent(index + 1);
+        this.prefetchArticleContent(index - 1);
 
         // Update mobile navigation to show content pane when article is selected (phones only)
         this.updateMobileNavigation('content');
@@ -1716,6 +1710,46 @@ class GoReadApp {
         }
 
         this.scrollArticleIntoView(articleItem);
+    }
+
+    // Fetches an article's full content and stores it on the article.
+    // Concurrent callers (a prefetch still in flight when the article is
+    // opened) share one request. On failure the content stays unset, so
+    // displayArticle falls back to the description and a later selection
+    // retries.
+    loadArticleContent(article) {
+        if (!article.contentRequest) {
+            article.contentRequest = (async () => {
+                try {
+                    const response = await fetch(`/api/articles/${article.id}`);
+                    if (response.ok) {
+                        const full = await response.json();
+                        article.content = full.content || '';
+                        article.contentLoaded = true;
+                    }
+                } catch (_) {
+                    // fall through; displayArticle falls back to description
+                } finally {
+                    article.contentRequest = null;
+                }
+            })();
+        }
+        return article.contentRequest;
+    }
+
+    // Loads the content of the article at index in the background, so that
+    // moving to it with j/k does not wait for a round trip.
+    prefetchArticleContent(index) {
+        const article = this.articles[index];
+        if (article && this.needsArticleContent(article)) {
+            this.loadArticleContent(article);
+        }
+    }
+
+    // Article lists carry an empty content field; the full content comes
+    // from /api/articles/:id.
+    needsArticleContent(article) {
+        return !article.content && !article.contentLoaded;
     }
 
     // Finds the nearest ancestor that actually scrolls. Layout varies by

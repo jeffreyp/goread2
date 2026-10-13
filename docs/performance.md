@@ -157,6 +157,17 @@ See [caching.md](caching.md) for details.
 - Lower storage costs
 - Better user experience (no overwhelming article counts)
 
+### 4. On-Demand Article Content
+
+**Implementation:**
+- List endpoints return articles with an empty `content` field; the web app fetches full content from `GET /api/articles/:id` when an article is opened
+- After displaying an article, the web app prefetches the content of the previous and next articles in the list, so moving with `j`/`k` does not wait for a request
+- A prefetch still in flight when its article is opened is reused rather than repeated
+
+**Benefits:**
+- Smaller article list responses
+- Keyboard navigation between neighbouring articles displays content immediately
+
 ## Database Query Patterns
 
 ### Best Practices

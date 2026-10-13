@@ -388,7 +388,7 @@ Get articles for a specific feed.
       "feed_title": "Example Blog",
       "title": "Article Title",
       "url": "https://example.com/article1",
-      "content": "Full article content...",
+      "content": "",
       "description": "Article summary",
       "author": "John Author",
       "published_at": "2023-01-01T10:00:00Z",
@@ -412,6 +412,7 @@ Get articles for a specific feed.
 - Use `id={feed_id}` to get articles from a specific feed (also supports pagination, same response shape)
 - Articles are ordered by `published_at` DESC, then `id` DESC for deterministic ordering
 - `is_read` and `is_starred` are user-specific
+- `content` is always empty in list responses; fetch it with [`GET /api/articles/:id`](#get-apiarticlesid)
 
 **Example**:
 ```bash
