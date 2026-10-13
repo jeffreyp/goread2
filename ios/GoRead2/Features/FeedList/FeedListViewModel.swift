@@ -52,6 +52,13 @@ final class FeedListViewModel: ObservableObject {
         }
     }
 
+    /// Applies a read-state change reported by the article list to the
+    /// feed's count locally, so opening an article does not cost a request.
+    /// Counts never drop below zero; the next refresh corrects any drift.
+    func adjustUnreadCount(feedID: Int, by delta: Int) {
+        unreadCounts[feedID] = max(0, (unreadCounts[feedID] ?? 0) + delta)
+    }
+
     /// Pull-to-refresh: asks the server to re-fetch every feed, then
     /// reloads the list and counts.
     func refresh() async {

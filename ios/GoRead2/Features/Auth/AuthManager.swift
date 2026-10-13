@@ -23,16 +23,19 @@ final class AuthManager: ObservableObject {
     }
 
     /// Validates the persisted session on launch. Also fetches the CSRF
-    /// token when the session is still valid.
+    /// token when the session is still valid. The first screen's data loads
+    /// in parallel, since only mutating requests need the CSRF token.
     func bootstrap() async {
         guard client.credential != nil else {
             state = .signedOut
             return
         }
+        client.prefetchLaunchData()
         do {
             let me = try await client.fetchMe()
             state = .signedIn(me.user)
         } catch {
+            client.discardPrefetchedData()
             state = .signedOut
         }
     }

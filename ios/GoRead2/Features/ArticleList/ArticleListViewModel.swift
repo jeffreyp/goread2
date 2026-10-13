@@ -22,6 +22,16 @@ final class ArticleListViewModel: ObservableObject {
     /// Called when the API reports 401: the session is gone server-side and
     /// the app should return to the login screen.
     var onSessionExpired: () -> Void = {}
+    /// Called with an article's feed ID and the change to that feed's unread
+    /// count (-1 when marked read, +1 when marked unread, and the reverse
+    /// when a failed request is rolled back). The split view uses it to keep
+    /// the sidebar's badges current without refetching every count.
+    var onUnreadCountChange: (_ feedID: Int, _ delta: Int) -> Void = { _, _ in }
+
+    /// Server-side unread counts include only articles published within this
+    /// window (unreadCountWindowDays in the Go database layer), so read-state
+    /// changes on older articles leave the counts alone.
+    private static let unreadCountWindow: TimeInterval = 90 * 24 * 60 * 60
 
     private let selection: FeedSelection
     private let client: NetworkClient
@@ -139,6 +149,7 @@ final class ArticleListViewModel: ObservableObject {
         guard article.isRead != isRead,
               let index = articles.firstIndex(where: { $0.id == article.id }) else { return }
         articles[index].isRead = isRead
+        reportUnreadChange(for: article, isRead: isRead)
         do {
             try await client.markRead(articleID: article.id,
                                       isRead: isRead,
@@ -148,8 +159,14 @@ final class ArticleListViewModel: ObservableObject {
             if let index = articles.firstIndex(where: { $0.id == article.id }) {
                 articles[index].isRead = !isRead
             }
+            reportUnreadChange(for: article, isRead: !isRead)
             handle(error)
         }
+    }
+
+    private func reportUnreadChange(for article: Article, isRead: Bool) {
+        guard article.publishedAt >= Date().addingTimeInterval(-Self.unreadCountWindow) else { return }
+        onUnreadCountChange(article.feedId, isRead ? -1 : 1)
     }
 
     /// Toggles the star on `article`, optimistically in the list and then on

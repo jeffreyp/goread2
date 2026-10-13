@@ -21,6 +21,17 @@ final class NetworkClient {
     /// The session credential, mirrored from `sessionStore`.
     private(set) var credential: SessionCredential?
 
+    /// GETs started at launch alongside the session check, keyed by URL.
+    /// The first matching `get` takes one over instead of sending its own
+    /// request. Guarded by `prefetchLock`, since requests run off the main
+    /// actor.
+    private var prefetchedGets: [URL: (started: Date, task: Task<Data, Error>)] = [:]
+    private let prefetchLock = NSLock()
+    /// A prefetch not taken within this time is discarded, so a screen that
+    /// first loads later (e.g. All Articles after adding the first feed)
+    /// fetches fresh data.
+    private static let prefetchMaxAge: TimeInterval = 30
+
     private let sessionStore: SessionStore
     private let session: URLSession
     private let decoder: JSONDecoder
@@ -85,11 +96,16 @@ final class NetworkClient {
                      cursor: String? = nil,
                      unreadOnly: Bool = false,
                      limit: Int = 50) async throws -> PaginatedArticles {
+        try await decode(PaginatedArticles.self,
+                         from: get("/api/feeds/\(feedID)/articles",
+                                   query: Self.articlesQuery(cursor: cursor, unreadOnly: unreadOnly, limit: limit)))
+    }
+
+    private static func articlesQuery(cursor: String? = nil, unreadOnly: Bool, limit: Int = 50) -> [URLQueryItem] {
         var query = [URLQueryItem(name: "limit", value: String(limit))]
         if let cursor { query.append(URLQueryItem(name: "cursor", value: cursor)) }
         if unreadOnly { query.append(URLQueryItem(name: "unread_only", value: "true")) }
-        return try await decode(PaginatedArticles.self,
-                                from: get("/api/feeds/\(feedID)/articles", query: query))
+        return query
     }
 
     /// Fetches a single article, including the full content that the list
@@ -168,6 +184,45 @@ final class NetworkClient {
         return try await decode(Response.self, from: post("/api/subscription/portal")).portalUrl
     }
 
+    // MARK: - Launch prefetch
+
+    /// Starts the requests the first screen needs (feeds, unread counts, and
+    /// the unread-only first page of All Articles, which is how that list
+    /// opens) without waiting for the launch session check. The matching
+    /// `getFeeds`, `getUnreadCounts`, and `getArticles` calls then await
+    /// these responses. A 401 surfaces through those calls as usual.
+    func prefetchLaunchData() {
+        let requests = [
+            request(path: "/api/feeds", method: "GET"),
+            request(path: "/api/feeds/unread-counts", method: "GET"),
+            request(path: "/api/feeds/all/articles", method: "GET",
+                    query: Self.articlesQuery(unreadOnly: true)),
+        ]
+        prefetchLock.lock()
+        defer { prefetchLock.unlock() }
+        for req in requests {
+            guard let url = req.url else { continue }
+            prefetchedGets[url] = (Date(), Task { try await self.send(req) })
+        }
+    }
+
+    /// Drops prefetches no screen has taken, cancelling any still in flight.
+    func discardPrefetchedData() {
+        prefetchLock.lock()
+        let pending = prefetchedGets.values.map(\.task)
+        prefetchedGets = [:]
+        prefetchLock.unlock()
+        pending.forEach { $0.cancel() }
+    }
+
+    private func takePrefetch(for url: URL) -> Task<Data, Error>? {
+        prefetchLock.lock()
+        defer { prefetchLock.unlock() }
+        guard let entry = prefetchedGets.removeValue(forKey: url),
+              Date().timeIntervalSince(entry.started) < Self.prefetchMaxAge else { return nil }
+        return entry.task
+    }
+
     // MARK: - Auth
 
     /// Fetches the signed-in user and stores the CSRF token for subsequent
@@ -201,6 +256,7 @@ final class NetworkClient {
         let credential = SessionCredential(cookieName: token.cookieName, token: token.sessionToken)
         try sessionStore.save(credential)
         self.credential = credential
+        discardPrefetchedData()
     }
 
     /// Forgets the session locally, whether or not the server still has it.
@@ -208,6 +264,7 @@ final class NetworkClient {
         sessionStore.clear()
         credential = nil
         csrfToken = nil
+        discardPrefetchedData()
     }
 
     /// A URLSession with cookie handling off, so nothing about the session
@@ -257,7 +314,11 @@ final class NetworkClient {
     }
 
     private func get(_ path: String, query: [URLQueryItem] = []) async throws -> Data {
-        try await send(request(path: path, method: "GET", query: query))
+        let req = request(path: path, method: "GET", query: query)
+        if let url = req.url, let prefetched = takePrefetch(for: url) {
+            return try await prefetched.value
+        }
+        return try await send(req)
     }
 
     private func post(_ path: String) async throws -> Data {
@@ -284,6 +345,10 @@ final class NetworkClient {
     /// requests are never retried, since the server may already have
     /// applied the first attempt.
     private func send(_ request: URLRequest) async throws -> Data {
+        if request.httpMethod != "GET" {
+            // A mutation can change what the prefetched responses describe.
+            discardPrefetchedData()
+        }
         let retryDelays = request.httpMethod == "GET" ? Self.connectivityRetryDelays : []
         var attempt = 0
         while true {

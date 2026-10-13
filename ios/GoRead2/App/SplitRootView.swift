@@ -22,6 +22,7 @@ struct SplitRootView: View {
     @State private var feedSelection: FeedSelection?
     @State private var articleViewModel: ArticleListViewModel?
     @State private var selectedArticleID: Int?
+    @Environment(\.scenePhase) private var scenePhase
 
     #if os(macOS)
     @EnvironmentObject private var authManager: AuthManager
@@ -74,17 +75,28 @@ struct SplitRootView: View {
         .navigationSplitViewStyle(.balanced)
         .onChange(of: feedSelection) { selection in
             selectedArticleID = nil
-            articleViewModel = selection.map { ArticleListViewModel(selection: $0) }
+            articleViewModel = selection.map(makeArticleViewModel)
         }
         .onChange(of: feedViewModel.hasLoaded) { _ in selectAllArticlesIfNeeded() }
         .onChange(of: feedViewModel.feeds.count) { _ in selectAllArticlesIfNeeded() }
-        .onChange(of: selectedArticleID) { _ in
-            // Opening an article marks it read; keep the sidebar's unread
-            // badges current.
-            guard feedViewModel.hasLoaded else { return }
+        .onChange(of: scenePhase) { phase in
+            // Read-state changes adjust the sidebar's badges locally; resync
+            // with the server on returning to the app, which also picks up
+            // reads made on other devices.
+            guard phase == .active, feedViewModel.hasLoaded else { return }
             Task { await feedViewModel.refreshUnreadCounts() }
         }
         .background(shortcutButtons)
+    }
+
+    /// Builds the article list for a sidebar selection, reporting read-state
+    /// changes to the sidebar so its unread badges stay current.
+    private func makeArticleViewModel(for selection: FeedSelection) -> ArticleListViewModel {
+        let viewModel = ArticleListViewModel(selection: selection)
+        viewModel.onUnreadCountChange = { [feedViewModel] feedID, delta in
+            feedViewModel.adjustUnreadCount(feedID: feedID, by: delta)
+        }
+        return viewModel
     }
 
     /// Picks the initial sidebar selection once the feed list load settles:
