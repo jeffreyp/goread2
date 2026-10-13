@@ -51,7 +51,8 @@ struct SplitRootView: View {
                 ArticleListView(viewModel: articleViewModel,
                                 selection: feedSelection,
                                 selectedArticleID: $selectedArticleID,
-                                refreshAction: refreshAllPanes)
+                                refreshAction: refreshAllPanes,
+                                markAllReadAction: markAllReadAndRefreshCounts)
                     .id(feedSelection)
                     .splitColumnWidth(min: 260, ideal: 340, max: 520)
             } else {
@@ -117,6 +118,15 @@ struct SplitRootView: View {
                   !$0.isRead && !knownIDs.contains($0.id)
               }) else { return }
         selectedArticleID = firstNew.id
+    }
+
+    /// Mark All Read from the toolbar or the menu: marks every article read,
+    /// then refreshes the sidebar's unread badges, which the account-wide
+    /// endpoint has just zeroed.
+    private func markAllReadAndRefreshCounts() async {
+        guard let articleViewModel else { return }
+        await articleViewModel.markAllRead()
+        await feedViewModel.refreshUnreadCounts()
     }
 
     /// The reader drives article selection through this binding, so its
@@ -295,14 +305,8 @@ struct SplitRootView: View {
         )
     }
 
-    /// Marks every article read from the menu, then refreshes the sidebar's
-    /// unread badges, which the account-wide endpoint has just zeroed.
     private func markAllRead() {
-        guard let articleViewModel else { return }
-        Task {
-            await articleViewModel.markAllRead()
-            await feedViewModel.refreshUnreadCounts()
-        }
+        Task { await markAllReadAndRefreshCounts() }
     }
 
     private var alertBinding: Binding<Bool> {

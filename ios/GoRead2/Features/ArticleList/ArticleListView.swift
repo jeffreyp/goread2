@@ -19,6 +19,10 @@ struct ArticleListView: View {
     /// Replaces the default pull-to-refresh (re-querying this list). The
     /// iPad split view passes an action that refreshes every pane at once.
     var refreshAction: (() async -> Void)?
+    /// Replaces the default mark-all-read (updating this list only). The
+    /// iPad split view passes an action that also refreshes the sidebar's
+    /// unread badges.
+    var markAllReadAction: (() async -> Void)?
 
     @State private var showMarkAllReadConfirmation = false
 
@@ -57,7 +61,13 @@ struct ArticleListView: View {
                             isPresented: $showMarkAllReadConfirmation,
                             titleVisibility: .visible) {
             Button("Mark All Read") {
-                Task { await viewModel.markAllRead() }
+                Task {
+                    if let markAllReadAction {
+                        await markAllReadAction()
+                    } else {
+                        await viewModel.markAllRead()
+                    }
+                }
             }
         }
         .alert("Error", isPresented: errorBinding) {
