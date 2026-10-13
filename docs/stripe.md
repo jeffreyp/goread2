@@ -179,10 +179,12 @@ make dev
 
 ### Test Webhook Processing
 
-Watch the application's stdout (see [troubleshooting.md](troubleshooting.md#logging-and-debugging)) for entries like:
+Watch the application's stdout (see [troubleshooting.md](troubleshooting.md#logging-and-debugging)) for entries like the following. Stripe object IDs are truncated to their first 8 characters, and user IDs, customer IDs, and subscription metadata are not logged.
 ```
-Stripe webhook received: checkout.session.completed
-Subscription updated for user: user@example.com
+INFO: Webhook - Received event: checkout.session.completed (ID: evt_...)
+INFO: Webhook - Checkout session cs_test_*** completed
+INFO: Webhook - Received event: customer.subscription.created (ID: evt_...)
+INFO: Webhook - Updated subscription sub_1Abc*** (status: active)
 ```
 
 ## Stripe Test Cards

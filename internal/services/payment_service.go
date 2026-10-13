@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
@@ -183,33 +182,26 @@ func (ps *PaymentService) getOrCreateStripeCustomer(user *database.User) (string
 	return cust.ID, nil
 }
 
-// HandleSubscriptionUpdate handles subscription status changes from webhooks
+// HandleSubscriptionUpdate handles subscription status changes from webhooks.
+// It logs nothing itself: errors are returned to the caller, which logs them
+// with the subscription ID redacted.
 func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error {
-	log.Printf("HandleSubscriptionUpdate - Processing subscription ID: %s", subscriptionID)
-
 	// Get subscription from Stripe
 	sub, err := subscription.Get(subscriptionID, nil)
 	if err != nil {
-		log.Printf("ERROR: HandleSubscriptionUpdate - Failed to get subscription from Stripe: %v", err)
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
-
-	log.Printf("HandleSubscriptionUpdate - Subscription status from Stripe: %s", sub.Status)
 
 	// Extract user ID from metadata
 	userIDStr, exists := sub.Metadata["user_id"]
 	if !exists {
-		log.Printf("ERROR: HandleSubscriptionUpdate - No user_id in subscription metadata. Available metadata: %+v", sub.Metadata)
 		return fmt.Errorf("user_id not found in subscription metadata")
 	}
 
 	var userID int
 	if _, err := fmt.Sscanf(userIDStr, "%d", &userID); err != nil {
-		log.Printf("ERROR: HandleSubscriptionUpdate - Invalid user_id format '%s': %v", userIDStr, err)
 		return fmt.Errorf("invalid user_id in metadata: %w", err)
 	}
-
-	log.Printf("HandleSubscriptionUpdate - Processing for user ID: %d", userID)
 
 	// Convert Stripe status to our status
 	var status string
@@ -235,16 +227,12 @@ func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error 
 		status = "cancelled"
 	}
 
-	log.Printf("HandleSubscriptionUpdate - Mapped status: %s, payment date: %v, next billing: %v", status, lastPaymentDate, nextBillingDate)
-
 	// Update user subscription in database
 	err = ps.subscriptionService.UpdateUserSubscription(userID, status, subscriptionID, lastPaymentDate, nextBillingDate)
 	if err != nil {
-		log.Printf("ERROR: HandleSubscriptionUpdate - Database update failed: %v", err)
 		return fmt.Errorf("failed to update user subscription: %w", err)
 	}
 
-	log.Printf("HandleSubscriptionUpdate - Database updated for user %d with status '%s'", userID, status)
 	return nil
 }
 
