@@ -1115,3 +1115,68 @@ func TestDatastorePaginationAcrossTiedTimestamps(t *testing.T) {
 		}
 	}
 }
+
+// TestDatastoreUnreadOnlyPaginationStopsWhenExhausted reproduces the "Load
+// More Articles" button showing up with nothing left to load: an
+// unread-only page fills exactly to the limit, and the only articles left
+// in the already-fetched candidate set are read. Neither feed's window was
+// full, so there is no unscanned data below the frontier either — the page
+// is genuinely the end, and NextCursor must come back empty on this call,
+// not on a follow-up page that finds zero new articles.
+func TestDatastoreUnreadOnlyPaginationStopsWhenExhausted(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+
+	user := createDatastoreTestUser(t, db)
+	unreadFeed := createDatastoreTestFeed(t, db)
+	readFeed := createDatastoreTestFeed(t, db)
+	for _, f := range []*Feed{unreadFeed, readFeed} {
+		if err := db.SubscribeUserToFeed(user.ID, f.ID); err != nil {
+			t.Fatalf("SubscribeUserToFeed failed: %v", err)
+		}
+	}
+
+	base := time.Now().UTC().Truncate(time.Second)
+	add := func(feedID int, publishedAt time.Time) int {
+		article := &Article{
+			FeedID:      feedID,
+			Title:       "Exhaustion test",
+			URL:         fmt.Sprintf("https://example.com/exhaust_%d_%d", feedID, time.Now().UnixNano()),
+			PublishedAt: publishedAt,
+			CreatedAt:   base,
+		}
+		if err := db.AddArticle(article); err != nil {
+			t.Fatalf("AddArticle failed: %v", err)
+		}
+		return article.ID
+	}
+
+	// Three unread articles, newer than everything in readFeed.
+	const limit = 3
+	for i := 0; i < limit; i++ {
+		add(unreadFeed.ID, base.Add(-time.Duration(i)*time.Minute))
+	}
+	// Two older, already-read articles in a different feed. Mark them read
+	// before fetching so they are read from the start, not read "between"
+	// requests.
+	readIDs := []int{
+		add(readFeed.ID, base.Add(-time.Hour)),
+		add(readFeed.ID, base.Add(-2*time.Hour)),
+	}
+	for _, id := range readIDs {
+		if err := db.MarkUserArticleRead(user.ID, id, true); err != nil {
+			t.Fatalf("MarkUserArticleRead failed: %v", err)
+		}
+	}
+
+	result, err := db.GetUserArticlesPaginated(user.ID, limit, "", true)
+	if err != nil {
+		t.Fatalf("GetUserArticlesPaginated failed: %v", err)
+	}
+	if len(result.Articles) != limit {
+		t.Fatalf("got %d articles, want %d", len(result.Articles), limit)
+	}
+	if result.NextCursor != "" {
+		t.Errorf("NextCursor = %q, want empty: no unread articles remain, so the client's "+
+			"\"Load More\" button should not appear", result.NextCursor)
+	}
+}

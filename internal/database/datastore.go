@@ -1112,13 +1112,20 @@ func (db *DatastoreDB) getUserArticlesPaginated(userID, feedID int, limit int, c
 
 		i := 0
 		statusLoaded := 0
+		ensureStatusLoaded := func(idx int) {
+			if idx < statusLoaded {
+				return
+			}
+			upto := idx + unreadStatusChunk
+			if upto > len(candidates) {
+				upto = len(candidates)
+			}
+			db.loadUserArticleStatuses(ctx, userID, candidates[statusLoaded:upto], statusMap)
+			statusLoaded = upto
+		}
 		for ; i < len(candidates) && len(page) < limit; i++ {
-			if unreadOnly && i == statusLoaded {
-				statusLoaded = i + unreadStatusChunk
-				if statusLoaded > len(candidates) {
-					statusLoaded = len(candidates)
-				}
-				db.loadUserArticleStatuses(ctx, userID, candidates[i:statusLoaded], statusMap)
+			if unreadOnly {
+				ensureStatusLoaded(i)
 			}
 			scanned++
 			if unreadOnly && statusMap[candidates[i].key.ID].IsRead {
@@ -1130,7 +1137,30 @@ func (db *DatastoreDB) getUserArticlesPaginated(userID, feedID int, limit int, c
 		// A full window means that feed has articles older than this round.
 		moreBelowFrontier := !frontier.IsZero()
 		if len(page) == limit {
-			if i < len(candidates) || moreBelowFrontier {
+			moreInCandidates := i < len(candidates)
+			if unreadOnly && moreInCandidates {
+				// The remaining candidates in this round may all be read
+				// (e.g. they trail the page in the same window). Peek ahead
+				// to confirm at least one is actually unread, so the page
+				// isn't followed by a "Load More" with nothing left to find.
+				moreInCandidates = false
+				for j := i; j < len(candidates); j++ {
+					if scanned >= maxScannedArticleRefs {
+						// Unresolved within the per-request budget; assume
+						// more may exist and let the next page's scan
+						// resolve it.
+						moreInCandidates = true
+						break
+					}
+					ensureStatusLoaded(j)
+					scanned++
+					if !statusMap[candidates[j].key.ID].IsRead {
+						moreInCandidates = true
+						break
+					}
+				}
+			}
+			if moreInCandidates || moreBelowFrontier {
 				last := page[len(page)-1]
 				nextCursor = encodeSQLiteCursor(int(last.key.ID), last.publishedAt)
 			}
