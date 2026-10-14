@@ -310,6 +310,8 @@ class GoReadApp {
         // Unread count for the current feed/view as of the last article list load,
         // used to detect new articles arriving during background unread-count sync.
         this.newArticlesBaselineCount = null;
+        // Whether unread badge counts have been fetched at least once.
+        this.unreadCountsLoaded = false;
         this.feeds = [];
         this.articles = [];
         this.user = null;
@@ -1320,7 +1322,8 @@ class GoReadApp {
                 this.nextCursor = nextCursor;
             }
 
-            this.hasMoreArticles = nextCursor !== '';
+            this.hasMoreArticles = nextCursor !== '' &&
+                !this.unreadScanExhausted(newArticles.length, limit);
 
             this.renderArticlesOptimized(append);
 
@@ -1371,6 +1374,17 @@ class GoReadApp {
         if (this.articleFilter === 'all' && startIndex < this.articles.length) {
             this.selectArticle(startIndex);
         }
+    }
+
+    // In unread mode the server returns a short page with a cursor when it runs
+    // out of per-request scan budget while skipping read articles, which does not
+    // mean any unread articles remain. After a short page, trust the cursor only
+    // while the view's unread count (as of the list load) exceeds what's loaded.
+    unreadScanExhausted(pageSize, limit) {
+        if (this.articleFilter !== 'unread' || pageSize >= limit || !this.unreadCountsLoaded) {
+            return false;
+        }
+        return this.articles.length >= this.newArticlesBaselineCount;
     }
 
     addLoadMoreButton() {
@@ -2271,6 +2285,7 @@ class GoReadApp {
         if (!unreadCounts || typeof unreadCounts !== 'object') {
             unreadCounts = {};
         }
+        this.unreadCountsLoaded = true;
         
         // Update individual feed counts
         let totalUnread = 0;
