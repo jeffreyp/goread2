@@ -178,6 +178,17 @@ See [caching.md](caching.md) for details.
 - One fewer sequential round trip before articles appear on load
 - Perceived load time improves most for users with a large number of feeds, where the feeds and unread-counts queries take longest
 
+### 6. Bounded-Concurrency Article Projection
+
+**Implementation:**
+- `getUserArticlesPaginated` in `internal/database/datastore.go` pages through a user's articles by projecting publish timestamps per feed via `projectArticleRefs`
+- `projectArticleRefs` runs one projection query per feed with `errgroup`, bounded to `maxConcurrentFeedProjections` (25) concurrent Datastore calls, instead of waiting on fixed batches of 5 before starting the next batch
+- A user with 50 feeds now pays about 2 concurrent rounds per page instead of 10 sequential ones
+
+**Benefits:**
+- Lower page latency for users subscribed to many feeds
+- Each user's own feed list is also served from the cache described in [caching.md](caching.md#user-feeds-cache-5-minutes-ttl-datastore-only), removing a `UserFeed` query and a `Feed` `GetMulti` from every page
+
 ## Database Query Patterns
 
 ### Best Practices

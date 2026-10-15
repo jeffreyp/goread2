@@ -174,6 +174,27 @@ if !cached {
 - User subscribes to a feed
 - User unsubscribes from a feed
 
+#### User Feeds Cache (5 minutes TTL, Datastore only)
+
+**Purpose:** Cache each user's own subscribed feed list, which `GetUserArticlesPaginated` reads on every page of every "All Articles" or single-feed request.
+
+**Location:** `internal/database/user_feeds_cache.go`
+
+**How it works:**
+- Caches the per-user result of `GetUserFeeds`, keyed by user ID
+- Lives inside `DatastoreDB` rather than `internal/cache`, since `internal/cache` imports `internal/database` for the `Feed` type and a database-layer cache can't import it back without a cycle
+- Automatically invalidated by `SubscribeUserToFeed` and `UnsubscribeUserFromFeed`
+- TTL: 5 minutes, a safety net for drift between App Engine instances rather than the primary invalidation mechanism
+- **Max size:** 10,000 users. When full, the entry closest to expiry is evicted to make room for a new user.
+- Only implemented for `DatastoreDB`; the SQLite-backed `DB` used in local development and `schema_bench_test.go` benchmarks queries directly on every call.
+
+**Benefits:**
+- Removes a `UserFeed` query plus a `Feed` `GetMulti` from every paginated articles request for users who page through more than one screen of articles
+
+**Invalidation triggers:**
+- User subscribes to a feed
+- User unsubscribes from a feed
+
 ### Cache Design Principles
 
 1. **Copy on read/write:** All caches return copies to prevent external modification

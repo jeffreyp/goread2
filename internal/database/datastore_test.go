@@ -607,6 +607,52 @@ func TestDatastoreGetUserFeeds(t *testing.T) {
 	}
 }
 
+func TestDatastoreGetUserFeedsCacheInvalidatedOnSubscriptionChange(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+
+	user := createDatastoreTestUser(t, db)
+	feed1 := createDatastoreTestFeed(t, db)
+	feed2 := createDatastoreTestFeed(t, db)
+
+	// First call populates the per-user feed list cache.
+	feeds, err := db.GetUserFeeds(user.ID)
+	if err != nil {
+		t.Fatalf("GetUserFeeds failed: %v", err)
+	}
+	if len(feeds) != 0 {
+		t.Fatalf("Expected 0 feeds before subscribing, got %d", len(feeds))
+	}
+
+	// Subscribing must invalidate the cached (empty) list, not leave it stale.
+	if err := db.SubscribeUserToFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	if err := db.SubscribeUserToFeed(user.ID, feed2.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+
+	feeds, err = db.GetUserFeeds(user.ID)
+	if err != nil {
+		t.Fatalf("GetUserFeeds failed: %v", err)
+	}
+	if len(feeds) != 2 {
+		t.Fatalf("Expected 2 feeds after subscribing, got %d", len(feeds))
+	}
+
+	// Unsubscribing must invalidate the cached two-feed list.
+	if err := db.UnsubscribeUserFromFeed(user.ID, feed1.ID); err != nil {
+		t.Fatalf("UnsubscribeUserFromFeed failed: %v", err)
+	}
+
+	feeds, err = db.GetUserFeeds(user.ID)
+	if err != nil {
+		t.Fatalf("GetUserFeeds failed: %v", err)
+	}
+	if len(feeds) != 1 || feeds[0].ID != feed2.ID {
+		t.Fatalf("Expected only feed %d after unsubscribing, got %+v", feed2.ID, feeds)
+	}
+}
+
 func TestDatastoreGetAllUserFeeds(t *testing.T) {
 	db := setupTestDatastoreDB(t)
 

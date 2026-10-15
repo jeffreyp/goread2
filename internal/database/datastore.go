@@ -10,6 +10,7 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"cloud.google.com/go/datastore/apiv1/datastorepb"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -39,6 +40,12 @@ const (
 	// per UserArticle GetMulti.
 	unreadStatusChunk = 100
 
+	// maxConcurrentFeedProjections bounds how many per-feed projection
+	// queries run at once in projectArticleRefs. High enough that a user
+	// with dozens of feeds pays only one or two round trips per page, low
+	// enough to avoid overwhelming Datastore with one request's fan-out.
+	maxConcurrentFeedProjections = 25
+
 	// unreadCountWindowDays is the lookback window for unread count queries.
 	// Articles older than this are excluded from badge counts to cap read costs.
 	unreadCountWindowDays = 90
@@ -58,6 +65,8 @@ func logSlowQuery(op string, start time.Time) {
 type DatastoreDB struct {
 	client    *datastore.Client
 	projectID string
+
+	userFeeds *userFeedsCache
 }
 
 // newDatastoreContext creates a new context with the standard Datastore timeout
@@ -166,6 +175,7 @@ func NewDatastoreDB(projectID string) (*DatastoreDB, error) {
 	return &DatastoreDB{
 		client:    client,
 		projectID: projectID,
+		userFeeds: newUserFeedsCache(),
 	}, nil
 }
 
@@ -690,7 +700,27 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 	}, nil
 }
 
+// GetUserFeeds returns userID's subscribed feeds, serving from an in-memory
+// cache when available. The cache is invalidated on subscribe/unsubscribe, so
+// a hit here is still current except for drift between App Engine instances
+// within the cache's TTL.
 func (db *DatastoreDB) GetUserFeeds(userID int) ([]Feed, error) {
+	if feeds, ok := db.userFeeds.get(userID); ok {
+		return feeds, nil
+	}
+
+	feeds, err := db.fetchUserFeeds(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	db.userFeeds.set(userID, feeds)
+	return feeds, nil
+}
+
+// fetchUserFeeds reads userID's subscribed feeds directly from Datastore,
+// bypassing the cache.
+func (db *DatastoreDB) fetchUserFeeds(userID int) ([]Feed, error) {
 	defer logSlowQuery("GetUserFeeds", time.Now())
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
@@ -806,6 +836,7 @@ func (db *DatastoreDB) SubscribeUserToFeed(userID, feedID int) error {
 		return fmt.Errorf("failed to create subscription: %w", err)
 	}
 
+	db.userFeeds.invalidate(userID)
 	return nil
 }
 
@@ -822,6 +853,7 @@ func (db *DatastoreDB) UnsubscribeUserFromFeed(userID, feedID int) error {
 		return fmt.Errorf("failed to delete subscription: %w", err)
 	}
 
+	db.userFeeds.invalidate(userID)
 	return nil
 }
 
@@ -887,59 +919,53 @@ func (db *DatastoreDB) projectArticleRefs(ctx context.Context, feedIDs []int64, 
 	type feedResult struct {
 		fid  int64
 		refs []articleRef
-		err  error
+	}
+
+	results := make([]feedResult, len(feedIDs))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrentFeedProjections)
+
+	for i, fid := range feedIDs {
+		i, fid := i, fid
+		g.Go(func() error {
+			query := datastore.NewQuery("Article").FilterField("feed_id", "=", fid)
+			if !pos.at.IsZero() {
+				op := "<"
+				if pos.inclusive {
+					op = "<="
+				}
+				query = query.FilterField("published_at", op, pos.at)
+			}
+			query = query.Order("-published_at").Limit(window).Project("published_at")
+
+			var projs []articlePublishedAtProjection
+			keys, err := db.client.GetAll(gctx, query, &projs)
+			if err != nil {
+				return fmt.Errorf("failed to project articles for feed %d: %w", fid, err)
+			}
+			feedRefs := make([]articleRef, len(projs))
+			for j := range projs {
+				feedRefs[j] = articleRef{key: keys[j], feedID: fid, publishedAt: projs[j].PublishedAt}
+			}
+			results[i] = feedResult{fid: fid, refs: feedRefs}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, nil, err
 	}
 
 	var refs []articleRef
 	windows := make(map[int64]feedWindow)
-	batchSize := 5
-	for i := 0; i < len(feedIDs); i += batchSize {
-		end := i + batchSize
-		if end > len(feedIDs) {
-			end = len(feedIDs)
+	for _, r := range results {
+		if len(r.refs) == 0 {
+			continue
 		}
-		batch := feedIDs[i:end]
-		results := make(chan feedResult, len(batch))
-
-		for _, fid := range batch {
-			go func(fid int64) {
-				query := datastore.NewQuery("Article").FilterField("feed_id", "=", fid)
-				if !pos.at.IsZero() {
-					op := "<"
-					if pos.inclusive {
-						op = "<="
-					}
-					query = query.FilterField("published_at", op, pos.at)
-				}
-				query = query.Order("-published_at").Limit(window).Project("published_at")
-
-				var projs []articlePublishedAtProjection
-				keys, err := db.client.GetAll(ctx, query, &projs)
-				if err != nil {
-					results <- feedResult{fid: fid, err: err}
-					return
-				}
-				feedRefs := make([]articleRef, len(projs))
-				for j := range projs {
-					feedRefs[j] = articleRef{key: keys[j], feedID: fid, publishedAt: projs[j].PublishedAt}
-				}
-				results <- feedResult{fid: fid, refs: feedRefs}
-			}(fid)
-		}
-
-		for range batch {
-			r := <-results
-			if r.err != nil {
-				return nil, nil, fmt.Errorf("failed to project articles for feed %d: %w", r.fid, r.err)
-			}
-			if len(r.refs) == 0 {
-				continue
-			}
-			refs = append(refs, r.refs...)
-			windows[r.fid] = feedWindow{
-				full:   len(r.refs) == window,
-				oldest: r.refs[len(r.refs)-1].publishedAt,
-			}
+		refs = append(refs, r.refs...)
+		windows[r.fid] = feedWindow{
+			full:   len(r.refs) == window,
+			oldest: r.refs[len(r.refs)-1].publishedAt,
 		}
 	}
 	return refs, windows, nil
@@ -2056,13 +2082,15 @@ func (db *DatastoreDB) deleteOrphanedUserArticlesBatch(ctx context.Context, keys
 	return len(keysToDelete), nil
 }
 
-// getUserFeedsWithRetry gets user feeds with retry logic to handle eventual consistency
+// getUserFeedsWithRetry gets user feeds with retry logic to handle eventual consistency.
+// It reads straight from Datastore on every attempt, bypassing the GetUserFeeds cache,
+// since a cache hit would just return the same (possibly stale) result on every retry.
 func (db *DatastoreDB) getUserFeedsWithRetry(ctx context.Context, userID int, maxRetries int, delay time.Duration) ([]Feed, error) {
 	var lastFeeds []Feed
 	var lastErr error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		feeds, err := db.GetUserFeeds(userID)
+		feeds, err := db.fetchUserFeeds(userID)
 		if err != nil {
 			lastErr = err
 			if attempt < maxRetries {
