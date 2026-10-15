@@ -1077,6 +1077,19 @@ class GoReadApp {
 
             document.getElementById('article-list').innerHTML = this.articleLoadingSkeleton();
 
+            // "All Articles" is the default view and the "all" sidebar entry is
+            // static markup (not rendered from the feeds response), so start
+            // that fetch immediately instead of waiting on feeds + unread
+            // counts first. This turns the startup sequence into one parallel
+            // wave instead of a waterfall.
+            this.currentFeed = 'all';
+            const allElement = document.querySelector(`[data-feed-id="all"]`);
+            if (allElement) {
+                allElement.classList.add('active');
+            }
+            document.getElementById('article-pane-title').textContent = 'Articles';
+            const articlesPromise = this.loadArticles('all');
+
             // Batch feeds and unread counts requests
             const [feedsResponse, countsResponse] = await Promise.all([
                 fetch('/api/feeds'),
@@ -1111,23 +1124,21 @@ class GoReadApp {
                 if (countsResponse.ok) {
                     const unreadCounts = await countsResponse.json();
                     this.applyUnreadCounts(unreadCounts);
-                }
 
-                if (this.feeds.length > 0) {
-                    // Select "all" - now the element should exist
-                    this.currentFeed = 'all';
-                    const allElement = document.querySelector(`[data-feed-id="all"]`);
-                    if (allElement) {
-                        allElement.classList.add('active');
+                    // The articles fetch above started before these counts
+                    // existed, so its "all"-view baseline was captured as the
+                    // static markup's placeholder of 0. Recompute it now that
+                    // the real count is in the DOM, so the background sync's
+                    // new-articles banner compares against the right baseline.
+                    if (this.currentFeed === 'all') {
+                        this.newArticlesBaselineCount = this.getCurrentViewUnreadCount('all');
                     }
-                    document.getElementById('article-pane-title').textContent = 'Articles';
-
-                    // Load articles immediately after unread counts are applied
-                    this.loadArticles('all');
                 }
             } else {
                 this.showError('Invalid feed data received from server', ErrorType.SERVER);
             }
+
+            await articlesPromise;
         } catch (error) {
             console.error('Failed to load feeds:', error);
             // Error already shown above with retry option

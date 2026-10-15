@@ -168,6 +168,16 @@ See [caching.md](caching.md) for details.
 - Smaller article list responses
 - Keyboard navigation between neighbouring articles displays content immediately
 
+### 5. Parallel Startup Requests
+
+**Implementation:**
+- `GoReadApp.init()` in `web/static/js/app.js` fetches `/api/feeds`, `/api/feeds/unread-counts`, and the default "All Articles" view (`/api/feeds/all/articles`) as one parallel wave, rather than waiting for the feed list to return before requesting articles
+- The "All Articles" sidebar entry is static markup rendered in `index.html`, not generated from the feeds response, so selecting it and starting its article fetch does not depend on the feeds request completing first
+
+**Benefits:**
+- One fewer sequential round trip before articles appear on load
+- Perceived load time improves most for users with a large number of feeds, where the feeds and unread-counts queries take longest
+
 ## Database Query Patterns
 
 ### Best Practices
