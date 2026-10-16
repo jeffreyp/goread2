@@ -248,9 +248,11 @@ func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error 
 // DeleteCustomerForUser deletes every Stripe customer belonging to user,
 // which also cancels their subscriptions immediately. Stripe keeps the payment
 // records it is legally required to retain. GoRead2 does not store customer
-// IDs, so customers are found through the user's subscription and by email,
-// skipping any whose metadata names a different GoRead2 user. Customers that
-// are already deleted are ignored, so the call is safe to retry.
+// IDs, so it deletes the customer on the user's subscription plus any customer
+// found by email whose user_id metadata names this user. A customer without
+// that metadata may not be GoRead2's (for example, one created by hand in the
+// Dashboard), so it is never deleted on the strength of a matching email.
+// Customers that are already deleted are ignored, so the call is safe to retry.
 func (ps *PaymentService) DeleteCustomerForUser(user *database.User) error {
 	customerIDs := make(map[string]bool)
 
@@ -272,10 +274,9 @@ func (ps *PaymentService) DeleteCustomerForUser(user *database.User) error {
 	iter := customer.Search(params)
 	for iter.Next() {
 		cust := iter.Customer()
-		if owner, ok := cust.Metadata["user_id"]; ok && owner != strconv.Itoa(user.ID) {
-			continue
+		if cust.Metadata["user_id"] == strconv.Itoa(user.ID) {
+			customerIDs[cust.ID] = true
 		}
-		customerIDs[cust.ID] = true
 	}
 	if err := iter.Err(); err != nil {
 		return fmt.Errorf("failed to search for customers: %w", err)
