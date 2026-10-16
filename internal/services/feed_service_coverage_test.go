@@ -139,17 +139,21 @@ func (m *mockDBFeed) CleanupOrphanedUserArticles(int) (int, error) { return 0, n
 func (m *mockDBFeed) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
 	return nil, "", nil
 }
-func (m *mockDBFeed) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
-func (m *mockDBFeed) DeleteUserSessions(int) error                    { return nil }
-func (m *mockDBFeed) DeleteUserAccount(int) error                     { return nil }
-func (m *mockDBFeed) CreateAccountTombstone(string) error             { return nil }
-func (m *mockDBFeed) HasAccountTombstone(string) (bool, error)        { return false, nil }
-func (m *mockDBFeed) CreateSession(*database.Session) error           { return nil }
-func (m *mockDBFeed) GetSession(string) (*database.Session, error)    { return nil, nil }
-func (m *mockDBFeed) UpdateSessionExpiry(string, time.Time) error     { return nil }
-func (m *mockDBFeed) DeleteSession(string) error                      { return nil }
-func (m *mockDBFeed) DeleteExpiredSessions() error                    { return nil }
-func (m *mockDBFeed) CreateAuditLog(*database.AuditLog) error         { return nil }
+func (m *mockDBFeed) GetUserSessions(int) ([]database.Session, error)             { return nil, nil }
+func (m *mockDBFeed) DeleteUserSessions(int) error                                { return nil }
+func (m *mockDBFeed) DeleteUserAccount(int) error                                 { return nil }
+func (m *mockDBFeed) CreateAccountTombstone(string) error                         { return nil }
+func (m *mockDBFeed) HasAccountTombstone(string) (bool, error)                    { return false, nil }
+func (m *mockDBFeed) RecordUserActivity(int, time.Time) error                     { return nil }
+func (m *mockDBFeed) GetUserLastSeen(int) (time.Time, error)                      { return time.Time{}, nil }
+func (m *mockDBFeed) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) { return nil, nil }
+func (m *mockDBFeed) ClearAuditLogIPsBefore(time.Time) (int, error)               { return 0, nil }
+func (m *mockDBFeed) CreateSession(*database.Session) error                       { return nil }
+func (m *mockDBFeed) GetSession(string) (*database.Session, error)                { return nil, nil }
+func (m *mockDBFeed) UpdateSessionExpiry(string, time.Time) error                 { return nil }
+func (m *mockDBFeed) DeleteSession(string) error                                  { return nil }
+func (m *mockDBFeed) DeleteExpiredSessions() error                                { return nil }
+func (m *mockDBFeed) CreateAuditLog(*database.AuditLog) error                     { return nil }
 func (m *mockDBFeed) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
 }

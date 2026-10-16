@@ -156,13 +156,19 @@ func (m *mockDBAdminHandler) DeleteUserSessions(int) error                    { 
 func (m *mockDBAdminHandler) DeleteUserAccount(int) error                     { return nil }
 func (m *mockDBAdminHandler) CreateAccountTombstone(string) error             { return nil }
 func (m *mockDBAdminHandler) HasAccountTombstone(string) (bool, error)        { return false, nil }
-func (m *mockDBAdminHandler) UpdateFeedLastFetch(int, time.Time) error        { return nil }
-func (m *mockDBAdminHandler) UpdateUserMaxArticlesOnFeedAdd(int, int) error   { return nil }
-func (m *mockDBAdminHandler) CreateSession(*database.Session) error           { return nil }
-func (m *mockDBAdminHandler) GetSession(string) (*database.Session, error)    { return nil, nil }
-func (m *mockDBAdminHandler) UpdateSessionExpiry(string, time.Time) error     { return nil }
-func (m *mockDBAdminHandler) DeleteSession(string) error                      { return nil }
-func (m *mockDBAdminHandler) DeleteExpiredSessions() error                    { return nil }
+func (m *mockDBAdminHandler) RecordUserActivity(int, time.Time) error         { return nil }
+func (m *mockDBAdminHandler) GetUserLastSeen(int) (time.Time, error)          { return time.Time{}, nil }
+func (m *mockDBAdminHandler) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) {
+	return nil, nil
+}
+func (m *mockDBAdminHandler) ClearAuditLogIPsBefore(time.Time) (int, error) { return 0, nil }
+func (m *mockDBAdminHandler) UpdateFeedLastFetch(int, time.Time) error      { return nil }
+func (m *mockDBAdminHandler) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
+func (m *mockDBAdminHandler) CreateSession(*database.Session) error         { return nil }
+func (m *mockDBAdminHandler) GetSession(string) (*database.Session, error)  { return nil, nil }
+func (m *mockDBAdminHandler) UpdateSessionExpiry(string, time.Time) error   { return nil }
+func (m *mockDBAdminHandler) DeleteSession(string) error                    { return nil }
+func (m *mockDBAdminHandler) DeleteExpiredSessions() error                  { return nil }
 func (m *mockDBAdminHandler) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
 	return nil
 }

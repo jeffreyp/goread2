@@ -25,3 +25,12 @@ cron:
     min_backoff_seconds: 10
     max_backoff_seconds: 300
     max_doublings: 3
+
+- description: "Apply data retention policy (delete inactive unpaid accounts, expire audit log IPs)"
+  url: /cron/apply-retention
+  schedule: 1 of month 09:00
+  target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3

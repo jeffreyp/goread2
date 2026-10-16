@@ -267,6 +267,18 @@ Shared `Feed` and `Article` records are not touched. Other App Engine instances 
 
 **Account tombstones** stop a deleted account from starting a second free trial by signing in again. A tombstone is an `AccountTombstone` entity keyed by HMAC-SHA256 of the Google ID under `ACCOUNT_TOMBSTONE_KEY`, holding only the deletion time. A plain hash would not protect the numeric Google ID from brute force. On sign-in, a new account whose Google ID has a tombstone is created with its trial already ended. Without the key, deletion still works but writes no tombstone, and the sign-in check is skipped.
 
+### Data Retention
+
+`RetentionService` (`internal/services/retention_service.go`) applies the retention policy on the first of each month through `/cron/apply-retention`:
+
+- **Inactive accounts**: an account is deleted, through the same path as `DELETE /api/account`, once it has had no activity for 24 months and its subscription status is `trial`, `cancelled`, or `expired`. Paying accounts (`active`, `past_due`, `unpaid`), admins, and accounts with granted free months are never deleted for inactivity. No warning is sent before deletion.
+- **Audit log IP addresses**: blanked on entries older than 12 months; the rest of each entry is kept.
+- **Request logs**: Cloud Logging's `_Default` bucket keeps App Engine request logs, including IP addresses and user agents, for 30 days.
+
+Activity is a `UserActivity` record per user holding the last time any session for that account was created or used. `SessionManager` writes it at sign-in and then at most once a day per user on each instance, rather than on every request. An account with no `UserActivity` record, such as one created before activity tracking existed, is not judged by its creation date: the first retention run records it as active as of that run, so it can be deleted for inactivity no sooner than 24 months later.
+
+A failed deletion is logged and counted; the run continues with other accounts and then returns an error so that Cloud Tasks retries it. Each retry repeats only the work still outstanding.
+
 ### Regression Test Coverage
 
 `test/security/` is the consolidated, CI-gated regression suite for the controls above: CSRF token enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and free-trial feed-limit enforcement. It runs as a blocking step in the `security` job in `.github/workflows/test.yml`, separate from the advisory `govulncheck` scan. See [testing.md](testing.md#cicd-integration) for details.

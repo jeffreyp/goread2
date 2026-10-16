@@ -121,6 +121,7 @@ func main() {
 		userDataService.SetCustomerDeleter(paymentService)
 	}
 	accountHandler := handlers.NewAccountHandler(userDataService, sessionManager)
+	retentionHandler := handlers.NewRetentionHandler(services.NewRetentionService(db, userDataService))
 
 	// Wire up Cloud Tasks for the cron endpoints, production App Engine only.
 	// Local dev and tests leave this unset, so cron handlers fall back to
@@ -137,6 +138,7 @@ func main() {
 			}()
 			feedHandler.SetTaskQueue(taskQueue)
 			accountHandler.SetTaskQueue(taskQueue)
+			retentionHandler.SetTaskQueue(taskQueue)
 		}
 	}
 
@@ -266,6 +268,8 @@ func main() {
 		cronRoutes.POST("/cleanup-sessions", authHandler.CleanupExpiredSessions)
 		cronRoutes.GET("/cleanup-orphaned-articles", feedHandler.CleanupOrphanedUserArticles)
 		cronRoutes.POST("/cleanup-orphaned-articles", feedHandler.CleanupOrphanedUserArticles)
+		cronRoutes.GET("/apply-retention", retentionHandler.CronRetention)
+		cronRoutes.POST("/apply-retention", retentionHandler.CronRetention)
 	}
 
 	// Cloud Tasks worker endpoints - dispatched only by the cron handlers
@@ -276,6 +280,7 @@ func main() {
 		taskRoutes.POST("/refresh-feeds", feedHandler.TaskRefreshFeeds)
 		taskRoutes.POST("/cleanup-orphaned-articles", feedHandler.TaskCleanupOrphanedArticles)
 		taskRoutes.POST("/delete-account", accountHandler.TaskDeleteAccount)
+		taskRoutes.POST("/apply-retention", retentionHandler.TaskRetention)
 	}
 
 	// Protected API routes

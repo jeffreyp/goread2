@@ -706,6 +706,7 @@ Download all personal data GoRead2 stores for the current user, as a single JSON
     "free_months_remaining": 0,
     "max_articles_on_feed_add": 100
   },
+  "last_seen_at": "2026-10-15T18:30:00Z",
   "feeds": [
     {"id": 1, "title": "Example Blog", "url": "https://example.com/feed.xml"}
   ],
@@ -736,6 +737,7 @@ Download all personal data GoRead2 stores for the current user, as a single JSON
 ```
 
 **Fields**:
+- `last_seen_at` is when the account was last active, recorded at most once a day for the data retention policy; omitted if never recorded
 - `sessions` omits session IDs, which are live credentials
 - `audit_log` lists admin actions where the user was the target (`"role": "subject"`) or the admin who acted (`"role": "actor"`), newest first. It omits the other party's email and IP address.
 - `articles` lists every article with a stored read or starred state. An article that no longer exists keeps its `article_id`, `is_read`, and `is_starred` fields and omits the rest.

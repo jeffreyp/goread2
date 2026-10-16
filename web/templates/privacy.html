@@ -36,7 +36,7 @@
                 <li>Your subscription status: trial end date, last payment date, next billing date, and the Stripe customer and subscription identifiers for your account</li>
                 <li>Sign-in sessions: a random session identifier with its creation and expiry times</li>
             </ul>
-            <p>This data is stored in Google Cloud, which hosts GoRead2. Google Cloud also keeps request logs that include IP addresses and browser user agents. These logs are used for security and troubleshooting and are deleted automatically after a limited period.</p>
+            <p>This data is stored in Google Cloud, which hosts GoRead2. Google Cloud also keeps request logs that include IP addresses and browser user agents. These logs are used for security and troubleshooting and are deleted automatically after 30 days.</p>
             
             <h2>Cookies and Local Storage</h2>
             <p>GoRead2 sets only the following cookies and browser storage entries, none of which are used for tracking:</p>
@@ -73,7 +73,9 @@
             <h2>Data Retention</h2>
             <ul>
                 <li><strong>Account data:</strong> kept while your account exists, including your full read and starred history, and deleted when you delete your account</li>
-                <li><strong>Sessions:</strong> expire after 7 days without use. Expired sessions are deleted automatically.</li>
+                <li><strong>Inactive accounts:</strong> an account without a paid subscription is deleted after 24 months with no sign-in or use. Accounts with an active subscription are not deleted for inactivity.</li>
+                <li><strong>Sessions:</strong> expire after 7 days without use. Expired sessions are deleted automatically. The date your account was last used is recorded, at most once a day, to apply the inactive-account rule above.</li>
+                <li><strong>Server logs:</strong> request logs, which include IP addresses and browser user agents, are deleted after 30 days. IP addresses recorded with administrator actions are removed after 12 months.</li>
                 <li><strong>Payment records:</strong> some payment records are kept by Stripe after account deletion, as required for tax and fraud prevention</li>
                 <li><strong>After deletion:</strong> we keep a one-way, keyed hash of your Google account ID, with no expiry, so that a new account created with the same Google account does not receive a second free trial. It cannot be used to recover your email address or any other account details. Records of administrator actions on your account are kept with your email address replaced by an anonymous identifier.</li>
             </ul>

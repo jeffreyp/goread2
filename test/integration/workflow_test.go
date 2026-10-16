@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
 	"github.com/jeffreyp/goread2/internal/secrets"
+	"github.com/jeffreyp/goread2/internal/services"
 	"github.com/jeffreyp/goread2/test/helpers"
 )
 
@@ -511,5 +513,61 @@ func TestAccountDeletionWorkflow(t *testing.T) {
 	otherTombstoneID, _ := secrets.AccountTombstoneID(context.Background(), other.GoogleID)
 	if found, _ := testServer.DB.HasAccountTombstone(otherTombstoneID); found {
 		t.Error("The other user should not have a tombstone")
+	}
+}
+
+// TestRetentionWorkflow tests the data retention policy end to end:
+// Only inactive unpaid accounts are deleted, untracked accounts are backfilled, everyone else is kept
+func TestRetentionWorkflow(t *testing.T) {
+	helpers.SetupTestEnv(t)
+	defer helpers.CleanupTestEnv(t)
+
+	testServer := helpers.SetupTestServer(t)
+	db := testServer.DB
+	now := time.Now().UTC()
+	longAgo := now.AddDate(-3, 0, 0)
+
+	inactiveTrial := helpers.CreateTestUser(t, db, "google-retention-1", "inactive-trial@example.com", "Inactive Trial")
+	inactiveSubscriber := helpers.CreateTestUser(t, db, "google-retention-2", "subscriber@example.com", "Inactive Subscriber")
+	inactiveAdmin := helpers.CreateTestUser(t, db, "google-retention-3", "admin@example.com", "Inactive Admin")
+	recentlyActive := helpers.CreateTestUser(t, db, "google-retention-4", "recent@example.com", "Recently Active")
+	untracked := helpers.CreateTestUser(t, db, "google-retention-5", "untracked@example.com", "Untracked")
+
+	if err := db.UpdateUserSubscription(inactiveSubscriber.ID, "active", "sub_test", longAgo, now.AddDate(0, 1, 0)); err != nil {
+		t.Fatalf("Failed to set subscription: %v", err)
+	}
+	if err := db.SetUserAdmin(inactiveAdmin.ID, true); err != nil {
+		t.Fatalf("Failed to set admin: %v", err)
+	}
+	for _, u := range []*database.User{inactiveTrial, inactiveSubscriber, inactiveAdmin} {
+		if err := db.RecordUserActivity(u.ID, longAgo); err != nil {
+			t.Fatalf("Failed to record activity: %v", err)
+		}
+	}
+	if err := db.RecordUserActivity(recentlyActive.ID, now.AddDate(0, -1, 0)); err != nil {
+		t.Fatalf("Failed to record activity: %v", err)
+	}
+
+	retention := services.NewRetentionService(db, services.NewUserDataService(db))
+	result, err := retention.Run(now)
+	if err != nil {
+		t.Fatalf("Retention run failed: %v (result %+v)", err, result)
+	}
+	if result.AccountsDeleted != 1 {
+		t.Errorf("Expected 1 account deleted, got %+v", result)
+	}
+
+	if _, err := db.GetUserByID(inactiveTrial.ID); !errors.Is(err, database.ErrUserNotFound) {
+		t.Errorf("Expected the inactive trial account to be deleted, got %v", err)
+	}
+	for _, kept := range []*database.User{inactiveSubscriber, inactiveAdmin, recentlyActive, untracked} {
+		if _, err := db.GetUserByID(kept.ID); err != nil {
+			t.Errorf("Expected %s to be kept: %v", kept.Email, err)
+		}
+	}
+
+	// The untracked account is treated as active from now, not judged by its creation date.
+	if lastSeen, err := db.GetUserLastSeen(untracked.ID); err != nil || !lastSeen.Equal(now) {
+		t.Errorf("Expected untracked account's activity to be backfilled to %v, got %v (err %v)", now, lastSeen, err)
 	}
 }

@@ -99,6 +99,12 @@ type Database interface {
 	CreateAccountTombstone(id string) error
 	HasAccountTombstone(id string) (bool, error)
 
+	// Data retention methods
+	RecordUserActivity(userID int, at time.Time) error
+	GetUserLastSeen(userID int) (time.Time, error)
+	GetUserRetentionInfo() ([]UserRetentionInfo, error)
+	ClearAuditLogIPsBefore(cutoff time.Time) (int, error)
+
 	// Audit log methods
 	CreateAuditLog(log *AuditLog) error
 	GetAuditLogs(limit, offset int, filters map[string]interface{}) ([]AuditLog, error)
@@ -169,6 +175,17 @@ type UserArticle struct {
 	ArticleID int  `json:"article_id"`
 	IsRead    bool `json:"is_read"`
 	IsStarred bool `json:"is_starred"`
+}
+
+// UserRetentionInfo is what the data retention policy needs to decide whether
+// an account is inactive and unpaid.
+type UserRetentionInfo struct {
+	UserID              int
+	SubscriptionStatus  string
+	IsAdmin             bool
+	FreeMonthsRemaining int
+	CreatedAt           time.Time
+	LastSeenAt          time.Time // zero if no activity has been recorded
 }
 
 // DeletedUserPseudonym replaces a deleted user's email in retained audit log
@@ -341,13 +358,19 @@ func (db *DB) CreateTables() error {
 		error_message TEXT
 	);`
 
+	userActivityTable := `
+	CREATE TABLE IF NOT EXISTS user_activity (
+		user_id INTEGER PRIMARY KEY,
+		last_seen_at DATETIME NOT NULL
+	);`
+
 	accountTombstonesTable := `
 	CREATE TABLE IF NOT EXISTS account_tombstones (
 		id TEXT PRIMARY KEY,
 		deleted_at DATETIME NOT NULL
 	);`
 
-	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable, sessionsTable, auditLogsTable, accountTombstonesTable}
+	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable, sessionsTable, auditLogsTable, accountTombstonesTable, userActivityTable}
 
 	for _, table := range tables {
 		if _, err := db.Exec(table); err != nil {
@@ -1643,7 +1666,8 @@ func (db *DB) DeleteUserSessions(userID int) error {
 }
 
 // DeleteUserAccount deletes userID's account and everything tied to it:
-// read/starred state, feed subscriptions, sessions, and the user row. Audit
+// read/starred state, feed subscriptions, sessions, last-activity record, and
+// the user row. Audit
 // log entries are kept for the admin trail but pseudonymized: the user's email
 // is replaced, and the IP address of actions the user performed as an admin is
 // cleared. Shared feeds and articles are untouched. Deleting an account that
@@ -1657,6 +1681,7 @@ func (db *DB) DeleteUserAccount(userID int) error {
 		{`DELETE FROM user_articles WHERE user_id = ?`, []interface{}{userID}},
 		{`DELETE FROM user_feeds WHERE user_id = ?`, []interface{}{userID}},
 		{`DELETE FROM sessions WHERE user_id = ?`, []interface{}{userID}},
+		{`DELETE FROM user_activity WHERE user_id = ?`, []interface{}{userID}},
 		{`UPDATE audit_logs SET target_user_email = ? WHERE target_user_id = ?`, []interface{}{pseudonym, userID}},
 		{`UPDATE audit_logs SET admin_email = ?, ip_address = '' WHERE admin_user_id = ?`, []interface{}{pseudonym, userID}},
 		{`DELETE FROM users WHERE id = ?`, []interface{}{userID}},
@@ -1673,6 +1698,57 @@ func (db *DB) DeleteUserAccount(userID int) error {
 		}
 	}
 	return tx.Commit()
+}
+
+func (db *DB) RecordUserActivity(userID int, at time.Time) error {
+	_, err := db.Exec(`INSERT OR REPLACE INTO user_activity (user_id, last_seen_at) VALUES (?, ?)`, userID, at)
+	return err
+}
+
+// GetUserLastSeen returns when userID was last active, or the zero time if no
+// activity has been recorded.
+func (db *DB) GetUserLastSeen(userID int) (time.Time, error) {
+	var lastSeen time.Time
+	err := db.QueryRow(`SELECT last_seen_at FROM user_activity WHERE user_id = ?`, userID).Scan(&lastSeen)
+	if err == sql.ErrNoRows {
+		return time.Time{}, nil
+	}
+	return lastSeen, err
+}
+
+func (db *DB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
+	rows, err := db.Query(`SELECT u.id, COALESCE(u.subscription_status, 'trial'), COALESCE(u.is_admin, 0),
+		COALESCE(u.free_months_remaining, 0), u.created_at, a.last_seen_at
+		FROM users u LEFT JOIN user_activity a ON a.user_id = u.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	infos := []UserRetentionInfo{}
+	for rows.Next() {
+		var info UserRetentionInfo
+		var lastSeen sql.NullTime
+		if err := rows.Scan(&info.UserID, &info.SubscriptionStatus, &info.IsAdmin, &info.FreeMonthsRemaining, &info.CreatedAt, &lastSeen); err != nil {
+			return nil, err
+		}
+		if lastSeen.Valid {
+			info.LastSeenAt = lastSeen.Time
+		}
+		infos = append(infos, info)
+	}
+	return infos, rows.Err()
+}
+
+// ClearAuditLogIPsBefore blanks the IP address of audit log entries older
+// than cutoff and returns how many entries changed.
+func (db *DB) ClearAuditLogIPsBefore(cutoff time.Time) (int, error) {
+	result, err := db.Exec(`UPDATE audit_logs SET ip_address = '' WHERE timestamp < ? AND ip_address IS NOT NULL AND ip_address != ''`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	n, err := result.RowsAffected()
+	return int(n), err
 }
 
 func (db *DB) CreateAccountTombstone(id string) error {

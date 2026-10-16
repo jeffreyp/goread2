@@ -95,6 +95,7 @@ func (s *UserDataService) writeTombstone(user *database.User) error {
 type UserDataExport struct {
 	ExportedAt time.Time            `json:"exported_at"`
 	Account    *database.User       `json:"account"`
+	LastSeenAt time.Time            `json:"last_seen_at,omitzero"`
 	Feeds      []ExportedFeed       `json:"feeds"`
 	Sessions   []ExportedSession    `json:"sessions"`
 	AuditLog   []ExportedAuditEntry `json:"audit_log"`
@@ -141,6 +142,11 @@ func (s *UserDataService) PrepareExport(userID int) (*UserDataExport, error) {
 		exportedFeeds[i] = ExportedFeed{ID: feed.ID, Title: feed.Title, URL: feed.URL}
 	}
 
+	lastSeen, err := s.db.GetUserLastSeen(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last activity: %w", err)
+	}
+
 	sessions, err := s.db.GetUserSessions(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sessions: %w", err)
@@ -158,6 +164,7 @@ func (s *UserDataService) PrepareExport(userID int) (*UserDataExport, error) {
 	return &UserDataExport{
 		ExportedAt: time.Now().UTC(),
 		Account:    user,
+		LastSeenAt: lastSeen,
 		Feeds:      exportedFeeds,
 		Sessions:   exportedSessions,
 		AuditLog:   auditLog,

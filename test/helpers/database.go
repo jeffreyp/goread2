@@ -116,6 +116,10 @@ func createTestTables(db *database.DB) error {
 			id TEXT PRIMARY KEY,
 			deleted_at DATETIME NOT NULL
 		)`,
+		`CREATE TABLE user_activity (
+			user_id INTEGER PRIMARY KEY,
+			last_seen_at DATETIME NOT NULL
+		)`,
 	}
 
 	for _, table := range tables {

@@ -65,17 +65,21 @@ func (m *mockDB) CleanupOrphanedUserArticles(int) (int, error)                  
 func (m *mockDB) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
 	return nil, "", nil
 }
-func (m *mockDB) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
-func (m *mockDB) DeleteUserSessions(int) error                    { return nil }
-func (m *mockDB) DeleteUserAccount(int) error                     { return nil }
-func (m *mockDB) CreateAccountTombstone(string) error             { return nil }
-func (m *mockDB) HasAccountTombstone(string) (bool, error)        { return false, nil }
-func (m *mockDB) CreateSession(*database.Session) error           { return nil }
-func (m *mockDB) GetSession(string) (*database.Session, error)    { return nil, nil }
-func (m *mockDB) UpdateSessionExpiry(string, time.Time) error     { return nil }
-func (m *mockDB) DeleteSession(string) error                      { return nil }
-func (m *mockDB) DeleteExpiredSessions() error                    { return nil }
-func (m *mockDB) CreateAuditLog(*database.AuditLog) error         { return nil }
+func (m *mockDB) GetUserSessions(int) ([]database.Session, error)             { return nil, nil }
+func (m *mockDB) DeleteUserSessions(int) error                                { return nil }
+func (m *mockDB) DeleteUserAccount(int) error                                 { return nil }
+func (m *mockDB) CreateAccountTombstone(string) error                         { return nil }
+func (m *mockDB) HasAccountTombstone(string) (bool, error)                    { return false, nil }
+func (m *mockDB) RecordUserActivity(int, time.Time) error                     { return nil }
+func (m *mockDB) GetUserLastSeen(int) (time.Time, error)                      { return time.Time{}, nil }
+func (m *mockDB) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) { return nil, nil }
+func (m *mockDB) ClearAuditLogIPsBefore(time.Time) (int, error)               { return 0, nil }
+func (m *mockDB) CreateSession(*database.Session) error                       { return nil }
+func (m *mockDB) GetSession(string) (*database.Session, error)                { return nil, nil }
+func (m *mockDB) UpdateSessionExpiry(string, time.Time) error                 { return nil }
+func (m *mockDB) DeleteSession(string) error                                  { return nil }
+func (m *mockDB) DeleteExpiredSessions() error                                { return nil }
+func (m *mockDB) CreateAuditLog(*database.AuditLog) error                     { return nil }
 func (m *mockDB) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
 }

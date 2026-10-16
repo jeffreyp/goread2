@@ -24,6 +24,12 @@ type SessionManager struct {
 	db          database.Database
 	cache       map[string]*CachedSession // sessionID -> cached session
 	cacheMu     sync.RWMutex
+
+	// activityRecorded tracks when this instance last wrote each user's
+	// last-activity time, so that it is written at most once per
+	// activityRecordInterval rather than on every request.
+	activityRecorded map[int]time.Time
+	activityMu       sync.Mutex
 	cacheTTL    time.Duration // How long to cache sessions (default: 10 minutes)
 	cacheHits   int64
 	cacheMisses int64
@@ -69,6 +75,8 @@ func NewSessionManager(db database.Database) *SessionManager {
 	sm := &SessionManager{
 		db:          db,
 		cache:       make(map[string]*CachedSession),
+
+		activityRecorded: make(map[int]time.Time),
 		cacheTTL:    cacheTTL,
 		oauthStates: make(map[string]oauthStateEntry),
 		authCodes:   make(map[string]authCodeEntry),
@@ -107,6 +115,7 @@ func (sm *SessionManager) CreateSession(user *database.User) (*Session, error) {
 		return nil, err
 	}
 
+	sm.recordActivity(user.ID)
 	return session, nil
 }
 
@@ -172,11 +181,16 @@ func (sm *SessionManager) RefreshSession(sessionID string) error {
 
 	// Update cache if exists (write lock)
 	sm.cacheMu.Lock()
+	userID := 0
 	if cached, exists := sm.cache[sessionID]; exists {
 		cached.Session.ExpiresAt = newExpiry
+		userID = cached.Session.UserID
 	}
 	sm.cacheMu.Unlock()
 
+	if userID != 0 {
+		sm.recordActivity(userID)
+	}
 	return nil
 }
 
@@ -190,6 +204,40 @@ func (sm *SessionManager) DeleteSession(sessionID string) {
 	sm.cacheMu.Lock()
 	delete(sm.cache, sessionID)
 	sm.cacheMu.Unlock()
+}
+
+// activityRecordInterval is how often each instance writes a user's
+// last-activity time. The data retention policy measures inactivity in months,
+// so daily precision is plenty.
+const activityRecordInterval = 24 * time.Hour
+
+// maxActivityRecorded bounds the activityRecorded map; past it, the map is
+// reset, which at worst causes one extra write per active user.
+const maxActivityRecorded = 10000
+
+// recordActivity writes userID's last-activity time for the data retention
+// policy, unless this instance already did so within activityRecordInterval.
+// Failures are logged and retried on a later request.
+func (sm *SessionManager) recordActivity(userID int) {
+	now := time.Now()
+
+	sm.activityMu.Lock()
+	if last, ok := sm.activityRecorded[userID]; ok && now.Sub(last) < activityRecordInterval {
+		sm.activityMu.Unlock()
+		return
+	}
+	if len(sm.activityRecorded) >= maxActivityRecorded {
+		sm.activityRecorded = make(map[int]time.Time)
+	}
+	sm.activityRecorded[userID] = now
+	sm.activityMu.Unlock()
+
+	if err := sm.db.RecordUserActivity(userID, now); err != nil {
+		log.Printf("Failed to record activity for user %d: %v", userID, err)
+		sm.activityMu.Lock()
+		delete(sm.activityRecorded, userID)
+		sm.activityMu.Unlock()
+	}
 }
 
 // DeleteUserSessions revokes every session belonging to userID and drops them

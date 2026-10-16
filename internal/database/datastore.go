@@ -2648,7 +2648,8 @@ func (db *DatastoreDB) deleteAllMatching(query *datastore.Query, what string) er
 }
 
 // DeleteUserAccount deletes userID's account and everything tied to it:
-// UserArticle, UserFeed, and Session entities, then the User entity last, so
+// UserArticle, UserFeed, Session, and UserActivity entities, then the User
+// entity last, so
 // a failure partway leaves an account that a retry can finish deleting. Audit
 // log entries are kept for the admin trail but pseudonymized: the user's email
 // is replaced, and the IP address of actions the user performed as an admin is
@@ -2665,6 +2666,13 @@ func (db *DatastoreDB) DeleteUserAccount(userID int) error {
 		}
 	}
 	db.userFeeds.invalidate(userID)
+
+	activityCtx, activityCancel := newDatastoreContext()
+	err := db.client.Delete(activityCtx, datastore.IDKey("UserActivity", uid, nil))
+	activityCancel()
+	if err != nil {
+		return fmt.Errorf("failed to delete user activity: %w", err)
+	}
 
 	pseudonym := DeletedUserPseudonym(userID)
 	if err := db.updateAuditLogs("target_user_id", uid, func(e *AuditLogEntity) {
@@ -2710,6 +2718,112 @@ func (db *DatastoreDB) updateAuditLogs(field string, userID int64, update func(*
 		}
 	}
 	return nil
+}
+
+// UserActivityEntity records when a user was last active, keyed by user ID.
+// It is kept apart from UserEntity so that the at-most-daily activity write
+// never races with other updates to the user record.
+type UserActivityEntity struct {
+	LastSeenAt time.Time `datastore:"last_seen_at"`
+}
+
+func (db *DatastoreDB) RecordUserActivity(userID int, at time.Time) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	key := datastore.IDKey("UserActivity", int64(userID), nil)
+	if _, err := db.client.Put(ctx, key, &UserActivityEntity{LastSeenAt: at}); err != nil {
+		return fmt.Errorf("failed to record user activity: %w", err)
+	}
+	return nil
+}
+
+// GetUserLastSeen returns when userID was last active, or the zero time if no
+// activity has been recorded.
+func (db *DatastoreDB) GetUserLastSeen(userID int) (time.Time, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	var entity UserActivityEntity
+	err := db.client.Get(ctx, datastore.IDKey("UserActivity", int64(userID), nil), &entity)
+	if err == datastore.ErrNoSuchEntity {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to get user activity: %w", err)
+	}
+	return entity.LastSeenAt, nil
+}
+
+// GetUserRetentionInfo loads every user with their last-activity time. It
+// reads all User and UserActivity entities in two queries, which suits a
+// monthly job at GoRead2's scale.
+func (db *DatastoreDB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
+	defer logSlowQuery("GetUserRetentionInfo", time.Now())
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	var users []UserEntity
+	userKeys, err := db.client.GetAll(ctx, datastore.NewQuery("User"), &users)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query users: %w", err)
+	}
+
+	var activities []UserActivityEntity
+	activityKeys, err := db.client.GetAll(ctx, datastore.NewQuery("UserActivity"), &activities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user activity: %w", err)
+	}
+	lastSeen := make(map[int64]time.Time, len(activities))
+	for i, key := range activityKeys {
+		lastSeen[key.ID] = activities[i].LastSeenAt
+	}
+
+	infos := make([]UserRetentionInfo, len(users))
+	for i, user := range users {
+		infos[i] = UserRetentionInfo{
+			UserID:              int(userKeys[i].ID),
+			SubscriptionStatus:  user.SubscriptionStatus,
+			IsAdmin:             user.IsAdmin,
+			FreeMonthsRemaining: user.FreeMonthsRemaining,
+			CreatedAt:           user.CreatedAt,
+			LastSeenAt:          lastSeen[userKeys[i].ID],
+		}
+	}
+	return infos, nil
+}
+
+// ClearAuditLogIPsBefore blanks the IP address of AuditLog entities older
+// than cutoff and returns how many entities changed.
+func (db *DatastoreDB) ClearAuditLogIPsBefore(cutoff time.Time) (int, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	var entities []AuditLogEntity
+	keys, err := db.client.GetAll(ctx, datastore.NewQuery("AuditLog").FilterField("timestamp", "<", cutoff), &entities)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query audit logs: %w", err)
+	}
+
+	var changedKeys []*datastore.Key
+	var changed []AuditLogEntity
+	for i, entity := range entities {
+		if entity.IPAddress == "" {
+			continue
+		}
+		entity.IPAddress = ""
+		changedKeys = append(changedKeys, keys[i])
+		changed = append(changed, entity)
+	}
+
+	const batchSize = 500
+	for start := 0; start < len(changedKeys); start += batchSize {
+		end := min(start+batchSize, len(changedKeys))
+		if _, err := db.client.PutMulti(ctx, changedKeys[start:end], changed[start:end]); err != nil {
+			return start, fmt.Errorf("failed to update audit logs: %w", err)
+		}
+	}
+	return len(changedKeys), nil
 }
 
 // AccountTombstoneEntity marks a deleted account so that signing in again

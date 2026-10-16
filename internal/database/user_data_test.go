@@ -180,8 +180,15 @@ func checkDeleteUserAccount(t *testing.T, db Database, user, other *User, feed *
 		}
 	}
 
+	if err := db.RecordUserActivity(user.ID, time.Now()); err != nil {
+		t.Fatalf("RecordUserActivity failed: %v", err)
+	}
+
 	if err := db.DeleteUserAccount(user.ID); err != nil {
 		t.Fatalf("DeleteUserAccount failed: %v", err)
+	}
+	if lastSeen, err := db.GetUserLastSeen(user.ID); err != nil || !lastSeen.IsZero() {
+		t.Errorf("Expected no activity record after deletion, got %v (err %v)", lastSeen, err)
 	}
 
 	if _, err := db.GetUserByID(user.ID); !errors.Is(err, ErrUserNotFound) {
@@ -254,5 +261,103 @@ func checkAccountTombstone(t *testing.T, db Database) {
 	}
 	if found, err := db.HasAccountTombstone(id); err != nil || !found {
 		t.Errorf("Expected tombstone after creation, got %v (err %v)", found, err)
+	}
+}
+
+func TestUserActivityAndRetentionInfo(t *testing.T) {
+	db := setupTestDB(t)
+	checkUserActivityAndRetentionInfo(t, db, createTestUser(t, db), createTestUser(t, db))
+}
+
+func TestDatastoreUserActivityAndRetentionInfo(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+	checkUserActivityAndRetentionInfo(t, db, createDatastoreTestUser(t, db), createDatastoreTestUser(t, db))
+}
+
+// checkUserActivityAndRetentionInfo records activity for active (twice, so
+// the later time wins) and none for idle, then checks both GetUserLastSeen
+// and GetUserRetentionInfo.
+func checkUserActivityAndRetentionInfo(t *testing.T, db Database, active, idle *User) {
+	t.Helper()
+
+	first := time.Now().UTC().Add(-48 * time.Hour).Truncate(time.Second)
+	latest := first.Add(24 * time.Hour)
+	for _, at := range []time.Time{first, latest} {
+		if err := db.RecordUserActivity(active.ID, at); err != nil {
+			t.Fatalf("RecordUserActivity failed: %v", err)
+		}
+	}
+
+	if lastSeen, err := db.GetUserLastSeen(active.ID); err != nil || !lastSeen.Equal(latest) {
+		t.Errorf("Expected last seen %v, got %v (err %v)", latest, lastSeen, err)
+	}
+	if lastSeen, err := db.GetUserLastSeen(idle.ID); err != nil || !lastSeen.IsZero() {
+		t.Errorf("Expected zero last seen for idle user, got %v (err %v)", lastSeen, err)
+	}
+
+	infos, err := db.GetUserRetentionInfo()
+	if err != nil {
+		t.Fatalf("GetUserRetentionInfo failed: %v", err)
+	}
+	byID := map[int]UserRetentionInfo{}
+	for _, info := range infos {
+		byID[info.UserID] = info
+	}
+	if info, ok := byID[active.ID]; !ok || !info.LastSeenAt.Equal(latest) || info.SubscriptionStatus != "trial" {
+		t.Errorf("Unexpected retention info for active user: %+v (found %v)", info, ok)
+	}
+	if info, ok := byID[idle.ID]; !ok || !info.LastSeenAt.IsZero() {
+		t.Errorf("Unexpected retention info for idle user: %+v (found %v)", info, ok)
+	}
+}
+
+func TestClearAuditLogIPsBefore(t *testing.T) {
+	checkClearAuditLogIPsBefore(t, setupTestDB(t))
+}
+
+func TestDatastoreClearAuditLogIPsBefore(t *testing.T) {
+	checkClearAuditLogIPsBefore(t, setupTestDatastoreDB(t))
+}
+
+func checkClearAuditLogIPsBefore(t *testing.T, db Database) {
+	t.Helper()
+
+	operation := fmt.Sprintf("retention_test_%d", time.Now().UnixNano())
+	now := time.Now().UTC()
+	for _, age := range []time.Duration{400 * 24 * time.Hour, 24 * time.Hour} {
+		if err := db.CreateAuditLog(&AuditLog{
+			Timestamp:     now.Add(-age),
+			AdminEmail:    "admin@example.com",
+			OperationType: operation,
+			IPAddress:     "203.0.113.9",
+			Result:        "success",
+		}); err != nil {
+			t.Fatalf("CreateAuditLog failed: %v", err)
+		}
+	}
+
+	if _, err := db.ClearAuditLogIPsBefore(now.AddDate(-1, 0, 0)); err != nil {
+		t.Fatalf("ClearAuditLogIPsBefore failed: %v", err)
+	}
+
+	logs, err := db.GetAuditLogs(10, 0, map[string]interface{}{"operation_type": operation})
+	if err != nil || len(logs) != 2 {
+		t.Fatalf("Expected 2 audit logs, got %d (err %v)", len(logs), err)
+	}
+	for _, entry := range logs {
+		old := entry.Timestamp.Before(now.AddDate(-1, 0, 0))
+		if old && entry.IPAddress != "" {
+			t.Errorf("Expected the old entry's IP to be cleared, got %q", entry.IPAddress)
+		}
+		if !old && entry.IPAddress != "203.0.113.9" {
+			t.Errorf("Expected the recent entry's IP to be kept, got %q", entry.IPAddress)
+		}
+	}
+
+	// A second run finds nothing left to clear among these entries.
+	if n, err := db.ClearAuditLogIPsBefore(now.AddDate(-1, 0, 0)); err != nil {
+		t.Errorf("Second ClearAuditLogIPsBefore failed: %v", err)
+	} else if n != 0 {
+		t.Logf("Second run cleared %d entries from other tests", n)
 	}
 }

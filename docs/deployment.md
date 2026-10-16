@@ -473,7 +473,18 @@ cron:
     min_backoff_seconds: 10
     max_backoff_seconds: 300
     max_doublings: 3
+
+- description: "Apply data retention policy (delete inactive unpaid accounts, expire audit log IPs)"
+  url: /cron/apply-retention
+  schedule: 1 of month 09:00
+  target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3
 ```
+
+`/cron/apply-retention` applies the data retention policy described in [security.md](security.md#data-retention).
 
 ### Deployment Steps
 
@@ -513,12 +524,13 @@ cron:
 
 ## Async Task Processing (Cloud Tasks)
 
-The `/cron/refresh-feeds` and `/cron/cleanup-orphaned-articles` cron handlers enqueue their work as Cloud Tasks instead of running it in the request that App Engine Cron triggers. This keeps the cron request itself under 100ms, so App Engine doesn't hold an instance open for the duration of a feed refresh, and Cloud Tasks retries the work independently of cron's own retry policy if it fails.
+The `/cron/refresh-feeds`, `/cron/cleanup-orphaned-articles`, and `/cron/apply-retention` cron handlers enqueue their work as Cloud Tasks instead of running it in the request that App Engine Cron triggers. This keeps the cron request itself under 100ms, so App Engine doesn't hold an instance open for the duration of a feed refresh, and Cloud Tasks retries the work independently of cron's own retry policy if it fails.
 
 Each cron handler enqueues a task targeting a corresponding worker endpoint on the same App Engine service:
 
 - `/cron/refresh-feeds` enqueues `/tasks/refresh-feeds`
 - `/cron/cleanup-orphaned-articles` enqueues `/tasks/cleanup-orphaned-articles`
+- `/cron/apply-retention` enqueues `/tasks/apply-retention`
 
 Account deletion uses the same queue. `DELETE /api/account` enqueues `/tasks/delete-account?user_id=<id>` twice: once for immediate dispatch, and once delayed by 15 minutes. The delayed pass removes any rows recreated after the first pass by requests on sessions still held in another instance's session cache, whose TTL is 10 minutes. Both passes run the same idempotent deletion, so either one can finish a deletion the other left incomplete. If both exhaust their retries (for example, during a Stripe outage longer than the retry window), the account remains, the failure is logged as `Account deletion task failed for user <id>`, and the user can sign in and request deletion again.
 
