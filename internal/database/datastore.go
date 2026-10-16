@@ -1604,23 +1604,41 @@ func (db *DatastoreDB) MarkAllUserArticlesRead(userID int) (int, error) {
 		return 0, nil
 	}
 
-	// Collect all article IDs via keys-only queries (avoids loading article bodies).
+	// Collect all article IDs via keys-only queries (avoids loading article
+	// bodies), run in parallel across feeds since each query is independent.
+	idsByFeed := make([][]int64, len(feeds))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrentFeedProjections)
+	for i, feed := range feeds {
+		i, feed := i, feed
+		g.Go(func() error {
+			q := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feed.ID)).KeysOnly()
+			keys, err := db.client.GetAll(gctx, q, nil)
+			if err != nil {
+				return fmt.Errorf("failed to get article keys for feed %d: %w", feed.ID, err)
+			}
+			ids := make([]int64, len(keys))
+			for j, k := range keys {
+				ids[j] = k.ID
+			}
+			idsByFeed[i] = ids
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, err
+	}
 	var articleIDs []int64
-	for _, feed := range feeds {
-		q := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feed.ID)).KeysOnly()
-		keys, err := db.client.GetAll(ctx, q, nil)
-		if err != nil {
-			return 0, fmt.Errorf("failed to get article keys for feed %d: %w", feed.ID, err)
-		}
-		for _, k := range keys {
-			articleIDs = append(articleIDs, k.ID)
-		}
+	for _, ids := range idsByFeed {
+		articleIDs = append(articleIDs, ids...)
 	}
 	if len(articleIDs) == 0 {
 		return 0, nil
 	}
 
+	var markedCount int
 	_, err = db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		markedCount = 0
 		chunkSize := 500
 		for i := 0; i < len(articleIDs); i += chunkSize {
 			end := i + chunkSize
@@ -1633,39 +1651,56 @@ func (db *DatastoreDB) MarkAllUserArticlesRead(userID int) (int, error) {
 				keys[j] = datastore.NameKey("UserArticle", fmt.Sprintf("%d_%d", userID, aid), nil)
 			}
 
-			// Read existing records so the write keeps each article's star.
+			// Read existing records so the write keeps each article's star
+			// and so articles already read can be skipped.
 			existing := make([]UserArticleEntity, len(chunk))
+			found := make([]bool, len(chunk))
 			if err := tx.GetMulti(keys, existing); err != nil {
 				multiErr, ok := err.(datastore.MultiError)
 				if !ok {
 					return fmt.Errorf("failed to read existing status batch: %w", err)
 				}
-				for _, singleErr := range multiErr {
-					if singleErr != nil && singleErr != datastore.ErrNoSuchEntity {
+				for j, singleErr := range multiErr {
+					if singleErr == nil {
+						found[j] = true
+					} else if singleErr != datastore.ErrNoSuchEntity {
 						return fmt.Errorf("failed to read existing status batch: %w", singleErr)
 					}
 				}
+			} else {
+				for j := range chunk {
+					found[j] = true
+				}
 			}
 
-			entities := make([]*UserArticleEntity, len(chunk))
+			var writeKeys []*datastore.Key
+			var writeEntities []*UserArticleEntity
 			for j, aid := range chunk {
-				entities[j] = &UserArticleEntity{
+				if found[j] && existing[j].IsRead {
+					continue
+				}
+				writeKeys = append(writeKeys, keys[j])
+				writeEntities = append(writeEntities, &UserArticleEntity{
 					UserID:    int64(userID),
 					ArticleID: aid,
 					IsRead:    true,
 					IsStarred: existing[j].IsStarred,
-				}
+				})
 			}
-			if _, err := tx.PutMulti(keys, entities); err != nil {
+			if len(writeKeys) == 0 {
+				continue
+			}
+			if _, err := tx.PutMulti(writeKeys, writeEntities); err != nil {
 				return fmt.Errorf("failed to write read status batch: %w", err)
 			}
+			markedCount += len(writeKeys)
 		}
 		return nil
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to mark all articles read: %w", err)
 	}
-	return len(articleIDs), nil
+	return markedCount, nil
 }
 
 func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {

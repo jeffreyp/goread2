@@ -208,6 +208,49 @@ func TestDatastoreMarkAllUserArticlesReadPreservesStars(t *testing.T) {
 	}
 }
 
+func TestDatastoreMarkAllUserArticlesReadSkipsAlreadyRead(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+
+	user := createDatastoreTestUser(t, db)
+	feed := createDatastoreTestFeed(t, db)
+	if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("SubscribeUserToFeed failed: %v", err)
+	}
+	alreadyRead := createDatastoreTestArticle(t, db, feed.ID)
+	unread := createDatastoreTestArticle(t, db, feed.ID)
+
+	if err := db.MarkUserArticleRead(user.ID, alreadyRead.ID, true); err != nil {
+		t.Fatalf("MarkUserArticleRead failed: %v", err)
+	}
+
+	count, err := db.MarkAllUserArticlesRead(user.ID)
+	if err != nil {
+		t.Fatalf("MarkAllUserArticlesRead failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected 1 newly marked article, got %d", count)
+	}
+
+	// Calling it again once everything is read should be a no-op.
+	count, err = db.MarkAllUserArticlesRead(user.ID)
+	if err != nil {
+		t.Fatalf("second MarkAllUserArticlesRead failed: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 newly marked articles on second call, got %d", count)
+	}
+
+	for _, id := range []int{alreadyRead.ID, unread.ID} {
+		status, err := db.GetUserArticleStatus(user.ID, id)
+		if err != nil {
+			t.Fatalf("GetUserArticleStatus(%d) failed: %v", id, err)
+		}
+		if !status.IsRead {
+			t.Errorf("Expected article %d to be marked read", id)
+		}
+	}
+}
+
 func TestDatastoreGetUserUnreadCounts(t *testing.T) {
 	db := setupTestDatastoreDB(t)
 
