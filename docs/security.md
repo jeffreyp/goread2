@@ -150,9 +150,8 @@ The web frontend sets the following cookies and browser storage entries. `web/te
 | `session_id` | Cookie, strictly necessary | `internal/auth/session.go` | 7 days, renewed on use | Authenticated session |
 | `oauth_state` | Cookie, strictly necessary | `internal/handlers/auth_handler.go` | 10 minutes | OAuth CSRF state, cleared on callback |
 | `tabletHelpDismissed` | `localStorage`, functional | `web/static/js/app.js` | Persistent | Hides the tablet help hint once dismissed |
-| `_ga`, `_ga_XYJCPFNCVY` | Cookie, analytics | Google Analytics (`web/static/js/analytics.js`) | Up to 2 years | Usage statistics |
 
-The Google Analytics cookies are not strictly necessary and are currently set without prior consent. Every page also requests resources from Google Fonts (the Inter stylesheet) and cdn.jsdelivr.net (DOMPurify), which receive the visitor's IP address but set no cookies.
+GoRead2 uses no third-party analytics or tracking. Every page requests resources from Google Fonts (the Inter stylesheet) and cdn.jsdelivr.net (DOMPurify), which receive the visitor's IP address but set no cookies.
 
 ### CSRF Protection
 
@@ -234,9 +233,9 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 
 `internal/middleware/security_headers.go` sends an enforcing `Content-Security-Policy` header on every response. Setting `CSP_REPORT_ONLY=true` sends the same policy as `Content-Security-Policy-Report-Only` instead, so browsers log violations to the console without blocking them.
 
-`script-src` allows only `'self'`, `https://www.googletagmanager.com` (Google Analytics), and `https://cdn.jsdelivr.net` (DOMPurify). It does not allow `'unsafe-inline'`, so a script injected through feed content does not run even if it gets past sanitization. The frontend follows two rules to stay within this policy:
+`script-src` allows only `'self'` and `https://cdn.jsdelivr.net` (DOMPurify). It does not allow `'unsafe-inline'`, so a script injected through feed content does not run even if it gets past sanitization. The frontend follows two rules to stay within this policy:
 
-- Templates load only external scripts. The Google Analytics bootstrap is `web/static/js/analytics.js`, and the subscription success and cancel pages use `web/static/js/subscription-redirect.js`.
+- Templates load only external scripts. For example, the subscription success and cancel pages use `web/static/js/subscription-redirect.js` rather than an inline redirect script.
 - JavaScript that builds markup binds event handlers with `addEventListener`, never with inline `on*` attributes such as `onclick`.
 
 `style-src` allows `https://fonts.googleapis.com` for the Inter font stylesheet, and still allows `'unsafe-inline'` because sanitized article content and templates carry inline `style` attributes.

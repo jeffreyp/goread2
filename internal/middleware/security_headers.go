@@ -21,12 +21,11 @@ func SecurityHeaders() gin.HandlerFunc {
 	// - style-src: 'unsafe-inline' required for inline styles in templates and article content;
 	//   fonts.googleapis.com serves the Inter stylesheet (font files come from fonts.gstatic.com)
 	// - img-src: http: and https: because RSS article content has images from arbitrary domains
-	// - connect-src: GA4 uses regional subdomains (region1.google-analytics.com, etc.)
 	csp := "default-src 'self'; " +
-		"script-src 'self' https://www.googletagmanager.com https://cdn.jsdelivr.net; " +
+		"script-src 'self' https://cdn.jsdelivr.net; " +
 		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 		"img-src 'self' data: http: https:; " +
-		"connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; " +
+		"connect-src 'self'; " +
 		"font-src 'self' https://fonts.gstatic.com; " +
 		"frame-ancestors 'self'; " +
 		"base-uri 'self'; " +

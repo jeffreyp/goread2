@@ -133,7 +133,7 @@ func TestSecurityHeaders_CSPDirectives(t *testing.T) {
 	}
 }
 
-func TestSecurityHeaders_CSPAllowsGoogleAnalytics(t *testing.T) {
+func TestSecurityHeaders_CSPBlocksGoogleAnalytics(t *testing.T) {
 	if err := os.Unsetenv("CSP_REPORT_ONLY"); err != nil {
 		t.Fatal(err)
 	}
@@ -142,13 +142,11 @@ func TestSecurityHeaders_CSPAllowsGoogleAnalytics(t *testing.T) {
 
 	csp := w.Header().Get("Content-Security-Policy")
 
-	// GA script loading
-	if !strings.Contains(csp, "https://www.googletagmanager.com") {
-		t.Error("CSP should allow googletagmanager.com in script-src")
-	}
-	// GA beacon sending (wildcard for regional endpoints)
-	if !strings.Contains(csp, "https://*.google-analytics.com") {
-		t.Error("CSP should allow *.google-analytics.com in connect-src")
+	// GoRead2 uses no third-party analytics; the CSP should not allow GA hosts.
+	for _, host := range []string{"googletagmanager.com", "google-analytics.com", "analytics.google.com"} {
+		if strings.Contains(csp, host) {
+			t.Errorf("CSP should not allow %s, got: %s", host, csp)
+		}
 	}
 }
 
