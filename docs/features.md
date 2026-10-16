@@ -130,7 +130,8 @@ Use the radio buttons in the article pane header:
 ### Privacy & Security
 - All feed subscriptions and article status are private to the account
 - Secure Google OAuth authentication
-- No tracking or data sharing with third parties
+- Personal data is shared only with the services needed to run GoRead2: Google sign-in, Stripe for payments, and Google Analytics for anonymous usage statistics
+- The privacy policy at `/privacy` lists every cookie and third-party service in use
 
 ## Subscription Features
 

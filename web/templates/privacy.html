@@ -18,68 +18,90 @@
 <body>
     <div class="privacy-container">
         <h1>Privacy Policy</h1>
-        <p class="last-updated"><em>Last updated: September 15, 2025</em></p>
+        <p class="last-updated"><em>Last updated: October 16, 2026</em></p>
         <div class="privacy-content">
             <h2>Information We Collect</h2>
-            <p>GoRead2 collects minimal personal information necessary to provide our RSS feed reading service and process authentication.</p>
+            <p>GoRead2 collects only the personal information needed to sign you in, provide the RSS reading service, and process subscription payments.</p>
             
-            <h2>Google Authentication</h2>
-            <p>When you sign in with Google, we only access:</p>
+            <h2>Google Sign-In</h2>
+            <p>GoRead2 uses Google sign-in and does not store passwords. When you sign in, we receive:</p>
             <ul>
-                <li>Your email address (for account identification)</li>
-                <li>Your name (for display purposes)</li>
-                <li>Your profile picture (for display purposes)</li>
+                <li>Your Google account ID (to identify your account)</li>
+                <li>Your email address (to identify your account and for billing)</li>
+                <li>Your name and profile picture URL (for display)</li>
             </ul>
             
-            <h2>Data Storage</h2>
-            <p>The only data we store is:</p>
+            <h2>Data We Store</h2>
             <ul>
+                <li>Your account details from Google, listed above, and the date your account was created</li>
                 <li>Your RSS feed subscriptions</li>
-                <li>Article read/unread status</li>
-                <li>Article starred status</li>
-                <li>Basic authentication information from Google</li>
-                <li>Subscription status and payment history (for Pro subscribers)</li>
+                <li>Which articles you have read and starred</li>
+                <li>Your reader settings</li>
+                <li>Your subscription status: trial end date, last payment date, next billing date, and the Stripe customer and subscription identifiers for your account</li>
+                <li>Sign-in sessions: a random session identifier with its creation and expiry times</li>
             </ul>
+            <p>This data is stored in Google Cloud, which hosts GoRead2. Google Cloud also keeps request logs that include IP addresses and browser user agents. These logs are used for security and troubleshooting and are deleted automatically after a limited period.</p>
+            
+            <h2>Cookies and Local Storage</h2>
+            <p>GoRead2 sets the following cookies and browser storage entries:</p>
+            <ul>
+                <li><strong><code>session_id</code></strong> (strictly necessary): keeps you signed in. It is HTTP-only, so page scripts cannot read it. It expires after 7 days without use.</li>
+                <li><strong><code>oauth_state</code></strong> (strictly necessary): protects the Google sign-in flow against cross-site request forgery. It expires after 10 minutes and is deleted once sign-in completes.</li>
+                <li><strong><code>tabletHelpDismissed</code></strong> (local storage, functional): remembers that you dismissed the tablet help message. It is never sent to our servers.</li>
+                <li><strong><code>_ga</code> and <code>_ga_XYJCPFNCVY</code></strong> (analytics): set by Google Analytics to tell visits apart. They expire after up to 2 years. See Analytics below.</li>
+            </ul>
+            
+            <h2>Analytics</h2>
+            <p>We use Google Analytics to understand how GoRead2 is used and to improve it. Google Analytics collects:</p>
+            <ul>
+                <li><strong>Usage data:</strong> page views, session duration, and navigation patterns</li>
+                <li><strong>Technical information:</strong> browser type, device type, and approximate location derived from your IP address. Google Analytics does not log or store full IP addresses.</li>
+                <li><strong>Performance metrics:</strong> page load times and interactions</li>
+            </ul>
+            <p>We do not send your name, email address, feeds, or reading history to Google Analytics. This data is processed by Google and is subject to <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.</p>
+            <p><strong>Opting out:</strong> You can opt out of Google Analytics by installing the <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener">Google Analytics Opt-out Browser Add-on</a>, or by blocking Google Analytics scripts or cookies in your browser. GoRead2 works normally without them.</p>
             
             <h2>Payment Processing</h2>
-            <p>For GoRead2 Pro subscriptions, we use Stripe to process payments securely. When you subscribe:</p>
+            <p>Payments for GoRead2 Pro are processed by Stripe. When you subscribe:</p>
             <ul>
-                <li><strong>Data shared with Stripe:</strong> Your email address and name are shared with Stripe to create your customer account</li>
-                <li><strong>Payment information:</strong> All payment card details are handled directly by Stripe and never stored on our servers</li>
-                <li><strong>Stripe's role:</strong> Stripe acts as our payment processor and is subject to their own privacy policy</li>
-                <li><strong>Data retention:</strong> Stripe retains payment and customer data according to their data retention policies and legal requirements</li>
+                <li><strong>Data shared with Stripe:</strong> your email address and name, to create your Stripe customer account</li>
+                <li><strong>Card details:</strong> entered on Stripe's checkout page and handled entirely by Stripe. They are never sent to or stored on our servers.</li>
+                <li><strong>Retention:</strong> Stripe keeps payment and customer records according to its own retention policies and legal obligations</li>
             </ul>
-            <p>For more information about how Stripe handles your data, please review <a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe's Privacy Policy</a>.</p>
+            <p>For details, see <a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe's Privacy Policy</a>.</p>
             
-            <h2>Analytics and Usage Tracking</h2>
-            <p>We use Google Analytics to understand how our service is used and to improve the user experience. Google Analytics collects:</p>
+            <h2>Other Third-Party Requests</h2>
+            <p>Some content loads directly from other servers, which receive your IP address and browser details:</p>
             <ul>
-                <li><strong>Usage data:</strong> Page views, session duration, and navigation patterns</li>
-                <li><strong>Technical information:</strong> Browser type, device information, and IP address (anonymized)</li>
-                <li><strong>Performance metrics:</strong> Page load times and user interactions</li>
+                <li><strong>Google Fonts:</strong> the Inter font is loaded from Google Fonts. Google Fonts does not set cookies.</li>
+                <li><strong>jsDelivr:</strong> DOMPurify, the library that removes unsafe markup from articles, is loaded from the jsDelivr content delivery network. jsDelivr does not set cookies.</li>
+                <li><strong>Profile pictures:</strong> your Google profile picture is loaded from Google's servers</li>
+                <li><strong>Article images and media:</strong> images in articles load directly from each feed publisher's servers. Feeds themselves are fetched by GoRead2's servers, so publishers do not learn which feeds you subscribe to.</li>
             </ul>
-            <p>This data is processed by Google and is subject to <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>. No personally identifiable information from your account is shared with Google Analytics.</p>
-            <p><strong>Opting out:</strong> You can opt out of Google Analytics tracking by installing the <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener">Google Analytics Opt-out Browser Add-on</a> or by using browser settings to block tracking scripts.</p>
             
-            <h2>Data Usage</h2>
-            <p>We use your information solely to provide the RSS feed reading service and process subscription payments. Beyond our payment processor (Stripe) and analytics provider (Google Analytics), we do not share, sell, or distribute your personal information to other third parties.</p>
+            <h2>How We Use and Share Data</h2>
+            <p>We use your information only to provide GoRead2 and process subscription payments. Apart from the services named above (Google Cloud hosting, Google sign-in, Google Analytics, Google Fonts, jsDelivr, and Stripe), we do not share, sell, or distribute your personal information.</p>
             
             <h2>Data Retention</h2>
-            <p>Your data is retained only as long as you have an active account. You may request deletion of your account and all associated data at any time.</p>
-            <p><strong>Subscription data:</strong> If you have a paid subscription, some payment-related data may be retained by Stripe for legal and regulatory compliance even after account deletion. This includes transaction records required for tax purposes and fraud prevention.</p>
+            <ul>
+                <li><strong>Account data:</strong> kept while your account exists, including your full read and starred history</li>
+                <li><strong>Sessions:</strong> expire after 7 days without use. Expired sessions are deleted automatically.</li>
+                <li><strong>Payment records:</strong> some payment records are kept by Stripe after account deletion, as required for tax and fraud prevention</li>
+            </ul>
             
             <h2>Your Rights</h2>
             <p>You have the right to:</p>
             <ul>
-                <li><strong>Access:</strong> Request a copy of the personal data we hold about you</li>
-                <li><strong>Correction:</strong> Request correction of inaccurate personal data</li>
-                <li><strong>Deletion:</strong> Request deletion of your account and associated data</li>
-                <li><strong>Portability:</strong> Export your RSS feed subscriptions and data</li>
-                <li><strong>Subscription management:</strong> Cancel your subscription at any time through your account settings or Stripe's customer portal</li>
+                <li><strong>Access:</strong> request a copy of the personal data we hold about you</li>
+                <li><strong>Correction:</strong> request correction of inaccurate personal data</li>
+                <li><strong>Deletion:</strong> request deletion of your account and its data</li>
+                <li><strong>Portability:</strong> export your feed subscriptions as an OPML file, either from the GoRead2 iOS app or, while signed in on the web, from <a href="/api/feeds/export">/api/feeds/export</a></li>
+                <li><strong>Subscription management:</strong> cancel your subscription at any time from the account page or Stripe's customer portal</li>
             </ul>
+            <p>To make an access, correction, or deletion request, contact us using the details below.</p>
             
             <h2>Contact</h2>
-            <p>If you have any questions about this privacy policy or want to exercise your data rights, please contact us:</p>
+            <p>If you have questions about this privacy policy or want to exercise your data rights, contact us:</p>
             <ul>
                 <li><strong>Twitter/X:</strong> <a href="https://x.com/GoReadApp2" target="_blank" rel="noopener">@GoReadApp2</a></li>
             </ul>

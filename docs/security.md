@@ -141,6 +141,19 @@ GoRead2 uses environment-specific cookie names to prevent authentication state c
 
 The environment is automatically detected via `GAE_ENV` or `ENVIRONMENT` environment variables. See [authentication.md](authentication.md) for complete implementation details.
 
+#### Cookie and Tracking Inventory
+
+The web frontend sets the following cookies and browser storage entries. `web/templates/privacy.html` documents the same list for users and must be updated when an entry is added or removed.
+
+| Name | Type | Set by | Lifetime | Purpose |
+|------|------|--------|----------|---------|
+| `session_id` | Cookie, strictly necessary | `internal/auth/session.go` | 7 days, renewed on use | Authenticated session |
+| `oauth_state` | Cookie, strictly necessary | `internal/handlers/auth_handler.go` | 10 minutes | OAuth CSRF state, cleared on callback |
+| `tabletHelpDismissed` | `localStorage`, functional | `web/static/js/app.js` | Persistent | Hides the tablet help hint once dismissed |
+| `_ga`, `_ga_XYJCPFNCVY` | Cookie, analytics | Google Analytics (`web/static/js/analytics.js`) | Up to 2 years | Usage statistics |
+
+The Google Analytics cookies are not strictly necessary and are currently set without prior consent. Every page also requests resources from Google Fonts (the Inter stylesheet) and cdn.jsdelivr.net (DOMPurify), which receive the visitor's IP address but set no cookies.
+
 ### CSRF Protection
 
 All state-changing API operations (POST, PUT, DELETE) require a valid CSRF token:
