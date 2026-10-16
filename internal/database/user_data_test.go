@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -126,5 +127,132 @@ func checkGetUserSessions(t *testing.T, db Database, userID, otherID int) {
 	}
 	if !sessions[0].CreatedAt.Before(sessions[1].CreatedAt) {
 		t.Errorf("Expected sessions oldest first, got %v then %v", sessions[0].CreatedAt, sessions[1].CreatedAt)
+	}
+}
+
+func TestDeleteUserAccount(t *testing.T) {
+	db := setupTestDB(t)
+	checkDeleteUserAccount(t, db, createTestUser(t, db), createTestUser(t, db), createTestFeed(t, db),
+		func(feedID int) *Article { return createTestArticle(t, db, feedID) })
+}
+
+func TestDatastoreDeleteUserAccount(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+	checkDeleteUserAccount(t, db, createDatastoreTestUser(t, db), createDatastoreTestUser(t, db), createDatastoreTestFeed(t, db),
+		func(feedID int) *Article { return createDatastoreTestArticle(t, db, feedID) })
+}
+
+// checkDeleteUserAccount gives user and other the same feed, article states,
+// sessions, and audit entries, deletes user, and checks that only user's data
+// is gone, that audit entries are pseudonymized rather than deleted, and that
+// a second deletion succeeds.
+func checkDeleteUserAccount(t *testing.T, db Database, user, other *User, feed *Feed, newArticle func(feedID int) *Article) {
+	t.Helper()
+
+	article := newArticle(feed.ID)
+	for _, u := range []*User{user, other} {
+		if err := db.SubscribeUserToFeed(u.ID, feed.ID); err != nil {
+			t.Fatalf("SubscribeUserToFeed failed: %v", err)
+		}
+		if err := db.SetUserArticleStatus(u.ID, article.ID, true, true); err != nil {
+			t.Fatalf("SetUserArticleStatus failed: %v", err)
+		}
+		if err := db.CreateSession(&Session{
+			ID:        fmt.Sprintf("delete-account-test-%d", u.ID),
+			UserID:    u.ID,
+			CreatedAt: time.Now(),
+			ExpiresAt: time.Now().Add(time.Hour),
+		}); err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+	}
+	// One entry with user as the target of another admin's action, and one
+	// with user as the admin acting on other.
+	for _, entry := range []*AuditLog{
+		{AdminUserID: other.ID, AdminEmail: other.Email, TargetUserID: user.ID, TargetUserEmail: user.Email, IPAddress: "198.51.100.1"},
+		{AdminUserID: user.ID, AdminEmail: user.Email, TargetUserID: other.ID, TargetUserEmail: other.Email, IPAddress: "198.51.100.2"},
+	} {
+		entry.Timestamp = time.Now()
+		entry.OperationType = "grant_free_months"
+		entry.Result = "success"
+		if err := db.CreateAuditLog(entry); err != nil {
+			t.Fatalf("CreateAuditLog failed: %v", err)
+		}
+	}
+
+	if err := db.DeleteUserAccount(user.ID); err != nil {
+		t.Fatalf("DeleteUserAccount failed: %v", err)
+	}
+
+	if _, err := db.GetUserByID(user.ID); !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("Expected ErrUserNotFound for deleted user, got %v", err)
+	}
+	if feeds, err := db.GetUserFeeds(user.ID); err != nil || len(feeds) != 0 {
+		t.Errorf("Expected no feeds for deleted user, got %d (err %v)", len(feeds), err)
+	}
+	if sessions, err := db.GetUserSessions(user.ID); err != nil || len(sessions) != 0 {
+		t.Errorf("Expected no sessions for deleted user, got %d (err %v)", len(sessions), err)
+	}
+	if records, _, err := db.GetUserArticleHistoryPage(user.ID, "", 10); err != nil || len(records) != 0 {
+		t.Errorf("Expected no article history for deleted user, got %d (err %v)", len(records), err)
+	}
+
+	// The other user's data and the shared feed are untouched.
+	if _, err := db.GetUserByID(other.ID); err != nil {
+		t.Errorf("Other user should still exist: %v", err)
+	}
+	if feeds, err := db.GetUserFeeds(other.ID); err != nil || len(feeds) != 1 {
+		t.Errorf("Expected other user's feed to remain, got %d (err %v)", len(feeds), err)
+	}
+	if records, _, err := db.GetUserArticleHistoryPage(other.ID, "", 10); err != nil || len(records) != 1 {
+		t.Errorf("Expected other user's article history to remain, got %d (err %v)", len(records), err)
+	}
+	if sessions, err := db.GetUserSessions(other.ID); err != nil || len(sessions) != 1 {
+		t.Errorf("Expected other user's session to remain, got %d (err %v)", len(sessions), err)
+	}
+
+	pseudonym := DeletedUserPseudonym(user.ID)
+	asTarget, err := db.GetAuditLogs(10, 0, map[string]interface{}{"target_user_id": user.ID})
+	if err != nil || len(asTarget) != 1 {
+		t.Fatalf("Expected 1 retained audit entry targeting user, got %d (err %v)", len(asTarget), err)
+	}
+	if asTarget[0].TargetUserEmail != pseudonym || asTarget[0].IPAddress != "198.51.100.1" || asTarget[0].AdminEmail != other.Email {
+		t.Errorf("Target entry should replace only the deleted user's email, got %+v", asTarget[0])
+	}
+	asActor, err := db.GetAuditLogs(10, 0, map[string]interface{}{"admin_user_id": user.ID})
+	if err != nil || len(asActor) != 1 {
+		t.Fatalf("Expected 1 retained audit entry by user, got %d (err %v)", len(asActor), err)
+	}
+	if asActor[0].AdminEmail != pseudonym || asActor[0].IPAddress != "" || asActor[0].TargetUserEmail != other.Email {
+		t.Errorf("Actor entry should replace the deleted user's email and IP, got %+v", asActor[0])
+	}
+
+	if err := db.DeleteUserAccount(user.ID); err != nil {
+		t.Errorf("Deleting an already deleted account should succeed, got %v", err)
+	}
+}
+
+func TestAccountTombstone(t *testing.T) {
+	checkAccountTombstone(t, setupTestDB(t))
+}
+
+func TestDatastoreAccountTombstone(t *testing.T) {
+	checkAccountTombstone(t, setupTestDatastoreDB(t))
+}
+
+func checkAccountTombstone(t *testing.T, db Database) {
+	t.Helper()
+
+	id := fmt.Sprintf("tombstone-test-%d", time.Now().UnixNano())
+	if found, err := db.HasAccountTombstone(id); err != nil || found {
+		t.Fatalf("Expected no tombstone before creation, got %v (err %v)", found, err)
+	}
+	for i := 0; i < 2; i++ { // creating twice is not an error
+		if err := db.CreateAccountTombstone(id); err != nil {
+			t.Fatalf("CreateAccountTombstone failed: %v", err)
+		}
+	}
+	if found, err := db.HasAccountTombstone(id); err != nil || !found {
+		t.Errorf("Expected tombstone after creation, got %v (err %v)", found, err)
 	}
 }

@@ -147,6 +147,10 @@ func (m *mockDBForSub) GetUserArticleHistoryPage(int, string, int) ([]database.U
 	return nil, "", nil
 }
 func (m *mockDBForSub) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBForSub) DeleteUserSessions(int) error                    { return nil }
+func (m *mockDBForSub) DeleteUserAccount(int) error                     { return nil }
+func (m *mockDBForSub) CreateAccountTombstone(string) error             { return nil }
+func (m *mockDBForSub) HasAccountTombstone(string) (bool, error)        { return false, nil }
 func (m *mockDBForSub) UpdateFeedLastFetch(int, time.Time) error        { return nil }
 func (m *mockDBForSub) UpdateUserMaxArticlesOnFeedAdd(int, int) error   { return nil }
 func (m *mockDBForSub) CreateSession(*database.Session) error           { return nil }

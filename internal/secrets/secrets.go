@@ -2,6 +2,9 @@ package secrets
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -69,6 +72,13 @@ var (
 	initialAdminEmailsErr  error
 )
 
+// Cache for the account tombstone key (fetched once at startup)
+var (
+	accountTombstoneKey     string
+	accountTombstoneKeyOnce sync.Once
+	accountTombstoneKeyErr  error
+)
+
 // secretFetcher is the function used to call Secret Manager; replaced in tests
 var secretFetcher = fetchFromSecretManager
 
@@ -131,6 +141,10 @@ func ResetCacheForTesting() {
 	initialAdminEmails = ""
 	initialAdminEmailsOnce = sync.Once{}
 	initialAdminEmailsErr = nil
+
+	accountTombstoneKey = ""
+	accountTombstoneKeyOnce = sync.Once{}
+	accountTombstoneKeyErr = nil
 
 	secretFetcher = fetchFromSecretManager
 }
@@ -315,4 +329,32 @@ func GetInitialAdminEmails(ctx context.Context) (string, error) {
 		}
 	})
 	return initialAdminEmails, initialAdminEmailsErr
+}
+
+// GetAccountTombstoneKey retrieves the HMAC key for deleted-account tombstones
+// from environment or Secret Manager. An empty result means tombstones are
+// disabled.
+func GetAccountTombstoneKey(ctx context.Context) (string, error) {
+	accountTombstoneKeyOnce.Do(func() {
+		accountTombstoneKey = os.Getenv("ACCOUNT_TOMBSTONE_KEY")
+		if accountTombstoneKey == "" || strings.HasPrefix(accountTombstoneKey, secretPrefix) {
+			accountTombstoneKey, accountTombstoneKeyErr = GetSecret(ctx, "account-tombstone-key")
+		}
+	})
+	return accountTombstoneKey, accountTombstoneKeyErr
+}
+
+// AccountTombstoneID returns the identifier under which a deleted account's
+// tombstone is stored: a hex HMAC-SHA256 of its Google ID. Google IDs are
+// numeric and could be brute-forced from a plain hash, so the keyed HMAC keeps
+// the tombstone from identifying anyone without the key. It returns "" with a
+// nil error when no key is configured.
+func AccountTombstoneID(ctx context.Context, googleID string) (string, error) {
+	key, err := GetAccountTombstoneKey(ctx)
+	if key == "" {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(googleID))
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }

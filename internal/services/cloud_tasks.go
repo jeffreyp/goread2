@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	"cloud.google.com/go/cloudtasks/apiv2/cloudtaskspb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // CloudTasksQueue enqueues async work as Cloud Tasks targeting this App
@@ -54,9 +56,19 @@ func (q *CloudTasksQueue) Close() error {
 // Enqueue creates a task that Cloud Tasks dispatches as a POST to
 // relativeURI on this App Engine service's default target.
 func (q *CloudTasksQueue) Enqueue(ctx context.Context, relativeURI string) error {
+	return q.createTask(ctx, relativeURI, nil)
+}
+
+// EnqueueAfter is Enqueue with dispatch delayed by at least delay.
+func (q *CloudTasksQueue) EnqueueAfter(ctx context.Context, relativeURI string, delay time.Duration) error {
+	return q.createTask(ctx, relativeURI, timestamppb.New(time.Now().Add(delay)))
+}
+
+func (q *CloudTasksQueue) createTask(ctx context.Context, relativeURI string, scheduleTime *timestamppb.Timestamp) error {
 	_, err := q.client.CreateTask(ctx, &cloudtaskspb.CreateTaskRequest{
 		Parent: fmt.Sprintf("projects/%s/locations/%s/queues/%s", q.projectID, q.location, q.queueID),
 		Task: &cloudtaskspb.Task{
+			ScheduleTime: scheduleTime,
 			MessageType: &cloudtaskspb.Task_AppEngineHttpRequest{
 				AppEngineHttpRequest: &cloudtaskspb.AppEngineHttpRequest{
 					HttpMethod:  cloudtaskspb.HttpMethod_POST,

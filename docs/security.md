@@ -251,6 +251,22 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 - **Admin endpoints** - Require authenticated admin session
 - **Unmatched paths** - Return an explicit 404 via `middleware.NotFoundHandler` (`internal/middleware/not_found.go`). Gin's built-in fallback writes its 404 after the gzip middleware has closed its writer, so clients that accept gzip received an empty response that the App Engine frontend reported as status 200, which vulnerability scanners interpreted as a hit.
 
+### Account Deletion
+
+`DELETE /api/account` permanently deletes the signed-in user's account. The request must pass CSRF validation and repeat the account email as `confirm_email`, compared case-insensitively. The handler queues the deletion before revoking the user's sessions, so a queueing failure leaves the user signed in and able to retry; it then revokes every session and clears the cookie.
+
+`UserDataService.DeleteAccount` (`internal/services/user_data_service.go`) runs the deletion in this order, and every step is idempotent:
+
+1. Delete the user's Stripe customers, which cancels any subscription (see [stripe.md](stripe.md#account-deletion))
+2. Write the account tombstone
+3. Delete `UserArticle`, `UserFeed`, and `Session` records in batches of 500
+4. Pseudonymize audit log entries: the user's email becomes `deleted-user-<id>`, and the IP address of actions the user performed as an admin is cleared. Entries are kept for the admin trail.
+5. Delete the `User` record last, so a partial failure leaves an account that a retry can find and finish
+
+Shared `Feed` and `Article` records are not touched. Other App Engine instances can keep serving a deleted user from their in-memory session cache for up to its 10-minute TTL, so a second pass runs 15 minutes later to remove anything those requests recreated (see [deployment.md](deployment.md#async-task-processing-cloud-tasks)).
+
+**Account tombstones** stop a deleted account from starting a second free trial by signing in again. A tombstone is an `AccountTombstone` entity keyed by HMAC-SHA256 of the Google ID under `ACCOUNT_TOMBSTONE_KEY`, holding only the deletion time. A plain hash would not protect the numeric Google ID from brute force. On sign-in, a new account whose Google ID has a tombstone is created with its trial already ended. Without the key, deletion still works but writes no tombstone, and the sign-in check is skipped.
+
 ### Regression Test Coverage
 
 `test/security/` is the consolidated, CI-gated regression suite for the controls above: CSRF token enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and free-trial feed-limit enforcement. It runs as a blocking step in the `security` job in `.github/workflows/test.yml`, separate from the advisory `govulncheck` scan. See [testing.md](testing.md#cicd-integration) for details.

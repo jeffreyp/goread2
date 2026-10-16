@@ -355,3 +355,35 @@
     font-size: 14px;
     min-width: 80px;
 }
+
+/* Delete account */
+.delete-account-item {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #dadce0;
+}
+
+.btn-danger {
+    background-color: #d93025;
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #b3261e;
+}
+
+.btn-danger:disabled {
+    background-color: #f5f5f5;
+    color: #999;
+    cursor: not-allowed;
+}
+
+#delete-account-expected-email {
+    font-weight: 700;
+    word-break: break-all;
+}
+
+.delete-account-error {
+    color: #d93025;
+    font-size: 14px;
+}

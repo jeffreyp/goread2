@@ -754,6 +754,41 @@ curl "http://localhost:8080/api/account/export" \
   -o goread2-data.json
 ```
 
+### `DELETE /api/account`
+Permanently delete the current user's account and data. See [security.md](security.md#account-deletion) for what is deleted, in what order, and what is retained.
+
+**Headers**:
+- `X-CSRF-Token` (required) - CSRF token from `/auth/me`
+
+**Request Body**:
+```json
+{
+  "confirm_email": "user@example.com"
+}
+```
+
+**Parameters**:
+- `confirm_email` (string, required) - must match the account's email address, ignoring case and surrounding whitespace
+
+**Response**: every session for the account is revoked and the session cookie is cleared before responding.
+- `202 Accepted` - In production, the deletion is queued as a Cloud Task: `{"message": "Account deletion started"}`
+- `200 OK` - Without Cloud Tasks (local development), the deletion has already run: `{"message": "Account deleted"}`
+
+**Error Responses**:
+- `400 Bad Request` - Missing or mismatched `confirm_email`, or an unparseable body
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Invalid or missing CSRF token
+- `500 Internal Server Error` - The deletion could not be queued (the account and sessions are unchanged), or the in-process deletion failed partway (the account remains and can be deleted again after signing in)
+
+**Example**:
+```bash
+curl -X DELETE "http://localhost:8080/api/account" \
+  -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token" \
+  -H "Content-Type: application/json" \
+  -d '{"confirm_email": "user@example.com"}'
+```
+
 ## Webhook Endpoints
 
 ### `POST /webhooks/stripe`

@@ -73,6 +73,15 @@
                             <a href="/api/account/export" class="btn btn-secondary" download>Export all data (JSON)</a>
                             <a href="/api/feeds/export" class="btn btn-secondary" download>Export feeds (OPML)</a>
                         </div>
+                        <div class="setting-item delete-account-item">
+                            <strong>Delete your account</strong>
+                            <div class="setting-description">
+                                Permanently deletes this account and its feeds, reading history, and settings. A GoRead2 Pro subscription ends immediately, with no refund for the rest of the billing period. This cannot be undone.
+                            </div>
+                        </div>
+                        <div class="setting-control">
+                            <button id="delete-account-btn" class="btn btn-danger">Delete account</button>
+                        </div>
                     </div>
                 </div>
 
@@ -99,6 +108,25 @@
             <div class="form-actions">
                 <button id="confirm-action" class="btn btn-primary">Confirm</button>
                 <button id="cancel-action" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Account Modal -->
+    <div id="delete-account-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-account-heading">
+        <div class="modal-content">
+            <button class="close" id="delete-account-close" aria-label="Close">&times;</button>
+            <h2 id="delete-account-heading">Delete account</h2>
+            <p>This permanently deletes your GoRead2 account, feeds, reading history, and settings. A GoRead2 Pro subscription is cancelled immediately, with no refund for the rest of the billing period. Stripe keeps the payment records it is legally required to retain.</p>
+            <p>To keep a copy of your data, <a href="/api/account/export" download>export it</a> before deleting.</p>
+            <div class="form-group">
+                <label for="delete-account-email">Type <span id="delete-account-expected-email"></span> to confirm:</label>
+                <input type="email" id="delete-account-email" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <p id="delete-account-error" class="delete-account-error" role="alert" hidden></p>
+            <div class="form-actions">
+                <button id="delete-account-confirm" class="btn btn-danger" disabled>Delete account</button>
+                <button id="delete-account-cancel" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     </div>

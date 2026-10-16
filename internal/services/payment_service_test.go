@@ -130,6 +130,10 @@ func (m *mockDBPayment) GetUserArticleHistoryPage(int, string, int) ([]database.
 	return nil, "", nil
 }
 func (m *mockDBPayment) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBPayment) DeleteUserSessions(int) error                    { return nil }
+func (m *mockDBPayment) DeleteUserAccount(int) error                     { return nil }
+func (m *mockDBPayment) CreateAccountTombstone(string) error             { return nil }
+func (m *mockDBPayment) HasAccountTombstone(string) (bool, error)        { return false, nil }
 func (m *mockDBPayment) CreateSession(*database.Session) error           { return nil }
 func (m *mockDBPayment) GetSession(string) (*database.Session, error)    { return nil, nil }
 func (m *mockDBPayment) UpdateSessionExpiry(string, time.Time) error     { return nil }

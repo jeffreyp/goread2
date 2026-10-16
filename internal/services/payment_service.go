@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
@@ -203,6 +205,13 @@ func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error 
 		return fmt.Errorf("invalid user_id in metadata: %w", err)
 	}
 
+	// Deleting an account deletes its Stripe customer, which cancels the
+	// subscription and sends this webhook after the user is gone. There is
+	// nothing left to update; returning an error would make Stripe retry for days.
+	if _, err := ps.db.GetUserByID(userID); errors.Is(err, database.ErrUserNotFound) {
+		return nil
+	}
+
 	// Convert Stripe status to our status
 	var status string
 	var lastPaymentDate time.Time
@@ -234,6 +243,57 @@ func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error 
 	}
 
 	return nil
+}
+
+// DeleteCustomerForUser deletes every Stripe customer belonging to user,
+// which also cancels their subscriptions immediately. Stripe keeps the payment
+// records it is legally required to retain. GoRead2 does not store customer
+// IDs, so customers are found through the user's subscription and by email,
+// skipping any whose metadata names a different GoRead2 user. Customers that
+// are already deleted are ignored, so the call is safe to retry.
+func (ps *PaymentService) DeleteCustomerForUser(user *database.User) error {
+	customerIDs := make(map[string]bool)
+
+	if user.SubscriptionID != "" {
+		sub, err := subscription.Get(user.SubscriptionID, nil)
+		if err != nil && !isStripeResourceMissing(err) {
+			return fmt.Errorf("failed to get subscription: %w", err)
+		}
+		if err == nil && sub.Customer != nil {
+			customerIDs[sub.Customer.ID] = true
+		}
+	}
+
+	params := &stripe.CustomerSearchParams{
+		SearchParams: stripe.SearchParams{
+			Query: fmt.Sprintf("email:'%s'", strings.ReplaceAll(user.Email, "'", `\'`)),
+		},
+	}
+	iter := customer.Search(params)
+	for iter.Next() {
+		cust := iter.Customer()
+		if owner, ok := cust.Metadata["user_id"]; ok && owner != strconv.Itoa(user.ID) {
+			continue
+		}
+		customerIDs[cust.ID] = true
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("failed to search for customers: %w", err)
+	}
+
+	for id := range customerIDs {
+		if _, err := customer.Del(id, nil); err != nil && !isStripeResourceMissing(err) {
+			return fmt.Errorf("failed to delete customer: %w", err)
+		}
+	}
+	return nil
+}
+
+// isStripeResourceMissing reports whether err is Stripe's "no such object"
+// error, which a retried deletion sees for objects it already removed.
+func isStripeResourceMissing(err error) bool {
+	var stripeErr *stripe.Error
+	return errors.As(err, &stripeErr) && stripeErr.Code == stripe.ErrorCodeResourceMissing
 }
 
 // CreateProductAndPrice creates the GoRead2 Pro product and price in Stripe (one-time setup)

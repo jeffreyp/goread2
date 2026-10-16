@@ -71,6 +71,10 @@ func (m *mockDBAuthHandler) GetUserArticleHistoryPage(int, string, int) ([]datab
 	return nil, "", nil
 }
 func (m *mockDBAuthHandler) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBAuthHandler) DeleteUserSessions(int) error                    { return nil }
+func (m *mockDBAuthHandler) DeleteUserAccount(int) error                     { return nil }
+func (m *mockDBAuthHandler) CreateAccountTombstone(string) error             { return nil }
+func (m *mockDBAuthHandler) HasAccountTombstone(string) (bool, error)        { return false, nil }
 func (m *mockDBAuthHandler) GetUserArticlesByIDs(int, []int) ([]database.Article, error) {
 	return nil, nil
 }

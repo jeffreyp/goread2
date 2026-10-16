@@ -353,7 +353,9 @@ No new GitHub secrets or variables are required. The workflow uses the built-in 
 
 **Secret Reference Convention**: The application supports a `_secret:` prefix for environment variables to explicitly trigger Secret Manager lookups. For example, setting `GOOGLE_CLIENT_ID=_secret:my-client-id` will fetch the secret from Google Secret Manager. This convention is consistent across all credentials (OAuth and Stripe) and prevents accidental conflicts with actual secret values.
 
-**CSRF_SECRET, ADMIN_TOKEN, INITIAL_ADMIN_EMAILS, and the four Stripe variables** all follow the same pattern as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`: fetched from Secret Manager at runtime (secret names `csrf-secret`, `admin-token`, `initial-admin-emails`, `stripe-secret-key`, `stripe-publishable-key`, `stripe-webhook-secret`, `stripe-price-id`) and absent from `app.yaml` entirely.
+**CSRF_SECRET, ADMIN_TOKEN, INITIAL_ADMIN_EMAILS, ACCOUNT_TOMBSTONE_KEY, and the four Stripe variables** all follow the same pattern as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`: fetched from Secret Manager at runtime (secret names `csrf-secret`, `admin-token`, `initial-admin-emails`, `account-tombstone-key`, `stripe-secret-key`, `stripe-publishable-key`, `stripe-webhook-secret`, `stripe-price-id`) and absent from `app.yaml` entirely.
+
+`ACCOUNT_TOMBSTONE_KEY` is the HMAC key for deleted-account tombstones, which stop a deleted account's Google ID from starting a second free trial (see [security.md](security.md#account-deletion)). Without it, account deletion still works but writes no tombstone, and sign-in skips the check. Do not rotate it: tombstones written under the old key stop matching.
 
 The Stripe placeholders were removed 2026-07-04 while debugging why the first automated staging deploy (gr-rfd) 503'd: `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so the old `${STRIPE_SECRET_KEY}`-style placeholders were being deployed as literal, unresolved strings. `secrets.GetStripeCredentials()` read that literal garbage from the env var (non-empty, so it never fell through to Secret Manager) and failed config validation. Same root cause `make substitute-secrets` existed to paper over for manual deploys. `app.yaml` now has zero `${VAR}` placeholders; the manual `make deploy-dev`/`deploy-prod`/`substitute-secrets` Makefile targets were removed once the GitHub Actions pipeline (staging/prod deploy workflows documented above) fully replaced them; see [Deployment Steps](#deployment-steps) below.
 
@@ -376,6 +378,9 @@ The Stripe placeholders were removed 2026-07-04 while debugging why the first au
    # Admin CLI token and initial admin bootstrap emails (optional)
    echo -n "your-admin-token" | gcloud secrets create admin-token --data-file=-
    echo -n "admin@example.com" | gcloud secrets create initial-admin-emails --data-file=-
+
+   # Deleted-account tombstone key (recommended; never rotate)
+   openssl rand -base64 32 | tr -d '\n' | gcloud secrets create account-tombstone-key --data-file=-
 
    # Stripe configuration (if using subscriptions)
    echo -n "sk_live_your-secret-key" | gcloud secrets create stripe-secret-key --data-file=-
@@ -408,12 +413,16 @@ The Stripe placeholders were removed 2026-07-04 while debugging why the first au
        --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
        --role="roles/secretmanager.secretAccessor"
 
+   gcloud secrets add-iam-policy-binding account-tombstone-key \
+       --member="serviceAccount:${PROJECT_ID}@appspot.gserviceaccount.com" \
+       --role="roles/secretmanager.secretAccessor"
+
    # Repeat for other secrets (Stripe, etc.)...
    ```
 
 ### app.yaml Configuration
 
-This is the actual production `app.yaml`. It carries no OAuth or Stripe values at all, only the Secret Manager secret *names* to look up; `CSRF_SECRET`, `ADMIN_TOKEN`, `INITIAL_ADMIN_EMAILS`, and the four Stripe variables aren't listed here because they're fetched from Secret Manager under fixed default names with no `app.yaml` entry needed at all (see the Secret Reference Convention note above).
+This is the actual production `app.yaml`. It carries no OAuth or Stripe values at all, only the Secret Manager secret *names* to look up; `CSRF_SECRET`, `ADMIN_TOKEN`, `INITIAL_ADMIN_EMAILS`, `ACCOUNT_TOMBSTONE_KEY`, and the four Stripe variables aren't listed here because they're fetched from Secret Manager under fixed default names with no `app.yaml` entry needed at all (see the Secret Reference Convention note above).
 
 ```yaml
 runtime: go126
@@ -510,6 +519,8 @@ Each cron handler enqueues a task targeting a corresponding worker endpoint on t
 
 - `/cron/refresh-feeds` enqueues `/tasks/refresh-feeds`
 - `/cron/cleanup-orphaned-articles` enqueues `/tasks/cleanup-orphaned-articles`
+
+Account deletion uses the same queue. `DELETE /api/account` enqueues `/tasks/delete-account?user_id=<id>` twice: once for immediate dispatch, and once delayed by 15 minutes. The delayed pass removes any rows recreated after the first pass by requests on sessions still held in another instance's session cache, whose TTL is 10 minutes. Both passes run the same idempotent deletion, so either one can finish a deletion the other left incomplete. If both exhaust their retries (for example, during a Stripe outage longer than the retry window), the account remains, the failure is logged as `Account deletion task failed for user <id>`, and the user can sign in and request deletion again.
 
 Tasks are dispatched using Cloud Tasks' `AppEngineHttpRequest` target. App Engine attaches an `X-AppEngine-QueueName` header to genuine task dispatches and strips that header from any external request that tries to set it, the same protection `X-Appengine-Cron` gives the cron endpoints; the task worker endpoints check for its presence (`internal/auth.VerifyTaskRequest`) rather than requiring a separate signature check.
 

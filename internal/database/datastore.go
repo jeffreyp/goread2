@@ -672,6 +672,9 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 	key := datastore.IDKey("User", int64(userID), nil)
 	var entity UserEntity
 	if err := db.client.Get(ctx, key, &entity); err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			return nil, fmt.Errorf("failed to get user: %w: %w", ErrUserNotFound, err)
+		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
@@ -2611,6 +2614,135 @@ func (db *DatastoreDB) GetUserSessions(userID int) ([]Session, error) {
 	}
 	sort.Slice(sessions, func(i, j int) bool { return sessions[i].CreatedAt.Before(sessions[j].CreatedAt) })
 	return sessions, nil
+}
+
+// DeleteUserSessions deletes every session belonging to userID.
+func (db *DatastoreDB) DeleteUserSessions(userID int) error {
+	query := datastore.NewQuery("Session").FilterField("user_id", "=", int64(userID)).KeysOnly()
+	return db.deleteAllMatching(query, "sessions")
+}
+
+// deleteAllMatching deletes every entity matched by a keys-only query, in
+// batches that each get their own timeout, so that a large result set (a
+// heavy reader's UserArticle records) cannot exhaust a single deadline.
+func (db *DatastoreDB) deleteAllMatching(query *datastore.Query, what string) error {
+	const batchSize = 500
+	for {
+		ctx, cancel := newDatastoreContext()
+		keys, err := db.client.GetAll(ctx, query.Limit(batchSize), nil)
+		if err != nil {
+			cancel()
+			return fmt.Errorf("failed to query %s: %w", what, err)
+		}
+		if len(keys) > 0 {
+			err = db.client.DeleteMulti(ctx, keys)
+		}
+		cancel()
+		if err != nil {
+			return fmt.Errorf("failed to delete %s: %w", what, err)
+		}
+		if len(keys) < batchSize {
+			return nil
+		}
+	}
+}
+
+// DeleteUserAccount deletes userID's account and everything tied to it:
+// UserArticle, UserFeed, and Session entities, then the User entity last, so
+// a failure partway leaves an account that a retry can finish deleting. Audit
+// log entries are kept for the admin trail but pseudonymized: the user's email
+// is replaced, and the IP address of actions the user performed as an admin is
+// cleared. Shared Feed and Article entities are untouched. Deleting an account
+// that is already gone succeeds.
+func (db *DatastoreDB) DeleteUserAccount(userID int) error {
+	defer logSlowQuery("DeleteUserAccount", time.Now())
+	uid := int64(userID)
+
+	for _, kind := range []string{"UserArticle", "UserFeed", "Session"} {
+		query := datastore.NewQuery(kind).FilterField("user_id", "=", uid).KeysOnly()
+		if err := db.deleteAllMatching(query, kind); err != nil {
+			return err
+		}
+	}
+	db.userFeeds.invalidate(userID)
+
+	pseudonym := DeletedUserPseudonym(userID)
+	if err := db.updateAuditLogs("target_user_id", uid, func(e *AuditLogEntity) {
+		e.TargetUserEmail = pseudonym
+	}); err != nil {
+		return err
+	}
+	if err := db.updateAuditLogs("admin_user_id", uid, func(e *AuditLogEntity) {
+		e.AdminEmail = pseudonym
+		e.IPAddress = ""
+	}); err != nil {
+		return err
+	}
+
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+	if err := db.client.Delete(ctx, datastore.IDKey("User", uid, nil)); err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	return nil
+}
+
+// updateAuditLogs applies update to every AuditLog entity whose field equals
+// userID, in batches.
+func (db *DatastoreDB) updateAuditLogs(field string, userID int64, update func(*AuditLogEntity)) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	var entities []AuditLogEntity
+	keys, err := db.client.GetAll(ctx, datastore.NewQuery("AuditLog").FilterField(field, "=", userID), &entities)
+	if err != nil {
+		return fmt.Errorf("failed to query audit logs: %w", err)
+	}
+	for i := range entities {
+		update(&entities[i])
+	}
+
+	const batchSize = 500
+	for start := 0; start < len(keys); start += batchSize {
+		end := min(start+batchSize, len(keys))
+		if _, err := db.client.PutMulti(ctx, keys[start:end], entities[start:end]); err != nil {
+			return fmt.Errorf("failed to update audit logs: %w", err)
+		}
+	}
+	return nil
+}
+
+// AccountTombstoneEntity marks a deleted account so that signing in again
+// with the same Google account does not start a new free trial. It is keyed
+// by an HMAC of the Google ID and holds nothing else that identifies the user.
+type AccountTombstoneEntity struct {
+	DeletedAt time.Time `datastore:"deleted_at"`
+}
+
+func (db *DatastoreDB) CreateAccountTombstone(id string) error {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	key := datastore.NameKey("AccountTombstone", id, nil)
+	if _, err := db.client.Put(ctx, key, &AccountTombstoneEntity{DeletedAt: time.Now()}); err != nil {
+		return fmt.Errorf("failed to create account tombstone: %w", err)
+	}
+	return nil
+}
+
+func (db *DatastoreDB) HasAccountTombstone(id string) (bool, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	var entity AccountTombstoneEntity
+	err := db.client.Get(ctx, datastore.NameKey("AccountTombstone", id, nil), &entity)
+	if err == datastore.ErrNoSuchEntity {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to get account tombstone: %w", err)
+	}
+	return true, nil
 }
 
 // Audit log methods for Datastore

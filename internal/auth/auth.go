@@ -164,6 +164,11 @@ func (a *AuthService) HandleCallback(code, host string) (*database.User, error) 
 			Avatar:    googleUser.Picture,
 			CreatedAt: time.Now(),
 		}
+		if a.hasDeletedAccount(ctx, googleUser.ID) {
+			// This Google account already used a free trial before deleting
+			// its GoRead2 account, so the new account starts with it expired.
+			user.TrialEndsAt = user.CreatedAt
+		}
 
 		if err := a.db.CreateUser(user); err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
@@ -171,6 +176,25 @@ func (a *AuthService) HandleCallback(code, host string) (*database.User, error) 
 	}
 
 	return user, nil
+}
+
+// hasDeletedAccount reports whether a tombstone exists for googleID, meaning
+// the Google account previously had a GoRead2 account and deleted it. Errors
+// are logged and treated as no tombstone, so sign-in never fails on this check.
+func (a *AuthService) hasDeletedAccount(ctx context.Context, googleID string) bool {
+	id, err := secrets.AccountTombstoneID(ctx, googleID)
+	if id == "" {
+		if err != nil {
+			log.Printf("Warning: account tombstone key unavailable, skipping deleted-account check: %v", err)
+		}
+		return false
+	}
+	found, err := a.db.HasAccountTombstone(id)
+	if err != nil {
+		log.Printf("Warning: failed to check account tombstone: %v", err)
+		return false
+	}
+	return found
 }
 
 func (a *AuthService) ValidateConfig() error {

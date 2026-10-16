@@ -1,12 +1,15 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"testing"
 
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 	"github.com/jeffreyp/goread2/test/helpers"
 )
 
@@ -419,5 +422,94 @@ func TestDataExportWorkflow(t *testing.T) {
 	}
 	if r := byID[starred.ID]; r.IsRead || !r.IsStarred || r.Title != "Starred Article" {
 		t.Errorf("Unexpected starred article record: %+v", r)
+	}
+}
+
+// TestAccountDeletionWorkflow tests GDPR account deletion:
+// Mismatched confirmation is rejected → Delete → Data, sessions, and cookie are gone,
+// another user's data is untouched, and a tombstone records the deleted Google account
+func TestAccountDeletionWorkflow(t *testing.T) {
+	// Not parallel: it sets ACCOUNT_TOMBSTONE_KEY and resets the process-wide secrets cache.
+	t.Setenv("ACCOUNT_TOMBSTONE_KEY", "test-tombstone-key")
+	secrets.ResetCacheForTesting()
+	t.Cleanup(secrets.ResetCacheForTesting)
+
+	helpers.SetupTestEnv(t)
+	defer helpers.CleanupTestEnv(t)
+
+	testServer := helpers.SetupTestServer(t)
+	user := helpers.CreateTestUser(t, testServer.DB, "google-delete-123", "Delete.Me@example.com", "Delete Test User")
+	other := helpers.CreateTestUser(t, testServer.DB, "google-delete-456", "keep@example.com", "Keep Test User")
+
+	feed := helpers.CreateTestFeed(t, testServer.DB, "Deletion Feed", "https://deletion.com/feed", "Test feed")
+	article := helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Deletion Article", "https://deletion.com/article")
+	for _, u := range []*database.User{user, other} {
+		if err := testServer.DB.SubscribeUserToFeed(u.ID, feed.ID); err != nil {
+			t.Fatalf("Failed to subscribe: %v", err)
+		}
+		if err := testServer.DB.SetUserArticleStatus(u.ID, article.ID, true, true); err != nil {
+			t.Fatalf("Failed to set article status: %v", err)
+		}
+	}
+
+	// Step 1: a confirmation that does not match the account email is rejected
+	reqWrong := testServer.CreateAuthenticatedRequest(t, "DELETE", "/api/account", map[string]string{"confirm_email": "someone@example.com"}, user)
+	rrWrong := testServer.ExecuteRequest(reqWrong)
+	if rrWrong.Code != http.StatusBadRequest {
+		t.Fatalf("Expected 400 for mismatched email, got %d: %s", rrWrong.Code, rrWrong.Body.String())
+	}
+	if _, err := testServer.DB.GetUserByID(user.ID); err != nil {
+		t.Fatalf("User should still exist after a rejected deletion: %v", err)
+	}
+
+	// Step 2: delete, confirming with different case and surrounding spaces
+	reqDelete := testServer.CreateAuthenticatedRequest(t, "DELETE", "/api/account", map[string]string{"confirm_email": "  delete.me@EXAMPLE.com "}, user)
+	rrDelete := testServer.ExecuteRequest(reqDelete)
+	if rrDelete.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for in-process deletion, got %d: %s", rrDelete.Code, rrDelete.Body.String())
+	}
+	if setCookie := rrDelete.Header().Get("Set-Cookie"); !contains(setCookie, "session_id_local=;") {
+		t.Errorf("Expected the session cookie to be cleared, got %q", setCookie)
+	}
+
+	// Step 3: the account and its data are gone
+	if _, err := testServer.DB.GetUserByID(user.ID); !errors.Is(err, database.ErrUserNotFound) {
+		t.Errorf("Expected ErrUserNotFound after deletion, got %v", err)
+	}
+	if feeds, err := testServer.DB.GetUserFeeds(user.ID); err != nil || len(feeds) != 0 {
+		t.Errorf("Expected no feeds after deletion, got %d (err %v)", len(feeds), err)
+	}
+	if records, _, err := testServer.DB.GetUserArticleHistoryPage(user.ID, "", 10); err != nil || len(records) != 0 {
+		t.Errorf("Expected no article history after deletion, got %d (err %v)", len(records), err)
+	}
+
+	// Step 4: the session used for the deletion no longer authenticates
+	reqAfter := helpers.CreateUnauthenticatedRequest(t, "GET", "/api/feeds", nil)
+	for _, cookie := range reqDelete.Cookies() {
+		reqAfter.AddCookie(cookie)
+	}
+	if rr := testServer.ExecuteRequest(reqAfter); rr.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 with the deleted account's session, got %d", rr.Code)
+	}
+
+	// Step 5: the other user's data is untouched
+	if feeds, err := testServer.DB.GetUserFeeds(other.ID); err != nil || len(feeds) != 1 {
+		t.Errorf("Expected other user's feed to remain, got %d (err %v)", len(feeds), err)
+	}
+	if records, _, err := testServer.DB.GetUserArticleHistoryPage(other.ID, "", 10); err != nil || len(records) != 1 {
+		t.Errorf("Expected other user's article history to remain, got %d (err %v)", len(records), err)
+	}
+
+	// Step 6: a tombstone marks the Google account, so re-signing up does not start a new trial
+	tombstoneID, err := secrets.AccountTombstoneID(context.Background(), user.GoogleID)
+	if err != nil || tombstoneID == "" {
+		t.Fatalf("Failed to compute tombstone ID: %q, %v", tombstoneID, err)
+	}
+	if found, err := testServer.DB.HasAccountTombstone(tombstoneID); err != nil || !found {
+		t.Errorf("Expected a tombstone for the deleted account, got %v (err %v)", found, err)
+	}
+	otherTombstoneID, _ := secrets.AccountTombstoneID(context.Background(), other.GoogleID)
+	if found, _ := testServer.DB.HasAccountTombstone(otherTombstoneID); found {
+		t.Error("The other user should not have a tombstone")
 	}
 }

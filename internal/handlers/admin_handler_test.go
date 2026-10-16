@@ -152,6 +152,10 @@ func (m *mockDBAdminHandler) GetUserArticleHistoryPage(int, string, int) ([]data
 	return nil, "", nil
 }
 func (m *mockDBAdminHandler) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBAdminHandler) DeleteUserSessions(int) error                    { return nil }
+func (m *mockDBAdminHandler) DeleteUserAccount(int) error                     { return nil }
+func (m *mockDBAdminHandler) CreateAccountTombstone(string) error             { return nil }
+func (m *mockDBAdminHandler) HasAccountTombstone(string) (bool, error)        { return false, nil }
 func (m *mockDBAdminHandler) UpdateFeedLastFetch(int, time.Time) error        { return nil }
 func (m *mockDBAdminHandler) UpdateUserMaxArticlesOnFeedAdd(int, int) error   { return nil }
 func (m *mockDBAdminHandler) CreateSession(*database.Session) error           { return nil }

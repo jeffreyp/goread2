@@ -57,6 +57,8 @@ Create session and set session cookie
 Redirect to application
 ```
 
+A new user whose Google ID matches a deleted-account tombstone is created with the free trial already ended, so deleting and recreating an account does not grant a second trial. See [security.md](security.md#account-deletion).
+
 ### 3. Authenticated Requests
 
 ```

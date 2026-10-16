@@ -1,13 +1,17 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"sort"
 	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 const (
@@ -18,14 +22,71 @@ const (
 	exportAuditPageSize   = 500
 )
 
-// UserDataService assembles a user's personal data for GDPR access and
-// portability requests.
+// UserDataService serves GDPR requests: it assembles a user's personal data
+// for access and portability, and deletes it for erasure.
 type UserDataService struct {
-	db database.Database
+	db              database.Database
+	customerDeleter CustomerDeleter
+}
+
+// CustomerDeleter removes a user's customer records from the payment
+// provider. *PaymentService satisfies it.
+type CustomerDeleter interface {
+	DeleteCustomerForUser(user *database.User) error
 }
 
 func NewUserDataService(db database.Database) *UserDataService {
 	return &UserDataService{db: db}
+}
+
+// SetCustomerDeleter enables Stripe customer deletion during account
+// deletion. Called from main only when subscriptions are enabled.
+func (s *UserDataService) SetCustomerDeleter(cd CustomerDeleter) {
+	s.customerDeleter = cd
+}
+
+// DeleteAccount permanently deletes userID's account. While the user record
+// still exists it deletes the user's Stripe customer (cancelling any
+// subscription immediately) and writes a tombstone so that signing in again
+// does not start a new free trial; it then deletes all of the user's data,
+// removing the user record last. Each step is idempotent, so a failed run can
+// be retried, and running it again after the user is gone sweeps up any rows
+// recreated in the meantime by requests on stale cached sessions.
+func (s *UserDataService) DeleteAccount(userID int) error {
+	user, err := s.db.GetUserByID(userID)
+	if err != nil && !errors.Is(err, database.ErrUserNotFound) {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	if user != nil {
+		if s.customerDeleter != nil {
+			if err := s.customerDeleter.DeleteCustomerForUser(user); err != nil {
+				return fmt.Errorf("failed to delete Stripe customer: %w", err)
+			}
+		}
+		if err := s.writeTombstone(user); err != nil {
+			return err
+		}
+	}
+
+	if err := s.db.DeleteUserAccount(userID); err != nil {
+		return fmt.Errorf("failed to delete account data: %w", err)
+	}
+	return nil
+}
+
+func (s *UserDataService) writeTombstone(user *database.User) error {
+	id, err := secrets.AccountTombstoneID(context.Background(), user.GoogleID)
+	if id == "" {
+		// Deletion must not depend on the anti-abuse tombstone, so a missing
+		// key only costs the re-signup trial check.
+		log.Printf("Warning: account tombstone key unavailable, deleting user %d without a tombstone: %v", user.ID, err)
+		return nil
+	}
+	if err := s.db.CreateAccountTombstone(id); err != nil {
+		return fmt.Errorf("failed to write account tombstone: %w", err)
+	}
+	return nil
 }
 
 // UserDataExport holds the parts of a data export that are small enough to

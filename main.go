@@ -116,6 +116,11 @@ func main() {
 
 	// Initialize handlers
 	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler, db)
+	userDataService := services.NewUserDataService(db)
+	if paymentService != nil {
+		userDataService.SetCustomerDeleter(paymentService)
+	}
+	accountHandler := handlers.NewAccountHandler(userDataService, sessionManager)
 
 	// Wire up Cloud Tasks for the cron endpoints, production App Engine only.
 	// Local dev and tests leave this unset, so cron handlers fall back to
@@ -131,13 +136,13 @@ func main() {
 				}
 			}()
 			feedHandler.SetTaskQueue(taskQueue)
+			accountHandler.SetTaskQueue(taskQueue)
 		}
 	}
 
 	articleHandler := handlers.NewArticleHandler(feedService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
-	accountHandler := handlers.NewAccountHandler(services.NewUserDataService(db))
 	var paymentHandler *handlers.PaymentHandler
 	if cfg.SubscriptionEnabled && paymentService != nil {
 		paymentHandler = handlers.NewPaymentHandler(paymentService, cfg.GoogleRedirectURL)
@@ -270,6 +275,7 @@ func main() {
 	{
 		taskRoutes.POST("/refresh-feeds", feedHandler.TaskRefreshFeeds)
 		taskRoutes.POST("/cleanup-orphaned-articles", feedHandler.TaskCleanupOrphanedArticles)
+		taskRoutes.POST("/delete-account", accountHandler.TaskDeleteAccount)
 	}
 
 	// Protected API routes
@@ -290,6 +296,7 @@ func main() {
 		api.GET("/account/stats", feedHandler.GetAccountStats)
 		api.PUT("/account/max-articles", feedHandler.UpdateMaxArticlesOnFeedAdd)
 		api.GET("/account/export", auth.RateLimitMiddleware(exportRateLimiter), accountHandler.ExportData)
+		api.DELETE("/account", accountHandler.DeleteAccount)
 		api.GET("/articles/:id", articleHandler.GetArticle)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)

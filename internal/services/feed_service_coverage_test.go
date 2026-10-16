@@ -140,6 +140,10 @@ func (m *mockDBFeed) GetUserArticleHistoryPage(int, string, int) ([]database.Use
 	return nil, "", nil
 }
 func (m *mockDBFeed) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBFeed) DeleteUserSessions(int) error                    { return nil }
+func (m *mockDBFeed) DeleteUserAccount(int) error                     { return nil }
+func (m *mockDBFeed) CreateAccountTombstone(string) error             { return nil }
+func (m *mockDBFeed) HasAccountTombstone(string) (bool, error)        { return false, nil }
 func (m *mockDBFeed) CreateSession(*database.Session) error           { return nil }
 func (m *mockDBFeed) GetSession(string) (*database.Session, error)    { return nil, nil }
 func (m *mockDBFeed) UpdateSessionExpiry(string, time.Time) error     { return nil }

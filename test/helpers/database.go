@@ -112,6 +112,10 @@ func createTestTables(db *database.DB) error {
 			result TEXT NOT NULL,
 			error_message TEXT
 		)`,
+		`CREATE TABLE account_tombstones (
+			id TEXT PRIMARY KEY,
+			deleted_at DATETIME NOT NULL
+		)`,
 	}
 
 	for _, table := range tables {

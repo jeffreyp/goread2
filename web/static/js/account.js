@@ -68,7 +68,86 @@ class AccountApp {
             if (e.target === modal) {
                 this.hideModal();
             }
+            if (e.target === document.getElementById('delete-account-modal')) {
+                this.hideDeleteAccountModal();
+            }
         });
+
+        this.bindDeleteAccountEvents();
+    }
+
+    bindDeleteAccountEvents() {
+        const openButton = document.getElementById('delete-account-btn');
+        const emailInput = document.getElementById('delete-account-email');
+        const confirmButton = document.getElementById('delete-account-confirm');
+        if (!openButton || !emailInput || !confirmButton) return;
+
+        openButton.addEventListener('click', () => this.showDeleteAccountModal());
+        document.getElementById('delete-account-close').addEventListener('click', () => this.hideDeleteAccountModal());
+        document.getElementById('delete-account-cancel').addEventListener('click', () => this.hideDeleteAccountModal());
+
+        // Enable the delete button only once the typed email matches.
+        emailInput.addEventListener('input', () => {
+            confirmButton.disabled = !this.deleteConfirmationMatches();
+        });
+        emailInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && this.deleteConfirmationMatches()) {
+                this.deleteAccount();
+            }
+        });
+        confirmButton.addEventListener('click', () => this.deleteAccount());
+    }
+
+    deleteConfirmationMatches() {
+        const typed = document.getElementById('delete-account-email').value.trim().toLowerCase();
+        return typed !== '' && typed === (this.user.email || '').toLowerCase();
+    }
+
+    showDeleteAccountModal() {
+        document.getElementById('delete-account-expected-email').textContent = this.user.email;
+        const emailInput = document.getElementById('delete-account-email');
+        emailInput.value = '';
+        document.getElementById('delete-account-confirm').disabled = true;
+        document.getElementById('delete-account-error').hidden = true;
+        document.getElementById('delete-account-modal').style.display = 'block';
+        emailInput.focus();
+    }
+
+    hideDeleteAccountModal() {
+        document.getElementById('delete-account-modal').style.display = 'none';
+    }
+
+    async deleteAccount() {
+        const confirmButton = document.getElementById('delete-account-confirm');
+        const errorElement = document.getElementById('delete-account-error');
+        confirmButton.disabled = true;
+        confirmButton.textContent = 'Deleting...';
+        errorElement.hidden = true;
+
+        try {
+            const response = await fetch('/api/account', {
+                method: 'DELETE',
+                headers: this.getAuthHeaders(),
+                body: JSON.stringify({
+                    confirm_email: document.getElementById('delete-account-email').value
+                })
+            });
+
+            if (response.ok) {
+                // The session is gone; return to the signed-out home page.
+                window.location.href = '/';
+                return;
+            }
+
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error || 'Failed to delete the account. Please try again.');
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            errorElement.textContent = error.message;
+            errorElement.hidden = false;
+            confirmButton.disabled = !this.deleteConfirmationMatches();
+            confirmButton.textContent = 'Delete account';
+        }
     }
 
     async loadData() {

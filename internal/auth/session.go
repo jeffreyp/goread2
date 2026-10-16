@@ -192,6 +192,24 @@ func (sm *SessionManager) DeleteSession(sessionID string) {
 	sm.cacheMu.Unlock()
 }
 
+// DeleteUserSessions revokes every session belonging to userID and drops them
+// from this instance's cache. Other instances may keep serving a cached copy
+// until its cache entry expires (cacheTTL, 10 minutes by default).
+func (sm *SessionManager) DeleteUserSessions(userID int) error {
+	if err := sm.db.DeleteUserSessions(userID); err != nil {
+		return err
+	}
+
+	sm.cacheMu.Lock()
+	for id, cached := range sm.cache {
+		if cached.Session.UserID == userID {
+			delete(sm.cache, id)
+		}
+	}
+	sm.cacheMu.Unlock()
+	return nil
+}
+
 // getCookieName returns an environment-specific cookie name to prevent
 // local and production authentication states from conflicting
 func (sm *SessionManager) getCookieName() string {

@@ -20,6 +20,9 @@ var ErrSelfDemotion = errors.New("cannot remove your own admin privileges")
 // they are not subscribed to.
 var ErrArticleAccessDenied = errors.New("not subscribed to this article's feed")
 
+// ErrUserNotFound is wrapped by GetUserByID when no user has the given ID.
+var ErrUserNotFound = errors.New("user not found")
+
 // paginationOverfetch is added to the requested limit to detect whether more results exist.
 // If len(results) > requested limit, there is a next page; results are then trimmed to limit.
 const paginationOverfetch = 1
@@ -89,6 +92,12 @@ type Database interface {
 	DeleteSession(sessionID string) error
 	DeleteExpiredSessions() error
 	GetUserSessions(userID int) ([]Session, error)
+	DeleteUserSessions(userID int) error
+
+	// Account deletion methods
+	DeleteUserAccount(userID int) error
+	CreateAccountTombstone(id string) error
+	HasAccountTombstone(id string) (bool, error)
 
 	// Audit log methods
 	CreateAuditLog(log *AuditLog) error
@@ -160,6 +169,12 @@ type UserArticle struct {
 	ArticleID int  `json:"article_id"`
 	IsRead    bool `json:"is_read"`
 	IsStarred bool `json:"is_starred"`
+}
+
+// DeletedUserPseudonym replaces a deleted user's email in retained audit log
+// entries.
+func DeletedUserPseudonym(userID int) string {
+	return fmt.Sprintf("deleted-user-%d", userID)
 }
 
 // UserArticleRecord is one entry in a user's read/starred history, joined to
@@ -326,7 +341,13 @@ func (db *DB) CreateTables() error {
 		error_message TEXT
 	);`
 
-	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable, sessionsTable, auditLogsTable}
+	accountTombstonesTable := `
+	CREATE TABLE IF NOT EXISTS account_tombstones (
+		id TEXT PRIMARY KEY,
+		deleted_at DATETIME NOT NULL
+	);`
+
+	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable, sessionsTable, auditLogsTable, accountTombstonesTable}
 
 	for _, table := range tables {
 		if _, err := db.Exec(table); err != nil {
@@ -776,6 +797,9 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
 		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate, &nextBillingDate,
 		&user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("%w: %w", ErrUserNotFound, err)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1611,6 +1635,55 @@ func (db *DB) DeleteExpiredSessions() error {
 	query := `DELETE FROM sessions WHERE expires_at < ?`
 	_, err := db.Exec(query, time.Now())
 	return err
+}
+
+func (db *DB) DeleteUserSessions(userID int) error {
+	_, err := db.Exec(`DELETE FROM sessions WHERE user_id = ?`, userID)
+	return err
+}
+
+// DeleteUserAccount deletes userID's account and everything tied to it:
+// read/starred state, feed subscriptions, sessions, and the user row. Audit
+// log entries are kept for the admin trail but pseudonymized: the user's email
+// is replaced, and the IP address of actions the user performed as an admin is
+// cleared. Shared feeds and articles are untouched. Deleting an account that
+// is already gone succeeds, so the call is safe to retry.
+func (db *DB) DeleteUserAccount(userID int) error {
+	pseudonym := DeletedUserPseudonym(userID)
+	statements := []struct {
+		query string
+		args  []interface{}
+	}{
+		{`DELETE FROM user_articles WHERE user_id = ?`, []interface{}{userID}},
+		{`DELETE FROM user_feeds WHERE user_id = ?`, []interface{}{userID}},
+		{`DELETE FROM sessions WHERE user_id = ?`, []interface{}{userID}},
+		{`UPDATE audit_logs SET target_user_email = ? WHERE target_user_id = ?`, []interface{}{pseudonym, userID}},
+		{`UPDATE audit_logs SET admin_email = ?, ip_address = '' WHERE admin_user_id = ?`, []interface{}{pseudonym, userID}},
+		{`DELETE FROM users WHERE id = ?`, []interface{}{userID}},
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	for _, stmt := range statements {
+		if _, err := tx.Exec(stmt.query, stmt.args...); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (db *DB) CreateAccountTombstone(id string) error {
+	_, err := db.Exec(`INSERT OR REPLACE INTO account_tombstones (id, deleted_at) VALUES (?, ?)`, id, time.Now())
+	return err
+}
+
+func (db *DB) HasAccountTombstone(id string) (bool, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM account_tombstones WHERE id = ?`, id).Scan(&count)
+	return count > 0, err
 }
 
 func (db *DB) GetUserSessions(userID int) ([]Session, error) {
