@@ -28,6 +28,7 @@ func TestProtectedEndpointsRejectUnauthenticated(t *testing.T) {
 		{"DELETE", "/api/feeds/1"},
 		{"POST", "/api/feeds/import"},
 		{"GET", "/api/feeds/export"},
+		{"GET", "/api/account/export"},
 		{"GET", "/api/feeds/1/articles"},
 		{"POST", "/api/articles/1/read"},
 		{"POST", "/api/articles/1/star"},

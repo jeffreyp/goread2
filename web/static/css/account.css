@@ -328,6 +328,7 @@
 
 .setting-control {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
 }
@@ -348,6 +349,8 @@
 }
 
 .setting-control .btn {
+    display: inline-block;
+    text-decoration: none;
     padding: 8px 16px;
     font-size: 14px;
     min-width: 80px;

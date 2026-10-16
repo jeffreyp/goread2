@@ -99,6 +99,19 @@ func createTestTables(db *database.DB) error {
 			expires_at DATETIME NOT NULL,
 			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE audit_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+			admin_user_id INTEGER,
+			admin_email TEXT NOT NULL,
+			operation_type TEXT NOT NULL,
+			target_user_id INTEGER,
+			target_user_email TEXT,
+			operation_details TEXT,
+			ip_address TEXT,
+			result TEXT NOT NULL,
+			error_message TEXT
+		)`,
 	}
 
 	for _, table := range tables {

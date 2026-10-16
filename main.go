@@ -74,6 +74,8 @@ func main() {
 	apiRateLimiter := auth.NewRateLimiter(30, 50)
 	// Webhook: 5 requests per second with burst of 10 (Stripe traffic is low-volume)
 	webhookRateLimiter := auth.NewRateLimiter(5, 10)
+	// Data export: 1 request per minute with burst of 3 (each export reads the user's full history)
+	exportRateLimiter := auth.NewRateLimiter(1.0/60, 3)
 
 	// Initialize feed scheduler for staggered updates
 	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{
@@ -135,6 +137,7 @@ func main() {
 	articleHandler := handlers.NewArticleHandler(feedService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
+	accountHandler := handlers.NewAccountHandler(services.NewUserDataService(db))
 	var paymentHandler *handlers.PaymentHandler
 	if cfg.SubscriptionEnabled && paymentService != nil {
 		paymentHandler = handlers.NewPaymentHandler(paymentService, cfg.GoogleRedirectURL)
@@ -286,6 +289,7 @@ func main() {
 		api.GET("/subscription", feedHandler.GetSubscriptionInfo)
 		api.GET("/account/stats", feedHandler.GetAccountStats)
 		api.PUT("/account/max-articles", feedHandler.UpdateMaxArticlesOnFeedAdd)
+		api.GET("/account/export", auth.RateLimitMiddleware(exportRateLimiter), accountHandler.ExportData)
 		api.GET("/articles/:id", articleHandler.GetArticle)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)

@@ -67,6 +67,10 @@ func (m *mockDBAuthHandler) ToggleUserArticleStar(int, int) error         { retu
 func (m *mockDBAuthHandler) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
 func (m *mockDBAuthHandler) GetTotalArticleCount(int) (int, error)        { return 0, nil }
 func (m *mockDBAuthHandler) CleanupOrphanedUserArticles(int) (int, error) { return 0, nil }
+func (m *mockDBAuthHandler) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
+	return nil, "", nil
+}
+func (m *mockDBAuthHandler) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
 func (m *mockDBAuthHandler) GetUserArticlesByIDs(int, []int) ([]database.Article, error) {
 	return nil, nil
 }

@@ -25,3 +25,18 @@ indexes:
   properties:
   - name: user_id
   - name: feed_id
+
+# Indexes for audit log queries filtered by user, newest first
+# Used in: GetAuditLogs(filters) from the admin audit-log endpoint and the GDPR data export
+# Query: AuditLog.FilterField("target_user_id" | "admin_user_id", "=", userID).Order("-timestamp")
+- kind: AuditLog
+  properties:
+  - name: target_user_id
+  - name: timestamp
+    direction: desc
+
+- kind: AuditLog
+  properties:
+  - name: admin_user_id
+  - name: timestamp
+    direction: desc

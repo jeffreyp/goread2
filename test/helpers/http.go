@@ -54,6 +54,7 @@ func SetupTestServer(t testing.TB) *TestServer {
 	csrfManager := auth.NewCSRFManager()
 	feedHandler := handlers.NewFeedHandler(feedService, subscriptionService, feedScheduler, db)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
+	accountHandler := handlers.NewAccountHandler(services.NewUserDataService(db))
 	authMiddleware := auth.NewMiddleware(sessionManager)
 
 	router := gin.New()
@@ -77,6 +78,7 @@ func SetupTestServer(t testing.TB) *TestServer {
 		api.DELETE("/feeds/:id", feedHandler.DeleteFeed)
 		api.POST("/feeds/import", feedHandler.ImportOPML)
 		api.GET("/feeds/export", feedHandler.ExportOPML)
+		api.GET("/account/export", accountHandler.ExportData)
 		api.GET("/feeds/:id/articles", feedHandler.GetArticles)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)

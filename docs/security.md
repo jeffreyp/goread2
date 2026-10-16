@@ -214,6 +214,7 @@ Protection against brute force and DoS attacks:
 - **Auth endpoints** (`/auth/*`) - 10 requests/second, burst of 20
 - **API endpoints** (`/api/*`) - 30 requests/second, burst of 50
 - **Webhook endpoint** (`/webhooks/stripe`) - 5 requests/second, burst of 10
+- **Data export** (`/api/account/export`) - 1 request/minute, burst of 3, because each export reads the user's full history
 - **IP-based tracking** - Each client IP has independent limits
 - **Automatic cleanup** - Old IP entries cleaned up hourly
 

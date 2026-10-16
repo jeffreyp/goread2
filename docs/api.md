@@ -35,6 +35,7 @@ GoRead2 provides a RESTful API for managing feeds, articles, and user subscripti
 **Rate Limiting**:
 - Auth endpoints: 10 requests/second (burst: 20)
 - API endpoints: 30 requests/second (burst: 50)
+- Data export: 1 request/minute (burst: 3)
 - Returns `429 Too Many Requests` when limit exceeded
 
 ## Authentication Endpoints
@@ -678,6 +679,81 @@ curl -X PUT "http://localhost:8080/api/account/max-articles" \
 - `401 Unauthorized` - Not authenticated
 - `500 Internal Server Error` - Database error
 
+### `GET /api/account/export`
+Download all personal data GoRead2 stores for the current user, as a single JSON file. This serves GDPR access and portability requests; the account page links to it under "Your Data".
+
+**Headers**:
+- `Content-Type: application/json; charset=utf-8`
+- `Content-Disposition: attachment; filename=goread2-data-<YYYY-MM-DD>.json`
+
+**Response Body**:
+```json
+{
+  "exported_at": "2026-10-16T12:00:00Z",
+  "account": {
+    "id": 1,
+    "google_id": "1234567890",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "avatar": "https://lh3.googleusercontent.com/...",
+    "created_at": "2025-01-01T00:00:00Z",
+    "subscription_status": "active",
+    "subscription_id": "sub_...",
+    "trial_ends_at": "2025-01-31T00:00:00Z",
+    "last_payment_date": "2026-10-01T00:00:00Z",
+    "next_billing_date": "2026-11-01T00:00:00Z",
+    "is_admin": false,
+    "free_months_remaining": 0,
+    "max_articles_on_feed_add": 100
+  },
+  "feeds": [
+    {"id": 1, "title": "Example Blog", "url": "https://example.com/feed.xml"}
+  ],
+  "sessions": [
+    {"created_at": "2026-10-10T08:00:00Z", "expires_at": "2026-10-23T08:00:00Z"}
+  ],
+  "audit_log": [
+    {
+      "timestamp": "2026-03-01T00:00:00Z",
+      "role": "subject",
+      "operation_type": "grant_free_months",
+      "details": "{\"months_granted\":3}",
+      "result": "success"
+    }
+  ],
+  "articles": [
+    {
+      "article_id": 42,
+      "feed_id": 1,
+      "title": "Article Title",
+      "url": "https://example.com/article",
+      "published_at": "2026-10-01T09:00:00Z",
+      "is_read": true,
+      "is_starred": false
+    }
+  ]
+}
+```
+
+**Fields**:
+- `sessions` omits session IDs, which are live credentials
+- `audit_log` lists admin actions where the user was the target (`"role": "subject"`) or the admin who acted (`"role": "actor"`), newest first. It omits the other party's email and IP address.
+- `articles` lists every article with a stored read or starred state. An article that no longer exists keeps its `article_id`, `is_read`, and `is_starred` fields and omits the rest.
+
+The `articles` array is streamed page by page after the response headers are sent. If the server fails partway through, the response ends early and the file is not valid JSON, so a parse failure means the export is incomplete.
+
+**Error Responses**:
+- `401 Unauthorized` - Not authenticated
+- `429 Too Many Requests` - More than 3 exports in quick succession (refills at 1 per minute)
+- `500 Internal Server Error` - Export generation failed before any data was sent
+
+**Example**:
+```bash
+curl "http://localhost:8080/api/account/export" \
+  -H "Cookie: session_id=your-session-cookie" \
+  -o goread2-data.json
+```
+
 ## Webhook Endpoints
 
 ### `POST /webhooks/stripe`
@@ -761,6 +837,7 @@ Rate limiting is enforced per IP address (as described in the Overview section):
 - **Authentication endpoints**: 10 requests/second (burst: 20)
 - **API endpoints**: 30 requests/second (burst: 50)
 - **Webhook endpoint**: 5 requests/second (burst: 10)
+- **Data export** (`GET /api/account/export`): 1 request/minute (burst: 3), in addition to the API limit
 
 Exceeded requests return `429 Too Many Requests`.
 
@@ -776,9 +853,9 @@ CORS is disabled by default, so only same-origin requests are allowed. Setting t
 
 ### Session Cookies
 
-- **Name**: `session`
-- **Security**: HTTP-only, Secure (HTTPS), SameSite=Strict
-- **Expiration**: 24 hours
+- **Name**: `session_id` in production, `session_id_local` in local development
+- **Security**: HTTP-only, Secure in production, SameSite=Lax
+- **Expiration**: 7 days, extended on use
 - **Domain**: Same as application domain
 
 ### Session Validation

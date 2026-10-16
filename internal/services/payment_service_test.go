@@ -126,12 +126,16 @@ func (m *mockDBPayment) GetUserUnreadCounts(int) (map[int]int, error)        { r
 func (m *mockDBPayment) GetTotalArticleCount(int) (int, error)               { return 0, nil }
 func (m *mockDBPayment) GetAccountStats(int) (map[string]interface{}, error) { return nil, nil }
 func (m *mockDBPayment) CleanupOrphanedUserArticles(int) (int, error)        { return 0, nil }
-func (m *mockDBPayment) CreateSession(*database.Session) error               { return nil }
-func (m *mockDBPayment) GetSession(string) (*database.Session, error)        { return nil, nil }
-func (m *mockDBPayment) UpdateSessionExpiry(string, time.Time) error         { return nil }
-func (m *mockDBPayment) DeleteSession(string) error                          { return nil }
-func (m *mockDBPayment) DeleteExpiredSessions() error                        { return nil }
-func (m *mockDBPayment) CreateAuditLog(*database.AuditLog) error             { return nil }
+func (m *mockDBPayment) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
+	return nil, "", nil
+}
+func (m *mockDBPayment) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBPayment) CreateSession(*database.Session) error           { return nil }
+func (m *mockDBPayment) GetSession(string) (*database.Session, error)    { return nil, nil }
+func (m *mockDBPayment) UpdateSessionExpiry(string, time.Time) error     { return nil }
+func (m *mockDBPayment) DeleteSession(string) error                      { return nil }
+func (m *mockDBPayment) DeleteExpiredSessions() error                    { return nil }
+func (m *mockDBPayment) CreateAuditLog(*database.AuditLog) error         { return nil }
 func (m *mockDBPayment) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
 }

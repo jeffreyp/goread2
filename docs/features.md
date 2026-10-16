@@ -132,6 +132,7 @@ Use the radio buttons in the article pane header:
 - Secure Google OAuth authentication
 - Personal data is shared only with the services needed to run GoRead2: Google sign-in and Stripe for payments. GoRead2 uses no third-party analytics or tracking
 - The privacy policy at `/privacy` lists every cookie and third-party service in use
+- The Your Data section of `/account` downloads all stored account data as JSON, or feed subscriptions alone as OPML
 
 ## Subscription Features
 

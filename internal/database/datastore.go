@@ -1971,6 +1971,85 @@ func (db *DatastoreDB) GetAccountStats(userID int) (map[string]interface{}, erro
 	}, nil
 }
 
+// GetUserArticleHistoryPage returns up to limit of userID's UserArticle
+// records, joined to their articles, starting at cursor. The returned cursor is
+// empty after the last page. Records whose article has been deleted keep their
+// read/starred state with empty article fields.
+//
+// Article entities carry full content, so keep limit modest (a few hundred) to
+// bound memory per page.
+func (db *DatastoreDB) GetUserArticleHistoryPage(userID int, cursor string, limit int) ([]UserArticleRecord, string, error) {
+	defer logSlowQuery("GetUserArticleHistoryPage", time.Now())
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	query := datastore.NewQuery("UserArticle").FilterField("user_id", "=", int64(userID)).Limit(limit)
+	if cursor != "" {
+		start, err := datastore.DecodeCursor(cursor)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid cursor: %w", err)
+		}
+		query = query.Start(start)
+	}
+
+	var entities []UserArticleEntity
+	it := db.client.Run(ctx, query)
+	for {
+		var entity UserArticleEntity
+		_, err := it.Next(&entity)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to query user articles: %w", err)
+		}
+		entities = append(entities, entity)
+	}
+
+	if len(entities) == 0 {
+		return []UserArticleRecord{}, "", nil
+	}
+
+	articleKeys := make([]*datastore.Key, len(entities))
+	for i, entity := range entities {
+		articleKeys[i] = datastore.IDKey("Article", entity.ArticleID, nil)
+	}
+	articles := make([]ArticleEntity, len(articleKeys))
+	if err := db.client.GetMulti(ctx, articleKeys, articles); err != nil {
+		multiErr, ok := err.(datastore.MultiError)
+		if !ok {
+			return nil, "", fmt.Errorf("failed to get articles: %w", err)
+		}
+		for _, singleErr := range multiErr {
+			if singleErr != nil && singleErr != datastore.ErrNoSuchEntity {
+				return nil, "", fmt.Errorf("failed to get articles: %w", singleErr)
+			}
+		}
+	}
+
+	records := make([]UserArticleRecord, len(entities))
+	for i, entity := range entities {
+		records[i] = UserArticleRecord{
+			ArticleID:   int(entity.ArticleID),
+			FeedID:      int(articles[i].FeedID),
+			Title:       articles[i].Title,
+			URL:         articles[i].URL,
+			PublishedAt: articles[i].PublishedAt,
+			IsRead:      entity.IsRead,
+			IsStarred:   entity.IsStarred,
+		}
+	}
+
+	next := ""
+	if len(entities) == limit {
+		nextCursor, err := it.Cursor()
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get cursor: %w", err)
+		}
+		next = nextCursor.String()
+	}
+	return records, next, nil
+}
 
 // CleanupOrphanedUserArticles removes UserArticle entities that reference articles from feeds
 // the user is no longer subscribed to. Only cleans up articles older than the specified number of days.
@@ -2507,6 +2586,31 @@ func (db *DatastoreDB) DeleteExpiredSessions() error {
 	}
 
 	return nil
+}
+
+// GetUserSessions returns every session belonging to userID, oldest first.
+func (db *DatastoreDB) GetUserSessions(userID int) ([]Session, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	query := datastore.NewQuery("Session").FilterField("user_id", "=", int64(userID))
+	var entities []SessionEntity
+	keys, err := db.client.GetAll(ctx, query, &entities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user sessions: %w", err)
+	}
+
+	sessions := make([]Session, len(entities))
+	for i, entity := range entities {
+		sessions[i] = Session{
+			ID:        keys[i].Name,
+			UserID:    int(entity.UserID),
+			CreatedAt: entity.CreatedAt,
+			ExpiresAt: entity.ExpiresAt,
+		}
+	}
+	sort.Slice(sessions, func(i, j int) bool { return sessions[i].CreatedAt.Before(sessions[j].CreatedAt) })
+	return sessions, nil
 }
 
 // Audit log methods for Datastore

@@ -314,3 +314,110 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+// TestDataExportWorkflow tests the GDPR data export:
+// Create feeds, articles, and audit entries → Export → Verify contents and isolation
+func TestDataExportWorkflow(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTestUsers(t)
+	defer helpers.CleanupTestUsers(t)
+
+	helpers.SetupTestEnv(t)
+	defer helpers.CleanupTestEnv(t)
+
+	testServer := helpers.SetupTestServer(t)
+	user := helpers.CreateTestUser(t, testServer.DB, "google-dataexport-123", "dataexport@example.com", "Data Export User")
+	other := helpers.CreateTestUser(t, testServer.DB, "google-dataexport-456", "other@example.com", "Other User")
+
+	feed := helpers.CreateTestFeed(t, testServer.DB, "Data Export Feed", "https://dataexport.com/feed", "Test feed")
+	if err := testServer.DB.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+		t.Fatalf("Failed to subscribe: %v", err)
+	}
+	read := helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Read Article", "https://dataexport.com/read")
+	starred := helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Starred Article", "https://dataexport.com/starred")
+	untouched := helpers.CreateTestArticle(t, testServer.DB, feed.ID, "Untouched Article", "https://dataexport.com/untouched")
+	if err := testServer.DB.SetUserArticleStatus(user.ID, read.ID, true, false); err != nil {
+		t.Fatalf("Failed to mark read: %v", err)
+	}
+	if err := testServer.DB.SetUserArticleStatus(user.ID, starred.ID, false, true); err != nil {
+		t.Fatalf("Failed to star: %v", err)
+	}
+	// Another user's history must not leak into the export.
+	if err := testServer.DB.SetUserArticleStatus(other.ID, untouched.ID, true, true); err != nil {
+		t.Fatalf("Failed to set other user's status: %v", err)
+	}
+	if err := testServer.DB.CreateAuditLog(&database.AuditLog{
+		AdminUserID:     other.ID,
+		AdminEmail:      other.Email,
+		OperationType:   "grant_free_months",
+		TargetUserID:    user.ID,
+		TargetUserEmail: user.Email,
+		IPAddress:       "203.0.113.7",
+		Result:          "success",
+	}); err != nil {
+		t.Fatalf("Failed to create audit log: %v", err)
+	}
+
+	req := testServer.CreateAuthenticatedRequest(t, "GET", "/api/account/export", nil, user)
+	rr := testServer.ExecuteRequest(req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+	if cd := rr.Header().Get("Content-Disposition"); !contains(cd, "attachment; filename=goread2-data-") {
+		t.Errorf("Unexpected Content-Disposition: %q", cd)
+	}
+
+	body := rr.Body.String()
+	for _, leaked := range []string{"203.0.113.7", "other@example.com", "Untouched Article"} {
+		if contains(body, leaked) {
+			t.Errorf("Export should not contain %q", leaked)
+		}
+	}
+
+	var export struct {
+		Account  database.User `json:"account"`
+		Feeds    []struct{ URL string }
+		Sessions []map[string]interface{}
+		AuditLog []struct {
+			Role          string `json:"role"`
+			OperationType string `json:"operation_type"`
+		} `json:"audit_log"`
+		Articles []database.UserArticleRecord
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &export); err != nil {
+		t.Fatalf("Export is not valid JSON: %v. Body: %s", err, body)
+	}
+
+	if export.Account.Email != user.Email {
+		t.Errorf("Expected account email %q, got %q", user.Email, export.Account.Email)
+	}
+	if len(export.Feeds) != 1 || export.Feeds[0].URL != feed.URL {
+		t.Errorf("Expected one feed %q, got %+v", feed.URL, export.Feeds)
+	}
+	if len(export.Sessions) == 0 {
+		t.Error("Expected at least the request's own session")
+	}
+	for _, session := range export.Sessions {
+		if _, ok := session["id"]; ok {
+			t.Error("Exported sessions must not include the session ID")
+		}
+	}
+	if len(export.AuditLog) != 1 || export.AuditLog[0].Role != "subject" || export.AuditLog[0].OperationType != "grant_free_months" {
+		t.Errorf("Expected one subject audit entry, got %+v", export.AuditLog)
+	}
+
+	if len(export.Articles) != 2 {
+		t.Fatalf("Expected 2 article records, got %d: %+v", len(export.Articles), export.Articles)
+	}
+	byID := map[int]database.UserArticleRecord{}
+	for _, record := range export.Articles {
+		byID[record.ArticleID] = record
+	}
+	if r := byID[read.ID]; !r.IsRead || r.IsStarred || r.Title != "Read Article" || r.URL != read.URL {
+		t.Errorf("Unexpected read article record: %+v", r)
+	}
+	if r := byID[starred.ID]; r.IsRead || !r.IsStarred || r.Title != "Starred Article" {
+		t.Errorf("Unexpected starred article record: %+v", r)
+	}
+}

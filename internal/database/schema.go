@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -79,6 +80,7 @@ type Database interface {
 	GetTotalArticleCount(userID int) (int, error)
 	GetAccountStats(userID int) (map[string]interface{}, error)
 	CleanupOrphanedUserArticles(olderThanDays int) (int, error)
+	GetUserArticleHistoryPage(userID int, cursor string, limit int) ([]UserArticleRecord, string, error)
 
 	// Session methods
 	CreateSession(session *Session) error
@@ -86,6 +88,7 @@ type Database interface {
 	UpdateSessionExpiry(sessionID string, newExpiry time.Time) error
 	DeleteSession(sessionID string) error
 	DeleteExpiredSessions() error
+	GetUserSessions(userID int) ([]Session, error)
 
 	// Audit log methods
 	CreateAuditLog(log *AuditLog) error
@@ -157,6 +160,19 @@ type UserArticle struct {
 	ArticleID int  `json:"article_id"`
 	IsRead    bool `json:"is_read"`
 	IsStarred bool `json:"is_starred"`
+}
+
+// UserArticleRecord is one entry in a user's read/starred history, joined to
+// the article it refers to. The article fields are zero if the article no
+// longer exists.
+type UserArticleRecord struct {
+	ArticleID   int       `json:"article_id"`
+	FeedID      int       `json:"feed_id,omitzero"`
+	Title       string    `json:"title,omitzero"`
+	URL         string    `json:"url,omitzero"`
+	PublishedAt time.Time `json:"published_at,omitzero"`
+	IsRead      bool      `json:"is_read"`
+	IsStarred   bool      `json:"is_starred"`
 }
 
 type Session struct {
@@ -1346,6 +1362,56 @@ func (db *DB) CleanupOrphanedUserArticles(olderThanDays int) (int, error) {
 	return int(rowsAffected), nil
 }
 
+// GetUserArticleHistoryPage returns up to limit of userID's read/starred
+// records in article ID order, starting after cursor. The returned cursor is
+// empty after the last page.
+func (db *DB) GetUserArticleHistoryPage(userID int, cursor string, limit int) ([]UserArticleRecord, string, error) {
+	afterID := 0
+	if cursor != "" {
+		id, err := strconv.Atoi(cursor)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid cursor: %w", err)
+		}
+		afterID = id
+	}
+
+	query := `SELECT ua.article_id, COALESCE(a.feed_id, 0), COALESCE(a.title, ''), COALESCE(a.url, ''),
+		a.published_at, ua.is_read, ua.is_starred
+		FROM user_articles ua
+		LEFT JOIN articles a ON a.id = ua.article_id
+		WHERE ua.user_id = ? AND ua.article_id > ?
+		ORDER BY ua.article_id
+		LIMIT ?`
+
+	rows, err := db.Query(query, userID, afterID, limit)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = rows.Close() }()
+
+	records := []UserArticleRecord{}
+	for rows.Next() {
+		var r UserArticleRecord
+		var publishedAt sql.NullTime
+		if err := rows.Scan(&r.ArticleID, &r.FeedID, &r.Title, &r.URL, &publishedAt, &r.IsRead, &r.IsStarred); err != nil {
+			return nil, "", err
+		}
+		if publishedAt.Valid {
+			r.PublishedAt = publishedAt.Time
+		}
+		records = append(records, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+
+	next := ""
+	if len(records) == limit {
+		next = strconv.Itoa(records[len(records)-1].ArticleID)
+	}
+	return records, next, nil
+}
+
 // Subscription management methods
 func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
 	// Redact subscription ID for security - only log prefix for debugging
@@ -1545,6 +1611,25 @@ func (db *DB) DeleteExpiredSessions() error {
 	query := `DELETE FROM sessions WHERE expires_at < ?`
 	_, err := db.Exec(query, time.Now())
 	return err
+}
+
+func (db *DB) GetUserSessions(userID int) ([]Session, error) {
+	query := `SELECT id, user_id, created_at, expires_at FROM sessions WHERE user_id = ? ORDER BY created_at`
+	rows, err := db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	sessions := []Session{}
+	for rows.Next() {
+		var session Session
+		if err := rows.Scan(&session.ID, &session.UserID, &session.CreatedAt, &session.ExpiresAt); err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, session)
+	}
+	return sessions, rows.Err()
 }
 
 // Audit log methods for SQLite

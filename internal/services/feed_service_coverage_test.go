@@ -136,12 +136,16 @@ func (m *mockDBFeed) GetAccountStats(int) (map[string]interface{}, error) {
 	return map[string]interface{}{"total_articles": 5, "total_unread": 2}, nil
 }
 func (m *mockDBFeed) CleanupOrphanedUserArticles(int) (int, error) { return 0, nil }
-func (m *mockDBFeed) CreateSession(*database.Session) error        { return nil }
-func (m *mockDBFeed) GetSession(string) (*database.Session, error) { return nil, nil }
-func (m *mockDBFeed) UpdateSessionExpiry(string, time.Time) error  { return nil }
-func (m *mockDBFeed) DeleteSession(string) error                   { return nil }
-func (m *mockDBFeed) DeleteExpiredSessions() error                 { return nil }
-func (m *mockDBFeed) CreateAuditLog(*database.AuditLog) error      { return nil }
+func (m *mockDBFeed) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
+	return nil, "", nil
+}
+func (m *mockDBFeed) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBFeed) CreateSession(*database.Session) error           { return nil }
+func (m *mockDBFeed) GetSession(string) (*database.Session, error)    { return nil, nil }
+func (m *mockDBFeed) UpdateSessionExpiry(string, time.Time) error     { return nil }
+func (m *mockDBFeed) DeleteSession(string) error                      { return nil }
+func (m *mockDBFeed) DeleteExpiredSessions() error                    { return nil }
+func (m *mockDBFeed) CreateAuditLog(*database.AuditLog) error         { return nil }
 func (m *mockDBFeed) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
 }

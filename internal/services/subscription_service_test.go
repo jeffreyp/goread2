@@ -138,19 +138,23 @@ func (m *mockDBForSub) MarkAllUserArticlesRead(int) (int, error)                
 func (m *mockDBForSub) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }
-func (m *mockDBForSub) MarkUserArticleRead(int, int, bool) error      { return nil }
-func (m *mockDBForSub) ToggleUserArticleStar(int, int) error          { return nil }
-func (m *mockDBForSub) GetUserUnreadCounts(int) (map[int]int, error)  { return nil, nil }
-func (m *mockDBForSub) GetTotalArticleCount(int) (int, error)         { return 0, nil }
-func (m *mockDBForSub) CleanupOrphanedUserArticles(int) (int, error)  { return 0, nil }
-func (m *mockDBForSub) UpdateFeedLastFetch(int, time.Time) error      { return nil }
-func (m *mockDBForSub) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
-func (m *mockDBForSub) CreateSession(*database.Session) error         { return nil }
-func (m *mockDBForSub) GetSession(string) (*database.Session, error)  { return nil, nil }
-func (m *mockDBForSub) UpdateSessionExpiry(string, time.Time) error   { return nil }
-func (m *mockDBForSub) DeleteSession(string) error                    { return nil }
-func (m *mockDBForSub) DeleteExpiredSessions() error                  { return nil }
-func (m *mockDBForSub) CreateAuditLog(*database.AuditLog) error       { return nil }
+func (m *mockDBForSub) MarkUserArticleRead(int, int, bool) error     { return nil }
+func (m *mockDBForSub) ToggleUserArticleStar(int, int) error         { return nil }
+func (m *mockDBForSub) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
+func (m *mockDBForSub) GetTotalArticleCount(int) (int, error)        { return 0, nil }
+func (m *mockDBForSub) CleanupOrphanedUserArticles(int) (int, error) { return 0, nil }
+func (m *mockDBForSub) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
+	return nil, "", nil
+}
+func (m *mockDBForSub) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBForSub) UpdateFeedLastFetch(int, time.Time) error        { return nil }
+func (m *mockDBForSub) UpdateUserMaxArticlesOnFeedAdd(int, int) error   { return nil }
+func (m *mockDBForSub) CreateSession(*database.Session) error           { return nil }
+func (m *mockDBForSub) GetSession(string) (*database.Session, error)    { return nil, nil }
+func (m *mockDBForSub) UpdateSessionExpiry(string, time.Time) error     { return nil }
+func (m *mockDBForSub) DeleteSession(string) error                      { return nil }
+func (m *mockDBForSub) DeleteExpiredSessions() error                    { return nil }
+func (m *mockDBForSub) CreateAuditLog(*database.AuditLog) error         { return nil }
 func (m *mockDBForSub) GetAuditLogs(int, int, map[string]interface{}) ([]database.AuditLog, error) {
 	return nil, nil
 }

@@ -131,18 +131,22 @@ func (m *mockDBAudit) MarkAllUserArticlesRead(int) (int, error)                 
 func (m *mockDBAudit) BatchSetUserArticleStatus(int, []database.Article, bool, bool) error {
 	return nil
 }
-func (m *mockDBAudit) MarkUserArticleRead(int, int, bool) error      { return nil }
-func (m *mockDBAudit) ToggleUserArticleStar(int, int) error          { return nil }
-func (m *mockDBAudit) GetUserUnreadCounts(int) (map[int]int, error)  { return nil, nil }
-func (m *mockDBAudit) GetTotalArticleCount(int) (int, error)         { return 0, nil }
-func (m *mockDBAudit) CleanupOrphanedUserArticles(int) (int, error)  { return 0, nil }
-func (m *mockDBAudit) UpdateFeedLastFetch(int, time.Time) error      { return nil }
-func (m *mockDBAudit) UpdateUserMaxArticlesOnFeedAdd(int, int) error { return nil }
-func (m *mockDBAudit) CreateSession(*database.Session) error         { return nil }
-func (m *mockDBAudit) GetSession(string) (*database.Session, error)  { return nil, nil }
-func (m *mockDBAudit) UpdateSessionExpiry(string, time.Time) error   { return nil }
-func (m *mockDBAudit) DeleteSession(string) error                    { return nil }
-func (m *mockDBAudit) DeleteExpiredSessions() error                  { return nil }
+func (m *mockDBAudit) MarkUserArticleRead(int, int, bool) error     { return nil }
+func (m *mockDBAudit) ToggleUserArticleStar(int, int) error         { return nil }
+func (m *mockDBAudit) GetUserUnreadCounts(int) (map[int]int, error) { return nil, nil }
+func (m *mockDBAudit) GetTotalArticleCount(int) (int, error)        { return 0, nil }
+func (m *mockDBAudit) CleanupOrphanedUserArticles(int) (int, error) { return 0, nil }
+func (m *mockDBAudit) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
+	return nil, "", nil
+}
+func (m *mockDBAudit) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
+func (m *mockDBAudit) UpdateFeedLastFetch(int, time.Time) error        { return nil }
+func (m *mockDBAudit) UpdateUserMaxArticlesOnFeedAdd(int, int) error   { return nil }
+func (m *mockDBAudit) CreateSession(*database.Session) error           { return nil }
+func (m *mockDBAudit) GetSession(string) (*database.Session, error)    { return nil, nil }
+func (m *mockDBAudit) UpdateSessionExpiry(string, time.Time) error     { return nil }
+func (m *mockDBAudit) DeleteSession(string) error                      { return nil }
+func (m *mockDBAudit) DeleteExpiredSessions() error                    { return nil }
 func (m *mockDBAudit) GetAccountStats(int) (map[string]interface{}, error) {
 	return map[string]interface{}{}, nil
 }
