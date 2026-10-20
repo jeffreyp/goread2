@@ -75,6 +75,7 @@ GitHub Actions authenticates to GCP via Workload Identity Federation (WIF): keyl
 - Service account: `cicd-deploy@goread-467200.iam.gserviceaccount.com`, granted `roles/appengine.deployer`, `roles/cloudbuild.builds.editor`, `roles/storage.admin`, `roles/secretmanager.secretAccessor` at the project level, plus `roles/iam.serviceAccountUser` on `goread-467200@appspot.gserviceaccount.com` specifically (App Engine deploys require the deploying identity to be able to act as the App Engine default service account; easy to miss, deploys fail without it)
 - The pool is bound to the service account via `roles/iam.workloadIdentityUser`, scoped to the `attribute.repository/jeffreyp/goread2` principal set; only workflow runs from this exact repo can impersonate it
 - Two roles were added after this initial grant, each discovered by hitting the missing permission live rather than anticipated up front: `roles/appengine.serviceAdmin` (see the Production Deploys section's "Two real bugs" below: traffic migration between two *different* versions needs more than `appengine.deployer`) and `roles/monitoring.viewer` (see Auto-Rollback below, added 2026-07-05 so the post-promote health watch can read Cloud Monitoring time series)
+- `roles/cloudscheduler.admin` and `roles/datastore.indexAdmin` let the staging workflow deploy `cron.yaml` and `index.yaml`
 
 **GitHub Actions repository variables** (not secrets; the provider path and SA email aren't sensitive on their own):
 - `WIF_PROVIDER` = `projects/1022472352583/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider`
@@ -122,7 +123,7 @@ Every push to `main` that passes the `Tests` workflow automatically deploys to A
 
 - **Trigger**: `workflow_run` for the `Tests` workflow, `types: [completed]`, gated on `github.event.workflow_run.conclusion == 'success'` and `branches: [main]`; deploy never runs if CI failed.
 - **Version name**: `staging-<short-sha>`, e.g. `staging-a1b2c3d`, deployed with `--no-promote` (no production traffic).
-- **cron.yaml / index.yaml**: only redeployed if changed in that specific commit (`git diff --name-only HEAD~1 HEAD`).
+- **cron.yaml / index.yaml**: deployed on every run. Both deploys are idempotent, so a run that fails is repaired by the next successful one, with no need to track which commit last deployed them.
 - **Job summary**: prints the version name and full staging URL (`https://<version>-dot-goread-467200.uc.r.appspot.com`) so a reviewer knows where to click through and test.
 - All actions are pinned to commit SHA (not floating tags like `@v4`) per supply-chain hardening feedback from a security review; see the workflow file's inline `# vX` comments for the corresponding version.
 - **BUILD_VERSION** is injected into `app.yaml` at deploy time (via `sed`, right before the deploy step) since App Engine standard has no `--set-env-vars` deploy flag and the file has no other templating mechanism.
@@ -502,7 +503,7 @@ cron:
 
 4. **Deploy:**
    There is no manual deploy command; deploys happen through the GitHub Actions pipeline described earlier in this doc:
-   - Push to `main` → `deploy-staging.yml` automatically deploys a zero-traffic `staging-<sha>` version and runs `cron.yaml`/`index.yaml` if they changed (see [Automated Staging Deploys](#automated-staging-deploys-githubworkflowsdeploy-stagingyml)).
+   - Push to `main` → `deploy-staging.yml` automatically deploys a zero-traffic `staging-<sha>` version and deploys `cron.yaml` and `index.yaml` (see [Automated Staging Deploys](#automated-staging-deploys-githubworkflowsdeploy-stagingyml)).
    - Click through the staging URL, then promote with `gh workflow run deploy-prod.yml` (see [Production Deploys](#production-deploys-githubworkflowsdeploy-prodyml)); this pauses for human approval, migrates traffic, then runs the smoke check and 15-minute health watch automatically.
    - To roll back, see [Rollback](#rollback-githubworkflowsrollbackyml).
 
