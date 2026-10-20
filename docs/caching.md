@@ -98,7 +98,7 @@ GoRead2 implements in-memory caching for expensive queries to reduce database co
 
 ### Caches in Use
 
-#### Unread Count Cache (5 minutes TTL)
+#### Unread Count Cache (15 minutes TTL)
 
 **Purpose:** Cache per-user unread article counts to avoid repeated database queries.
 
@@ -108,7 +108,7 @@ GoRead2 implements in-memory caching for expensive queries to reduce database co
 - Caches unread counts per user and feed
 - **Incremental updates:** When marking articles read/unread, the cache is updated instantly
 - Automatically invalidated on subscribe/unsubscribe operations
-- TTL: 5 minutes
+- TTL: 15 minutes, longer than the web client's 5-minute unread-count poll so that polls are served from the cache. Each cache miss on Datastore costs one read per recent article and one per matching `UserArticle`, roughly 10,000 reads for a typical account. Counts for newly fetched articles can lag by up to the TTL.
 - **Max size:** 10,000 users (configured in `feed_service.go`). When full, the entry closest to expiry is evicted to make room for a new user.
 - **Background cleanup:** `Start(ctx)` runs a periodic sweep that drops expired entries; `FeedService.Start(ctx)` calls it, wired from `main.go` so cleanup stops cleanly on shutdown.
 

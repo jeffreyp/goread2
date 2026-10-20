@@ -2440,8 +2440,14 @@ class GoReadApp {
 
     // Periodically sync unread counts with server to correct any drift
     startUnreadCountSync() {
-        // Sync every 5 minutes to catch any discrepancies
-        setInterval(async () => {
+        // Sync every 5 minutes to catch any discrepancies. Each sync costs
+        // thousands of Datastore reads, so hidden tabs skip it and catch up
+        // once on becoming visible again.
+        const intervalMs = 5 * 60 * 1000;
+        let lastSync = Date.now();
+
+        const sync = async () => {
+            lastSync = Date.now();
             await this.updateUnreadCounts();
 
             // Surface an opt-in banner in the article pane rather than silently
@@ -2456,7 +2462,19 @@ class GoReadApp {
             } else {
                 this.hideNewArticlesBanner();
             }
-        }, 5 * 60 * 1000); // 5 minutes
+        };
+
+        setInterval(() => {
+            if (!document.hidden) {
+                sync();
+            }
+        }, intervalMs);
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && Date.now() - lastSync >= intervalMs) {
+                sync();
+            }
+        });
     }
 
     // Lazy-load modal manager on first use

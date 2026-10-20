@@ -172,7 +172,9 @@ type OPMLOutline struct {
 }
 
 func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedService {
-	uc := cache.NewUnreadCache(5 * time.Minute) // 5 minute TTL
+	// TTL exceeds the web client's 5-minute unread-count poll so that polls
+	// hit the cache; read/unread changes update it incrementally.
+	uc := cache.NewUnreadCache(15 * time.Minute)
 	uc.SetMaxUsers(10000)
 
 	flc := cache.NewFeedListCache(20 * time.Minute) // 20 minute TTL
