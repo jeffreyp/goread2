@@ -129,7 +129,7 @@ Or use the [Logs Explorer](https://console.cloud.google.com/logs) to:
 
 ## Alerting Policies
 
-The alert configuration (`monitoring/alert-policies.yaml`) includes six policies that monitor for cost spikes and unusual patterns:
+The alert configuration (`monitoring/alert-policies.yaml`) includes seven policies. Policies 1 through 6 monitor for cost spikes and unusual patterns; policy 7 reports failed account deletions.
 
 ### 1. High Datastore Read Operations
 - **Threshold**: >1000 reads/minute (~16.67/second) sustained for 5 minutes
@@ -169,6 +169,13 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes six policies
 - **Actions**: Check application logs immediately, review recent deployments
 - **Auto-close**: 30 minutes (GCP enforces a 30-minute minimum)
 - **Critical**: May indicate production outage
+
+### 7. Account Deletion Task Failed
+- **Condition**: log-match on `Account deletion task failed for user <id>` in the App Engine `stderr` log; the alert's `user_id` label carries the ID
+- **Purpose**: A deletion that exhausts its retries in both passes leaves the account in place, possibly with an active Stripe subscription, after the user has been told it is deleted
+- **Actions**: Follow [Account Deletion Failures](deployment.md#account-deletion-failures) in deployment.md
+- **Notification rate limit**: 5 minutes, the minimum for log-match conditions; repeated failures within that window send one notification
+- **Auto-close**: 30 minutes
 
 ## Post-Promote Health Watch (a second consumer of these signals)
 
@@ -240,7 +247,7 @@ The dashboard will be created in Cloud Monitoring. If it already exists, update 
 
 ### Deploy Alerting Policies
 
-**Current state**: all 6 policies are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
+**Current state**: all policies except Datastore Entity Read Spike are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
 
 **Unrelated pre-existing alert, disabled**: the project also has a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`). It compares live traffic against a *forecasted* baseline and fires on a 100% increase, which is unreliable for this app: baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run, so any normal cron burst looks like an "infinite % increase." Disabled via `gcloud alpha monitoring policies update ... --no-enabled`; the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) covers this signal without the false-positive-prone forecast comparison.
 
@@ -292,7 +299,7 @@ gcloud alpha monitoring policies update POLICY_NAME --add-notification-channels=
 ./monitoring/deploy-alerts.sh
 ```
 
-`monitoring/deploy-alerts.sh` reads `monitoring/alert-policies.yaml`, splits its six `---`-separated documents into per-policy temp files (`gcloud alpha monitoring policies create` only accepts one policy per invocation), and creates each in turn. Policies that already exist are reported and skipped, not updated; use `gcloud alpha monitoring policies update` (see [Step 3](#step-3-deploy-alerts) above) to change an existing policy's configuration.
+`monitoring/deploy-alerts.sh` reads `monitoring/alert-policies.yaml`, splits its `---`-separated documents into per-policy temp files (`gcloud alpha monitoring policies create` only accepts one policy per invocation), and creates each in turn. Policies that already exist are reported and skipped, not updated; use `gcloud alpha monitoring policies update` (see [Step 3](#step-3-deploy-alerts) above) to change an existing policy's configuration.
 
 ### Makefile Targets
 

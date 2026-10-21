@@ -205,7 +205,7 @@ Unauthenticated HTTP assertions run against a base URL after every staging and p
 `gcloud app versions migrate` shifts 100% of traffic immediately. Before this safety net existed, a smoke check failure only turned the workflow red; the broken version stayed fully live until a human noticed and manually ran `rollback.yml`. `deploy-prod.yml`'s `deploy-prod` job now closes that gap with two checks, either of which auto-triggers a rollback:
 
 1. **Smoke check** (`scripts/smoke-check.sh`, see above): runs immediately after the traffic migration.
-2. **Post-promote health watch** (`scripts/post-promote-health-watch.sh`): runs immediately after the smoke check passes. Polls Cloud Monitoring every 60s for a 15-minute window (`WATCH_SECONDS=900`, `POLL_INTERVAL_SECONDS=60`), watching the same signals as five of the six policies in `monitoring/alert-policies.yaml` (all but Datastore Entity Read Spike): 5xx rate, App Engine instance count, Datastore read/write rate, and network egress, plus p95 latency (`appengine.googleapis.com/http/server/response_latencies`), which has no corresponding alert policy today; a 3000ms threshold was chosen as a conservative ~5x multiple of the app's typical baseline (~600ms at the time this was written) and should be revisited if that baseline drifts. Each signal must breach its threshold for that signal's alert-policy `duration` (e.g. 5xx needs 180s sustained, instance count needs 600s) before it counts; a single noisy poll doesn't trigger anything. Queries the Cloud Monitoring REST API directly via `curl` + an access token (`gcloud monitoring time-series list` does not exist as a CLI command, unlike `policies`/`channels`/`dashboards`), since `jq` and `curl` are preinstalled on `ubuntu-latest` and this avoids scripting a second SDK. Each query looks back a fixed 300s window and takes the newest point (`points[0]`, API returns newest-first) rather than a window tied to the poll interval. App Engine/Datastore metric ingestion lags real time by a few minutes, and a narrower lookback came back empty on every poll in testing.
+2. **Post-promote health watch** (`scripts/post-promote-health-watch.sh`): runs immediately after the smoke check passes. Polls Cloud Monitoring every 60s for a 15-minute window (`WATCH_SECONDS=900`, `POLL_INTERVAL_SECONDS=60`), watching the same signals as five of the seven policies in `monitoring/alert-policies.yaml` (all but Datastore Entity Read Spike and Account Deletion Task Failed): 5xx rate, App Engine instance count, Datastore read/write rate, and network egress, plus p95 latency (`appengine.googleapis.com/http/server/response_latencies`), which has no corresponding alert policy today; a 3000ms threshold was chosen as a conservative ~5x multiple of the app's typical baseline (~600ms at the time this was written) and should be revisited if that baseline drifts. Each signal must breach its threshold for that signal's alert-policy `duration` (e.g. 5xx needs 180s sustained, instance count needs 600s) before it counts; a single noisy poll doesn't trigger anything. Queries the Cloud Monitoring REST API directly via `curl` + an access token (`gcloud monitoring time-series list` does not exist as a CLI command, unlike `policies`/`channels`/`dashboards`), since `jq` and `curl` are preinstalled on `ubuntu-latest` and this avoids scripting a second SDK. Each query looks back a fixed 300s window and takes the newest point (`points[0]`, API returns newest-first) rather than a window tied to the poll interval. App Engine/Datastore metric ingestion lags real time by a few minutes, and a narrower lookback came back empty on every poll in testing.
    - Requires `roles/monitoring.viewer` on `cicd-deploy@goread-467200.iam.gserviceaccount.com` (granted 2026-07-05; not part of the original WIF setup in the CI/CD Authentication section above, since nothing previously needed to *read* Monitoring data (only alerting policies needed write access).
 
 **On failure of either check**: the job dispatches `rollback.yml` via `gh workflow run rollback.yml -f version=$PREVIOUS_VERSION` (the version captured as live *before* this promotion, from the same `deploy-prod` job), fails loudly with a `::error::` annotation and a job summary entry, and does not attempt to wait for the rollback to complete; check the Actions tab for its progress. Requires `actions: write` on the job's `GITHUB_TOKEN` (added as a job-level `permissions` override, since the workflow-level default is `contents: read` / `id-token: write` only). If no previous version was captured (e.g. a first-ever promotion with nothing yet live), auto-rollback is skipped with an error instructing manual intervention, since there is nothing to roll back to.
@@ -533,7 +533,7 @@ Each cron handler enqueues a task targeting a corresponding worker endpoint on t
 - `/cron/cleanup-orphaned-articles` enqueues `/tasks/cleanup-orphaned-articles`
 - `/cron/apply-retention` enqueues `/tasks/apply-retention`
 
-Account deletion uses the same queue. `DELETE /api/account` enqueues `/tasks/delete-account?user_id=<id>` twice: once for immediate dispatch, and once delayed by 15 minutes. The delayed pass removes any rows recreated after the first pass by requests on sessions still held in another instance's session cache, whose TTL is 10 minutes. Both passes run the same idempotent deletion, so either one can finish a deletion the other left incomplete. If both exhaust their retries (for example, during a Stripe outage longer than the retry window), the account remains, the failure is logged as `Account deletion task failed for user <id>`, and the user can sign in and request deletion again.
+Account deletion uses the same queue. `DELETE /api/account` enqueues `/tasks/delete-account?user_id=<id>` twice: once for immediate dispatch, and once delayed by 15 minutes. The delayed pass removes any rows recreated after the first pass by requests on sessions still held in another instance's session cache, whose TTL is 10 minutes. Both passes run the same idempotent deletion, so either one can finish a deletion the other left incomplete.
 
 Tasks are dispatched using Cloud Tasks' `AppEngineHttpRequest` target. App Engine attaches an `X-AppEngine-QueueName` header to genuine task dispatches and strips that header from any external request that tries to set it, the same protection `X-Appengine-Cron` gives the cron endpoints; the task worker endpoints check for its presence (`internal/auth.VerifyTaskRequest`) rather than requiring a separate signature check.
 
@@ -561,6 +561,26 @@ gcloud projects add-iam-policy-binding goread-467200 \
 **Local development and any environment where `GAE_ENV` isn't `standard`**: the app never creates a Cloud Tasks client (it would otherwise need credentials and a real queue to enqueue against), so the cron handlers fall back to doing the work in-process, the same as before Cloud Tasks was introduced. The `/tasks/*` worker endpoints still exist locally but are only reachable by calling them directly with admin authentication, matching `VerifyCronRequest`'s non-GAE fallback.
 
 Queue name and location default to `cron-tasks` and `us-central1`; override with `CLOUD_TASKS_QUEUE` and `CLOUD_TASKS_LOCATION` if a deployment uses different values.
+
+### Account Deletion Failures
+
+Each failed attempt logs `Account deletion task failed for user <id>`, which triggers the `Account Deletion Task Failed` alert (see [monitoring.md](monitoring.md#7-account-deletion-task-failed)). With the queue's retry settings above, each pass gives up after about 2.5 minutes, so a deletion fails permanently only if Stripe or Datastore is unavailable during both passes. The user has already received a success response and been signed out, so nothing prompts them to retry. If the Stripe step failed, an active subscription keeps billing until the deletion completes.
+
+When the alert fires, check whether the account still exists about 20 minutes after the request, once both passes have run, by looking for the ID in the first column of the admin CLI's user list (see [admin.md](admin.md#admin-script-usage)):
+
+```bash
+./admin.sh list
+```
+
+If the account is still listed, re-enqueue the deletion once the failing dependency has recovered. The task is idempotent, so running it again is safe:
+
+```bash
+gcloud tasks create-app-engine-task --project=goread-467200 \
+  --queue=cron-tasks --location=us-central1 \
+  --method=POST --relative-uri="/tasks/delete-account?user_id=<id>"
+```
+
+Then confirm in the Stripe dashboard that no customer with the user's email remains.
 
 ## Environment Variables
 
