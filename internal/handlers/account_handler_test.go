@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/auth"
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 	"github.com/jeffreyp/goread2/internal/services"
 )
 
@@ -97,5 +98,82 @@ func TestDeleteAccountRejectsMismatchedEmail(t *testing.T) {
 		if len(queue.tasks) != 0 {
 			t.Errorf("Body %s: expected nothing enqueued, got %+v", body, queue.tasks)
 		}
+	}
+}
+
+// mockDBTaskDeletion records the user IDs DeleteAccount reaches. It embeds
+// database.Database so that any call it does not override panics.
+// GetUserByID reports the user as gone, which keeps the test off the Stripe
+// and tombstone steps; those are covered in the services package.
+type mockDBTaskDeletion struct {
+	database.Database
+	deleteErr  error
+	deletedIDs []int
+}
+
+func (m *mockDBTaskDeletion) GetUserByID(int) (*database.User, error) {
+	return nil, database.ErrUserNotFound
+}
+
+func (m *mockDBTaskDeletion) DeleteUserAccount(userID int) error {
+	m.deletedIDs = append(m.deletedIDs, userID)
+	return m.deleteErr
+}
+
+func runTaskDeleteAccount(t *testing.T, db *mockDBTaskDeletion, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	t.Setenv("GAE_ENV", "")
+	t.Setenv("ADMIN_TOKEN", "test-admin-token-value")
+	secrets.ResetCacheForTesting()
+	t.Cleanup(secrets.ResetCacheForTesting)
+
+	handler := NewAccountHandler(services.NewUserDataService(db), auth.NewSessionManager(db))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/tasks/delete-account"+query, nil)
+	c.Request.Header.Set("X-Admin-Token", "test-admin-token-value")
+	c.Set(string(auth.UserContextKey), &database.User{ID: 1, Email: "admin@example.com", IsAdmin: true})
+
+	handler.TaskDeleteAccount(c)
+	return w
+}
+
+func TestTaskDeleteAccountAcknowledgesInvalidUserID(t *testing.T) {
+	for _, query := range []string{"", "?user_id=", "?user_id=abc", "?user_id=0", "?user_id=-3"} {
+		db := &mockDBTaskDeletion{}
+		w := runTaskDeleteAccount(t, db, query)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Query %q: expected 200 so Cloud Tasks does not retry, got %d: %s", query, w.Code, w.Body.String())
+		}
+		if len(db.deletedIDs) != 0 {
+			t.Errorf("Query %q: expected no deletion, got %v", query, db.deletedIDs)
+		}
+	}
+}
+
+func TestTaskDeleteAccountFailureReturns500(t *testing.T) {
+	db := &mockDBTaskDeletion{deleteErr: errors.New("datastore unavailable")}
+	w := runTaskDeleteAccount(t, db, "?user_id=42")
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected 500 so Cloud Tasks retries, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(db.deletedIDs) != 1 || db.deletedIDs[0] != 42 {
+		t.Errorf("Expected deletion attempted for user 42, got %v", db.deletedIDs)
+	}
+}
+
+func TestTaskDeleteAccountSuccess(t *testing.T) {
+	db := &mockDBTaskDeletion{}
+	w := runTaskDeleteAccount(t, db, "?user_id=42")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(db.deletedIDs) != 1 || db.deletedIDs[0] != 42 {
+		t.Errorf("Expected user 42 deleted, got %v", db.deletedIDs)
 	}
 }
