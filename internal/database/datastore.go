@@ -67,6 +67,10 @@ type DatastoreDB struct {
 	projectID string
 
 	userFeeds *userFeedsCache
+
+	// beforeUserPut, if set, runs in updateUser between reading and writing
+	// the User entity. Tests use it to delete the user mid-update.
+	beforeUserPut func()
 }
 
 // newDatastoreContext creates a new context with the standard Datastore timeout
@@ -2302,27 +2306,50 @@ func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
 	return feeds, nil
 }
 
-// Subscription management methods
-func (db *DatastoreDB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
+// updateUser applies mutate to the User entity with the given ID in a
+// transaction. A plain Get then Put would recreate a user that
+// DeleteUserAccount removed between the two calls; inside a transaction the
+// concurrent delete forces a retry, whose Get then fails. It returns an error
+// wrapping ErrUserNotFound if the user does not exist.
+func (db *DatastoreDB) updateUser(userID int, mutate func(*UserEntity) error) error {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
 	key := datastore.IDKey("User", int64(userID), nil)
-	var entity UserEntity
-	if err := db.client.Get(ctx, key, &entity); err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
-	}
+	_, err := db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		var entity UserEntity
+		if err := tx.Get(key, &entity); err != nil {
+			if errors.Is(err, datastore.ErrNoSuchEntity) {
+				return fmt.Errorf("failed to get user: %w: %w", ErrUserNotFound, err)
+			}
+			return fmt.Errorf("failed to get user: %w", err)
+		}
+		if err := mutate(&entity); err != nil {
+			return err
+		}
+		if db.beforeUserPut != nil {
+			db.beforeUserPut()
+		}
+		if _, err := tx.Put(key, &entity); err != nil {
+			return fmt.Errorf("failed to save user: %w", err)
+		}
+		return nil
+	})
+	return err
+}
 
-	entity.SubscriptionStatus = status
-	entity.SubscriptionID = subscriptionID
-	entity.LastPaymentDate = lastPaymentDate
-	entity.NextBillingDate = nextBillingDate
-
-	_, err := db.client.Put(ctx, key, &entity)
+// Subscription management methods
+func (db *DatastoreDB) UpdateUserSubscription(userID int, status, subscriptionID string, lastPaymentDate, nextBillingDate time.Time) error {
+	err := db.updateUser(userID, func(entity *UserEntity) error {
+		entity.SubscriptionStatus = status
+		entity.SubscriptionID = subscriptionID
+		entity.LastPaymentDate = lastPaymentDate
+		entity.NextBillingDate = nextBillingDate
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update user subscription: %w", err)
 	}
-
 	return nil
 }
 
@@ -2376,77 +2403,34 @@ func (db *DatastoreDB) GetUserFeedCount(userID int) (int, error) {
 
 // Admin management methods
 func (db *DatastoreDB) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
-	ctx, cancel := newDatastoreContext()
-	defer cancel()
-
-	_, err := db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
-		if targetID == callerID && !isAdmin {
-			return ErrSelfDemotion
-		}
-		userKey := datastore.IDKey("User", int64(targetID), nil)
-		var user UserEntity
-		if err := tx.Get(userKey, &user); err != nil {
-			return fmt.Errorf("failed to get user: %w", err)
-		}
-		user.IsAdmin = isAdmin
-		if _, err := tx.Put(userKey, &user); err != nil {
-			return fmt.Errorf("failed to save user: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
+	if targetID == callerID && !isAdmin {
+		return fmt.Errorf("failed to set user admin status: %w", ErrSelfDemotion)
+	}
+	if err := db.SetUserAdmin(targetID, isAdmin); err != nil {
 		return fmt.Errorf("failed to set user admin status: %w", err)
 	}
 	return nil
 }
 
 func (db *DatastoreDB) SetUserAdmin(userID int, isAdmin bool) error {
-	ctx, cancel := newDatastoreContext()
-	defer cancel()
-
-	// Get user entity first
-	userKey := datastore.IDKey("User", int64(userID), nil)
-	var user UserEntity
-
-	err := db.client.Get(ctx, userKey, &user)
-	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
-	}
-
-	// Update admin status
-	user.IsAdmin = isAdmin
-
-	// Save back to datastore
-	_, err = db.client.Put(ctx, userKey, &user)
+	err := db.updateUser(userID, func(user *UserEntity) error {
+		user.IsAdmin = isAdmin
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update user admin status: %w", err)
 	}
-
 	return nil
 }
 
 func (db *DatastoreDB) GrantFreeMonths(userID int, months int) error {
-	ctx, cancel := newDatastoreContext()
-	defer cancel()
-
-	// Get user entity first
-	userKey := datastore.IDKey("User", int64(userID), nil)
-	var user UserEntity
-
-	err := db.client.Get(ctx, userKey, &user)
-	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
-	}
-
-	// Add free months
-	user.FreeMonthsRemaining += months
-
-	// Save back to datastore
-	_, err = db.client.Put(ctx, userKey, &user)
+	err := db.updateUser(userID, func(user *UserEntity) error {
+		user.FreeMonthsRemaining += months
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update user free months: %w", err)
 	}
-
 	return nil
 }
 

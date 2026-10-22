@@ -1,10 +1,7 @@
 package database
 
 import (
-	"context"
 	"fmt"
-
-	"cloud.google.com/go/datastore"
 )
 
 func (db *DatastoreDB) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles int) error {
@@ -12,25 +9,12 @@ func (db *DatastoreDB) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles in
 		return fmt.Errorf("maxArticles must be between 1 and 10000, got %d", maxArticles)
 	}
 
-	ctx := context.Background()
-
-	// Get the user key
-	userKey := datastore.IDKey("User", int64(userID), nil)
-
-	// Get current user entity
-	var user UserEntity
-	if err := db.client.Get(ctx, userKey, &user); err != nil {
-		return fmt.Errorf("failed to get user for update: %w", err)
-	}
-
-	// Update the max articles setting
-	user.MaxArticlesOnFeedAdd = maxArticles
-
-	// Save back to datastore
-	_, err := db.client.Put(ctx, userKey, &user)
+	err := db.updateUser(userID, func(user *UserEntity) error {
+		user.MaxArticlesOnFeedAdd = maxArticles
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update user max articles setting: %w", err)
 	}
-
 	return nil
 }

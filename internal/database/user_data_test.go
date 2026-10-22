@@ -361,3 +361,72 @@ func checkClearAuditLogIPsBefore(t *testing.T, db Database) {
 		t.Logf("Second run cleared %d entries from other tests", n)
 	}
 }
+
+func TestUserUpdatesDoNotRecreateDeletedUser(t *testing.T) {
+	db := setupTestDB(t)
+	checkUserUpdatesDoNotRecreateDeletedUser(t, db, createTestUser(t, db))
+}
+
+func TestDatastoreUserUpdatesDoNotRecreateDeletedUser(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+	checkUserUpdatesDoNotRecreateDeletedUser(t, db, createDatastoreTestUser(t, db))
+}
+
+// checkUserUpdatesDoNotRecreateDeletedUser deletes user, then checks that
+// every method that updates the user record reports ErrUserNotFound and
+// leaves no user behind.
+func checkUserUpdatesDoNotRecreateDeletedUser(t *testing.T, db Database, user *User) {
+	t.Helper()
+
+	if err := db.DeleteUserAccount(user.ID); err != nil {
+		t.Fatalf("DeleteUserAccount failed: %v", err)
+	}
+
+	updates := map[string]func() error{
+		"UpdateUserSubscription": func() error {
+			return db.UpdateUserSubscription(user.ID, "cancelled", "sub_deleted", time.Time{}, time.Time{})
+		},
+		"UpdateUserMaxArticlesOnFeedAdd": func() error { return db.UpdateUserMaxArticlesOnFeedAdd(user.ID, 50) },
+		"SetUserAdmin":                   func() error { return db.SetUserAdmin(user.ID, true) },
+		"SetUserAdminAtomic":             func() error { return db.SetUserAdminAtomic(user.ID, user.ID+1, true) },
+		"GrantFreeMonths":                func() error { return db.GrantFreeMonths(user.ID, 3) },
+	}
+	for name, update := range updates {
+		if err := update(); !errors.Is(err, ErrUserNotFound) {
+			t.Errorf("%s on a deleted user: expected ErrUserNotFound, got %v", name, err)
+		}
+		if _, err := db.GetUserByID(user.ID); !errors.Is(err, ErrUserNotFound) {
+			t.Errorf("%s recreated the deleted user (GetUserByID err %v)", name, err)
+		}
+	}
+}
+
+// TestDatastoreUpdateUserSubscriptionRacingDelete deletes the user after
+// UpdateUserSubscription has read it but before it writes, which is the
+// window a Stripe webhook can hit while the account is being deleted.
+func TestDatastoreUpdateUserSubscriptionRacingDelete(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+	user := createDatastoreTestUser(t, db)
+
+	deleted := false
+	db.beforeUserPut = func() {
+		if deleted {
+			return
+		}
+		deleted = true
+		if err := db.DeleteUserAccount(user.ID); err != nil {
+			t.Fatalf("DeleteUserAccount failed: %v", err)
+		}
+	}
+
+	err := db.UpdateUserSubscription(user.ID, "cancelled", "sub_racing", time.Time{}, time.Time{})
+	if !deleted {
+		t.Fatal("beforeUserPut hook did not run")
+	}
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("Expected ErrUserNotFound, got %v", err)
+	}
+	if _, err := db.GetUserByID(user.ID); !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("UpdateUserSubscription recreated the deleted user (GetUserByID err %v)", err)
+	}
+}

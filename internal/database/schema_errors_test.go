@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -286,8 +287,8 @@ func TestUpdateUserSubscriptionNonExistentUser(t *testing.T) {
 	db := setupTestDB(t)
 
 	err := db.UpdateUserSubscription(99999, "active", "sub_123", time.Now(), time.Now())
-	if err != nil {
-		t.Fatalf("UpdateUserSubscription should not error for non-existent user: %v", err)
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("UpdateUserSubscription for non-existent user: expected ErrUserNotFound, got %v", err)
 	}
 }
 
@@ -305,8 +306,8 @@ func TestSetUserAdminNonExistentUser(t *testing.T) {
 	db := setupTestDB(t)
 
 	err := db.SetUserAdmin(99999, true)
-	if err != nil {
-		t.Fatalf("SetUserAdmin should not error for non-existent user: %v", err)
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("SetUserAdmin for non-existent user: expected ErrUserNotFound, got %v", err)
 	}
 }
 
@@ -315,8 +316,8 @@ func TestGrantFreeMonthsNonExistentUser(t *testing.T) {
 	db := setupTestDB(t)
 
 	err := db.GrantFreeMonths(99999, 3)
-	if err != nil {
-		t.Fatalf("GrantFreeMonths should not error for non-existent user: %v", err)
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("GrantFreeMonths for non-existent user: expected ErrUserNotFound, got %v", err)
 	}
 }
 
@@ -339,8 +340,8 @@ func TestUpdateUserMaxArticlesOnFeedAddNonExistentUser(t *testing.T) {
 	db := setupTestDB(t)
 
 	err := db.UpdateUserMaxArticlesOnFeedAdd(99999, 200)
-	if err != nil {
-		t.Fatalf("UpdateUserMaxArticlesOnFeedAdd should not error for non-existent user: %v", err)
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("UpdateUserMaxArticlesOnFeedAdd for non-existent user: expected ErrUserNotFound, got %v", err)
 	}
 }
 

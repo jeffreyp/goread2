@@ -1470,22 +1470,29 @@ func (db *DB) UpdateUserSubscription(userID int, status, subscriptionID string, 
 		userID, status, redactedSubID, lastPaymentDate, nextBillingDate)
 
 	query := `UPDATE users SET subscription_status = ?, subscription_id = ?, last_payment_date = ?, next_billing_date = ? WHERE id = ?`
-	result, err := db.Exec(query, status, subscriptionID, lastPaymentDate, nextBillingDate, userID)
-	if err != nil {
-		log.Printf("ERROR: UpdateUserSubscription - Query failed: %v", err)
+	if err := updateUserRow(db, userID, query, status, subscriptionID, lastPaymentDate, nextBillingDate, userID); err != nil {
+		log.Printf("ERROR: UpdateUserSubscription - %v", err)
 		return err
 	}
+	return nil
+}
 
+// updateUserRow runs an UPDATE against the users row for userID and returns
+// an error wrapping ErrUserNotFound if no such row exists.
+func updateUserRow(exec interface {
+	Exec(query string, args ...interface{}) (sql.Result, error)
+}, userID int, query string, args ...interface{}) error {
+	result, err := exec.Exec(query, args...)
+	if err != nil {
+		return err
+	}
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		log.Printf("WARNING: UpdateUserSubscription - Could not get rows affected: %v", err)
-	} else {
-		log.Printf("UpdateUserSubscription - Rows affected: %d", rowsAffected)
-		if rowsAffected == 0 {
-			log.Printf("WARNING: UpdateUserSubscription - No rows updated for user ID %d", userID)
-		}
+		return err
 	}
-
+	if rowsAffected == 0 {
+		return fmt.Errorf("no user with ID %d: %w", userID, ErrUserNotFound)
+	}
 	return nil
 }
 
@@ -1535,15 +1542,13 @@ func (db *DB) GetUserFeedCount(userID int) (int, error) {
 
 func (db *DB) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles int) error {
 	query := `UPDATE users SET max_articles_on_feed_add = ? WHERE id = ?`
-	_, err := db.Exec(query, maxArticles, userID)
-	return err
+	return updateUserRow(db, userID, query, maxArticles, userID)
 }
 
 // Admin management methods
 func (db *DB) SetUserAdmin(userID int, isAdmin bool) error {
 	query := `UPDATE users SET is_admin = ? WHERE id = ?`
-	_, err := db.Exec(query, isAdmin, userID)
-	return err
+	return updateUserRow(db, userID, query, isAdmin, userID)
 }
 
 func (db *DB) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
@@ -1557,7 +1562,7 @@ func (db *DB) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
 		return ErrSelfDemotion
 	}
 
-	if _, err = tx.Exec(`UPDATE users SET is_admin = ? WHERE id = ?`, isAdmin, targetID); err != nil {
+	if err = updateUserRow(tx, targetID, `UPDATE users SET is_admin = ? WHERE id = ?`, isAdmin, targetID); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -1566,8 +1571,7 @@ func (db *DB) SetUserAdminAtomic(targetID, callerID int, isAdmin bool) error {
 func (db *DB) GrantFreeMonths(userID int, months int) error {
 	// Get current free months and add the new ones
 	query := `UPDATE users SET free_months_remaining = COALESCE(free_months_remaining, 0) + ? WHERE id = ?`
-	_, err := db.Exec(query, months, userID)
-	return err
+	return updateUserRow(db, userID, query, months, userID)
 }
 
 func (db *DB) GetUserByEmail(email string) (*User, error) {

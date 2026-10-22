@@ -236,8 +236,12 @@ func (ps *PaymentService) HandleSubscriptionUpdate(subscriptionID string) error 
 		status = "cancelled"
 	}
 
-	// Update user subscription in database
+	// Update user subscription in database. The update never recreates a
+	// user, so an account deleted since the check above is also not an error.
 	err = ps.subscriptionService.UpdateUserSubscription(userID, status, subscriptionID, lastPaymentDate, nextBillingDate)
+	if errors.Is(err, database.ErrUserNotFound) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("failed to update user subscription: %w", err)
 	}
