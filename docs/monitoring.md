@@ -176,6 +176,7 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes seven polici
 - **Actions**: Follow [Account Deletion Failures](deployment.md#account-deletion-failures) in deployment.md
 - **Notification rate limit**: 5 minutes, the minimum for log-match conditions; repeated failures within that window send one notification
 - **Auto-close**: 30 minutes
+- **Testing**: write a matching entry to the `stderr` log with a `gae_app` resource through the Logging API (`entries:write`). The incident opens and the email is sent about two minutes later. A log-match condition does not evaluate entries written within the first minute or so after the policy is created or updated, so wait several minutes after a change before testing.
 
 ## Post-Promote Health Watch (a second consumer of these signals)
 
