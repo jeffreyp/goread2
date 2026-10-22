@@ -288,3 +288,57 @@ func TestPaymentService_CreateCustomerPortalSession_HappyPath(t *testing.T) {
 		t.Error("expected non-empty portal URL")
 	}
 }
+
+func TestStripeSearchEmail(t *testing.T) {
+	tests := []struct {
+		email string
+		want  string
+	}{
+		{"user@example.com", `email:'user@example.com'`},
+		{"o'brien@example.com", `email:'o\'brien@example.com'`},
+		{`back\slash@example.com`, `email:'back\\slash@example.com'`},
+		{`trail\'@example.com`, `email:'trail\\\'@example.com'`},
+	}
+	for _, tt := range tests {
+		if got := stripeSearchEmail(tt.email); got != tt.want {
+			t.Errorf("stripeSearchEmail(%q) = %q, want %q", tt.email, got, tt.want)
+		}
+	}
+}
+
+func TestPaymentService_CreateCheckoutSession_EscapesCustomerSearchEmail(t *testing.T) {
+	var searchQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/customers/search":
+			searchQuery = r.URL.Query().Get("query")
+			_, _ = w.Write([]byte(`{"object":"search_result","data":[],"has_more":false}`))
+		case "/v1/customers":
+			_, _ = w.Write([]byte(`{"id":"cus_test123","object":"customer"}`))
+		case "/v1/checkout/sessions":
+			_, _ = w.Write([]byte(`{"id":"cs_test_abc","object":"checkout.session","url":"https://checkout.stripe.com/pay/cs_test_abc"}`))
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+	restoreBackend := setStripeTestBackend(srv)
+	defer restoreBackend()
+
+	stripe.Key = "sk_test_fake"
+
+	db := &mockDBPayment{
+		user: &database.User{ID: 1, Email: "o'brien@example.com", Name: "Test User"},
+	}
+	ps := newTestPaymentService(db, "pk_test", "sk_test_fake", "whsec_test", "price_test")
+
+	if _, err := ps.CreateCheckoutSession(CheckoutSessionRequest{
+		UserID: 1, SuccessURL: "https://example.com/success", CancelURL: "https://example.com/cancel",
+	}); err != nil {
+		t.Fatalf("CreateCheckoutSession: %v", err)
+	}
+	if want := `email:'o\'brien@example.com'`; searchQuery != want {
+		t.Errorf("customer search query = %q, want %q", searchQuery, want)
+	}
+}

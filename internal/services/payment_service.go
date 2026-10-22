@@ -152,7 +152,7 @@ func (ps *PaymentService) getOrCreateStripeCustomer(user *database.User) (string
 	// Try to find existing customer by email using Search API (more efficient than List)
 	params := &stripe.CustomerSearchParams{
 		SearchParams: stripe.SearchParams{
-			Query: fmt.Sprintf("email:'%s'", user.Email),
+			Query: stripeSearchEmail(user.Email),
 		},
 	}
 	params.Limit = stripe.Int64(1)
@@ -272,7 +272,7 @@ func (ps *PaymentService) DeleteCustomerForUser(user *database.User) error {
 
 	params := &stripe.CustomerSearchParams{
 		SearchParams: stripe.SearchParams{
-			Query: fmt.Sprintf("email:'%s'", strings.ReplaceAll(user.Email, "'", `\'`)),
+			Query: stripeSearchEmail(user.Email),
 		},
 	}
 	iter := customer.Search(params)
@@ -299,6 +299,14 @@ func (ps *PaymentService) DeleteCustomerForUser(user *database.User) error {
 func isStripeResourceMissing(err error) bool {
 	var stripeErr *stripe.Error
 	return errors.As(err, &stripeErr) && stripeErr.Code == stripe.ErrorCodeResourceMissing
+}
+
+// stripeSearchEmail builds a Stripe Search query matching customers by email.
+// Backslashes and single quotes are escaped so that an address such as
+// o'brien@example.com cannot break out of the quoted value.
+func stripeSearchEmail(email string) string {
+	escaped := strings.NewReplacer(`\`, `\\`, "'", `\'`).Replace(email)
+	return fmt.Sprintf("email:'%s'", escaped)
 }
 
 // CreateProductAndPrice creates the GoRead2 Pro product and price in Stripe (one-time setup)
