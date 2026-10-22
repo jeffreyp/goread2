@@ -74,6 +74,63 @@ class AccountApp {
         });
 
         this.bindDeleteAccountEvents();
+        this.bindExportEvents();
+    }
+
+    bindExportEvents() {
+        // Export links are fetched rather than followed so that a failed
+        // export shows an error instead of saving the error JSON as the file.
+        document.querySelectorAll('a[data-export]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.downloadExport(link);
+            });
+        });
+    }
+
+    async downloadExport(link) {
+        if (link.dataset.exporting) return;
+        const errorElement = document.getElementById(link.dataset.exportError);
+        const originalText = link.textContent;
+        link.dataset.exporting = 'true';
+        link.setAttribute('aria-disabled', 'true');
+        link.textContent = 'Exporting...';
+        errorElement.hidden = true;
+
+        try {
+            const response = await fetch(link.getAttribute('href'));
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.error || 'Failed to generate the export. Please try again.');
+            }
+
+            // blob() rejects if the response ends early, so a truncated
+            // export is reported rather than saved.
+            const blob = await response.blob();
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const match = disposition.match(/filename="?([^";]+)"?/);
+            const filename = match ? match[1] : 'goread2-export';
+
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = filename;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 0);
+        } catch (error) {
+            console.error('Error exporting data:', error);
+            // fetch() and blob() reject with a TypeError on network failure.
+            errorElement.textContent = error instanceof TypeError
+                ? 'The export did not finish downloading. Please try again.'
+                : error.message;
+            errorElement.hidden = false;
+        } finally {
+            delete link.dataset.exporting;
+            link.removeAttribute('aria-disabled');
+            link.textContent = originalText;
+        }
     }
 
     bindDeleteAccountEvents() {

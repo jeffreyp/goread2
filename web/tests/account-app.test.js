@@ -456,3 +456,95 @@ describe('Account App DOM Tests', () => {
         });
     });
 });
+
+describe('AccountApp data export', () => {
+    let app;
+    let link;
+    let errorElement;
+
+    const loadAccountApp = () => {
+        const fs = require('fs');
+        const path = require('path');
+        const source = fs.readFileSync(path.join(__dirname, '../static/js/account.js'), 'utf8');
+        return new Function(`${source}\nreturn AccountApp;`)();
+    };
+
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <a href="/api/account/export" data-export data-export-error="export-error" download>Export all data (JSON)</a>
+            <p id="export-error" hidden></p>
+        `;
+        link = document.querySelector('a[data-export]');
+        errorElement = document.getElementById('export-error');
+
+        // Skip the constructor so init() does not run auth and data loads.
+        const AccountApp = loadAccountApp();
+        app = Object.create(AccountApp.prototype);
+        app.bindExportEvents();
+
+        global.URL.createObjectURL = jest.fn(() => 'blob:export');
+        global.URL.revokeObjectURL = jest.fn();
+    });
+
+    test('saves the file under the server-provided name on success', async () => {
+        const clicks = [];
+        jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+            clicks.push({ href: this.href, download: this.download });
+        });
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            headers: { get: () => 'attachment; filename=goread2-data-2026-10-21.json' },
+            blob: () => Promise.resolve(new Blob(['{}']))
+        });
+
+        await app.downloadExport(link);
+
+        expect(global.fetch).toHaveBeenCalledWith('/api/account/export');
+        expect(clicks).toEqual([{ href: 'blob:export', download: 'goread2-data-2026-10-21.json' }]);
+        expect(errorElement.hidden).toBe(true);
+        expect(link.textContent).toBe('Export all data (JSON)');
+        HTMLAnchorElement.prototype.click.mockRestore();
+    });
+
+    test('shows the server error and saves nothing on a non-2xx response', async () => {
+        const blob = jest.fn();
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: false,
+            status: 500,
+            json: () => Promise.resolve({ error: 'Failed to generate the data export. Please try again.' }),
+            blob
+        });
+
+        await app.downloadExport(link);
+
+        expect(blob).not.toHaveBeenCalled();
+        expect(global.URL.createObjectURL).not.toHaveBeenCalled();
+        expect(errorElement.hidden).toBe(false);
+        expect(errorElement.textContent).toBe('Failed to generate the data export. Please try again.');
+        expect(link.textContent).toBe('Export all data (JSON)');
+    });
+
+    test('reports a truncated download instead of saving it', async () => {
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            headers: { get: () => null },
+            blob: () => Promise.reject(new TypeError('network error'))
+        });
+
+        await app.downloadExport(link);
+
+        expect(global.URL.createObjectURL).not.toHaveBeenCalled();
+        expect(errorElement.hidden).toBe(false);
+        expect(errorElement.textContent).toBe('The export did not finish downloading. Please try again.');
+    });
+
+    test('intercepts clicks on export links', () => {
+        jest.spyOn(app, 'downloadExport').mockResolvedValue();
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+
+        link.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(app.downloadExport).toHaveBeenCalledWith(link);
+    });
+});
