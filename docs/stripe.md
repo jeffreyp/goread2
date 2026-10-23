@@ -320,7 +320,7 @@ curl -X POST https://your-domain.com/webhooks/stripe \
 ### Customer Data
 
 - Card details are never stored by GoRead2; Stripe handles PCI compliance
-- Customer information is stored only as needed to link a Stripe customer ID to a GoRead2 user
+- GoRead2 stores the Stripe subscription ID on the user record, not the customer ID. Customers are linked to GoRead2 users through `user_id` metadata on the Stripe customer
 - Account deletion deletes the Stripe customer; see [Account Deletion](#account-deletion)
 
 ## Going Live
