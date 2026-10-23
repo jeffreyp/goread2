@@ -192,7 +192,7 @@ Similarly, the auth handler uses `getOAuthStateCookieName()` for OAuth state coo
 
 ### Cookie Attributes
 
-Session cookies are configured with security-conscious attributes:
+Session cookies are configured with the following attributes. The OAuth state cookie, set by `setOAuthStateCookie` in `internal/handlers/auth_handler.go`, uses the same `HttpOnly`, `Secure`, `SameSite`, and `Path` values, with a 10-minute `MaxAge`:
 
 ```go
 cookie := &http.Cookie{

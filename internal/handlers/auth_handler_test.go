@@ -557,3 +557,54 @@ func TestLogout(t *testing.T) {
 		}
 	})
 }
+
+func TestOAuthStateCookieFlags(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name       string
+		env        string
+		wantName   string
+		wantSecure bool
+	}{
+		{"production sets Secure", "production", "oauth_state", true},
+		{"local omits Secure", "development", "oauth_state_local", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Build the handler before switching to production, since
+			// NewCSRFManager refuses to start there without CSRF_SECRET.
+			db := &mockDBAuthHandler{}
+			handler := NewAuthHandler(auth.NewAuthService(db), auth.NewSessionManager(db), auth.NewCSRFManager())
+			t.Setenv("GAE_ENV", "")
+			t.Setenv("ENVIRONMENT", tt.env)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("GET", "/auth/login", nil)
+
+			handler.Login(c)
+
+			cookies := w.Result().Cookies()
+			if len(cookies) != 1 {
+				t.Fatalf("expected 1 cookie, got %d", len(cookies))
+			}
+			cookie := cookies[0]
+			if cookie.Name != tt.wantName {
+				t.Errorf("expected cookie name %q, got %q", tt.wantName, cookie.Name)
+			}
+			if cookie.Secure != tt.wantSecure {
+				t.Errorf("expected Secure=%v, got %v", tt.wantSecure, cookie.Secure)
+			}
+			if !cookie.HttpOnly {
+				t.Error("expected HttpOnly")
+			}
+			if cookie.SameSite != http.SameSiteLaxMode {
+				t.Errorf("expected SameSite=Lax, got %v", cookie.SameSite)
+			}
+			if cookie.MaxAge != 600 {
+				t.Errorf("expected MaxAge=600, got %d", cookie.MaxAge)
+			}
+		})
+	}
+}

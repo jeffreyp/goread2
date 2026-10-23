@@ -44,7 +44,7 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 
 	// Store state in cookie for validation (backward compatibility)
 	// Use environment-specific cookie name to avoid conflicts
-	c.SetCookie(getOAuthStateCookieName(), state, 600, "/", "", false, true) // 10 minutes
+	setOAuthStateCookie(c, state, 600) // 10 minutes
 
 	authURL := ah.authService.GetAuthURL(state, c.Request.Host)
 	if native {
@@ -78,7 +78,7 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// Clear the state cookie
-	c.SetCookie(getOAuthStateCookieName(), "", -1, "/", "", false, true)
+	setOAuthStateCookie(c, "", -1)
 
 	code := c.Query("code")
 	if code == "" {
@@ -229,14 +229,35 @@ func generateState() (string, error) {
 	return base64.URLEncoding.EncodeToString(bytes), nil
 }
 
+// isProductionEnvironment matches the check internal/auth/session.go uses for
+// the session cookie.
+func isProductionEnvironment() bool {
+	return os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
+}
+
 // getOAuthStateCookieName returns an environment-specific cookie name for OAuth state
 // to prevent local and production authentication flows from conflicting
 func getOAuthStateCookieName() string {
-	isProduction := os.Getenv("GAE_ENV") == "standard" || os.Getenv("ENVIRONMENT") == "production"
-	if isProduction {
+	if isProductionEnvironment() {
 		return "oauth_state"
 	}
 	return "oauth_state_local"
+}
+
+// setOAuthStateCookie sets (or, with a negative maxAge, clears) the OAuth
+// state cookie with the same flags as the session cookie: Secure in
+// production, HttpOnly, and SameSite=Lax. Lax still sends the cookie on the
+// top-level GET redirect from Google back to /auth/callback.
+func setOAuthStateCookie(c *gin.Context, value string, maxAge int) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     getOAuthStateCookieName(),
+		Value:    url.QueryEscape(value), // matches gin.SetCookie; c.Cookie unescapes on read
+		Path:     "/",
+		MaxAge:   maxAge,
+		Secure:   isProductionEnvironment(),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 // CleanupExpiredSessions is a cron endpoint that removes expired sessions

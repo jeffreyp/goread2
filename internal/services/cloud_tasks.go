@@ -18,11 +18,16 @@ import (
 // any inbound request that didn't originate from Cloud Tasks' internal
 // dispatch, so the task handlers can trust its presence without a separate
 // signature check (see internal/auth.VerifyTaskRequest).
+//
+// Each task is routed to the App Engine version that enqueued it, so a task
+// created on a zero-traffic staging version runs that version's handlers
+// rather than whatever the default version happens to serve.
 type CloudTasksQueue struct {
 	client    *cloudtasks.Client
 	projectID string
 	location  string
 	queueID   string
+	routing   *cloudtaskspb.AppEngineRouting
 }
 
 // NewCloudTasksQueue creates a queue client using application default
@@ -45,6 +50,7 @@ func NewCloudTasksQueue(ctx context.Context) (*CloudTasksQueue, error) {
 		projectID: projectID,
 		location:  getEnvOrDefault("CLOUD_TASKS_LOCATION", "us-central1"),
 		queueID:   getEnvOrDefault("CLOUD_TASKS_QUEUE", "cron-tasks"),
+		routing:   appEngineRoutingFromEnv(),
 	}, nil
 }
 
@@ -54,7 +60,7 @@ func (q *CloudTasksQueue) Close() error {
 }
 
 // Enqueue creates a task that Cloud Tasks dispatches as a POST to
-// relativeURI on this App Engine service's default target.
+// relativeURI on the App Engine version that enqueued it.
 func (q *CloudTasksQueue) Enqueue(ctx context.Context, relativeURI string) error {
 	return q.createTask(ctx, relativeURI, nil)
 }
@@ -65,19 +71,36 @@ func (q *CloudTasksQueue) EnqueueAfter(ctx context.Context, relativeURI string, 
 }
 
 func (q *CloudTasksQueue) createTask(ctx context.Context, relativeURI string, scheduleTime *timestamppb.Timestamp) error {
-	_, err := q.client.CreateTask(ctx, &cloudtaskspb.CreateTaskRequest{
+	_, err := q.client.CreateTask(ctx, q.createTaskRequest(relativeURI, scheduleTime))
+	return err
+}
+
+func (q *CloudTasksQueue) createTaskRequest(relativeURI string, scheduleTime *timestamppb.Timestamp) *cloudtaskspb.CreateTaskRequest {
+	return &cloudtaskspb.CreateTaskRequest{
 		Parent: fmt.Sprintf("projects/%s/locations/%s/queues/%s", q.projectID, q.location, q.queueID),
 		Task: &cloudtaskspb.Task{
 			ScheduleTime: scheduleTime,
 			MessageType: &cloudtaskspb.Task_AppEngineHttpRequest{
 				AppEngineHttpRequest: &cloudtaskspb.AppEngineHttpRequest{
-					HttpMethod:  cloudtaskspb.HttpMethod_POST,
-					RelativeUri: relativeURI,
+					HttpMethod:       cloudtaskspb.HttpMethod_POST,
+					RelativeUri:      relativeURI,
+					AppEngineRouting: q.routing,
 				},
 			},
 		},
-	})
-	return err
+	}
+}
+
+// appEngineRoutingFromEnv pins tasks to the running service and version,
+// which App Engine exposes as GAE_SERVICE and GAE_VERSION. It returns nil
+// outside App Engine, leaving Cloud Tasks to pick the default version.
+func appEngineRoutingFromEnv() *cloudtaskspb.AppEngineRouting {
+	service := os.Getenv("GAE_SERVICE")
+	version := os.Getenv("GAE_VERSION")
+	if service == "" && version == "" {
+		return nil
+	}
+	return &cloudtaskspb.AppEngineRouting{Service: service, Version: version}
 }
 
 func getEnvOrDefault(key, fallback string) string {

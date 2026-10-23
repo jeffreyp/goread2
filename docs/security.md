@@ -119,9 +119,9 @@ CSP_REPORT_ONLY=false       # Set to true to report CSP violations without block
 
 ### Session Security
 
-- **Secure cookies** - Automatically enabled in production (App Engine and ENVIRONMENT=production)
+- **Secure cookies** - The session and OAuth state cookies are marked Secure in production (App Engine and ENVIRONMENT=production)
 - **HTTP-only cookies** - Prevents XSS attacks from accessing session tokens
-- **SameSite protection** - Lax mode prevents CSRF attacks via cross-site requests
+- **SameSite protection** - Both cookies use Lax mode, which withholds them from cross-site subrequests and POSTs while still sending the OAuth state cookie on Google's top-level redirect back to `/auth/callback`
 - **Automatic cleanup** - Expired sessions are cleaned up every 24 hours by the `/cron/cleanup-sessions` cron job (not an in-process timer)
 - **Environment isolation** - Separate cookie names for local and production environments prevent authentication conflicts
 
