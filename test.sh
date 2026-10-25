@@ -73,6 +73,17 @@ else
     exit 1
 fi
 
+# Run the tests for code compiled only with the devlogin tag (make dev-login)
+echo ""
+echo "🔑 Running Dev Login Tests (devlogin build tag)..."
+echo "--------------------------------------------------"
+if go test -tags devlogin ./internal/handlers/... -run 'DevLogin' -v; then
+    print_status "Dev login tests passed"
+else
+    print_error "Dev login tests failed"
+    exit 1
+fi
+
 # Combine coverage files
 echo ""
 echo "📊 Generating Coverage Report..."

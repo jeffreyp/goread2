@@ -57,7 +57,7 @@ Create session and set session cookie
 Redirect to application
 ```
 
-A new user whose Google ID matches a deleted-account tombstone is created with the free trial already ended, so deleting and recreating an account does not grant a second trial. See [security.md](security.md#account-deletion).
+`AuthService.SignInGoogleUser` (`internal/auth/auth.go`) performs the create-or-load step. A new user whose Google ID matches a deleted-account tombstone is created with the free trial already ended, so deleting and recreating an account does not grant a second trial. See [security.md](security.md#account-deletion).
 
 ### 3. Authenticated Requests
 
@@ -102,6 +102,14 @@ One-time codes are single-use and expire after 2 minutes. The code indirection k
 The app keeps the token and cookie name in the Keychain, through `SessionStore` in `ios/GoRead2/Networking/`, rather than in a cookie store. On iOS the item is accessible after first unlock and never leaves the device. On macOS it lives in the login keychain. `NetworkClient` uses a `URLSession` with cookie handling disabled and adds the `Cookie` header to each request itself, so the token never enters `HTTPCookieStorage` or its on-disk cookie file. The server extends a session's expiry on activity without re-issuing the cookie, so the stored token stays valid until a 401 or sign-out clears it. On first launch after updating from a build that kept the token in `HTTPCookieStorage`, the app moves it into the Keychain and deletes the old cookies.
 
 Expired codes are purged by the same `/cron/cleanup-sessions` job that removes expired OAuth states.
+
+### Local Dev Login
+
+A server built with the `devlogin` build tag, which `make dev-login` does, replaces the Google consent screen with a local form that signs in as any typed Google ID, email, and name. It exists so that sign-up, data export, account deletion, and the deleted-account tombstone can be tested with disposable accounts. The code lives in `internal/handlers/dev_login.go`; the default build and the App Engine deploy compile `dev_login_off.go` in its place, which registers nothing.
+
+Only the step that asks Google for the user's identity differs. `/auth/login` issues and stores the OAuth state as usual but points at `/auth/dev-login?state=...` instead of Google. The form submits to `/auth/dev-login/callback`, which consumes the state with the same checks as `/auth/callback`, then calls `SignInGoogleUser` and the same session and native handoff code. The web frontend and the iOS and macOS apps therefore use the dev login unchanged, including the `goread2://` code handoff. The form page widens its `form-action` CSP directive to `'self' goread2:`, because the native flow ends in a redirect to the app's URL scheme from the form's submission.
+
+The server refuses to register the dev login on App Engine, with `ENVIRONMENT=production`, or against a real Datastore. See [security.md](security.md#local-dev-login) for the guards and [testing.md](testing.md#local-dev-login-make-dev-login) for usage.
 
 ## Session Management
 
@@ -232,6 +240,7 @@ See [security.md](security.md) for more details on security implementation.
 - `internal/auth/session.go` - Session manager implementation
 - `internal/auth/middleware.go` - Authentication middleware
 - `internal/handlers/auth_handler.go` - OAuth handlers
+- `internal/handlers/dev_login.go` - Local dev login, compiled only with the `devlogin` build tag
 - `internal/auth/csrf.go` - CSRF token management
 
 ### Configuration
@@ -284,6 +293,8 @@ req.AddCookie(&http.Cookie{
 | `/auth/token` | POST | Exchange a native app one-time code for the session token |
 | `/auth/logout` | POST | End session |
 | `/auth/me` | GET | Get current user info |
+| `/auth/dev-login` | GET | Dev login form, in `devlogin` builds only |
+| `/auth/dev-login/callback` | GET | Dev login submission, in `devlogin` builds only |
 
 ### Middleware Usage
 

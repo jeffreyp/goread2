@@ -79,6 +79,11 @@ jobs:
     - name: Run unit tests
       run: go test -short -race -coverprofile=coverage.out ./internal/...
 
+    - name: Run dev login tests
+      # dev_login.go is compiled only with the devlogin tag (make dev-login),
+      # so the plain run above skips its tests.
+      run: go test -race -tags devlogin -run DevLogin ./internal/handlers/...
+
     - name: Run integration tests
       run: go test -race ./test/integration/...
 
@@ -123,6 +128,12 @@ jobs:
         # built with go1.26 and has no such ceiling.
         version: v2.12.2
         args: --timeout=5m
+
+    - name: golangci-lint (devlogin build tag)
+      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+      with:
+        version: v2.12.2
+        args: --timeout=5m --build-tags devlogin ./internal/handlers/...
 
   frontend-build:
     runs-on: ubuntu-latest

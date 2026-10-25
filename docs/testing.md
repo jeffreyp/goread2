@@ -427,7 +427,10 @@ func TestWebhookHandler_SubscriptionCreatedOrUpdated(t *testing.T) {
   unhandled event types), and the `subscription_success`/`subscription_cancel` HTML views
 - OAuth login/callback flows (`Login`, `Callback`) remain untested at the unit level:
   they call out to Google's real OAuth endpoints and are exercised instead by
-  `test/integration` and manual verification
+  `test/integration` and manual verification. The steps the Google callback shares
+  with the dev login (state consumption, session creation, and the native code
+  handoff) are covered by the `devlogin`-tagged tests in `dev_login_test.go`, which
+  `test.sh` runs with `go test -tags devlogin`
 
 ### 2. Backend Integration Tests
 
@@ -695,6 +698,27 @@ DATASTORE_EMULATOR_HOST=localhost:8081 go test ./internal/database/... -run Test
 The emulator's Java process requires a Java 21+ JRE on `PATH`; on macOS with Homebrew's `openjdk` installed but not linked, prefix the `gcloud emulators` command with `PATH="$(brew --prefix openjdk)/bin:$PATH"`.
 
 `AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered in `internal/services/admin_token_datastore_test.go`. `DatastoreDB`'s own methods implementing the `database.Database` interface (`AddFeed`, `GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, `GetAccountStats`, `CleanupOrphanedUserArticles`, sessions, audit logs, and the rest) are covered directly (through the `Database` interface, mirroring the SQLite `schema_test.go` suite) in `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, bringing `internal/database` to 80%+ coverage when run against the emulator.
+
+### Local Dev Login (`make dev-login`)
+
+`make dev-login` starts the server built with the `devlogin` tag, in which `/auth/login` opens a local form instead of Google's consent screen (see [authentication.md](authentication.md#local-dev-login)). The form pre-fills a fresh Google ID such as `dev-1a2b3c4d`, with an `@example.test` email, so submitting it unchanged creates a new disposable account. Typing a Google ID that was used before signs in to that account, or, after the account has been deleted, creates a new account with the trial already ended.
+
+The target fills in defaults for any of these variables that are not already set:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `dev-login` | Placeholders that satisfy the startup check; Google is never contacted |
+| `GOOGLE_REDIRECT_URL` | `http://localhost:8080/auth/callback` | Same |
+| `ACCOUNT_TOMBSTONE_KEY` | `dev-login-tombstone-key` | Enables tombstones, so re-sign-in after deletion is testable |
+| `SUBSCRIPTION_ENABLED` | `false` | Account deletion skips Stripe |
+
+Without `GOOGLE_CLOUD_PROJECT`, accounts are stored in the local SQLite file, `goread2.db`. To use the Datastore implementation instead, start the emulator as described above and set both variables; the server refuses a `GOOGLE_CLOUD_PROJECT` without `DATASTORE_EMULATOR_HOST`:
+
+```bash
+GOOGLE_CLOUD_PROJECT=goread2-local-test DATASTORE_EMULATOR_HOST=localhost:8081 make dev-login
+```
+
+Without Cloud Tasks, `DELETE /api/account` deletes the account in-process and responds `200` instead of queueing it. The iOS and macOS apps use the dev login through their usual sign-in button when the Debug scheme points at the local server (see [ios.md](ios.md#schemes-and-the-api-base-url)).
 
 ### HTTP Test Setup
 
@@ -1025,8 +1049,8 @@ on:
     branches: [ main ]
 
 jobs:
-  test:            # unit + integration tests, coverage upload to Codecov
-  lint:            # golangci-lint
+  test:            # unit, devlogin-tagged, and integration tests, coverage upload to Codecov
+  lint:            # golangci-lint, default and devlogin build tags
   frontend-build:  # npm ci + npm run lint:js + npm run test:ci + make build-frontend
   benchmark:       # go test -bench + benchstat vs cached main baseline; fails on >20% regression
   security:        # go test ./test/security/... (blocking regression gate) + govulncheck (continue-on-error: true, reports only)
@@ -1036,9 +1060,10 @@ jobs:
 **Pipeline features:**
 - Go release pinned by the `toolchain` directive in `go.mod`. `setup-go` sets `GOTOOLCHAIN=local`, so the directive takes effect only because each step reads `go.mod` directly; a bare major version such as `go-version: '1.26'` can resolve to an older patch release cached on the runner
 - Package-level unit tests (`go test -short -race -coverprofile=coverage.out ./internal/...`)
+- Dev login tests (`go test -race -tags devlogin -run DevLogin ./internal/handlers/...`), which the plain unit test run skips because `dev_login.go` is compiled only with the `devlogin` tag
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov, authenticated by the `CODECOV_TOKEN` repository secret. The upload is non-blocking (`fail_ci_if_error: false`), so a missing or invalid token leaves CI green and must be diagnosed from the step's log
-- Linting with golangci-lint
+- Linting with golangci-lint, run a second time with `--build-tags devlogin` over `internal/handlers/`
 - ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`), catching undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed
 - Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build fails CI
 - Benchmark regression gate (`benchmark` job): see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above

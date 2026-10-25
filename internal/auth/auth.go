@@ -153,6 +153,15 @@ func (a *AuthService) HandleCallback(code, host string) (*database.User, error) 
 		return nil, fmt.Errorf("failed to decode user info: %w", err)
 	}
 
+	return a.SignInGoogleUser(ctx, googleUser)
+}
+
+// SignInGoogleUser returns the account for a Google identity, creating it on
+// first sign-in. A new account for a Google ID that previously deleted its
+// GoRead2 account starts with the trial already ended. HandleCallback calls it
+// with the identity Google reports; the devlogin build's local sign-in calls
+// it with a typed one, so both paths share this logic.
+func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUserInfo) (*database.User, error) {
 	// Check if user exists in our database
 	user, err := a.db.GetUserByGoogleID(googleUser.ID)
 	if err != nil {

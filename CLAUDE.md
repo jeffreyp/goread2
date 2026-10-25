@@ -12,6 +12,7 @@ make test           # run test suite via ./test.sh
 make lint           # golangci-lint
 make docs           # check markdown files for broken relative links and anchors (requires npm)
 make dev            # start local dev server (validates config first)
+make dev-login      # dev server with a local sign-in instead of Google OAuth (see docs/testing.md)
 ```
 
 Run `make test` and `make lint` after any Go changes before committing. Run `make docs` after any changes to root-level or `docs/` markdown files.

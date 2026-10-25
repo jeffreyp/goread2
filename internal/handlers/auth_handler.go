@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/auth"
+	"github.com/jeffreyp/goread2/internal/database"
 	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
@@ -19,6 +20,10 @@ type AuthHandler struct {
 	authService    *auth.AuthService
 	sessionManager *auth.SessionManager
 	csrfManager    *auth.CSRFManager
+
+	// loginURL, when set, replaces the Google consent URL that Login sends
+	// the browser to. Only the devlogin build sets it (see dev_login.go).
+	loginURL func(state string) string
 }
 
 func NewAuthHandler(authService *auth.AuthService, sessionManager *auth.SessionManager, csrfManager *auth.CSRFManager) *AuthHandler {
@@ -47,6 +52,9 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 	setOAuthStateCookie(c, state, 600) // 10 minutes
 
 	authURL := ah.authService.GetAuthURL(state, c.Request.Host)
+	if ah.loginURL != nil {
+		authURL = ah.loginURL(state)
+	}
 	if native {
 		// The native flow opens this endpoint as a top-level navigation
 		// inside ASWebAuthenticationSession, so the state cookie above must
@@ -59,26 +67,10 @@ func (ah *AuthHandler) Login(c *gin.Context) {
 }
 
 func (ah *AuthHandler) Callback(c *gin.Context) {
-	// Verify state parameter from cookie
-	storedState, err := c.Cookie(getOAuthStateCookieName())
-	queryState := c.Query("state")
-
-	if err != nil || subtle.ConstantTimeCompare([]byte(storedState), []byte(queryState)) != 1 {
-		log.Printf("SECURITY: OAuth state mismatch from IP %s (cookie=%v query=%v)", auth.GetSecureClientIP(c), storedState != "", queryState != "")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter is not valid."})
+	native, ok := ah.consumeOAuthState(c)
+	if !ok {
 		return
 	}
-
-	// Validate and consume state (one-time use check)
-	valid, native := ah.sessionManager.ValidateAndConsumeOAuthState(queryState)
-	if !valid {
-		log.Printf("SECURITY: OAuth state expired or replayed from IP %s", auth.GetSecureClientIP(c))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter has expired or has already been used. Please try signing in again."})
-		return
-	}
-
-	// Clear the state cookie
-	setOAuthStateCookie(c, "", -1)
 
 	code := c.Query("code")
 	if code == "" {
@@ -94,6 +86,41 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
+	ah.completeSignIn(c, user, native)
+}
+
+// consumeOAuthState checks the callback's state parameter against the state
+// cookie and the one-time store, then clears the cookie. It reports whether
+// Login flagged the flow as native; on failure it has already written the
+// error response.
+func (ah *AuthHandler) consumeOAuthState(c *gin.Context) (native, ok bool) {
+	// Verify state parameter from cookie
+	storedState, err := c.Cookie(getOAuthStateCookieName())
+	queryState := c.Query("state")
+
+	if err != nil || subtle.ConstantTimeCompare([]byte(storedState), []byte(queryState)) != 1 {
+		log.Printf("SECURITY: OAuth state mismatch from IP %s (cookie=%v query=%v)", auth.GetSecureClientIP(c), storedState != "", queryState != "")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter is not valid."})
+		return false, false
+	}
+
+	// Validate and consume state (one-time use check)
+	valid, native := ah.sessionManager.ValidateAndConsumeOAuthState(queryState)
+	if !valid {
+		log.Printf("SECURITY: OAuth state expired or replayed from IP %s", auth.GetSecureClientIP(c))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The OAuth state parameter has expired or has already been used. Please try signing in again."})
+		return false, false
+	}
+
+	// Clear the state cookie
+	setOAuthStateCookie(c, "", -1)
+	return native, true
+}
+
+// completeSignIn starts a session for user and hands it to the client: a
+// session cookie and a redirect to / for the web, or a one-time code on the
+// goread2:// callback for the native apps.
+func (ah *AuthHandler) completeSignIn(c *gin.Context, user *database.User, native bool) {
 	// Invalidate any pre-existing session to prevent session fixation attacks
 	if oldSession, exists := ah.sessionManager.GetSessionFromRequest(c.Request); exists {
 		ah.sessionManager.DeleteSession(oldSession.ID)

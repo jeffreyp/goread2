@@ -1,4 +1,4 @@
-.PHONY: all build lint test test-quick test-race validate-config clean build-js build-css build-frontend docs deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
+.PHONY: all build lint test test-quick test-race validate-config clean dev dev-login build-js build-css build-frontend docs deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
 
 # Default target - build everything
 all: build-frontend build test-quick
@@ -27,6 +27,7 @@ help:
 	@echo "  deploy-monitoring  Deploy monitoring dashboard and alerts"
 	@echo "  clean              Remove all build artifacts"
 	@echo "  dev                Start development server"
+	@echo "  dev-login          Start development server with a local sign-in instead of Google OAuth"
 	@echo "  help               Show this help message"
 	@echo ""
 	@echo "Frontend build requirements:"
@@ -46,6 +47,7 @@ build:
 lint:
 	@echo "🔍 Running linter..."
 	golangci-lint run --timeout=3m
+	golangci-lint run --timeout=3m --build-tags devlogin ./internal/handlers/...
 
 # Install npm dependencies if needed
 node_modules: package.json package-lock.json
@@ -134,6 +136,20 @@ clean:
 dev: validate-config
 	@echo "🔧 Starting development server..."
 	go run main.go
+
+# Development server built with the devlogin tag: /auth/login opens a local
+# form that signs in as any typed Google ID. Placeholder OAuth credentials
+# satisfy startup checks, a fixed tombstone key makes deleted-account
+# re-sign-in testable, and subscriptions default to off. Values already in
+# the environment take precedence. See docs/testing.md.
+dev-login: export GOOGLE_CLIENT_ID ?= dev-login
+dev-login: export GOOGLE_CLIENT_SECRET ?= dev-login
+dev-login: export GOOGLE_REDIRECT_URL ?= http://localhost:8080/auth/callback
+dev-login: export ACCOUNT_TOMBSTONE_KEY ?= dev-login-tombstone-key
+dev-login: export SUBSCRIPTION_ENABLED ?= false
+dev-login: validate-config
+	@echo "🔧 Starting development server with dev login..."
+	go run -tags devlogin main.go
 
 # Deploy Cloud Monitoring dashboard
 deploy-monitoring-dashboard:

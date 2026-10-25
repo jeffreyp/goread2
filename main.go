@@ -254,6 +254,9 @@ func main() {
 		authRoutes.POST("/logout", authMiddleware.CSRFMiddleware(csrfManager), authHandler.Logout)
 		authRoutes.GET("/me", authMiddleware.OptionalAuth(), authHandler.Me)
 	}
+	// Local sign-in without Google; compiled in only with -tags devlogin
+	// (make dev-login), and refused at runtime outside local databases.
+	authHandler.RegisterDevLogin(authRoutes)
 
 	// Cron endpoint - requires X-Appengine-Cron header in production or admin auth locally
 	cronRoutes := r.Group("/cron")

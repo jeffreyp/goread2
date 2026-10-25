@@ -251,6 +251,16 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 - **Admin endpoints** - Require authenticated admin session
 - **Unmatched paths** - Return an explicit 404 via `middleware.NotFoundHandler` (`internal/middleware/not_found.go`). Gin's built-in fallback writes its 404 after the gzip middleware has closed its writer, so clients that accept gzip received an empty response that the App Engine frontend reported as status 200, which vulnerability scanners interpreted as a hit.
 
+### Local Dev Login
+
+The dev login described in [authentication.md](authentication.md#local-dev-login) signs in as any typed Google ID, which would impersonate the owner of that ID on a shared database. Three guards keep it local:
+
+1. **Build tag**: the handler and its routes are compiled only with `-tags devlogin`. `make build`, `make dev`, and the App Engine deploy omit the tag, so their binaries contain no dev login code. `TestDefaultBuildHasNoDevLogin` checks this for the default build.
+2. **Deployed environments**: a tagged server refuses to register the routes when `GAE_ENV` is set or `ENVIRONMENT=production`, and logs why.
+3. **Local database only**: it also refuses when `GOOGLE_CLOUD_PROJECT` is set without `DATASTORE_EMULATOR_HOST`. Staging shares the production Datastore, so any real Datastore is treated as production data. Without `GOOGLE_CLOUD_PROJECT` the server uses the local SQLite file.
+
+`TestDevLoginAllowed` and `TestRegisterDevLoginRefusedOnAppEngine` cover the runtime guards; they run in `test.sh` under the `devlogin` tag. A tagged server that registers the routes logs a warning at startup.
+
 ### Account Deletion
 
 `DELETE /api/account` permanently deletes the signed-in user's account. The request must pass CSRF validation and repeat the account email as `confirm_email`, compared case-insensitively. The handler queues the deletion before revoking the user's sessions, so a queueing failure leaves the user signed in and able to retry; it then revokes every session and clears the cookie.
