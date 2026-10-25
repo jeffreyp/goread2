@@ -14,6 +14,8 @@ final class AuthManager: ObservableObject {
 
     @Published private(set) var state: SessionState = .checking
     @Published var errorMessage: String?
+    /// Confirmation shown on the login screen, e.g. after account deletion.
+    @Published var noticeMessage: String?
 
     private let client: NetworkClient
     private let webSession = WebAuthSession()
@@ -56,6 +58,7 @@ final class AuthManager: ObservableObject {
     /// from the goread2://auth callback for the session token.
     func signIn() async {
         errorMessage = nil
+        noticeMessage = nil
 
         var components = URLComponents(url: client.baseURL, resolvingAgainstBaseURL: false)!
         components.path = "/auth/login"
@@ -98,6 +101,13 @@ final class AuthManager: ObservableObject {
     /// server-side, so only local state needs clearing.
     func sessionExpired() {
         clearLocalSession()
+    }
+
+    /// Called after DELETE /api/account succeeds. The server has already
+    /// revoked every session, so only local state needs clearing.
+    func accountDeleted() {
+        clearLocalSession()
+        noticeMessage = "The account has been deleted."
     }
 
     private func clearLocalSession() {

@@ -8,7 +8,7 @@ import Foundation
 @MainActor
 final class OPMLActionModel: ObservableObject {
     @Published var isImporting = false
-    @Published var export: OPMLExport?
+    @Published var export: ExportedFile?
     /// The one result message on screen, if any. A single alert carries both
     /// outcomes, since only one can be pending at a time.
     @Published var alert: OPMLAlert?

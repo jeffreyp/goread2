@@ -134,6 +134,7 @@ Use the radio buttons in the article pane header:
 - The privacy policy at `/privacy` lists every cookie and third-party service in use
 - The Your Data section of `/account` downloads all stored account data as JSON, or feed subscriptions alone as OPML. A failed or incomplete export shows an error and saves no file
 - The same section deletes the account permanently after the account email is typed to confirm; a Pro subscription ends immediately without a refund
+- The iOS, iPadOS, and macOS apps offer the same data export and account deletion in the Your Data section of Settings (see [ios.md](ios.md#account-data-and-deletion))
 
 ## Subscription Features
 

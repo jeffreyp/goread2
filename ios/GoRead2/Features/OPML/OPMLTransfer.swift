@@ -25,37 +25,13 @@ struct OPMLTransfer {
             : "Successfully imported \(count) feeds from OPML file"
     }
 
+    static let exportFilename = "goread2-subscriptions.opml"
+
     /// Downloads the account's subscriptions as OPML, ready for presentation.
-    func export() async throws -> OPMLExport {
-        try OPMLExport(data: await client.exportOPML())
-    }
-}
-
-/// A finished OPML export waiting to be handed to the user. The iOS share
-/// sheet needs a file on disk, so the document is written to a temporary
-/// copy there; the macOS save panel writes the document itself and needs
-/// only the bytes.
-struct OPMLExport: Identifiable {
-    static let baseName = "goread2-subscriptions"
-    static let filename = "\(baseName).opml"
-
-    let id = UUID()
-
-    #if os(iOS)
-    let url: URL
-    #else
-    let data: Data
-    #endif
-
-    init(data: Data) throws {
-        #if os(iOS)
-        let fileURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(Self.filename)
-        try data.write(to: fileURL, options: .atomic)
-        url = fileURL
-        #else
-        self.data = data
-        #endif
+    func export() async throws -> ExportedFile {
+        try ExportedFile(data: await client.exportOPML(),
+                         filename: Self.exportFilename,
+                         contentType: .opml)
     }
 }
 
@@ -72,28 +48,3 @@ extension UTType {
         return [opml, .xml]
     }()
 }
-
-#if os(macOS)
-/// The exported subscriptions, in the form `fileExporter` writes through the
-/// save panel.
-struct OPMLDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.opml, .xml] }
-
-    let data: Data
-
-    init(data: Data) {
-        self.data = data
-    }
-
-    init(configuration: ReadConfiguration) throws {
-        guard let contents = configuration.file.regularFileContents else {
-            throw CocoaError(.fileReadCorruptFile)
-        }
-        data = contents
-    }
-
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
-    }
-}
-#endif

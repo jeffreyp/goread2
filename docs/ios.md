@@ -15,6 +15,7 @@ This guide covers local development and testing on a physical device. Release di
 - [Platform Differences](#platform-differences)
 - [Data Loading](#data-loading)
 - [Article Reader Actions](#article-reader-actions)
+- [Account Data and Deletion](#account-data-and-deletion)
 - [Menu Bar and Keyboard Shortcuts](#menu-bar-and-keyboard-shortcuts)
 - [Running on a Physical Device](#running-on-a-physical-device)
 - [Free-Account Limitations](#free-account-limitations)
@@ -88,11 +89,12 @@ Shared views carry an `#if os(...)` branch only where platform behaviour genuine
 | External links | In-app `SFSafariViewController` sheet | Default browser |
 | OPML import | Document picker, from Settings | Open panel, from Settings or File > Import OPML |
 | OPML export | Share sheet | Save panel, from Settings or File > Export OPML |
+| Account data export | Share sheet | Save panel, from Settings |
 | Article web view | `UIViewRepresentable`, with swipe gestures between articles | `NSViewRepresentable`, no swipe gestures |
 | OAuth anchor | Key window of the active `UIWindowScene` | `NSApplication.shared.keyWindow` |
 | `?client=` value | `ios` | `macos` |
 
-The API calls behind OPML import and export live in `OPMLTransfer`, shared by the settings screen and the Mac File menu. Only the presentation is platform-specific, in `OPMLExportPresentation.swift`.
+The API calls behind OPML import and export live in `OPMLTransfer`, shared by the settings screen and the Mac File menu. Only the presentation is platform-specific: the `fileExport` modifier in `ios/GoRead2/Components/FileExport.swift` hands any finished download, OPML or account data, to the share sheet or the save panel.
 
 ## Data Loading
 
@@ -117,6 +119,16 @@ Open in Browser and links tapped inside the article content take the same path, 
 The reader's `WKWebView` treats feed content as untrusted, although the server sanitizes it. JavaScript is disabled, and the only main-frame navigations it permits are the page the reader itself loads and tapped links, which leave the reader as described above. Anything else the content attempts, such as a meta refresh or a form submission, is cancelled.
 
 On macOS the same action is also a View menu command, ⌘⏎, published through `ReaderActions` like the other article commands and greyed out under the same rule as the toolbar button.
+
+## Account Data and Deletion
+
+App Store Review Guideline 5.1.1(v) requires an app that creates accounts to let them be deleted from within the app. The Your Data section of Settings provides this, along with the data export, on every platform. Both actions call the same endpoints as the web account page, described in the [API reference](api.md#get-apiaccountexport).
+
+**Export All Data** downloads `GET /api/account/export` and offers it as `goread2-data-<date>.json`. The server streams the articles after sending the response headers, so a failure partway through leaves a truncated body; the app parses the download before offering it and reports an incomplete export as an error instead of saving it. The endpoint is rate-limited to a burst of 3 requests, refilling at 1 per minute, and a rejected request shows the server's rate-limit message.
+
+**Delete Account** opens a confirmation sheet that states the consequences in the same terms as the web page: the account, feeds, reading history, and settings are deleted, and a GoRead2 Pro subscription ends immediately without a refund. The delete button stays disabled until the account's email address is typed, compared case-insensitively and ignoring surrounding whitespace, which is the check the server repeats on `DELETE /api/account`. The request carries the CSRF token from the last `GET /auth/me`, like every other mutation.
+
+The server revokes every session before responding, so on success the app clears the Keychain credential and returns to the login screen, which confirms that the account has been deleted. A failure is shown inside the sheet. A 401 means the session has already ended, and returns to the login screen like any other request.
 
 ## Menu Bar and Keyboard Shortcuts
 

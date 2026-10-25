@@ -178,6 +178,23 @@ final class NetworkClient {
         _ = try await send(req)
     }
 
+    /// Returns every piece of personal data the server stores for the
+    /// account, as a JSON document.
+    func exportAccountData() async throws -> Data {
+        try await get("/api/account/export")
+    }
+
+    /// Permanently deletes the account. `confirmEmail` must repeat the
+    /// account's email address. The server revokes every session before
+    /// responding, so the caller clears the local session afterwards.
+    func deleteAccount(confirmEmail: String) async throws {
+        struct Request: Encodable { let confirmEmail: String }
+        var req = request(path: "/api/account", method: "DELETE")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try encoder.encode(Request(confirmEmail: confirmEmail))
+        _ = try await send(req)
+    }
+
     /// Returns the Stripe customer portal URL to open in a browser.
     func createPortalSession() async throws -> URL {
         struct Response: Decodable { let portalUrl: URL }

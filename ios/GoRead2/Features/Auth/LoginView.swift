@@ -21,6 +21,14 @@ struct LoginView: View {
 
             Spacer()
 
+            if let notice = authManager.noticeMessage {
+                Text(notice)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+
             if let error = authManager.errorMessage {
                 Text(error)
                     .font(.callout)

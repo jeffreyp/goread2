@@ -680,7 +680,7 @@ curl -X PUT "http://localhost:8080/api/account/max-articles" \
 - `500 Internal Server Error` - Database error
 
 ### `GET /api/account/export`
-Download all personal data GoRead2 stores for the current user, as a single JSON file. This serves GDPR access and portability requests; the account page links to it under "Your Data".
+Download all personal data GoRead2 stores for the current user, as a single JSON file. This serves GDPR access and portability requests; the account page links to it under "Your Data", as does the Settings screen of the iOS and macOS apps.
 
 **Headers**:
 - `Content-Type: application/json; charset=utf-8`

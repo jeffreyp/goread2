@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 /// Account management screen: the signed-in user, subscription status with
 /// the Stripe customer portal, OPML import/export, the max-articles
-/// preference, and sign-out.
+/// preference, the data export, account deletion, and sign-out.
 struct SettingsView: View {
     @EnvironmentObject private var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
@@ -14,7 +14,7 @@ struct SettingsView: View {
     var body: some View {
         chrome
             .webPage(item: $viewModel.portalItem)
-            .fileExport(item: $viewModel.exportedOPML) { viewModel.errorMessage = $0 }
+            .fileExport(item: $viewModel.exportedFile) { viewModel.errorMessage = $0 }
             .fileImporter(isPresented: $showingImporter,
                           allowedContentTypes: UTType.opmlImportTypes) { result in
                 switch result {
@@ -27,6 +27,9 @@ struct SettingsView: View {
             // One alert carries both outcomes: SwiftUI honours a single
             // alert per view, and the view model raises only one message at
             // a time.
+            .sheet(isPresented: $viewModel.showingDeleteAccount) {
+                DeleteAccountView(viewModel: viewModel)
+            }
             .alert(viewModel.infoMessage != nil ? "OPML Import" : "Error",
                    isPresented: messageBinding) {
                 Button("OK", role: .cancel) {}
@@ -35,6 +38,7 @@ struct SettingsView: View {
             }
             .task {
                 viewModel.onSessionExpired = { authManager.sessionExpired() }
+                viewModel.onAccountDeleted = { authManager.accountDeleted() }
                 guard case .signedIn = authManager.state else { return }
                 await viewModel.load()
             }
@@ -101,6 +105,7 @@ struct SettingsView: View {
             }
             preferencesSection
             opmlSection
+            dataSection
             signOutSection
         }
     }
@@ -230,6 +235,29 @@ struct SettingsView: View {
             Text("OPML files carry feed subscriptions between RSS readers.")
         }
         .disabled(viewModel.isBusy)
+    }
+
+    // MARK: - Your data
+
+    private var dataSection: some View {
+        Section {
+            Button {
+                Task { await viewModel.exportAccountData() }
+            } label: {
+                Label("Export All Data", systemImage: "arrow.down.doc")
+            }
+            .disabled(viewModel.isBusy)
+            Button(role: .destructive) {
+                viewModel.deleteAccountError = nil
+                viewModel.showingDeleteAccount = true
+            } label: {
+                Label("Delete Account", systemImage: "trash")
+            }
+        } header: {
+            Text("Your Data")
+        } footer: {
+            Text("The export is a JSON file of everything GoRead2 stores for this account: profile, subscription details, feeds, read and starred articles, and sign-in sessions. Deleting the account removes all of it permanently.")
+        }
     }
 
     // MARK: - Sign out

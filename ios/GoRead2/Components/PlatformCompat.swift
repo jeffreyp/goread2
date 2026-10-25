@@ -62,6 +62,31 @@ extension View {
         #endif
     }
 
+    /// Email-address entry: the email keyboard with autocapitalisation off
+    /// on iOS, and autocorrection off on both platforms.
+    @ViewBuilder
+    func emailFieldInput() -> some View {
+        #if os(iOS)
+        keyboardType(.emailAddress)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+        #else
+        autocorrectionDisabled()
+        #endif
+    }
+
+    /// Fixed size for a form sheet on macOS, where a sheet otherwise sizes
+    /// to its content and a grouped form collapses. iOS sheets fill the
+    /// space the system gives them.
+    @ViewBuilder
+    func macSheetSize(width: CGFloat, height: CGFloat) -> some View {
+        #if os(macOS)
+        frame(width: width, height: height)
+        #else
+        self
+        #endif
+    }
+
     /// Bounds for a `NavigationSplitView` column. iOS and iPadOS size their
     /// columns from the device, so the constraint applies on macOS only,
     /// where a window can be any width and the three panes need floors to

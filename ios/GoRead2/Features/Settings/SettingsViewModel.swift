@@ -1,8 +1,8 @@
 import Foundation
 
 /// State for the settings screen: the signed-in user, subscription status,
-/// the max-articles preference, and the OPML import/export and Stripe
-/// customer portal actions against the API.
+/// the max-articles preference, and the OPML import/export, Stripe customer
+/// portal, data export, and account deletion actions against the API.
 @MainActor
 final class SettingsViewModel: ObservableObject {
     @Published private(set) var user: CurrentUser?
@@ -24,12 +24,23 @@ final class SettingsViewModel: ObservableObject {
     @Published var infoMessage: String?
     /// Stripe customer portal URL, presented in SFSafariViewController.
     @Published var portalItem: SafariItem?
-    /// Finished OPML export, awaiting the share sheet or the save panel.
-    @Published var exportedOPML: OPMLExport?
+    /// Finished OPML or data export, awaiting the share sheet or the save
+    /// panel. The two share one slot because a view honours only one
+    /// presentation of each kind.
+    @Published var exportedFile: ExportedFile?
+
+    /// Presents the account deletion confirmation.
+    @Published var showingDeleteAccount = false
+    @Published private(set) var isDeletingAccount = false
+    /// Failure shown inside the deletion sheet, which covers the form's
+    /// alert.
+    @Published var deleteAccountError: String?
 
     /// Called when the API reports 401: the session is gone server-side and
     /// the app should return to the login screen.
     var onSessionExpired: () -> Void = {}
+    /// Called once the server has accepted the account deletion.
+    var onAccountDeleted: () -> Void = {}
 
     private let client: NetworkClient
     private let opml: OPMLTransfer
@@ -102,9 +113,57 @@ final class SettingsViewModel: ObservableObject {
         isBusy = true
         defer { isBusy = false }
         do {
-            exportedOPML = try await opml.export()
+            exportedFile = try await opml.export()
         } catch {
             handle(error)
+        }
+    }
+
+    /// Downloads the account data export and exposes it for presentation.
+    func exportAccountData() async {
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let data = try await client.exportAccountData()
+            // The server streams the articles after sending the headers, so
+            // a failure partway through ends the body early and leaves
+            // invalid JSON.
+            guard (try? JSONSerialization.jsonObject(with: data)) != nil else {
+                errorMessage = "The data export was incomplete. Please try again."
+                return
+            }
+            let date = Date.now.formatted(.iso8601.year().month().day())
+            exportedFile = try ExportedFile(data: data,
+                                            filename: "goread2-data-\(date).json",
+                                            contentType: .json)
+        } catch {
+            handle(error)
+        }
+    }
+
+    /// The deletion sheet enables its button only once the typed address
+    /// matches, using the server's comparison: case-insensitive, ignoring
+    /// surrounding whitespace.
+    func confirmationMatches(_ typed: String) -> Bool {
+        guard let email = user?.email else { return false }
+        return typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare(email) == .orderedSame
+    }
+
+    func deleteAccount(confirmEmail: String) async {
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+        deleteAccountError = nil
+        do {
+            try await client.deleteAccount(confirmEmail: confirmEmail)
+            showingDeleteAccount = false
+            onAccountDeleted()
+        } catch is CancellationError {
+        } catch NetworkError.unauthorized {
+            showingDeleteAccount = false
+            onSessionExpired()
+        } catch {
+            deleteAccountError = error.localizedDescription
         }
     }
 
