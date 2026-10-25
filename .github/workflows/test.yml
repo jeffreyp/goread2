@@ -77,7 +77,7 @@ jobs:
         echo "DATASTORE_EMULATOR_HOST=localhost:8081" >> $GITHUB_ENV
 
     - name: Run unit tests
-      run: go test -short -race -coverprofile=coverage.out ./internal/...
+      run: go test -short -race -coverprofile=coverage.out . ./internal/...
 
     - name: Run dev login tests
       # dev_login.go is compiled only with the devlogin tag (make dev-login),

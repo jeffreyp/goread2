@@ -440,6 +440,10 @@ env_variables:
 
 `SECRET_CLIENT_ID_NAME`/`SECRET_CLIENT_SECRET_NAME` override which Secret Manager secret name to fetch the OAuth credentials from; omit them to fall back to the defaults `google-client-id`/`google-client-secret`.
 
+### Instance Shutdown
+
+App Engine sends `SIGTERM` before it stops an instance. On `SIGTERM` or `SIGINT`, `main.go` stops accepting connections, gives in-flight requests up to 10 seconds to finish, and then returns, which runs deferred cleanup such as closing the Cloud Tasks client. Background work started with the signal context, such as the feed service, stops at the same time. Locally, a second Ctrl-C during the drain stops the process at once.
+
 ### .gcloudignore
 
 `.gcloudignore`, at the repository root, controls which files `gcloud app deploy` uploads. Besides development artifacts, it excludes `ios/`, the native iOS app, which is not part of the App Engine service.

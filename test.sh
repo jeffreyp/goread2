@@ -44,7 +44,7 @@ print_status "Environment variables set for testing"
 echo ""
 echo "📋 Running Unit Tests..."
 echo "------------------------"
-if go test ./internal/... -v -coverprofile=unit_coverage.out; then
+if go test . ./internal/... -v -coverprofile=unit_coverage.out; then
     print_status "Unit tests passed"
 else
     print_error "Unit tests failed"

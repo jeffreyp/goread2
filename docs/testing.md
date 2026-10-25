@@ -1059,7 +1059,7 @@ jobs:
 
 **Pipeline features:**
 - Go release pinned by the `toolchain` directive in `go.mod`. `setup-go` sets `GOTOOLCHAIN=local`, so the directive takes effect only because each step reads `go.mod` directly; a bare major version such as `go-version: '1.26'` can resolve to an older patch release cached on the runner
-- Package-level unit tests (`go test -short -race -coverprofile=coverage.out ./internal/...`)
+- Package-level unit tests, including the root `main` package (`go test -short -race -coverprofile=coverage.out . ./internal/...`)
 - Dev login tests (`go test -race -tags devlogin -run DevLogin ./internal/handlers/...`), which the plain unit test run skips because `dev_login.go` is compiled only with the `devlogin` tag
 - Integration tests (`./test/integration/...`)
 - Coverage reporting to Codecov, authenticated by the `CODECOV_TOKEN` repository secret. The upload is non-blocking (`fail_ci_if_error: false`), so a missing or invalid token leaves CI green and must be diagnosed from the step's log

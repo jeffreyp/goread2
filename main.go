@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -344,5 +348,51 @@ func main() {
 	// Get port from configuration
 	port := cfg.Port
 
-	log.Fatal(r.Run(":" + port))
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Fatalf("Failed to listen on port %s: %v", port, err)
+	}
+	// Once the first signal starts the drain, restore default signal
+	// handling, so a second Ctrl-C stops the process at once.
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	log.Printf("Listening and serving HTTP on :%s", port)
+	if err := serveUntilDone(ctx, &http.Server{Handler: r}, listener, shutdownDrainTimeout); err != nil {
+		log.Printf("Server error: %v", err)
+	}
+	// Returning runs the deferred cleanup, such as closing the Cloud Tasks
+	// client, which log.Fatal would skip.
+}
+
+// shutdownDrainTimeout bounds how long in-flight requests may run after
+// SIGTERM or SIGINT. App Engine sends SIGTERM before stopping an instance
+// and kills the process if it is still running after its grace period.
+const shutdownDrainTimeout = 10 * time.Second
+
+// serveUntilDone serves on listener until ctx is cancelled, then stops
+// accepting connections and waits up to drain for in-flight requests to
+// finish. It returns nil after a clean shutdown, and the error otherwise.
+func serveUntilDone(ctx context.Context, srv *http.Server, listener net.Listener, drain time.Duration) error {
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- srv.Serve(listener) }()
+
+	select {
+	case err := <-serveErr:
+		return err
+	case <-ctx.Done():
+	}
+
+	log.Printf("Shutdown signal received; draining in-flight requests for up to %s", drain)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), drain)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("graceful shutdown did not finish: %w", err)
+	}
+	if err := <-serveErr; !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	log.Printf("Server stopped")
+	return nil
 }
