@@ -269,7 +269,7 @@ The dev login described in [authentication.md](authentication.md#local-dev-login
 
 1. Delete the user's Stripe customers, which cancels any subscription (see [stripe.md](stripe.md#account-deletion))
 2. Write the account tombstone
-3. Delete `UserArticle`, `UserFeed`, and `Session` records in batches of 500
+3. Delete `UserArticle`, `UserFeed`, and `Session` records in batches of 500, then the `UserActivity` record that tracks the account's last activity for retention
 4. Pseudonymize audit log entries: the user's email becomes `deleted-user-<id>`, and the IP address of actions the user performed as an admin is cleared. Entries are kept for the admin trail.
 5. Delete the `User` record last, so a partial failure leaves an account that a retry can find and finish
 

@@ -2633,12 +2633,11 @@ func (db *DatastoreDB) deleteAllMatching(query *datastore.Query, what string) er
 
 // DeleteUserAccount deletes userID's account and everything tied to it:
 // UserArticle, UserFeed, Session, and UserActivity entities, then the User
-// entity last, so
-// a failure partway leaves an account that a retry can finish deleting. Audit
-// log entries are kept for the admin trail but pseudonymized: the user's email
-// is replaced, and the IP address of actions the user performed as an admin is
-// cleared. Shared Feed and Article entities are untouched. Deleting an account
-// that is already gone succeeds.
+// entity last, so a failure partway leaves an account that a retry can finish
+// deleting. Audit log entries are kept for the admin trail but pseudonymized:
+// the user's email is replaced, and the IP address of actions the user
+// performed as an admin is cleared. Shared Feed and Article entities are
+// untouched. Deleting an account that is already gone succeeds.
 func (db *DatastoreDB) DeleteUserAccount(userID int) error {
 	defer logSlowQuery("DeleteUserAccount", time.Now())
 	uid := int64(userID)

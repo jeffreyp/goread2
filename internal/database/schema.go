@@ -1671,11 +1671,11 @@ func (db *DB) DeleteUserSessions(userID int) error {
 
 // DeleteUserAccount deletes userID's account and everything tied to it:
 // read/starred state, feed subscriptions, sessions, last-activity record, and
-// the user row. Audit
-// log entries are kept for the admin trail but pseudonymized: the user's email
-// is replaced, and the IP address of actions the user performed as an admin is
-// cleared. Shared feeds and articles are untouched. Deleting an account that
-// is already gone succeeds, so the call is safe to retry.
+// the user row. Audit log entries are kept for the admin trail but
+// pseudonymized: the user's email is replaced, and the IP address of actions
+// the user performed as an admin is cleared. Shared feeds and articles are
+// untouched. Deleting an account that is already gone succeeds, so the call
+// is safe to retry.
 func (db *DB) DeleteUserAccount(userID int) error {
 	pseudonym := DeletedUserPseudonym(userID)
 	statements := []struct {
