@@ -18,12 +18,12 @@ beta_settings:
 handlers:
 # Templates reference CSS and JS with a ?v= content hash (internal/assets),
 # so a changed file always gets a new URL and these can be cached for a year.
-# application_readable lets the app read the files to compute the hashes.
+# The go126 runtime always lets the app read static files, which it needs to
+# compute the hashes.
 - url: /static/(.*\.(css|js))$
   static_files: web/static/\1
   upload: web/static/.*\.(css|js)$
   expiration: 365d
-  application_readable: true
   secure: always
 
 - url: /static
