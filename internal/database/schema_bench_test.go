@@ -205,11 +205,11 @@ func TestDecodeCursorInvalidInputs(t *testing.T) {
 	bad := []string{
 		"",
 		"notanumber",
-		"123",       // missing _id part
-		"_",         // separator only
-		"abc_def",   // non-numeric parts
-		"123_",      // missing id
-		"_456",      // missing timestamp
+		"123",     // missing _id part
+		"_",       // separator only
+		"abc_def", // non-numeric parts
+		"123_",    // missing id
+		"_456",    // missing timestamp
 	}
 	for _, s := range bad {
 		if _, err := decodeSQLiteCursor(s); err == nil {

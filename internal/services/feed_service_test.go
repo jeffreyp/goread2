@@ -1354,7 +1354,7 @@ func TestFetchFeed_SizeLimit(t *testing.T) {
 
 	t.Run("feed just under size limit succeeds", func(t *testing.T) {
 		// Create a feed just under maxFeedBodySize (9.9MB)
-		const chunkSize = 1024 // 1KB chunks
+		const chunkSize = 1024                             // 1KB chunks
 		totalChunks := (maxFeedBodySize / chunkSize) - 100 // Leave 100KB buffer
 
 		// Start with a valid RSS feed structure

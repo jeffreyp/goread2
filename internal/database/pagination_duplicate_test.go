@@ -61,10 +61,10 @@ func TestCursorPaginationWithReadStateChanges(t *testing.T) {
 	// Step 2: CRITICAL TEST - Mark some articles from page 1 as read
 	// This simulates the user reading articles between pagination requests
 	articlesToMarkRead := []int{
-		page1.Articles[5].ID,   // Middle of page 1
-		page1.Articles[15].ID,  // Middle of page 1
-		page1.Articles[30].ID,  // Middle of page 1
-		page1.Articles[45].ID,  // Near end of page 1
+		page1.Articles[5].ID,  // Middle of page 1
+		page1.Articles[15].ID, // Middle of page 1
+		page1.Articles[30].ID, // Middle of page 1
+		page1.Articles[45].ID, // Near end of page 1
 	}
 
 	for _, articleID := range articlesToMarkRead {

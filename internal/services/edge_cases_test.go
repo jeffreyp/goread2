@@ -20,9 +20,9 @@ func TestFeedDiscovery_NetworkErrors(t *testing.T) {
 	fd := NewFeedDiscovery()
 
 	tests := []struct {
-		name            string
-		setupServer     func() *httptest.Server
-		description     string
+		name        string
+		setupServer func() *httptest.Server
+		description string
 	}{
 		{
 			name: "server returns 404",
@@ -722,10 +722,10 @@ func TestFeedService_NetworkFailures(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	tests := []struct {
-		name         string
-		failureMode  string
-		expectErrIs  []error // Accept multiple possible errors
-		description  string
+		name        string
+		failureMode string
+		expectErrIs []error // Accept multiple possible errors
+		description string
 	}{
 		{
 			name:        "timeout",

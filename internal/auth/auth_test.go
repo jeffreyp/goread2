@@ -83,11 +83,11 @@ func (m *mockDBForAuth) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles i
 	return nil
 }
 
-func (m *mockDBForAuth) CreateSession(*database.Session) error           { return nil }
-func (m *mockDBForAuth) GetSession(string) (*database.Session, error)    { return nil, nil }
-func (m *mockDBForAuth) UpdateSessionExpiry(string, time.Time) error     { return nil }
-func (m *mockDBForAuth) DeleteSession(string) error                      { return nil }
-func (m *mockDBForAuth) DeleteExpiredSessions() error                    { return nil }
+func (m *mockDBForAuth) CreateSession(*database.Session) error        { return nil }
+func (m *mockDBForAuth) GetSession(string) (*database.Session, error) { return nil, nil }
+func (m *mockDBForAuth) UpdateSessionExpiry(string, time.Time) error  { return nil }
+func (m *mockDBForAuth) DeleteSession(string) error                   { return nil }
+func (m *mockDBForAuth) DeleteExpiredSessions() error                 { return nil }
 func (m *mockDBForAuth) UpdateFeedCacheHeaders(feedID int, etag, lastModified string) error {
 	return nil
 }

@@ -6,3 +6,10 @@ linters:
       # npm packages can ship Go files (e.g. flatted); they are not part of
       # this module and must not gate the lint run.
       - node_modules
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    paths:
+      - node_modules

@@ -21,22 +21,22 @@ type CachedSession struct {
 }
 
 type SessionManager struct {
-	db          database.Database
-	cache       map[string]*CachedSession // sessionID -> cached session
-	cacheMu     sync.RWMutex
+	db      database.Database
+	cache   map[string]*CachedSession // sessionID -> cached session
+	cacheMu sync.RWMutex
 
 	// activityRecorded tracks when this instance last wrote each user's
 	// last-activity time, so that it is written at most once per
 	// activityRecordInterval rather than on every request.
 	activityRecorded map[int]time.Time
 	activityMu       sync.Mutex
-	cacheTTL    time.Duration // How long to cache sessions (default: 10 minutes)
-	cacheHits   int64
-	cacheMisses int64
-	oauthStates map[string]oauthStateEntry // OAuth state -> entry (for one-time use)
-	stateMu     sync.RWMutex
-	authCodes   map[string]authCodeEntry // one-time code -> session handoff (native app auth)
-	codeMu      sync.Mutex
+	cacheTTL         time.Duration // How long to cache sessions (default: 10 minutes)
+	cacheHits        int64
+	cacheMisses      int64
+	oauthStates      map[string]oauthStateEntry // OAuth state -> entry (for one-time use)
+	stateMu          sync.RWMutex
+	authCodes        map[string]authCodeEntry // one-time code -> session handoff (native app auth)
+	codeMu           sync.Mutex
 }
 
 // oauthStateEntry tracks a pending OAuth state and which kind of client
@@ -73,13 +73,13 @@ func NewSessionManager(db database.Database) *SessionManager {
 	}
 
 	sm := &SessionManager{
-		db:          db,
-		cache:       make(map[string]*CachedSession),
+		db:    db,
+		cache: make(map[string]*CachedSession),
 
 		activityRecorded: make(map[int]time.Time),
-		cacheTTL:    cacheTTL,
-		oauthStates: make(map[string]oauthStateEntry),
-		authCodes:   make(map[string]authCodeEntry),
+		cacheTTL:         cacheTTL,
+		oauthStates:      make(map[string]oauthStateEntry),
+		authCodes:        make(map[string]authCodeEntry),
 	}
 
 	// Note: Cleanup is now handled by cron jobs instead of background goroutines

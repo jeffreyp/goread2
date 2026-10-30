@@ -133,8 +133,8 @@ func TestValidateOAuthConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-		// Reset secret cache before test
-		secrets.ResetCacheForTesting()
+			// Reset secret cache before test
+			secrets.ResetCacheForTesting()
 
 			clearValidationEnv()
 			defer clearValidationEnv()
@@ -287,8 +287,8 @@ func TestValidateStripeConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-		// Reset secret cache before test
-		secrets.ResetCacheForTesting()
+			// Reset secret cache before test
+			secrets.ResetCacheForTesting()
 
 			clearValidationEnv()
 			defer clearValidationEnv()
@@ -396,7 +396,7 @@ func TestValidateOtherConfig(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "default_port_when_unset_passes",
+			name:    "default_port_when_unset_passes",
 			envVars: map[string]string{
 				// PORT not set - should use default 8080
 			},
@@ -468,8 +468,8 @@ func TestValidateOtherConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-		// Reset secret cache before test
-		secrets.ResetCacheForTesting()
+			// Reset secret cache before test
+			secrets.ResetCacheForTesting()
 
 			clearValidationEnv()
 			defer clearValidationEnv()
@@ -577,8 +577,8 @@ func TestValidateEnvironmentConfigStrict(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-		// Reset secret cache before test
-		secrets.ResetCacheForTesting()
+			// Reset secret cache before test
+			secrets.ResetCacheForTesting()
 
 			clearValidationEnv()
 			defer clearValidationEnv()
