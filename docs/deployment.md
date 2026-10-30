@@ -440,6 +440,26 @@ env_variables:
 
 `SECRET_CLIENT_ID_NAME`/`SECRET_CLIENT_SECRET_NAME` override which Secret Manager secret name to fetch the OAuth credentials from; omit them to fall back to the defaults `google-client-id`/`google-client-secret`.
 
+### Static File Handlers
+
+App Engine serves `/static` directly from `web/static` through two handlers in `app.yaml`, so these requests never reach the Go app:
+
+```yaml
+handlers:
+- url: /static/(.*\.(css|js))$
+  static_files: web/static/\1
+  upload: web/static/.*\.(css|js)$
+  expiration: 365d
+  application_readable: true
+  secure: always
+
+- url: /static
+  static_dir: web/static
+  secure: always
+```
+
+The first handler serves CSS and JS with a one-year expiration. Templates reference these files with a `?v=` content hash, so a deploy that changes a file also changes its URL (see [caching.md](caching.md#versioned-css-and-js)). `application_readable: true` uploads the files as application data too, which the app needs in order to read them and compute the hashes. The second handler serves every other static file, such as images and favicons, with App Engine's default 10-minute expiration.
+
 ### Instance Shutdown
 
 App Engine sends `SIGTERM` before it stops an instance. On `SIGTERM` or `SIGINT`, `main.go` stops accepting connections, gives in-flight requests up to 10 seconds to finish, and then returns, which runs deferred cleanup such as closing the Cloud Tasks client. Background work started with the signal context, such as the feed service, stops at the same time. Locally, a second Ctrl-C during the drain stops the process at once.

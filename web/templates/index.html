@@ -19,11 +19,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Preload critical resources -->
-    <link rel="preload" href="/static/css/styles.min.css" as="style">
-    <link rel="preload" href="/static/js/app.min.js" as="script">
+    <link rel="preload" href="{{asset "css/styles.min.css"}}" as="style">
+    <link rel="preload" href="{{asset "js/app.min.js"}}" as="script">
     
     <!-- Load critical CSS inline or as early as possible -->
-    <link rel="stylesheet" href="/static/css/styles.min.css">
+    <link rel="stylesheet" href="{{asset "css/styles.min.css"}}">
 </head>
 <body class="app-body">
     <a href="#article-content" class="skip-to-content">Skip to content</a>
@@ -264,8 +264,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js" integrity="sha384-JEyTNhjM6R1ElGoJns4U2Ln4ofPcqzSsynQkmEc/KGy6336qAZl70tDLufbkla+3" crossorigin="anonymous"></script>
-    <script src="/static/js/animations.min.js"></script>
-    <script src="/static/js/app.min.js"></script>
-    <script src="/static/js/animations-integration.min.js"></script>
+    <script src="{{asset "js/animations.min.js"}}"></script>
+    <script src="{{asset "js/app.min.js"}}" data-modals-src="{{asset "js/modals.min.js"}}"></script>
+    <script src="{{asset "js/animations-integration.min.js"}}"></script>
 </body>
 </html>

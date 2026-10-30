@@ -266,9 +266,12 @@ GoRead2 uses **bundle splitting with lazy loading** to optimize performance:
 
 #### Lazy Loading
 
-Modal code is lazy-loaded using native ES6 dynamic imports:
+Modal code is lazy-loaded using native ES6 dynamic imports. `index.html` passes the versioned `modals.min.js` URL to `app.js` in a `data-modals-src` attribute, so the module is cached like every other asset (see [caching.md](docs/caching.md#versioned-css-and-js)):
 
 ```javascript
+// In app.js - falls back to the source file when the attribute is absent, as in tests
+const MODALS_SRC = document.currentScript?.dataset.modalsSrc || './modals.js';
+
 // In app.js - modal methods delegate to lazy-loaded module
 async showAddFeedModal() {
     const manager = await this.loadModalManager();
@@ -280,7 +283,7 @@ async loadModalManager() {
     if (this.modalManager) return this.modalManager;
 
     console.log('Loading modal module...');
-    const module = await import('./modals.js');
+    const module = await import(MODALS_SRC);
     this.modalManager = new module.ModalManager(this);
     this.modalManager.init();
     console.log('Modal module loaded');
@@ -304,8 +307,9 @@ When adding features that aren't needed immediately:
 1. Create a new module file (e.g., `feature.js`)
 2. Export a class or functions from the module
 3. Add lazy load helper to `app.js`
-4. Update `package.json` and `Makefile` build scripts
-5. Update this documentation
+4. Pass the module's versioned URL from `index.html` in a `data-` attribute on the `app.min.js` script tag, as `data-modals-src` does
+5. Update `package.json` and `Makefile` build scripts
+6. Update this documentation
 
 Example:
 ```javascript

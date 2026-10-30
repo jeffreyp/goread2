@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/jeffreyp/goread2/internal/assets"
 	"github.com/jeffreyp/goread2/internal/auth"
 	"github.com/jeffreyp/goread2/internal/config"
 	"github.com/jeffreyp/goread2/internal/database"
@@ -185,13 +187,20 @@ func main() {
 		"/api/feeds/import": 10 * 1024 * 1024,
 	}))
 
-	// Simple caching: only cache static assets aggressively, nothing else
+	// Simple caching: only cache static assets, nothing else. These headers
+	// apply to the local server; on App Engine, app.yaml sets the same
+	// expirations for /static. Templates reference CSS and JS through the
+	// asset function, whose ?v= content hash changes on every rebuild, so
+	// those can be cached for a year. Other files keep a short lifetime.
 	r.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
 
-		// Cache static assets for 24 hours (CSS, JS, images rarely change)
 		if strings.HasPrefix(path, "/static/") {
-			c.Header("Cache-Control", "public, max-age=86400")
+			if strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".js") {
+				c.Header("Cache-Control", "public, max-age=31536000")
+			} else {
+				c.Header("Cache-Control", "public, max-age=600")
+			}
 			c.Header("Vary", "Accept-Encoding")
 		}
 
@@ -202,6 +211,8 @@ func main() {
 	// Gin's built-in fallback is not sufficient under the gzip middleware.
 	r.NoRoute(middleware.NotFoundHandler())
 
+	staticAssets := assets.NewVersioner("web/static", "/static")
+	r.SetFuncMap(template.FuncMap{"asset": staticAssets.URL})
 	r.LoadHTMLGlob("web/templates/*")
 
 	// Static files are handled by app.yaml in App Engine

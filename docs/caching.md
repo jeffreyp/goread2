@@ -15,14 +15,11 @@ Only cache what's safe and provides real value.
 
 ## HTTP Caching
 
-### What We Cache
+### What Is Cached
 
-**Static Assets (24 hours)**, files that rarely change:
-- CSS files (`/static/*.css`)
-- JavaScript files (`/static/*.js`)
-- Images (`/static/*.svg`, `favicon.ico`)
+**CSS and JavaScript (1 year)**: `Cache-Control: public, max-age=31536000`. Templates reference every CSS and JS file through a versioned URL, so a changed file always gets a new URL and browsers never use a stale copy.
 
-**Cache-Control:** `public, max-age=86400` (24 hours)
+**Other static files (10 minutes)**: images and favicons under `/static`, with `Cache-Control: public, max-age=600`. These URLs are not versioned, so a short lifetime keeps changes visible soon after a deploy.
 
 **Everything else (no cache)**:
 - API endpoints
@@ -30,67 +27,60 @@ Only cache what's safe and provides real value.
 - Authentication endpoints
 - User data
 
-Caching dynamic content creates more problems than it solves: users see stale data, changes don't appear immediately, and inconsistent behavior across environments becomes hard to debug.
+Caching dynamic content creates more problems than it solves: users see stale data, changes don't appear immediately, and inconsistent behavior across environments becomes hard to debug. HTML pages in particular stay uncached, because they carry the current asset versions.
+
+### Versioned CSS and JS
+
+`internal/assets` computes a SHA-256 hash of each file's content and templates call it through the `asset` template function:
+
+```html
+<script src="{{asset "js/app.min.js"}}"></script>
+<!-- renders as /static/js/app.min.js?v=26ff6ce12ceb -->
+```
+
+Hashes are computed on first use and cached until the process restarts. If a file cannot be read, for example because the frontend has not been built, `asset` logs the error and returns the URL without a version.
+
+`app.js` loads `modals.min.js` lazily on first use. `index.html` passes the versioned URL in a `data-modals-src` attribute on the `app.min.js` script tag, and `app.js` falls back to `./modals.js` when the attribute is absent, as in the Jest tests.
 
 ### Implementation
 
-The caching middleware (`main.go:157-166`):
+In production, App Engine serves `/static` directly and sets the expirations in `app.yaml` (see [deployment.md](deployment.md#static-file-handlers)). The local server sets the same headers in a middleware in `main.go`:
 
 ```go
-r.Use(func(c *gin.Context) {
-    path := c.Request.URL.Path
-
-    // Cache static assets for 24 hours
-    if strings.HasPrefix(path, "/static/") {
-        c.Header("Cache-Control", "public, max-age=86400")
-        c.Header("Vary", "Accept-Encoding")
+if strings.HasPrefix(path, "/static/") {
+    if strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".js") {
+        c.Header("Cache-Control", "public, max-age=31536000")
+    } else {
+        c.Header("Cache-Control", "public, max-age=600")
     }
-
-    c.Next()
-})
+    c.Header("Vary", "Accept-Encoding")
+}
 ```
-
-### Benefits
-
-- **Faster page loads:** CSS/JS loads instantly from browser cache
-- **Reduced bandwidth:** ~80% reduction for static assets
-- **No stale data issues:** Dynamic content is always fresh
 
 ### When Static Files Change
 
-When CSS/JS files are updated and users already have the old version cached:
-1. They'll see the old version for up to 24 hours
-2. Hard refresh (Cmd/Ctrl+Shift+R) clears the cache
-3. Or wait 24 hours
-
-For frequent CSS/JS changes during development, test locally where caching behaves the same way.
+Rebuilding the frontend changes the hash of every modified file. The new versions take effect after a server restart locally, and after the next deploy in production. A browser with the old page open keeps using the old files until it reloads the page.
 
 ### Testing
 
 ```bash
-# Check static asset cache headers
-curl -I http://localhost:8080/static/styles.css
+# List the versioned asset URLs on the home page
+curl -s http://localhost:8080/ | grep -o '/static/[^"]*?v=[0-9a-f]*'
 
-# Should see:
-# Cache-Control: public, max-age=86400
-# Vary: Accept-Encoding
+# Check the cache header on a versioned asset (use a URL from the list above)
+curl -I 'http://localhost:8080/static/js/app.min.js?v=26ff6ce12ceb'
+# Cache-Control: public, max-age=31536000
 
-# Check API has no cache
+# Check that API responses are not cached
 curl -I http://localhost:8080/api/feeds
 # Should NOT see Cache-Control header
 ```
 
-### What We Don't Do
+### What Is Not Done
 
 - No ETags for HTTP responses (adds complexity, buffers responses)
 - No stale-while-revalidate (confusing behavior)
 - No API caching (too risky for user data)
-- No different cache times for different endpoints (too many magic numbers)
-
-### Performance Impact
-
-- Static asset requests: ~80% from cache
-- Server load: ~20-30% reduction (just from static assets)
 
 ## Application-Level Caching
 

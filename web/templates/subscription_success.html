@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.title}}</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="{{asset "css/styles.css"}}">
 </head>
 <body>
     <div class="privacy-container">
@@ -32,6 +32,6 @@
         </div>
     </div>
 
-    <script src="/static/js/subscription-redirect.js" data-redirect-delay="5000"></script>
+    <script src="{{asset "js/subscription-redirect.js"}}" data-redirect-delay="5000"></script>
 </body>
 </html>

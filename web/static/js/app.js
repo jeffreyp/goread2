@@ -15,6 +15,10 @@ const ToastType = {
     ERROR: 'error'
 };
 
+// URL of the lazily loaded modal module. index.html passes the versioned
+// modals.min.js URL; without it (for example in tests) the source file loads.
+const MODALS_SRC = document.currentScript?.dataset.modalsSrc || './modals.js';
+
 // Enhanced Error Handler with retry capabilities and toast notifications
 class ErrorHandler {
     constructor() {
@@ -2482,7 +2486,7 @@ class GoReadApp {
         if (this.modalManager) return this.modalManager;
 
         console.log('Loading modal module...');
-        const module = await import('./modals.js');
+        const module = await import(MODALS_SRC);
         this.modalManager = new module.ModalManager(this);
         this.modalManager.init();
         console.log('Modal module loaded');
