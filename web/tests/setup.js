@@ -68,19 +68,6 @@ global.scrollIntoView = jest.fn();
 global.requestAnimationFrame = jest.fn(cb => setTimeout(cb, 16));
 global.cancelAnimationFrame = jest.fn();
 
-// Mock window.location methods
-delete window.location;
-window.location = {
-    href: 'http://localhost:3000',
-    origin: 'http://localhost:3000',
-    pathname: '/',
-    search: '',
-    hash: '',
-    assign: jest.fn(),
-    replace: jest.fn(),
-    reload: jest.fn()
-};
-
 // Setup DOM elements that the app expects
 beforeEach(() => {
     document.body.innerHTML = '';

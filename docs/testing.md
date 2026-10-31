@@ -27,7 +27,7 @@ Testing guide for GoRead2's multi-user RSS reader application.
 GoRead2's testing infrastructure includes:
 - **Package-level unit tests** across ten `internal/` packages plus `cmd/admin`, with per-package coverage ranging from ~65% to ~85% (see [Coverage Goals](#coverage-goals) below); coverage drifts often enough that the numbers there are a snapshot, not a guarantee; regenerate with `go test ./internal/... -cover` for the current figures
 - **Integration tests** for end-to-end API validation
-- **Frontend tests** with Jest and jsdom (140 tests across 7 files)
+- **Frontend tests** with Jest and jsdom (144 tests across 7 files)
 - **CI/CD integration** with GitHub Actions
 
 ## Current Test Structure
@@ -119,7 +119,7 @@ test/
 │   └── ssrf_test.go                # POST /api/feeds rejects loopback/link-local/RFC1918/metadata URLs
 └── fixtures/            # Test data and sample feeds
     └── sample_feeds.go  # Sample data for tests
-web/tests/                     # Frontend tests (140 tests across 7 files)
+web/tests/                     # Frontend tests (144 tests across 7 files)
 ├── accessibility.test.js      # ARIA/focus/keyboard accessibility assertions
 ├── account-app.test.js        # Account page app tests
 ├── app-core.test.js           # Core frontend functionality
@@ -782,7 +782,7 @@ Current test coverage status and targets:
 - **Handlers package**: 79.3% coverage (request/error-path tests for feed, admin, and payment
   handlers; OAuth `Login`/`Callback` remain unit-untested; see Handlers Package section above)
 - **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
-- **Frontend**: 140 tests across 7 files covering core functionality, error handling, accessibility, pagination, and account-page behavior
+- **Frontend**: 144 tests across 7 files covering core functionality, error handling, accessibility, pagination, and account-page behavior
   - **Core frontend tests**: 28 tests for DOM manipulation, events, forms, utilities
   - **Error handler tests**: 18 tests for connection monitoring, error display, toast notifications
   - **Pagination tests**: 18 tests for Load More button, cursor-based pagination, article rendering
@@ -1072,7 +1072,7 @@ jobs:
 - Coverage reporting to Codecov, authenticated by the `CODECOV_TOKEN` repository secret. The upload is non-blocking (`fail_ci_if_error: false`), so a missing or invalid token leaves CI green and must be diagnosed from the step's log
 - Linting with golangci-lint, run a second time with `--build-tags devlogin` over `internal/handlers/`. The gofmt formatter is enabled in `.golangci.yml`, so a file that `gofmt -l` reports fails the lint step
 - ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`), catching undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed
-- Frontend tests (`npm run test:ci`, the same 140 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build fails CI
+- Frontend tests (`npm run test:ci`, the same 144 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build fails CI
 - Benchmark regression gate (`benchmark` job): see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above
 - Security regression suite (`./test/security/...`): blocking gate covering CSRF enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and `FreeTrialFeedLimit` enforcement, all exercised through the real HTTP handlers
 - `govulncheck` as a non-blocking reporting job, run in the same `security` job after the regression suite

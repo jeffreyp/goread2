@@ -514,9 +514,12 @@ describe('AccountApp data export', () => {
             json: () => Promise.resolve({ error: 'Failed to generate the data export. Please try again.' }),
             blob
         });
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
 
         await app.downloadExport(link);
 
+        expect(consoleError).toHaveBeenCalledWith('Error exporting data:', expect.any(Error));
+        consoleError.mockRestore();
         expect(blob).not.toHaveBeenCalled();
         expect(global.URL.createObjectURL).not.toHaveBeenCalled();
         expect(errorElement.hidden).toBe(false);
@@ -530,9 +533,12 @@ describe('AccountApp data export', () => {
             headers: { get: () => null },
             blob: () => Promise.reject(new TypeError('network error'))
         });
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
 
         await app.downloadExport(link);
 
+        expect(consoleError).toHaveBeenCalledWith('Error exporting data:', expect.any(TypeError));
+        consoleError.mockRestore();
         expect(global.URL.createObjectURL).not.toHaveBeenCalled();
         expect(errorElement.hidden).toBe(false);
         expect(errorElement.textContent).toBe('The export did not finish downloading. Please try again.');
