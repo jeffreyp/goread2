@@ -27,11 +27,15 @@ type TestServer struct {
 	DB             database.Database
 }
 
-// SetupTestServer creates a test server with all dependencies
+// SetupTestServer creates a test server with all dependencies, backed by an
+// in-memory SQLite database.
 func SetupTestServer(t testing.TB) *TestServer {
+	return SetupTestServerWithDB(t, CreateTestDB(t))
+}
 
-	db := CreateTestDB(t)
-
+// SetupTestServerWithDB creates a test server backed by db, so that a test
+// can run the same HTTP flow against SQLite and the Datastore emulator.
+func SetupTestServerWithDB(t testing.TB, db database.Database) *TestServer {
 	// Create rate limiter for testing
 	rateLimiter := services.NewDomainRateLimiter(services.RateLimiterConfig{
 		RequestsPerMinute: 60, // Higher rate for tests

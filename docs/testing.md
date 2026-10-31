@@ -102,6 +102,7 @@ cmd/
                            #   verified via subprocess re-exec
 test/
 ├── integration/                          # Backend integration tests
+│   ├── account_deletion_trial_test.go    # Re-sign-in after deletion starts with the trial ended (SQLite and Datastore)
 │   ├── admin_integration_test.go         # Admin command integration tests
 │   ├── admin_security_test.go            # Admin security and bootstrap tests
 │   ├── api_test.go                       # End-to-end API testing
@@ -501,6 +502,12 @@ func TestAdminWorkflow(t *testing.T) {
 - Article status updates (read/starred)
 - Feed deletion and cleanup
 - API endpoint authentication and CSRF protection
+
+#### Account Deletion Trial Test (`test/integration/account_deletion_trial_test.go`)
+
+`TestSignInAfterAccountDeletionStartsWithTrialEnded` covers the anti-abuse path for deleted accounts. It signs a Google ID in through `AuthService.SignInGoogleUser`, the layer below the Google token exchange, deletes the account through `DELETE /api/account`, and signs the same Google ID in again. The new account must have a different user ID, a `TrialEndsAt` equal to its `CreatedAt`, and `IsUserSubscriptionActive` false. A Google ID that never deleted an account must still get the 30-day trial.
+
+The test sets `ACCOUNT_TOMBSTONE_KEY`, since deletion writes no tombstone without it. It runs once on SQLite and once on the Datastore emulator, because both `CreateUser` implementations must keep a preset `TrialEndsAt` rather than apply the 30-day default. The Datastore case skips unless `DATASTORE_EMULATOR_HOST` is set.
 
 #### Performance Benchmarks (`test/integration/performance_test.go`)
 
@@ -1185,8 +1192,13 @@ NewMockHTTPClient(server)                        // HTTP client wrapper
 
 // Database setup
 CreateTestDB(t)              // In-memory SQLite database
+CreateTestDatastoreDB(t)     // Datastore database on the emulator; skips unless DATASTORE_EMULATOR_HOST is set
 CreateTestUser(t, db, ...)   // Test user creation
 CreateTestFeed(t, db, ...)   // Test feed creation
+
+// Server setup
+SetupTestServer(t)           // Router, handlers, and services over CreateTestDB
+SetupTestServerWithDB(t, db) // The same server over any database.Database
 ```
 
 ## Performance Testing

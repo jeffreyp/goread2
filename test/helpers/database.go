@@ -297,27 +297,17 @@ func CleanupTestUsers(t *testing.T) {
 	}
 }
 
-// CreateTestDatastoreDB creates a Datastore database for testing
-// This requires the Datastore emulator to be running
+// CreateTestDatastoreDB creates a Datastore database, in a fresh project, on
+// the emulator at DATASTORE_EMULATOR_HOST. It skips the test when the variable
+// is unset, matching the emulator-gated tests in internal/database. The client
+// connects lazily, so without this check a missing emulator would surface as
+// an RPC timeout on the first write rather than as a skip.
 func CreateTestDatastoreDB(t *testing.T) database.Database {
-	projectID := "test-project-" + fmt.Sprintf("%d", time.Now().UnixNano())
-
-	// Set environment variable to use emulator
-	originalHost := os.Getenv("DATASTORE_EMULATOR_HOST")
-	if originalHost == "" {
-		// Default emulator host
-		_ = os.Setenv("DATASTORE_EMULATOR_HOST", "localhost:8081")
+	if os.Getenv("DATASTORE_EMULATOR_HOST") == "" {
+		t.Skip("Datastore emulator not available - set DATASTORE_EMULATOR_HOST to run datastore tests")
 	}
 
-	// Clean up environment after test
-	t.Cleanup(func() {
-		if originalHost == "" {
-			_ = os.Unsetenv("DATASTORE_EMULATOR_HOST")
-		} else {
-			_ = os.Setenv("DATASTORE_EMULATOR_HOST", originalHost)
-		}
-	})
-
+	projectID := "test-project-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	db, err := database.NewDatastoreDB(projectID)
 	if err != nil {
 		t.Skipf("Datastore emulator not available: %v", err)
