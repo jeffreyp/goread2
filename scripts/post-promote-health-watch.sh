@@ -36,8 +36,8 @@ declare -A FILTER=(
   [5xx]='resource.type="gae_app" AND metric.type="appengine.googleapis.com/http/server/response_count" AND metric.label.response_code>=500 AND metric.label.response_code<600'
   [latency_p95]='resource.type="gae_app" AND metric.type="appengine.googleapis.com/http/server/response_latencies"'
   [instances]='resource.type="gae_app" AND metric.type="appengine.googleapis.com/system/instance_count"'
-  [ds_read]='resource.type="datastore_database" AND metric.type="datastore.googleapis.com/api/request_count" AND metric.label.api_method="Lookup"'
-  [ds_write]='resource.type="datastore_database" AND metric.type="datastore.googleapis.com/api/request_count" AND (metric.label.api_method="Put" OR metric.label.api_method="Commit")'
+  [ds_read]='resource.type="datastore_request" AND metric.type="datastore.googleapis.com/api/request_count" AND metric.label.api_method="Lookup"'
+  [ds_write]='resource.type="datastore_request" AND metric.type="datastore.googleapis.com/api/request_count" AND (metric.label.api_method="Put" OR metric.label.api_method="Commit")'
   [egress]='resource.type="gae_app" AND metric.type="appengine.googleapis.com/system/network/sent_bytes_count"'
 )
 declare -A ALIGNER=(

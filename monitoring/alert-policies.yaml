@@ -10,7 +10,7 @@ documentation:
 conditions:
   - displayName: "Datastore reads > 1000/min"
     conditionThreshold:
-      filter: 'resource.type="datastore_database" AND metric.type="datastore.googleapis.com/api/request_count" AND metric.label.api_method="Lookup"'
+      filter: 'resource.type="datastore_request" AND metric.type="datastore.googleapis.com/api/request_count" AND metric.label.api_method="Lookup"'
       aggregations:
         - alignmentPeriod: "60s"
           perSeriesAligner: "ALIGN_RATE"
@@ -34,7 +34,7 @@ documentation:
 conditions:
   - displayName: "Datastore writes > 500/min"
     conditionThreshold:
-      filter: 'resource.type="datastore_database" AND metric.type="datastore.googleapis.com/api/request_count" AND (metric.label.api_method="Put" OR metric.label.api_method="Commit")'
+      filter: 'resource.type="datastore_request" AND metric.type="datastore.googleapis.com/api/request_count" AND (metric.label.api_method="Put" OR metric.label.api_method="Commit")'
       aggregations:
         - alignmentPeriod: "60s"
           perSeriesAligner: "ALIGN_RATE"
@@ -101,18 +101,20 @@ alertStrategy:
 # Alert 5: Datastore Entity Read Spike
 displayName: "Datastore Entity Read Spike"
 documentation:
-  content: "Entity read count has increased by 200% compared to the previous hour. This may indicate inefficient queries or query fanout."
+  content: "Entity reads have exceeded 400,000 in the trailing hour. This counts every entity read, including RunQuery results, so it catches query fan-out that the Lookup-only read-rate alert misses. Normal peaks come from the every-2-hour feed-refresh cron and stay below about 250,000 per hour."
   mimeType: "text/markdown"
 conditions:
-  - displayName: "Entity reads 2x increase"
+  - displayName: "Entity reads > 400k/hour"
     conditionThreshold:
-      filter: 'resource.type="datastore_database" AND metric.type="datastore.googleapis.com/entity/read_count"'
+      # Firestore in Datastore mode reports entity reads under the Firestore
+      # metric; datastore.googleapis.com/entity/read_count does not exist.
+      filter: 'resource.type="firestore.googleapis.com/Database" AND metric.type="firestore.googleapis.com/document/read_ops_count"'
       aggregations:
         - alignmentPeriod: "3600s"
-          perSeriesAligner: "ALIGN_RATE"
+          perSeriesAligner: "ALIGN_SUM"
           crossSeriesReducer: "REDUCE_SUM"
       comparison: "COMPARISON_GT"
-      thresholdValue: 1000  # Adjust based on your normal baseline
+      thresholdValue: 400000  # reads per trailing hour; 30-day p99 156k, max 254k (2026-10)
       duration: "0s"
 combiner: "OR"
 enabled: true

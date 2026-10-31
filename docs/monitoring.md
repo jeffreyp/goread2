@@ -48,9 +48,9 @@ The dashboards below track **operational metrics** (operations, instances, bandw
 
 ### Cost Tracking Dashboard (`monitoring/dashboard-cost-tracking.json`)
 
-**Important Limitation**: App Engine Standard environment exposes very limited metrics through Cloud Monitoring. Most HTTP and Datastore metrics are **not available**.
+**Important Limitation**: App Engine Standard exposes very limited metrics through Cloud Monitoring, and most HTTP metrics are **not available**. Datastore metrics are reported separately, not under `gae_app`: request counts by API method under `datastore.googleapis.com/api/request_count` on the `datastore_request` resource, and entity reads under `firestore.googleapis.com/document/read_ops_count` on the `firestore.googleapis.com/Database` resource.
 
-This minimal dashboard tracks the only 3 operational metrics available for App Engine Standard:
+This minimal dashboard tracks 3 App Engine operational metrics:
 
 #### Dashboard Widgets
 
@@ -65,8 +65,6 @@ This minimal dashboard tracks the only 3 operational metrics available for App E
    - Performance indicator only, not directly tied to cost
 
 **Metrics NOT Available for App Engine Standard:**
-- ❌ Datastore read/write operations
-- ❌ Datastore entity counts
 - ❌ HTTP request counts
 - ❌ HTTP response codes
 - ❌ CPU/memory usage
@@ -157,11 +155,12 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes seven polici
 - **Auto-close**: 30 minutes
 
 ### 5. Datastore Entity Read Spike
-- **Threshold**: >1000 entity reads/hour (baseline, adjust for measured usage)
-- **Purpose**: Catch query fanout or sudden traffic increase
+- **Threshold**: >400,000 entity reads in the trailing hour
+- **Metric**: `firestore.googleapis.com/document/read_ops_count` on `firestore.googleapis.com/Database`. The database is Firestore in Datastore mode, which reports entity reads under this Firestore metric; `datastore.googleapis.com/entity/read_count` does not exist in the project.
+- **Purpose**: Catch query fan-out or a sudden traffic increase. This metric counts every entity read, including `RunQuery` results, whereas policy 1 counts only `Lookup` requests.
+- **Baseline**: hourly reads over 30 days (October 2026) had a median of about 4,000, a p99 of 156,000, and a maximum of 254,000. The peaks come from the every-2-hour feed-refresh cron.
 - **Actions**: Investigate recent code changes, check for N+1 queries
 - **Auto-close**: 1 hour
-- **Note**: Adjust threshold based on the observed baseline after monitoring
 
 ### 6. High HTTP Error Rate (5xx)
 - **Threshold**: >0.1 errors/second (>1% of typical traffic) sustained for 3 minutes
@@ -248,9 +247,9 @@ The dashboard will be created in Cloud Monitoring. If it already exists, update 
 
 ### Deploy Alerting Policies
 
-**Current state**: all policies except Datastore Entity Read Spike are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
+**Current state**: all seven policies are deployed and notify `projects/goread-467200/notificationChannels/5854116738752263410` (email to jeffreyp07@gmail.com). The steps below are for adding a second channel (e.g. Slack) or redeploying from scratch in a new project.
 
-**Unrelated pre-existing alert, disabled**: the project also has a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`). It compares live traffic against a *forecasted* baseline and fires on a 100% increase, which is unreliable for this app: baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run, so any normal cron burst looks like an "infinite % increase." Disabled via `gcloud alpha monitoring policies update ... --no-enabled`; the repo's own `Datastore Entity Read Spike` policy (absolute >1000 reads/hour threshold) covers this signal without the false-positive-prone forecast comparison.
+**Unrelated pre-existing alert, disabled**: the project also has a separate, non-repo-tracked policy called "GoRead2 - Sudden Increase in Datastore Operations" (`alertPolicies/4972926877818684428`). It compares live traffic against a *forecasted* baseline and fires on a 100% increase, which is unreliable for this app: baseline Datastore traffic is close to zero between the every-2-hour feed-refresh cron run, so any normal cron burst looks like an "infinite % increase." Disabled via `gcloud alpha monitoring policies update ... --no-enabled`; the repo's own `Datastore Entity Read Spike` policy (absolute >400,000 reads/hour threshold) covers this signal without the false-positive-prone forecast comparison.
 
 #### Step 1: Set Up Notification Channels
 
