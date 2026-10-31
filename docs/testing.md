@@ -695,14 +695,15 @@ Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` (the production 
 
 **Aggregation queries are not exercised**: the legacy emulator does not implement `RunAggregationQuery`. `DatastoreDB` counts articles with aggregation count queries in production and falls back to a keys-only query when the server returns `Unimplemented`, so emulator runs cover only the fallback path.
 
-**Local setup** (to run these tests outside CI):
+**Local setup** (to run these tests outside CI): `scripts/with-datastore-emulator.sh` starts an emulator with the CI flags, sets `DATASTORE_EMULATOR_HOST`, runs the given command, and shuts the emulator down when the command exits, fails, or is interrupted. `make test-datastore` runs the full `test.sh` suite through it.
 ```bash
-gcloud components install beta cloud-datastore-emulator
-gcloud beta emulators datastore start --host-port=localhost:8081 --no-store-on-disk --consistency=1.0 &
-DATASTORE_EMULATOR_HOST=localhost:8081 go test ./internal/services/... -run TestDatastore
-DATASTORE_EMULATOR_HOST=localhost:8081 go test ./internal/database/... -run TestDatastore
+gcloud components install beta cloud-datastore-emulator   # once
+make test-datastore                                        # full suite, Datastore tests included
+./scripts/with-datastore-emulator.sh go test ./internal/database/... -run TestDatastore
 ```
-The emulator's Java process requires a Java 21+ JRE on `PATH`; on macOS with Homebrew's `openjdk` installed but not linked, prefix the `gcloud emulators` command with `PATH="$(brew --prefix openjdk)/bin:$PATH"`.
+The wrapper listens on `localhost:8081` unless `DATASTORE_EMULATOR_PORT` is set, and refuses to start if the port is already in use, which also exposes an emulator left running from an earlier session. The emulator's Java process requires a Java 21+ JRE; the wrapper puts Homebrew's keg-only `openjdk` on `PATH` when it is installed.
+
+Do not start the emulator directly with `gcloud beta emulators datastore start ... &`. A background emulator keeps running and holds its port until it is stopped by hand.
 
 `AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered in `internal/services/admin_token_datastore_test.go`. `DatastoreDB`'s own methods implementing the `database.Database` interface (`AddFeed`, `GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, `GetAccountStats`, `CleanupOrphanedUserArticles`, sessions, audit logs, and the rest) are covered directly (through the `Database` interface, mirroring the SQLite `schema_test.go` suite) in `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, bringing `internal/database` to 80%+ coverage when run against the emulator.
 
@@ -719,10 +720,10 @@ The target fills in defaults for any of these variables that are not already set
 | `ACCOUNT_TOMBSTONE_KEY` | `dev-login-tombstone-key` | Enables tombstones, so re-sign-in after deletion is testable |
 | `SUBSCRIPTION_ENABLED` | `false` | Account deletion skips Stripe |
 
-Without `GOOGLE_CLOUD_PROJECT`, accounts are stored in the local SQLite file, `goread2.db`. To use the Datastore implementation instead, start the emulator as described above and set both variables; the server refuses a `GOOGLE_CLOUD_PROJECT` without `DATASTORE_EMULATOR_HOST`:
+Without `GOOGLE_CLOUD_PROJECT`, accounts are stored in the local SQLite file, `goread2.db`. To use the Datastore implementation instead, run the server through the emulator wrapper, which sets `DATASTORE_EMULATOR_HOST` and stops the emulator when the server exits. The server refuses a `GOOGLE_CLOUD_PROJECT` without `DATASTORE_EMULATOR_HOST`:
 
 ```bash
-GOOGLE_CLOUD_PROJECT=goread2-local-test DATASTORE_EMULATOR_HOST=localhost:8081 make dev-login
+GOOGLE_CLOUD_PROJECT=goread2-local-test ./scripts/with-datastore-emulator.sh make dev-login
 ```
 
 Without Cloud Tasks, `DELETE /api/account` deletes the account in-process and responds `200` instead of queueing it. The iOS and macOS apps use the dev login through their usual sign-in button when the Debug scheme points at the local server (see [ios.md](ios.md#schemes-and-the-api-base-url)).

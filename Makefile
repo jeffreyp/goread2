@@ -1,4 +1,4 @@
-.PHONY: all build lint test test-quick test-race validate-config clean dev dev-login build-js build-css build-frontend docs deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
+.PHONY: all build lint test test-quick test-race test-datastore validate-config clean dev dev-login build-js build-css build-frontend docs deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
 
 # Default target - build everything
 all: build-frontend build test-quick
@@ -21,6 +21,7 @@ help:
 	@echo "  test               Run all tests with coverage (CI/pre-deploy)"
 	@echo "  test-quick         Run tests using Go cache — fast for dev iteration"
 	@echo "  test-race          Run Go tests with race detector — use before merging concurrent code changes"
+	@echo "  test-datastore     Run all tests, including Datastore tests, against a temporary emulator"
 	@echo "  docs               Check markdown files for broken relative links and anchors"
 	@echo "  validate-config    Validate application configuration"
 	@echo "  validate-build     Validate config + build frontend + build app"
@@ -115,6 +116,14 @@ test-race:
 	GOOGLE_CLIENT_SECRET="test_client_secret" \
 	GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback" \
 	go test -race ./...
+
+# Run the full test suite against a Datastore emulator that is started for the
+# run and always shut down afterwards, so the Datastore-gated tests run instead
+# of skipping. Requires gcloud with the beta and cloud-datastore-emulator
+# components and a Java 21+ JRE. Set DATASTORE_EMULATOR_PORT to change the port.
+test-datastore:
+	@echo "🧪 Running tests against a Datastore emulator..."
+	./scripts/with-datastore-emulator.sh ./test.sh
 
 # Validate configuration
 validate-config:
