@@ -32,15 +32,25 @@ type UserDataService struct {
 // CustomerDeleter removes a user's customer records from the payment
 // provider. *PaymentService satisfies it.
 type CustomerDeleter interface {
+	// DeleteCustomerForUser deletes the customers of a user who still exists.
 	DeleteCustomerForUser(user *database.User) error
+	// DeleteCustomersByUserID deletes customers tagged with a user ID whose
+	// User record is already gone.
+	DeleteCustomersByUserID(userID int) error
 }
+
+// ErrNoCustomerDeleter is returned when a user with a live subscription is
+// deleted while no payment provider is configured. Deleting the account would
+// leave the subscription billing a user who no longer exists.
+var ErrNoCustomerDeleter = errors.New("user has a live subscription but Stripe is not configured")
 
 func NewUserDataService(db database.Database) *UserDataService {
 	return &UserDataService{db: db}
 }
 
 // SetCustomerDeleter enables Stripe customer deletion during account
-// deletion. Called from main only when subscriptions are enabled.
+// deletion. Called from main whenever Stripe credentials are configured,
+// whether or not subscriptions are enabled.
 func (s *UserDataService) SetCustomerDeleter(cd CustomerDeleter) {
 	s.customerDeleter = cd
 }
@@ -51,7 +61,9 @@ func (s *UserDataService) SetCustomerDeleter(cd CustomerDeleter) {
 // does not start a new free trial; it then deletes all of the user's data,
 // removing the user record last. Each step is idempotent, so a failed run can
 // be retried, and running it again after the user is gone sweeps up any rows
-// recreated in the meantime by requests on stale cached sessions.
+// and Stripe customers recreated in the meantime by requests on stale cached
+// sessions. Without a CustomerDeleter it refuses to delete a user whose
+// subscription is still live, returning ErrNoCustomerDeleter.
 func (s *UserDataService) DeleteAccount(userID int) error {
 	user, err := s.db.GetUserByID(userID)
 	if err != nil && !errors.Is(err, database.ErrUserNotFound) {
@@ -63,9 +75,15 @@ func (s *UserDataService) DeleteAccount(userID int) error {
 			if err := s.customerDeleter.DeleteCustomerForUser(user); err != nil {
 				return fmt.Errorf("failed to delete Stripe customer: %w", err)
 			}
+		} else if hasLiveSubscription(user) {
+			return fmt.Errorf("cannot delete user %d: %w", userID, ErrNoCustomerDeleter)
 		}
 		if err := s.writeTombstone(user); err != nil {
 			return err
+		}
+	} else if s.customerDeleter != nil {
+		if err := s.customerDeleter.DeleteCustomersByUserID(userID); err != nil {
+			return fmt.Errorf("failed to delete Stripe customers: %w", err)
 		}
 	}
 
@@ -73,6 +91,18 @@ func (s *UserDataService) DeleteAccount(userID int) error {
 		return fmt.Errorf("failed to delete account data: %w", err)
 	}
 	return nil
+}
+
+// hasLiveSubscription reports whether Stripe may still bill user.
+func hasLiveSubscription(user *database.User) bool {
+	if user.SubscriptionID == "" {
+		return false
+	}
+	switch user.SubscriptionStatus {
+	case "active", "past_due", "unpaid":
+		return true
+	}
+	return false
 }
 
 func (s *UserDataService) writeTombstone(user *database.User) error {

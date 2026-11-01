@@ -77,8 +77,10 @@ STRIPE_PRICE_ID=price_...
 **Required Configuration:**
 ```bash
 SUBSCRIPTION_ENABLED=false
-# Stripe keys not required
+# Stripe keys not required, unless any user has subscribed
 ```
+
+**Disabling after users have subscribed:** disabling the flag does not cancel existing Stripe subscriptions, which keep billing. Keep the Stripe credentials configured while any user has a subscription status of `active`, `past_due`, or `unpaid`. With the flag disabled, the server still loads the credentials when they are available and uses them only for account deletion, which deletes the user's Stripe customers and so cancels the subscription (see [stripe.md](stripe.md#account-deletion)). Without the credentials, deleting an account with a live subscription fails with an error and leaves the account in place, and the server logs a warning at startup.
 
 ## Implementation Details
 
@@ -170,12 +172,14 @@ SUBSCRIPTION_ENABLED=false
 # Restart application; users get unlimited access immediately
 ```
 
+Existing subscriptions keep billing after a rollback. Cancel them in the Stripe Dashboard if users should no longer be charged.
+
 ## Environment Variables Summary
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `SUBSCRIPTION_ENABLED` | No | `false` | Enable/disable subscription system |
-| `STRIPE_SECRET_KEY` | When enabled | - | Stripe secret key for payments |
+| `STRIPE_SECRET_KEY` | When enabled, or while any subscription is live | - | Stripe secret key for payments |
 | `STRIPE_PUBLISHABLE_KEY` | When enabled | - | Stripe public key for frontend |
 | `STRIPE_WEBHOOK_SECRET` | When enabled | - | Stripe webhook signature verification |
 | `STRIPE_PRICE_ID` | When enabled | - | Stripe price ID for Pro subscription |

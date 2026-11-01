@@ -5,6 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -340,5 +343,48 @@ func TestPaymentService_CreateCheckoutSession_EscapesCustomerSearchEmail(t *test
 	}
 	if want := `email:'o\'brien@example.com'`; searchQuery != want {
 		t.Errorf("customer search query = %q, want %q", searchQuery, want)
+	}
+}
+
+func TestPaymentService_DeleteCustomersByUserID(t *testing.T) {
+	var searchQuery string
+	var deleted []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/v1/customers/search":
+			searchQuery = r.URL.Query().Get("query")
+			_, _ = w.Write([]byte(`{"object":"search_result","data":[` +
+				`{"id":"cus_a","object":"customer","metadata":{"user_id":"42"}},` +
+				`{"id":"cus_b","object":"customer","metadata":{"user_id":"42"}}],"has_more":false}`))
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/v1/customers/"):
+			id := strings.TrimPrefix(r.URL.Path, "/v1/customers/")
+			deleted = append(deleted, id)
+			if id == "cus_b" {
+				// Already deleted by an earlier pass: the call must still succeed.
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":{"type":"invalid_request_error","code":"resource_missing"}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"id":"` + id + `","object":"customer","deleted":true}`))
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+	restoreBackend := setStripeTestBackend(srv)
+	defer restoreBackend()
+	stripe.Key = "sk_test_fake"
+
+	ps := newTestPaymentService(&mockDBPayment{}, "pk_test", "sk_test_fake", "whsec_test", "price_test")
+	if err := ps.DeleteCustomersByUserID(42); err != nil {
+		t.Fatalf("DeleteCustomersByUserID: %v", err)
+	}
+	if want := `metadata['user_id']:'42'`; searchQuery != want {
+		t.Errorf("customer search query = %q, want %q", searchQuery, want)
+	}
+	sort.Strings(deleted)
+	if want := []string{"cus_a", "cus_b"}; !reflect.DeepEqual(deleted, want) {
+		t.Errorf("deleted customers = %v, want %v", deleted, want)
 	}
 }

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func setMockSecretFetcher(values map[string]string, fetchErr error) func() {
@@ -726,4 +729,56 @@ func TestGetOAuthCredentials_CustomSecretNames(t *testing.T) {
 			t.Errorf("Expected client secret 'test-client-secret', got '%s'", clientSecret)
 		}
 	})
+}
+
+func TestGetAccountTombstoneKey_RetriesAfterTransientError(t *testing.T) {
+	ResetCacheForTesting()
+	defer ResetCacheForTesting()
+	t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+	t.Setenv("ACCOUNT_TOMBSTONE_KEY", "")
+
+	calls := 0
+	secretFetcher = func(_ context.Context, _ string, secretName string, _ string) (string, error) {
+		calls++
+		if calls == 1 {
+			return "", status.Error(codes.Unavailable, "secret manager unavailable")
+		}
+		return "tombstone-key", nil
+	}
+
+	if key, err := GetAccountTombstoneKey(context.Background()); err == nil || key != "" {
+		t.Fatalf("first call = (%q, %v), want an error and no key", key, err)
+	}
+	if key, err := GetAccountTombstoneKey(context.Background()); err != nil || key != "tombstone-key" {
+		t.Fatalf("second call = (%q, %v), want the key after the transient failure", key, err)
+	}
+	if key, err := GetAccountTombstoneKey(context.Background()); err != nil || key != "tombstone-key" {
+		t.Fatalf("third call = (%q, %v), want the cached key", key, err)
+	}
+	if calls != 2 {
+		t.Errorf("Secret Manager called %d times, want 2 (the key is cached after success)", calls)
+	}
+}
+
+func TestGetAccountTombstoneKey_CachesNotFound(t *testing.T) {
+	ResetCacheForTesting()
+	defer ResetCacheForTesting()
+	t.Setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+	t.Setenv("ACCOUNT_TOMBSTONE_KEY", "")
+
+	calls := 0
+	secretFetcher = func(context.Context, string, string, string) (string, error) {
+		calls++
+		return "", fmt.Errorf("failed to access secret version: %w", status.Error(codes.NotFound, "no such secret"))
+	}
+
+	if _, err := GetAccountTombstoneKey(context.Background()); err == nil {
+		t.Fatal("first call returned no error for a missing secret")
+	}
+	if key, err := GetAccountTombstoneKey(context.Background()); err != nil || key != "" {
+		t.Fatalf("second call = (%q, %v), want tombstones disabled without an error", key, err)
+	}
+	if calls != 1 {
+		t.Errorf("Secret Manager called %d times, want 1 (a missing secret is cached)", calls)
+	}
 }

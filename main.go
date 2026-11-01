@@ -22,6 +22,7 @@ import (
 	"github.com/jeffreyp/goread2/internal/database"
 	"github.com/jeffreyp/goread2/internal/handlers"
 	"github.com/jeffreyp/goread2/internal/middleware"
+	"github.com/jeffreyp/goread2/internal/secrets"
 	"github.com/jeffreyp/goread2/internal/services"
 )
 
@@ -118,6 +119,14 @@ func main() {
 		log.Println("Stripe configuration validated successfully")
 	} else {
 		log.Println("Subscription system is disabled")
+		// Users who subscribed while the flag was on are still billed, so
+		// account deletion must still be able to cancel their subscriptions.
+		if _, _, _, _, err := secrets.GetStripeCredentials(context.Background()); err == nil {
+			paymentService = services.NewPaymentService(db, subscriptionService)
+			log.Println("Stripe credentials found: account deletion will still delete Stripe customers")
+		} else {
+			log.Printf("Warning: Stripe credentials unavailable (%v); deleting an account with a live subscription will fail until they are configured", err)
+		}
 	}
 
 	// Initialize handlers

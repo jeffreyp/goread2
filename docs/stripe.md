@@ -227,6 +227,10 @@ GoRead2 includes Stripe's Customer Portal for self-service billing:
 
 Deleting a GoRead2 account (`DELETE /api/account`) deletes the user's Stripe customers, which cancels any subscription immediately, with no proration or refund. GoRead2 does not store customer IDs, so it deletes the customer on the user's subscription plus any customer found by email search whose `user_id` metadata names this user. Customers without that metadata are never deleted by email match alone, since they may have been created outside GoRead2. Stripe keeps the payment records it is legally required to retain.
 
+A second deletion pass runs 15 minutes later, after the `User` record is gone, and deletes any customer whose `user_id` metadata names the deleted user. This removes a customer created by a checkout or portal request on another instance's stale session cache after the first pass searched Stripe.
+
+Account deletion uses the Stripe credentials even when `SUBSCRIPTION_ENABLED=false`, so that subscriptions started while the flag was on are still cancelled. Without credentials, deleting an account with a live subscription (status `active`, `past_due`, or `unpaid`) fails and leaves the account in place. See [feature-flags.md](feature-flags.md#when-subscription-system-is-disabled).
+
 Stripe then sends `customer.subscription.deleted`, often while the deletion is still in progress. The subscription update reads and writes the user record in one transaction, so it never recreates a user that the deletion has removed. The webhook handler acknowledges events for missing users instead of failing, so Stripe does not retry them.
 
 ### Manual Management

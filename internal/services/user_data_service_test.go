@@ -47,6 +47,11 @@ func (f *fakeCustomerDeleter) DeleteCustomerForUser(user *database.User) error {
 	return f.err
 }
 
+func (f *fakeCustomerDeleter) DeleteCustomersByUserID(userID int) error {
+	*f.calls = append(*f.calls, "DeleteCustomersByUserID")
+	return f.err
+}
+
 // setTombstoneKey configures the account tombstone key for one test. An empty
 // key disables tombstones; GOOGLE_CLOUD_PROJECT is cleared so the lookup does
 // not fall through to Secret Manager.
@@ -85,12 +90,18 @@ func TestDeleteAccount(t *testing.T) {
 			wantCalls:    []string{"GetUserByID", "DeleteCustomerForUser"},
 		},
 		{
-			// gr-u7t0.10 will change this: the sweep should also remove Stripe
-			// customers created through stale sessions.
-			name:         "sweep after the user is gone deletes data without calling Stripe",
+			name:         "sweep after the user is gone deletes Stripe customers by user ID",
 			user:         nil,
 			tombstoneKey: "test-key",
-			wantCalls:    []string{"GetUserByID", "DeleteUserAccount"},
+			wantCalls:    []string{"GetUserByID", "DeleteCustomersByUserID", "DeleteUserAccount"},
+		},
+		{
+			name:         "sweep Stripe failure aborts before data deletion",
+			user:         nil,
+			tombstoneKey: "test-key",
+			stripeErr:    stripeErr,
+			wantErr:      "failed to delete Stripe customers",
+			wantCalls:    []string{"GetUserByID", "DeleteCustomersByUserID"},
 		},
 		{
 			name:         "missing tombstone key deletes the account without a tombstone",
@@ -120,6 +131,64 @@ func TestDeleteAccount(t *testing.T) {
 				if tt.stripeErr != nil && !errors.Is(err, tt.stripeErr) {
 					t.Errorf("DeleteAccount() error = %v, want it to wrap %v", err, tt.stripeErr)
 				}
+			}
+			if !reflect.DeepEqual(calls, tt.wantCalls) {
+				t.Errorf("calls = %v, want %v", calls, tt.wantCalls)
+			}
+		})
+	}
+}
+
+func TestDeleteAccountWithoutCustomerDeleter(t *testing.T) {
+	tests := []struct {
+		name      string
+		user      *database.User
+		wantErr   bool
+		wantCalls []string
+	}{
+		{
+			name:      "live subscription is refused so Stripe does not keep billing",
+			user:      &database.User{ID: 7, GoogleID: "google-7", SubscriptionID: "sub_1", SubscriptionStatus: "active"},
+			wantErr:   true,
+			wantCalls: []string{"GetUserByID"},
+		},
+		{
+			name:      "past_due subscription is refused",
+			user:      &database.User{ID: 7, GoogleID: "google-7", SubscriptionID: "sub_1", SubscriptionStatus: "past_due"},
+			wantErr:   true,
+			wantCalls: []string{"GetUserByID"},
+		},
+		{
+			name:      "cancelled subscription is deleted",
+			user:      &database.User{ID: 7, GoogleID: "google-7", SubscriptionID: "sub_1", SubscriptionStatus: "cancelled"},
+			wantCalls: []string{"GetUserByID", "CreateAccountTombstone", "DeleteUserAccount"},
+		},
+		{
+			name:      "trial user is deleted",
+			user:      &database.User{ID: 7, GoogleID: "google-7", SubscriptionStatus: "trial"},
+			wantCalls: []string{"GetUserByID", "CreateAccountTombstone", "DeleteUserAccount"},
+		},
+		{
+			name:      "sweep after the user is gone deletes data",
+			user:      nil,
+			wantCalls: []string{"GetUserByID", "DeleteUserAccount"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setTombstoneKey(t, "test-key")
+
+			var calls []string
+			service := NewUserDataService(&mockDBDeletion{user: tt.user, calls: &calls})
+
+			err := service.DeleteAccount(7)
+
+			if tt.wantErr != errors.Is(err, ErrNoCustomerDeleter) {
+				t.Fatalf("DeleteAccount() error = %v, want ErrNoCustomerDeleter: %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("DeleteAccount() error = %v, want nil", err)
 			}
 			if !reflect.DeepEqual(calls, tt.wantCalls) {
 				t.Errorf("calls = %v, want %v", calls, tt.wantCalls)

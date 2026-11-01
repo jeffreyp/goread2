@@ -14,6 +14,8 @@ import (
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -72,11 +74,13 @@ var (
 	initialAdminEmailsErr  error
 )
 
-// Cache for the account tombstone key (fetched once at startup)
+// Cache for the account tombstone key. Unlike the other secrets, a failure
+// here does not stop startup, so only a definitive result is cached: a
+// transient Secret Manager error is retried on the next call.
 var (
-	accountTombstoneKey     string
-	accountTombstoneKeyOnce sync.Once
-	accountTombstoneKeyErr  error
+	accountTombstoneKey       string
+	accountTombstoneKeyMu     sync.Mutex
+	accountTombstoneKeyLoaded bool
 )
 
 // secretFetcher is the function used to call Secret Manager; replaced in tests
@@ -143,8 +147,7 @@ func ResetCacheForTesting() {
 	initialAdminEmailsErr = nil
 
 	accountTombstoneKey = ""
-	accountTombstoneKeyOnce = sync.Once{}
-	accountTombstoneKeyErr = nil
+	accountTombstoneKeyLoaded = false
 
 	secretFetcher = fetchFromSecretManager
 }
@@ -333,15 +336,31 @@ func GetInitialAdminEmails(ctx context.Context) (string, error) {
 
 // GetAccountTombstoneKey retrieves the HMAC key for deleted-account tombstones
 // from environment or Secret Manager. An empty result means tombstones are
-// disabled.
+// disabled. The key is cached once it is read, or once Secret Manager reports
+// that the secret does not exist; any other error is returned uncached, so a
+// transient outage does not disable tombstones for the life of the instance.
 func GetAccountTombstoneKey(ctx context.Context) (string, error) {
-	accountTombstoneKeyOnce.Do(func() {
-		accountTombstoneKey = os.Getenv("ACCOUNT_TOMBSTONE_KEY")
-		if accountTombstoneKey == "" || strings.HasPrefix(accountTombstoneKey, secretPrefix) {
-			accountTombstoneKey, accountTombstoneKeyErr = GetSecret(ctx, "account-tombstone-key")
+	accountTombstoneKeyMu.Lock()
+	defer accountTombstoneKeyMu.Unlock()
+	if accountTombstoneKeyLoaded {
+		return accountTombstoneKey, nil
+	}
+
+	key := os.Getenv("ACCOUNT_TOMBSTONE_KEY")
+	if key == "" || strings.HasPrefix(key, secretPrefix) {
+		var err error
+		key, err = GetSecret(ctx, "account-tombstone-key")
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				// The secret is not configured: tombstones stay disabled.
+				accountTombstoneKeyLoaded = true
+			}
+			return "", err
 		}
-	})
-	return accountTombstoneKey, accountTombstoneKeyErr
+	}
+	accountTombstoneKey = key
+	accountTombstoneKeyLoaded = true
+	return key, nil
 }
 
 // AccountTombstoneID returns the identifier under which a deleted account's

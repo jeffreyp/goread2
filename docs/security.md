@@ -267,15 +267,15 @@ The dev login described in [authentication.md](authentication.md#local-dev-login
 
 `UserDataService.DeleteAccount` (`internal/services/user_data_service.go`) runs the deletion in this order, and every step is idempotent:
 
-1. Delete the user's Stripe customers, which cancels any subscription (see [stripe.md](stripe.md#account-deletion))
+1. Delete the user's Stripe customers, which cancels any subscription (see [stripe.md](stripe.md#account-deletion)). If Stripe is not configured and the subscription is still live, the deletion stops here with an error.
 2. Write the account tombstone
 3. Delete `UserArticle`, `UserFeed`, and `Session` records in batches of 500, then the `UserActivity` record that tracks the account's last activity for retention
 4. Pseudonymize audit log entries: the user's email becomes `deleted-user-<id>`, and the IP address of actions the user performed as an admin is cleared. Entries are kept for the admin trail.
 5. Delete the `User` record last, so a partial failure leaves an account that a retry can find and finish
 
-Shared `Feed` and `Article` records are not touched. Other App Engine instances can keep serving a deleted user from their in-memory session cache for up to its 10-minute TTL, so a second pass runs 15 minutes later to remove anything those requests recreated (see [deployment.md](deployment.md#async-task-processing-cloud-tasks)).
+Shared `Feed` and `Article` records are not touched. Other App Engine instances can keep serving a deleted user from their in-memory session cache for up to its 10-minute TTL, so a second pass runs 15 minutes later to remove anything those requests recreated, including Stripe customers, which it finds by their `user_id` metadata (see [deployment.md](deployment.md#async-task-processing-cloud-tasks)).
 
-**Account tombstones** stop a deleted account from starting a second free trial by signing in again. A tombstone is an `AccountTombstone` entity keyed by HMAC-SHA256 of the Google ID under `ACCOUNT_TOMBSTONE_KEY`, holding only the deletion time. A plain hash would not protect the numeric Google ID from brute force. On sign-in, a new account whose Google ID has a tombstone is created with its trial already ended. Without the key, deletion still works but writes no tombstone, and the sign-in check is skipped.
+**Account tombstones** stop a deleted account from starting a second free trial by signing in again. A tombstone is an `AccountTombstone` entity keyed by HMAC-SHA256 of the Google ID under `ACCOUNT_TOMBSTONE_KEY`, holding only the deletion time. A plain hash would not protect the numeric Google ID from brute force. On sign-in, a new account whose Google ID has a tombstone is created with its trial already ended. Without the key, deletion still works but writes no tombstone, and the sign-in check is skipped. The key is cached once read; a Secret Manager error other than a missing secret is not cached, so the next deletion or sign-in retries the lookup.
 
 ### Data Retention
 

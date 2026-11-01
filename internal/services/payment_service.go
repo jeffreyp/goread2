@@ -286,6 +286,33 @@ func (ps *PaymentService) DeleteCustomerForUser(user *database.User) error {
 		return fmt.Errorf("failed to search for customers: %w", err)
 	}
 
+	return deleteStripeCustomers(customerIDs)
+}
+
+// DeleteCustomersByUserID deletes every Stripe customer whose user_id metadata
+// names userID. The deletion sweep calls it after the User record is gone, when
+// the email is no longer known, to remove customers that a checkout on a stale
+// cached session created after the first pass searched Stripe. GoRead2 sets the
+// metadata on every customer it creates, and Datastore never reuses user IDs.
+func (ps *PaymentService) DeleteCustomersByUserID(userID int) error {
+	customerIDs := make(map[string]bool)
+	params := &stripe.CustomerSearchParams{
+		SearchParams: stripe.SearchParams{
+			Query: stripeSearchUserID(userID),
+		},
+	}
+	iter := customer.Search(params)
+	for iter.Next() {
+		customerIDs[iter.Customer().ID] = true
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("failed to search for customers: %w", err)
+	}
+	return deleteStripeCustomers(customerIDs)
+}
+
+// deleteStripeCustomers deletes each customer, ignoring ones already deleted.
+func deleteStripeCustomers(customerIDs map[string]bool) error {
 	for id := range customerIDs {
 		if _, err := customer.Del(id, nil); err != nil && !isStripeResourceMissing(err) {
 			return fmt.Errorf("failed to delete customer: %w", err)
@@ -307,6 +334,12 @@ func isStripeResourceMissing(err error) bool {
 func stripeSearchEmail(email string) string {
 	escaped := strings.NewReplacer(`\`, `\\`, "'", `\'`).Replace(email)
 	return fmt.Sprintf("email:'%s'", escaped)
+}
+
+// stripeSearchUserID builds a Stripe Search query matching customers whose
+// user_id metadata is userID.
+func stripeSearchUserID(userID int) string {
+	return fmt.Sprintf("metadata['user_id']:'%d'", userID)
 }
 
 // CreateProductAndPrice creates the GoRead2 Pro product and price in Stripe (one-time setup)
