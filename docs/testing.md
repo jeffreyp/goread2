@@ -81,6 +81,7 @@ internal/
 │   ├── admin_token_test.go               # SQLite admin token tests (comprehensive)
 │   ├── admin_token_datastore_test.go     # Datastore admin token tests
 │   ├── audit_service_test.go             # Audit logging tests
+│   ├── cloud_tasks_test.go               # Cloud Tasks App Engine version routing tests
 │   ├── edge_cases_test.go                # Cross-cutting edge-case tests
 │   ├── feed_discovery_test.go            # Feed discovery and URL normalization tests
 │   ├── feed_fixtures_test.go             # Contract/fixture tests for RSS 2.0, Atom, RDF feeds
@@ -88,9 +89,14 @@ internal/
 │   ├── feed_service_test.go              # Feed service core logic tests
 │   ├── feed_service_coverage_test.go     # Additional feed service coverage tests
 │   ├── payment_service_test.go           # Payment service logic tests
+│   ├── payment_service_stripe_test.go    # Stripe customer deletion and subscription webhook tests
+│   │                                     #   against fakeStripe, a local Stripe API server
 │   ├── rate_limiter_test.go              # Concurrency stress tests for the rate limiter
+│   ├── retention_service_test.go         # Inactive-account retention decisions and run failures
 │   ├── subscription_service_test.go      # Subscription service logic tests
-│   └── url_validator_test.go             # SSRF/URL validation tests
+│   ├── url_validator_test.go             # SSRF/URL validation tests
+│   ├── user_data_export_test.go          # Data export audit-log paging and streamed JSON
+│   └── user_data_service_test.go         # Account deletion ordering (Stripe, tombstone, data)
 │                                          # (services package: ~67% coverage)
 cmd/
 └── admin/
@@ -395,6 +401,7 @@ func TestDatastoreAdminTokens(t *testing.T) {
 - Subscription status validation
 - Admin privilege checking
 - URL normalization (protocol addition, validation)
+- Stripe calls, served by `fakeStripe`, an `httptest` server installed with `stripe.SetBackend` that returns canned responses keyed by method and path and records each request: customer deletion scoping by `user_id` metadata, tolerance of `resource_missing`, search query escaping, and the subscription webhook's handling of deleted users
 - Service constructors and dependencies
 
 #### Handlers Package (`internal/handlers/`)
