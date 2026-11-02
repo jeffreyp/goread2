@@ -1802,16 +1802,21 @@ class GoReadApp {
     // called repeatedly in quick succession (e.g. holding 'j' to page through
     // articles), leaving the selection scrolled off-screen. Also keeps a
     // little lookahead below the item so upcoming articles stay in view.
+    // The lookahead is capped at a quarter of the container, and the scroll
+    // stops once the item's top reaches the container's top, so a long
+    // preview never has its title scrolled out of view.
     scrollArticleIntoView(articleItem) {
         const container = this.getScrollParent(articleItem);
         const containerRect = container.getBoundingClientRect();
         const itemRect = articleItem.getBoundingClientRect();
-        const lookahead = itemRect.height * 2;
+        const lookahead = Math.min(itemRect.height * 2, containerRect.height / 4);
 
         if (itemRect.top < containerRect.top) {
             container.scrollTop -= (containerRect.top - itemRect.top);
         } else if (itemRect.bottom + lookahead > containerRect.bottom) {
-            container.scrollTop += (itemRect.bottom + lookahead - containerRect.bottom);
+            const toLookahead = itemRect.bottom + lookahead - containerRect.bottom;
+            const toItemTop = itemRect.top - containerRect.top;
+            container.scrollTop += Math.min(toLookahead, toItemTop);
         }
     }
 

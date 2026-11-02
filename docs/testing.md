@@ -27,7 +27,7 @@ Testing guide for GoRead2's multi-user RSS reader application.
 GoRead2's testing infrastructure includes:
 - **Package-level unit tests** across ten `internal/` packages plus `cmd/admin`, with per-package coverage ranging from ~65% to ~85% (see [Coverage Goals](#coverage-goals) below); coverage drifts often enough that the numbers there are a snapshot, not a guarantee; regenerate with `go test ./internal/... -cover` for the current figures
 - **Integration tests** for end-to-end API validation
-- **Frontend tests** with Jest and jsdom (144 tests across 7 files)
+- **Frontend tests** with Jest and jsdom (149 tests across 8 files)
 - **CI/CD integration** with GitHub Actions
 
 ## Current Test Structure
@@ -125,10 +125,11 @@ test/
 │   └── ssrf_test.go                # POST /api/feeds rejects loopback/link-local/RFC1918/metadata URLs
 └── fixtures/            # Test data and sample feeds
     └── sample_feeds.go  # Sample data for tests
-web/tests/                     # Frontend tests (144 tests across 7 files)
+web/tests/                     # Frontend tests (149 tests across 8 files)
 ├── accessibility.test.js      # ARIA/focus/keyboard accessibility assertions
 ├── account-app.test.js        # Account page app tests
 ├── app-core.test.js           # Core frontend functionality
+├── article-scroll.test.js     # Article list scrolling on j/k, against the real GoReadApp
 ├── error-handler.test.js      # Error handling and toast notifications
 ├── goread-app.test.js         # Main app class tests
 ├── integration.test.js        # Frontend integration tests
@@ -790,7 +791,7 @@ Current test coverage status and targets:
 - **Handlers package**: 79.3% coverage (request/error-path tests for feed, admin, and payment
   handlers; OAuth `Login`/`Callback` remain unit-untested; see Handlers Package section above)
 - **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
-- **Frontend**: 144 tests across 7 files covering core functionality, error handling, accessibility, pagination, and account-page behavior
+- **Frontend**: 149 tests across 8 files covering core functionality, error handling, accessibility, pagination, account-page behavior, and article list scrolling
   - **Core frontend tests**: 28 tests for DOM manipulation, events, forms, utilities
   - **Error handler tests**: 18 tests for connection monitoring, error display, toast notifications
   - **Pagination tests**: 18 tests for Load More button, cursor-based pagination, article rendering
