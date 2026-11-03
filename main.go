@@ -160,7 +160,26 @@ func main() {
 	articleHandler := handlers.NewArticleHandler(feedService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
-	adminStatsHandler := handlers.NewAdminStatsHandler(services.NewStatsService(db))
+	statsService := services.NewStatsService(db)
+	adminStatsHandler := handlers.NewAdminStatsHandler(statsService)
+
+	// Usage metrics are written to Cloud Monitoring on production App Engine
+	// only; elsewhere the cron endpoint computes them without writing.
+	var metricWriter services.MetricWriter
+	if os.Getenv("GAE_ENV") == "standard" {
+		writer, err := services.NewCloudMonitoringWriter(ctx)
+		if err != nil {
+			log.Printf("Warning: Cloud Monitoring unavailable, usage metrics will not be recorded: %v", err)
+		} else {
+			defer func() {
+				if err := writer.Close(); err != nil {
+					log.Printf("Warning: failed to close Cloud Monitoring client: %v", err)
+				}
+			}()
+			metricWriter = writer
+		}
+	}
+	usageMetricsHandler := handlers.NewUsageMetricsHandler(services.NewUsageMetricsService(statsService, metricWriter))
 	var paymentHandler *handlers.PaymentHandler
 	if cfg.SubscriptionEnabled && paymentService != nil {
 		paymentHandler = handlers.NewPaymentHandler(paymentService, cfg.GoogleRedirectURL)
@@ -298,6 +317,8 @@ func main() {
 		cronRoutes.POST("/cleanup-orphaned-articles", feedHandler.CleanupOrphanedUserArticles)
 		cronRoutes.GET("/apply-retention", retentionHandler.CronRetention)
 		cronRoutes.POST("/apply-retention", retentionHandler.CronRetention)
+		cronRoutes.GET("/record-usage-metrics", usageMetricsHandler.CronRecordUsageMetrics)
+		cronRoutes.POST("/record-usage-metrics", usageMetricsHandler.CronRecordUsageMetrics)
 	}
 
 	// Cloud Tasks worker endpoints - dispatched only by the cron handlers

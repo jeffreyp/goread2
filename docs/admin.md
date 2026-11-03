@@ -731,6 +731,8 @@ The statistics are:
 
 Computing the statistics reads every `User`, `UserActivity`, and `UserFeed` record. Each instance reuses the result for 15 minutes, so the `generated_at` field of the response can be up to 15 minutes old. The CLI always computes fresh statistics.
 
+A daily cron job also records these statistics as Cloud Monitoring custom metrics, which the usage dashboard charts over time. See [monitoring.md](monitoring.md#usage-metrics).
+
 Example response:
 
 ```json

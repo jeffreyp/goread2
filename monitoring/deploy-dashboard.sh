@@ -1,9 +1,11 @@
 #!/bin/bash
-# Deploy Cloud Monitoring dashboard for GoRead2 cost tracking
+# Deploy a Cloud Monitoring dashboard for GoRead2.
+# Usage: monitoring/deploy-dashboard.sh [dashboard-file]
+# Defaults to the cost tracking dashboard.
 
 set -e
 
-DASHBOARD_FILE="monitoring/dashboard-cost-tracking.json"
+DASHBOARD_FILE="${1:-monitoring/dashboard-cost-tracking.json}"
 
 # Check if gcloud is installed
 if ! command -v gcloud &> /dev/null; then

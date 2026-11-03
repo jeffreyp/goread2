@@ -1,4 +1,4 @@
-.PHONY: all build lint test test-quick test-race test-datastore validate-config clean dev dev-login build-js build-css build-frontend docs deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-alerts help
+.PHONY: all build lint test test-quick test-race test-datastore validate-config clean dev dev-login build-js build-css build-frontend docs deploy-monitoring deploy-monitoring-dashboard deploy-monitoring-usage-dashboard deploy-monitoring-alerts help
 
 # Default target - build everything
 all: build-frontend build test-quick
@@ -25,7 +25,7 @@ help:
 	@echo "  docs               Check markdown files for broken relative links and anchors"
 	@echo "  validate-config    Validate application configuration"
 	@echo "  validate-build     Validate config + build frontend + build app"
-	@echo "  deploy-monitoring  Deploy monitoring dashboard and alerts"
+	@echo "  deploy-monitoring  Deploy monitoring dashboards and alerts"
 	@echo "  clean              Remove all build artifacts"
 	@echo "  dev                Start development server"
 	@echo "  dev-login          Start development server with a local sign-in instead of Google OAuth"
@@ -165,11 +165,16 @@ deploy-monitoring-dashboard:
 	@echo "📊 Deploying monitoring dashboard..."
 	./monitoring/deploy-dashboard.sh
 
+# Deploy the Cloud Monitoring usage dashboard (signups, active users, subscriptions, feeds)
+deploy-monitoring-usage-dashboard:
+	@echo "📊 Deploying usage dashboard..."
+	./monitoring/deploy-dashboard.sh monitoring/dashboard-usage.json
+
 # Deploy Cloud Monitoring alerting policies
 deploy-monitoring-alerts:
 	@echo "🚨 Deploying alerting policies..."
 	./monitoring/deploy-alerts.sh
 
-# Deploy all monitoring (dashboard + alerts)
-deploy-monitoring: deploy-monitoring-dashboard deploy-monitoring-alerts
+# Deploy all monitoring (dashboards + alerts)
+deploy-monitoring: deploy-monitoring-dashboard deploy-monitoring-usage-dashboard deploy-monitoring-alerts
 	@echo "✅ All monitoring resources deployed"

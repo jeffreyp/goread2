@@ -1,0 +1,289 @@
+{
+  "displayName": "GoRead2 Usage Dashboard",
+  "mosaicLayout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Active Users (by window)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/users/active\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.window"
+                      ]
+                    }
+                  }
+                },
+                "plotType": "LINE",
+                "targetAxis": "Y1"
+              }
+            ],
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "Users",
+              "scale": "LINEAR"
+            }
+          }
+        }
+      },
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Total Users",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/users/total\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": []
+                    }
+                  }
+                },
+                "plotType": "LINE",
+                "targetAxis": "Y1"
+              }
+            ],
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "Users",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "xPos": 6
+      },
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Signups (previous UTC day)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/users/signups_previous_day\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": []
+                    }
+                  }
+                },
+                "plotType": "STACKED_BAR",
+                "targetAxis": "Y1"
+              }
+            ],
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "Signups",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "yPos": 4
+      },
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Users by Subscription State",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/subscriptions/users\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": [
+                        "metric.label.state"
+                      ]
+                    }
+                  }
+                },
+                "plotType": "STACKED_AREA",
+                "targetAxis": "Y1"
+              }
+            ],
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "Users",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "xPos": 6,
+        "yPos": 4
+      },
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Trial-to-Paid Conversion",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/subscriptions/conversion_rate\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_MEAN",
+                      "groupByFields": []
+                    }
+                  }
+                },
+                "plotType": "LINE",
+                "targetAxis": "Y1"
+              }
+            ],
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "Share of ended trials",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "yPos": 8
+      },
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Users with Free Months",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/users/free_months\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": []
+                    }
+                  }
+                },
+                "plotType": "LINE",
+                "targetAxis": "Y1"
+              }
+            ],
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "Users",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "xPos": 6,
+        "yPos": 8
+      },
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Active Feeds and Subscriptions",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/feeds/active\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": []
+                    }
+                  }
+                },
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "legendTemplate": "Active feeds"
+              },
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/feeds/subscriptions\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "groupByFields": []
+                    }
+                  }
+                },
+                "plotType": "LINE",
+                "targetAxis": "Y1",
+                "legendTemplate": "Subscriptions"
+              }
+            ],
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "Count",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "yPos": 12
+      },
+      {
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Feeds per User",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "filter": "resource.type=\"global\" AND metric.type=\"custom.googleapis.com/goread2/feeds/per_user\"",
+                    "aggregation": {
+                      "alignmentPeriod": "86400s",
+                      "perSeriesAligner": "ALIGN_MAX",
+                      "crossSeriesReducer": "REDUCE_MEAN",
+                      "groupByFields": [
+                        "metric.label.statistic"
+                      ]
+                    }
+                  }
+                },
+                "plotType": "LINE",
+                "targetAxis": "Y1"
+              }
+            ],
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "Feeds",
+              "scale": "LINEAR"
+            }
+          }
+        },
+        "xPos": 6,
+        "yPos": 12
+      }
+    ]
+  }
+}

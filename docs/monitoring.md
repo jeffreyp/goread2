@@ -6,6 +6,7 @@ Describes the Cloud Monitoring infrastructure for tracking GoRead2 costs and per
 
 - [Overview](#overview)
 - [Dashboards](#dashboards)
+- [Usage Metrics](#usage-metrics)
 - [Tracking Actual Costs and Usage](#tracking-actual-costs-and-usage)
 - [Alerting Policies](#alerting-policies)
 - [Post-Promote Health Watch](#post-promote-health-watch-a-second-consumer-of-these-signals)
@@ -24,6 +25,7 @@ GoRead2 uses Google Cloud Monitoring to track:
 - App Engine instance counts and resource usage
 - Bandwidth consumption
 - Request latency and error rates
+- Usage: signups, active users, subscription states, and feed subscriptions
 
 The monitoring setup helps identify cost optimization opportunities and detect unusual usage patterns early.
 
@@ -36,7 +38,7 @@ The metrics used in this dashboard are **free** under Google Cloud's monitoring 
 - **Dashboards**: Free to create and view
 - **Alerting policies**: First 100 alerting policy evaluations per month are free
 
-The dashboard and alerts use only built-in GCP metrics (Datastore, App Engine), which fall under the free allotment. Custom metrics or extensive API calls would incur costs, but this setup uses neither.
+The cost dashboard and alerts use only built-in GCP metrics (Datastore, App Engine), which are free. The [usage metrics](#usage-metrics) are custom metrics, which are billed by the volume ingested beyond the 150 MB monthly free allotment. Cloud Monitoring bills each point as 8 bytes, so the 18 points written a day come to about 4 KB a month, far below that allotment. The allotment is shared by every project on the billing account.
 
 **Estimated cost for this monitoring setup**: $0/month for typical usage.
 
@@ -77,6 +79,37 @@ gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-cost
 ### Legacy Dashboard (`monitoring/cost-dashboard.json`)
 
 Older dashboard configuration with similar metrics. Use `dashboard-cost-tracking.json` instead for the latest version.
+
+## Usage Metrics
+
+A daily cron job, `/cron/record-usage-metrics` at 00:30 UTC, records the [admin usage statistics](admin.md#usage-statistics) as Cloud Monitoring custom metrics, so they can be charted over time. Each run computes fresh statistics and writes one gauge point per metric on the `global` monitored resource. Cloud Monitoring creates each metric descriptor on its first write.
+
+Only production App Engine writes the metrics. The App Engine default service account has `roles/editor`, which includes `monitoring.timeSeries.create`. In other environments the cron endpoint, called by an admin, returns the points it would write without writing them.
+
+All metric types start with `custom.googleapis.com/goread2/`:
+
+| Metric | Labels | Value |
+|--------|--------|-------|
+| `users/total` | | All users |
+| `users/active` | `window`: `day`, `week`, `month` | Users with recorded activity in the window |
+| `users/signups_previous_day` | | Signups in the previous UTC day |
+| `users/free_months` | | Users with granted free months |
+| `subscriptions/users` | `state`: `admin`, `trialing`, `trial_expired`, `active`, `past_due`, `cancelled`, `other` | Users in each state; the states partition all users |
+| `subscriptions/conversion_rate` | | Trial-to-paid conversion, a fraction from 0 to 1 |
+| `feeds/active` | | Feeds with at least one subscriber |
+| `feeds/subscriptions` | | Feed subscriptions across all users |
+| `feeds/per_user` | `statistic`: `mean`, `median` | Feeds per user |
+
+`subscriptions/conversion_rate` and `feeds/per_user` are doubles; the others are integers. See [admin.md](admin.md#usage-statistics) for how each figure is defined.
+
+### Usage Dashboard (`monitoring/dashboard-usage.json`)
+
+Charts every usage metric at a one-day alignment period: active users by window, total users, daily signups, users by subscription state as a stacked area, conversion, users with free months, active feeds and subscriptions, and feeds per user. Charts are empty until the first cron run after a deploy, and the metrics have no history before that run.
+
+**Deploy:**
+```bash
+make deploy-monitoring-usage-dashboard
+```
 
 ## Tracking Actual Costs and Usage
 
@@ -292,8 +325,11 @@ gcloud alpha monitoring policies update POLICY_NAME --add-notification-channels=
 ### Alternative: Use Deployment Scripts
 
 ```bash
-# Deploy dashboard
+# Deploy the cost tracking dashboard
 ./monitoring/deploy-dashboard.sh
+
+# Deploy another dashboard
+./monitoring/deploy-dashboard.sh monitoring/dashboard-usage.json
 
 # Deploy alerting policies
 ./monitoring/deploy-alerts.sh
@@ -304,9 +340,10 @@ gcloud alpha monitoring policies update POLICY_NAME --add-notification-channels=
 ### Makefile Targets
 
 ```bash
-make deploy-monitoring-dashboard  # ./monitoring/deploy-dashboard.sh
-make deploy-monitoring-alerts     # ./monitoring/deploy-alerts.sh
-make deploy-monitoring            # both
+make deploy-monitoring-dashboard        # ./monitoring/deploy-dashboard.sh
+make deploy-monitoring-usage-dashboard  # ./monitoring/deploy-dashboard.sh monitoring/dashboard-usage.json
+make deploy-monitoring-alerts           # ./monitoring/deploy-alerts.sh
+make deploy-monitoring                  # all three
 ```
 
 ## Viewing Metrics

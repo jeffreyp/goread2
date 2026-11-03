@@ -506,9 +506,18 @@ cron:
     min_backoff_seconds: 10
     max_backoff_seconds: 300
     max_doublings: 3
+
+- description: "Record usage statistics as Cloud Monitoring custom metrics"
+  url: /cron/record-usage-metrics
+  schedule: every day 00:30
+  target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3
 ```
 
-`/cron/apply-retention` applies the data retention policy described in [security.md](security.md#data-retention).
+`/cron/apply-retention` applies the data retention policy described in [security.md](security.md#data-retention). `/cron/record-usage-metrics` records the usage statistics as Cloud Monitoring custom metrics, described in [monitoring.md](monitoring.md#usage-metrics); it runs in the cron request rather than as a Cloud Task.
 
 ### Deployment Steps
 

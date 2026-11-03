@@ -184,3 +184,22 @@ func TestStatsServiceErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestStatsServiceRefreshBypassesCache(t *testing.T) {
+	db := &mockDBStats{}
+	service := NewStatsService(db)
+	cached, err := service.GetStats()
+	if err != nil {
+		t.Fatalf("GetStats failed: %v", err)
+	}
+	refreshed, err := service.Refresh()
+	if err != nil || refreshed == cached {
+		t.Fatalf("Expected Refresh to compute new stats, got %p (err %v)", refreshed, err)
+	}
+	if again, _ := service.GetStats(); again != refreshed {
+		t.Errorf("Expected GetStats to return the refreshed stats")
+	}
+	if db.infoCalls != 2 {
+		t.Errorf("Expected two queries, got %d", db.infoCalls)
+	}
+}

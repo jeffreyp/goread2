@@ -34,3 +34,12 @@ cron:
     min_backoff_seconds: 10
     max_backoff_seconds: 300
     max_doublings: 3
+
+- description: "Record usage statistics as Cloud Monitoring custom metrics"
+  url: /cron/record-usage-metrics
+  schedule: every day 00:30
+  target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3

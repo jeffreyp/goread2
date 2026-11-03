@@ -11,10 +11,11 @@ This directory contains Cloud Monitoring dashboards and alerting policies for Go
 ## Files
 
 - `dashboard-cost-tracking.json` - Minimal dashboard with only 3 working metrics (instance count, bandwidth, latency)
+- `dashboard-usage.json` - Usage dashboard charting the `custom.googleapis.com/goread2/` metrics recorded daily by `/cron/record-usage-metrics` (see [docs/monitoring.md](../docs/monitoring.md#usage-metrics))
 - `alert-policies.yaml` - Alerting policy definitions (most won't work due to missing metrics)
 - `cost-dashboard.json` - (Legacy) Original dashboard configuration
 - `alerting-policies.json` - (Legacy) Original alerting policies
-- `deploy-dashboard.sh` - Script to deploy the dashboard to Cloud Monitoring
+- `deploy-dashboard.sh` - Script to deploy a dashboard to Cloud Monitoring; takes the dashboard file as an optional argument, defaulting to the cost tracking dashboard
 - `dashboard-appengine-simple.json` - (Legacy) Simplified App Engine metrics dashboard
 
 ## Quick Start

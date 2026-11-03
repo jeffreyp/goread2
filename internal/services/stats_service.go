@@ -105,11 +105,22 @@ func (s *StatsService) GetStats() (*AdminStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	now := s.now()
-	if s.cached != nil && now.Sub(s.cachedAt) < statsCacheTTL {
+	if s.cached != nil && s.now().Sub(s.cachedAt) < statsCacheTTL {
 		return s.cached, nil
 	}
+	return s.refreshLocked()
+}
 
+// Refresh computes the statistics regardless of the cache and caches the
+// result. The returned value must not be modified.
+func (s *StatsService) Refresh() (*AdminStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.refreshLocked()
+}
+
+func (s *StatsService) refreshLocked() (*AdminStats, error) {
+	now := s.now()
 	infos, err := s.db.GetUserRetentionInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load users: %w", err)
