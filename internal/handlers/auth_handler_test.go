@@ -77,6 +77,10 @@ func (m *mockDBAuthHandler) CreateAccountTombstone(string) error             { r
 func (m *mockDBAuthHandler) HasAccountTombstone(string) (bool, error)        { return false, nil }
 func (m *mockDBAuthHandler) RecordUserActivity(int, time.Time) error         { return nil }
 func (m *mockDBAuthHandler) GetUserLastSeen(int) (time.Time, error)          { return time.Time{}, nil }
+func (m *mockDBAuthHandler) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) {
+	return nil, nil
+}
+
 func (m *mockDBAuthHandler) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) {
 	return nil, nil
 }

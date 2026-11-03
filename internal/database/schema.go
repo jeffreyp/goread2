@@ -103,6 +103,7 @@ type Database interface {
 	RecordUserActivity(userID int, at time.Time) error
 	GetUserLastSeen(userID int) (time.Time, error)
 	GetUserRetentionInfo() ([]UserRetentionInfo, error)
+	GetAllUserFeedSubscriptions() ([]UserFeed, error)
 	ClearAuditLogIPsBefore(cutoff time.Time) (int, error)
 
 	// Audit log methods
@@ -177,14 +178,15 @@ type UserArticle struct {
 	IsStarred bool `json:"is_starred"`
 }
 
-// UserRetentionInfo is what the data retention policy needs to decide whether
-// an account is inactive and unpaid.
+// UserRetentionInfo summarizes one account for the data retention policy and
+// the admin usage statistics.
 type UserRetentionInfo struct {
 	UserID              int
 	SubscriptionStatus  string
 	IsAdmin             bool
 	FreeMonthsRemaining int
 	CreatedAt           time.Time
+	TrialEndsAt         time.Time
 	LastSeenAt          time.Time // zero if no activity has been recorded
 }
 
@@ -1722,7 +1724,7 @@ func (db *DB) GetUserLastSeen(userID int) (time.Time, error) {
 
 func (db *DB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
 	rows, err := db.Query(`SELECT u.id, COALESCE(u.subscription_status, 'trial'), COALESCE(u.is_admin, 0),
-		COALESCE(u.free_months_remaining, 0), u.created_at, a.last_seen_at
+		COALESCE(u.free_months_remaining, 0), u.created_at, u.trial_ends_at, a.last_seen_at
 		FROM users u LEFT JOIN user_activity a ON a.user_id = u.id`)
 	if err != nil {
 		return nil, err
@@ -1732,9 +1734,14 @@ func (db *DB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
 	infos := []UserRetentionInfo{}
 	for rows.Next() {
 		var info UserRetentionInfo
-		var lastSeen sql.NullTime
-		if err := rows.Scan(&info.UserID, &info.SubscriptionStatus, &info.IsAdmin, &info.FreeMonthsRemaining, &info.CreatedAt, &lastSeen); err != nil {
+		var trialEndsAt, lastSeen sql.NullTime
+		if err := rows.Scan(&info.UserID, &info.SubscriptionStatus, &info.IsAdmin, &info.FreeMonthsRemaining, &info.CreatedAt, &trialEndsAt, &lastSeen); err != nil {
 			return nil, err
+		}
+		if trialEndsAt.Valid {
+			info.TrialEndsAt = trialEndsAt.Time
+		} else {
+			info.TrialEndsAt = info.CreatedAt.AddDate(0, 0, 30)
 		}
 		if lastSeen.Valid {
 			info.LastSeenAt = lastSeen.Time
@@ -1742,6 +1749,25 @@ func (db *DB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
 		infos = append(infos, info)
 	}
 	return infos, rows.Err()
+}
+
+// GetAllUserFeedSubscriptions returns every user's feed subscriptions.
+func (db *DB) GetAllUserFeedSubscriptions() ([]UserFeed, error) {
+	rows, err := db.Query(`SELECT user_id, feed_id FROM user_feeds`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	subs := []UserFeed{}
+	for rows.Next() {
+		var sub UserFeed
+		if err := rows.Scan(&sub.UserID, &sub.FeedID); err != nil {
+			return nil, err
+		}
+		subs = append(subs, sub)
+	}
+	return subs, rows.Err()
 }
 
 // ClearAuditLogIPsBefore blanks the IP address of audit log entries older

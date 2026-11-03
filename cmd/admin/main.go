@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -59,6 +60,7 @@ func main() {
 		}
 		fmt.Println("  user-info <email>             - Show user information")
 		fmt.Println("  audit-logs [--limit N] [--operation TYPE] - View audit logs")
+		fmt.Println("  stats                         - Show signups, active users, subscriptions, and feeds")
 		fmt.Println("  fix-subscription <email>      - Fix subscription status from Stripe")
 		fmt.Println("  debug-users                   - Debug user lookup issues")
 		fmt.Println("")
@@ -171,6 +173,9 @@ func main() {
 
 	case "audit-logs":
 		showAuditLogs(auditService, os.Args[2:])
+
+	case "stats":
+		showStats(services.NewStatsService(db))
 
 	case "fix-subscription":
 		if len(os.Args) != 3 {
@@ -525,6 +530,52 @@ func setSubscriptionID(subscriptionService *services.SubscriptionService, email,
 			fmt.Printf("✅ Status synced from Stripe: %s\n", updatedUser.SubscriptionStatus)
 		}
 	}
+}
+
+func showStats(statsService *services.StatsService) {
+	stats, err := statsService.GetStats()
+	if err != nil {
+		log.Fatal("Failed to compute stats:", err)
+	}
+	writeStats(os.Stdout, stats)
+}
+
+func writeStats(w io.Writer, stats *services.AdminStats) {
+	sub := stats.Subscriptions
+	feeds := stats.Feeds
+	_, _ = fmt.Fprintf(w, "\nUsage statistics (generated %s UTC)\n", stats.GeneratedAt.Format("2006-01-02 15:04"))
+	_, _ = fmt.Fprintf(w, "\nUsers: %d\n", stats.TotalUsers)
+	_, _ = fmt.Fprintf(w, "Active users: %d daily, %d weekly, %d monthly\n",
+		stats.ActiveUsers.Daily, stats.ActiveUsers.Weekly, stats.ActiveUsers.Monthly)
+
+	_, _ = fmt.Fprintln(w, "\nSubscriptions (admins excluded):")
+	_, _ = fmt.Fprintf(w, "  %-15s %d\n", "Trialing", sub.Trialing)
+	_, _ = fmt.Fprintf(w, "  %-15s %d\n", "Trial expired", sub.TrialExpired)
+	_, _ = fmt.Fprintf(w, "  %-15s %d\n", "Active", sub.Active)
+	_, _ = fmt.Fprintf(w, "  %-15s %d\n", "Past due", sub.PastDue)
+	_, _ = fmt.Fprintf(w, "  %-15s %d\n", "Cancelled", sub.Cancelled)
+	if sub.Other > 0 {
+		_, _ = fmt.Fprintf(w, "  %-15s %d\n", "Other", sub.Other)
+	}
+	_, _ = fmt.Fprintf(w, "  %-15s %d\n", "Free months", sub.FreeMonths)
+	_, _ = fmt.Fprintf(w, "  %-15s %d\n", "Admins", sub.Admins)
+	_, _ = fmt.Fprintf(w, "  Trial-to-paid conversion: %.1f%%\n", sub.ConversionRate*100)
+
+	_, _ = fmt.Fprintf(w, "\nFeeds: %d active, %d subscriptions, %.1f mean and %.1f median per user\n",
+		feeds.ActiveFeeds, feeds.Subscriptions, feeds.MeanPerUser, feeds.MedianPerUser)
+	for _, b := range feeds.PerUser {
+		_, _ = fmt.Fprintf(w, "  %-7s feeds: %d users\n", b.Bucket, b.Count)
+	}
+
+	_, _ = fmt.Fprintln(w, "\nSignups by week (week starting):")
+	for _, c := range stats.SignupsByWeek {
+		_, _ = fmt.Fprintf(w, "  %s  %d\n", c.Date, c.Count)
+	}
+	_, _ = fmt.Fprintln(w, "\nSignups by day:")
+	for _, c := range stats.SignupsByDay {
+		_, _ = fmt.Fprintf(w, "  %s  %d\n", c.Date, c.Count)
+	}
+	_, _ = fmt.Fprintln(w)
 }
 
 func truncate(s string, max int) string {

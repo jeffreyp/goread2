@@ -309,6 +309,58 @@ func checkUserActivityAndRetentionInfo(t *testing.T, db Database, active, idle *
 	if info, ok := byID[idle.ID]; !ok || !info.LastSeenAt.IsZero() {
 		t.Errorf("Unexpected retention info for idle user: %+v (found %v)", info, ok)
 	}
+	for _, user := range []*User{active, idle} {
+		// Datastore stores times to the microsecond.
+		if info := byID[user.ID]; user.TrialEndsAt.IsZero() || info.TrialEndsAt.Sub(user.TrialEndsAt).Abs() > time.Millisecond {
+			t.Errorf("Expected TrialEndsAt %v for user %d, got %v", user.TrialEndsAt, user.ID, info.TrialEndsAt)
+		}
+	}
+}
+
+func TestGetAllUserFeedSubscriptions(t *testing.T) {
+	db := setupTestDB(t)
+	checkGetAllUserFeedSubscriptions(t, db,
+		createTestUser(t, db), createTestUser(t, db),
+		createTestFeed(t, db), createTestFeed(t, db))
+}
+
+func TestDatastoreGetAllUserFeedSubscriptions(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+	checkGetAllUserFeedSubscriptions(t, db,
+		createDatastoreTestUser(t, db), createDatastoreTestUser(t, db),
+		createDatastoreTestFeed(t, db), createDatastoreTestFeed(t, db))
+}
+
+// checkGetAllUserFeedSubscriptions subscribes first to both feeds and second
+// to one, then checks that every subscription is listed.
+func checkGetAllUserFeedSubscriptions(t *testing.T, db Database, first, second *User, feedA, feedB *Feed) {
+	t.Helper()
+
+	want := []UserFeed{{first.ID, feedA.ID}, {first.ID, feedB.ID}, {second.ID, feedB.ID}}
+	for _, sub := range want {
+		if err := db.SubscribeUserToFeed(sub.UserID, sub.FeedID); err != nil {
+			t.Fatalf("SubscribeUserToFeed failed: %v", err)
+		}
+	}
+
+	subs, err := db.GetAllUserFeedSubscriptions()
+	if err != nil {
+		t.Fatalf("GetAllUserFeedSubscriptions failed: %v", err)
+	}
+	got := map[UserFeed]int{}
+	for _, sub := range subs {
+		if sub.UserID == first.ID || sub.UserID == second.ID {
+			got[sub]++
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Expected subscriptions %v, got %v", want, got)
+	}
+	for _, sub := range want {
+		if got[sub] != 1 {
+			t.Errorf("Expected subscription %+v once, got %d", sub, got[sub])
+		}
+	}
 }
 
 func TestClearAuditLogIPsBefore(t *testing.T) {

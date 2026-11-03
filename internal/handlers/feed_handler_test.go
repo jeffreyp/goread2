@@ -183,6 +183,10 @@ func (m *mockDBFeedHandler) CreateAccountTombstone(string) error             { r
 func (m *mockDBFeedHandler) HasAccountTombstone(string) (bool, error)        { return false, nil }
 func (m *mockDBFeedHandler) RecordUserActivity(int, time.Time) error         { return nil }
 func (m *mockDBFeedHandler) GetUserLastSeen(int) (time.Time, error)          { return time.Time{}, nil }
+func (m *mockDBFeedHandler) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) {
+	return nil, nil
+}
+
 func (m *mockDBFeedHandler) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) {
 	return nil, nil
 }

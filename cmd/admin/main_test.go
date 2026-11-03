@@ -614,3 +614,43 @@ func TestCreateAdminToken_NoAdminUsers(t *testing.T) {
 		t.Fatalf("expected createAdminToken to exit non-zero with no admin users, output: %s", output)
 	}
 }
+
+func TestWriteStats(t *testing.T) {
+	stats := &services.AdminStats{
+		GeneratedAt: time.Date(2026, 11, 4, 15, 30, 0, 0, time.UTC),
+		TotalUsers:  12,
+		ActiveUsers: services.ActiveUserStats{Daily: 3, Weekly: 5, Monthly: 9},
+		Subscriptions: services.SubscriptionStats{
+			Admins: 1, Trialing: 4, TrialExpired: 3, Active: 2, PastDue: 1, Cancelled: 1, FreeMonths: 2,
+			ConversionRate: 4.0 / 7.0,
+		},
+		Feeds: services.FeedStats{
+			ActiveFeeds: 30, Subscriptions: 45, MeanPerUser: 3.75, MedianPerUser: 2.5,
+			PerUser: []services.BucketCount{{Bucket: "0", Count: 2}, {Bucket: "1-5", Count: 10}},
+		},
+		SignupsByWeek: []services.DatedCount{{Date: "2026-11-02", Count: 2}},
+		SignupsByDay:  []services.DatedCount{{Date: "2026-11-04", Count: 1}},
+	}
+
+	var buf bytes.Buffer
+	writeStats(&buf, stats)
+	out := buf.String()
+	for _, want := range []string{
+		"generated 2026-11-04 15:30 UTC",
+		"Users: 12",
+		"Active users: 3 daily, 5 weekly, 9 monthly",
+		"Trial expired   3",
+		"Trial-to-paid conversion: 57.1%",
+		"Feeds: 30 active, 45 subscriptions, 3.8 mean and 2.5 median per user",
+		"1-5     feeds: 10 users",
+		"2026-11-02  2",
+		"2026-11-04  1",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Output missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Other") {
+		t.Errorf("Output should omit a zero Other row:\n%s", out)
+	}
+}

@@ -160,6 +160,7 @@ func main() {
 	articleHandler := handlers.NewArticleHandler(feedService)
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	adminHandler := handlers.NewAdminHandler(subscriptionService, auditService)
+	adminStatsHandler := handlers.NewAdminStatsHandler(services.NewStatsService(db))
 	var paymentHandler *handlers.PaymentHandler
 	if cfg.SubscriptionEnabled && paymentService != nil {
 		paymentHandler = handlers.NewPaymentHandler(paymentService, cfg.GoogleRedirectURL)
@@ -353,6 +354,7 @@ func main() {
 		admin.POST("/users/:email/admin", adminHandler.SetAdminStatus)
 		admin.POST("/users/:email/free-months", adminHandler.GrantFreeMonths)
 		admin.GET("/audit-logs", adminHandler.GetAuditLogs)
+		admin.GET("/stats", adminStatsHandler.GetStats)
 	}
 
 	// Webhook routes (public - no auth required) - only if subscriptions are enabled

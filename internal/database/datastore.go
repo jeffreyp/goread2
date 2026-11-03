@@ -2764,16 +2764,38 @@ func (db *DatastoreDB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
 
 	infos := make([]UserRetentionInfo, len(users))
 	for i, user := range users {
+		trialEndsAt := user.TrialEndsAt
+		if trialEndsAt.IsZero() {
+			trialEndsAt = user.CreatedAt.AddDate(0, 0, 30)
+		}
 		infos[i] = UserRetentionInfo{
 			UserID:              int(userKeys[i].ID),
 			SubscriptionStatus:  user.SubscriptionStatus,
 			IsAdmin:             user.IsAdmin,
 			FreeMonthsRemaining: user.FreeMonthsRemaining,
 			CreatedAt:           user.CreatedAt,
+			TrialEndsAt:         trialEndsAt,
 			LastSeenAt:          lastSeen[userKeys[i].ID],
 		}
 	}
 	return infos, nil
+}
+
+// GetAllUserFeedSubscriptions returns every user's feed subscriptions.
+func (db *DatastoreDB) GetAllUserFeedSubscriptions() ([]UserFeed, error) {
+	defer logSlowQuery("GetAllUserFeedSubscriptions", time.Now())
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	var entities []UserFeedEntity
+	if _, err := db.client.GetAll(ctx, datastore.NewQuery("UserFeed"), &entities); err != nil {
+		return nil, fmt.Errorf("failed to query user feeds: %w", err)
+	}
+	subs := make([]UserFeed, len(entities))
+	for i, entity := range entities {
+		subs[i] = UserFeed{UserID: int(entity.UserID), FeedID: int(entity.FeedID)}
+	}
+	return subs, nil
 }
 
 // ClearAuditLogIPsBefore blanks the IP address of AuditLog entities older

@@ -822,6 +822,7 @@ Stripe webhook endpoint for subscription events.
 - `GET /admin/users/:email` - Get a user's account and subscription info
 - `POST /admin/users/:email/admin` - Set a user's admin status (`{"is_admin": true|false}`); returns `403` when an admin attempts to remove their own admin privileges
 - `POST /admin/users/:email/free-months` - Grant free subscription months (`{"months": N}`)
+- `GET /admin/stats` - Usage statistics: signups, active users, subscription states, trial-to-paid conversion, and feeds per user; see [admin.md](admin.md#usage-statistics) for definitions and response format
 - `GET /admin/audit-logs` - Query the admin action audit log (`limit`, `offset`, `admin_user_id`, `target_user_id`, `operation_type` query params); see [admin.md](admin.md#audit-logging) for response format
 
 ## Error Handling

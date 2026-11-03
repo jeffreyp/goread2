@@ -19,7 +19,7 @@ Complete guide for managing users, permissions, and subscriptions in GoRead2.
 - [Troubleshooting](#troubleshooting)
 - [Database Schema](#database-schema)
 - [Testing and Validation](#testing-and-validation)
-- [Monitoring and Analytics](#monitoring-and-analytics)
+- [Usage Statistics](#usage-statistics)
 - [Migration and Backup](#migration-and-backup)
 - [API Integration](#api-integration)
 - [Related Documentation](#related-documentation)
@@ -224,6 +224,9 @@ go run cmd/admin/main.go user-info user@example.com
 go run cmd/admin/main.go set-admin your-email@gmail.com true
 go run cmd/admin/main.go set-admin user@example.com false
 go run cmd/admin/main.go grant-months user@example.com 6
+
+# Usage Statistics
+go run cmd/admin/main.go stats
 ```
 
 **Security**: All commands except `create-token` (bootstrap mode) require valid database token authentication.
@@ -385,6 +388,10 @@ curl -X POST "https://yourdomain.com/admin/users/user@example.com/free-months" \
   -H "Content-Type: application/json" \
   -H "Cookie: session_id=your-admin-session" \
   -d '{"months": 6}'
+
+# Get usage statistics (requires admin session cookie)
+curl -X GET "https://yourdomain.com/admin/stats" \
+  -H "Cookie: session_id=your-admin-session"
 ```
 
 ## User Status Types
@@ -707,25 +714,52 @@ go test ./test/integration -run "TestAdminSecurity" -v
 go test ./internal/services -cover
 ```
 
-## Monitoring and Analytics
+## Usage Statistics
 
-### User Statistics
+GoRead2 computes usage statistics from data it already stores: the `User`, `UserActivity`, and `UserFeed` records. No third-party analytics service or cookie is involved. Admins can view them in two ways:
 
-```bash
-# SECURITY: Set admin token first
-export ADMIN_TOKEN="your_64_char_token"
+- `GET /admin/stats` returns the statistics as JSON to an admin session.
+- `go run cmd/admin/main.go stats` prints them as a report.
 
-# View user breakdown
-./admin.sh list
+The statistics are:
+
+- **Signups**: new accounts per day for the last 30 days and per week, starting on Monday, for the last 12 weeks. Dates are in UTC.
+- **Active users**: users whose last recorded activity falls within the last 1, 7, or 30 days. Activity is written at most once a day per user, so the daily figure can undercount by up to a day.
+- **Subscriptions**: non-admin users counted by state: trialing, trial expired, active, past due (including unpaid), and cancelled. Admins are counted separately and excluded from every other figure. Users with granted free months are also counted on their own, whatever their state.
+- **Trial-to-paid conversion**: the share of users whose trial has ended who have ever subscribed, meaning their state is active, past due, unpaid, or cancelled.
+- **Feeds**: the number of distinct feeds with at least one subscriber, the total number of subscriptions, the mean and median feeds per user, and the distribution of users across the ranges 0, 1-5, 6-10, 11-20, 21-50, and 51+ feeds.
+
+Computing the statistics reads every `User`, `UserActivity`, and `UserFeed` record. Each instance reuses the result for 15 minutes, so the `generated_at` field of the response can be up to 15 minutes old. The CLI always computes fresh statistics.
+
+Example response:
+
+```json
+{
+  "generated_at": "2026-11-04T15:00:00Z",
+  "total_users": 120,
+  "signups_by_day": [{"date": "2026-10-06", "count": 1}, "..."],
+  "signups_by_week": [{"date": "2026-08-17", "count": 4}, "..."],
+  "active_users": {"daily": 18, "weekly": 41, "monthly": 77},
+  "subscriptions": {
+    "admins": 1,
+    "trialing": 22,
+    "trial_expired": 60,
+    "active": 30,
+    "past_due": 2,
+    "cancelled": 5,
+    "other": 0,
+    "free_months": 3,
+    "conversion_rate": 0.381
+  },
+  "feeds": {
+    "active_feeds": 640,
+    "subscriptions": 1530,
+    "mean_per_user": 12.75,
+    "median_per_user": 9,
+    "per_user": [{"bucket": "0", "count": 8}, {"bucket": "1-5", "count": 25}, "..."]
+  }
+}
 ```
-
-### Usage Tracking
-
-Monitor admin user activity:
-- Feed subscription patterns
-- Article reading behavior
-- System resource usage
-- Support ticket trends
 
 ## Migration and Backup
 
