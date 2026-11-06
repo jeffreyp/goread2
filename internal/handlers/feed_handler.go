@@ -68,7 +68,6 @@ func (fh *FeedHandler) GetFeeds(c *gin.Context) {
 		feeds = []database.Feed{}
 	}
 
-	// Cache headers are set by middleware for optimal performance
 	c.JSON(http.StatusOK, feeds)
 }
 
@@ -466,7 +465,6 @@ func (fh *FeedHandler) GetUnreadCounts(c *gin.Context) {
 		return
 	}
 
-	// Cache headers are set by middleware for optimal performance
 	c.JSON(http.StatusOK, unreadCounts)
 }
 

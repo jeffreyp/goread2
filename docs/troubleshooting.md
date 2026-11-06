@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and solutions for GoRead2, covering authentication, feeds, database, subscriptions, admin, performance, deployment, monitoring, and development.
+Known failures and their fixes for GoRead2, by area. Error text in quotes is what the application returns or logs.
 
 ## Table of Contents
 
@@ -19,416 +19,210 @@ Common issues and solutions for GoRead2, covering authentication, feeds, databas
 
 ## Authentication Issues
 
-### OAuth Configuration Errors
+See [authentication.md](authentication.md) for how sign-in and sessions work.
 
-**Problem**: "OAuth configuration error" or "Invalid client ID"
+### "OAuth configuration error" at Startup
 
-**Solutions**:
-```bash
-# Verify environment variables are set
-echo $GOOGLE_CLIENT_ID
-echo $GOOGLE_CLIENT_SECRET
-echo $GOOGLE_REDIRECT_URL
+The server exits at startup when it cannot load the OAuth credentials. Run `make validate-config`, which reports whether the required credentials are available without printing them. Locally, the credentials come from `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URL`. On App Engine, they come from Secret Manager. See [deployment.md](deployment.md#setting-up-google-secret-manager).
 
-# Check redirect URL matches exactly (no trailing slash)
-# Development: http://localhost:8080/auth/callback
-# Production: https://your-domain.com/auth/callback
-```
+### Google Rejects the Redirect URI
 
-**Common Causes**:
-- Missing or incorrect environment variables
-- Redirect URL mismatch in Google Cloud Console
-- OAuth consent screen not configured
+`GOOGLE_REDIRECT_URL` must exactly match an authorized redirect URI on the OAuth client in Google Cloud Console, including scheme, host, port, and path, with no trailing slash:
 
-### Session Problems
+- Local: `http://localhost:8080/auth/callback`
+- Production: `https://goreadapp.com/auth/callback`
 
-**Problem**: Users logged out frequently or sessions not persisting
+Per-commit staging URLs (`staging-<sha>-dot-...`) cannot complete a sign-in. Use the fixed `staging` version, as described in [authentication.md](authentication.md#host-aware-redirect-url-staging-support).
 
-**Solutions**:
-```bash
-# Verify HTTPS in production (required for secure cookies)
-curl -I https://your-domain.com/
+### Google Blocks the Account at Consent
 
-# Clear browser cookies and retry
-# In browser: DevTools → Storage → Cookies → Clear
-```
+While the OAuth consent screen is in testing mode, only listed test users can sign in. Add the account under APIs & Services → OAuth consent screen, or publish the consent screen.
 
-**Common Causes**:
-- HTTP instead of HTTPS in production
-- Incorrect cookie domain settings
-- Session cleanup too aggressive
+### "The OAuth state parameter is not valid"
 
-See [authentication.md](authentication.md#session-management) for how sessions are created, stored, and cleaned up.
+The state cookie was missing or did not match at the callback. This happens when the callback opens in a different browser or private window from the one that started sign-in, or when the browser blocks the cookie. Start sign-in again in one window, with cookies allowed for the site.
 
-### Login Redirect Loops
+### "The OAuth state parameter has expired or has already been used"
 
-**Problem**: Continuous redirects during login process
+The state lasts 10 minutes and works once, so a slow sign-in or a reloaded callback URL produces this error. Start sign-in again.
 
-**Solutions**:
-- Check OAuth consent screen is published (not in testing)
-- Verify user is added to test users (if in testing mode)
-- Check browser blocks third-party cookies
-- Ensure redirect URL protocol matches (HTTP vs HTTPS)
+### Signed Out, or the Session Does Not Persist
 
-### "The OAuth State Parameter Is Not Valid" Error
+Sessions last 7 days from their last use. Check the following:
 
-**Common Causes**:
-- Cookie was deleted between login initiation and callback
-- Request came from a different browser/incognito window
-- OAuth state cookie expired (10 minute timeout)
+- **Secure cookie over HTTP**: with `ENVIRONMENT=production` set, the session cookie is marked Secure, so a browser on plain `http://localhost` discards it. Unset the variable for local development.
+- **Revoked session**: signing out, and account deletion, revoke sessions on the server.
+- **Browser settings**: a private window, or a setting that clears cookies, ends the session on the browser's side.
 
-**Solution**: Try logging in again.
+Local and production use different cookie names, so being signed in to one does not affect the other. See [authentication.md](authentication.md#environment-isolation).
 
-### Logged Out When Switching Between Local and Production
+### "Invalid CSRF token" or "CSRF token required"
 
-**Common Causes**:
-- Running a build that lacks environment-specific cookie names (see [authentication.md](authentication.md#environment-isolation))
-- Stale cookies from a previous session
-
-**Solution**: Clear cookies and log in again; verify environment variables are set correctly.
-
-### Session Expires Too Quickly
-
-Sessions last 7 days by default.
-
-**Common Causes**:
-- Server clock is incorrect
-- Sessions aren't persisting in the database
-- Browser cookie settings are clearing cookies early
-
-### Can't Stay Logged In
-
-**Common Causes**:
-- Browser blocking cookies
-- Incognito/private browsing mode
-- Cookie settings too restrictive
-
-**Solution**: Allow cookies for the application domain.
+State-changing requests must send the token from `GET /auth/me` in the `X-CSRF-Token` header. Without `CSRF_SECRET`, a local server generates a new secret at each start, which invalidates tokens issued earlier. Reload the page to fetch a new token, or set `CSRF_SECRET` locally to keep tokens valid across restarts.
 
 ## Feed Issues
 
-### Feed Discovery Failures
+### Adding a Feed Fails
 
-**Problem**: "Failed to fetch feed" or "Invalid feed URL"
+`POST /api/feeds` returns an `error_code` that identifies the cause:
 
-**Solutions**:
+| `error_code` | Status | Meaning | Fix |
+|--------------|--------|---------|-----|
+| `invalid_url` | 400 | The URL is malformed | Correct the URL |
+| `ssrf_blocked` | 400 | The URL points at a private or local address | Use a publicly reachable URL. This also applies to feed servers on localhost |
+| `feed_not_found` | 404 | The page exists but advertises no feed | Enter the direct feed URL |
+| `feed_timeout` | 408 | Discovery and fetching took more than 15 seconds | Try again later, or use the direct feed URL |
+| `invalid_feed_format` | 422 | The response is not valid RSS, Atom, or RDF, or exceeds 10 MB | Inspect the response, shown below |
+| `network_error` | 502 | DNS failure, connection failure, or an HTTP error status | Check that the site responds; it may block automated requests |
+
+To inspect a feed directly:
+
 ```bash
-# Test feed URL manually
 curl -I "https://example.com/feed.xml"
-
-# Check common feed locations
-curl -I "https://example.com/rss"
-curl -I "https://example.com/atom.xml"
-curl -I "https://example.com/index.xml"
-
-# Verify feed format
-curl "https://example.com/feed.xml" | head -20
+curl -s "https://example.com/feed.xml" | xmllint --noout -
 ```
 
-**Common Causes**:
-- Invalid or moved feed URL
-- Feed requires authentication
-- Server blocks automated requests
-- Malformed RSS/Atom XML
+### New Articles Appear Late
 
-### Feeds Not Updating
+This is usually expected, for these reasons:
 
-**Problem**: Articles not appearing despite feed updates
+- `/cron/refresh-feeds` runs every 2 hours in production (`cron.yaml`).
+- Each run skips feeds that were checked recently, and rarely updated feeds are checked least often. See [performance.md](performance.md).
+- Unread counts for newly fetched articles can lag by up to 15 minutes. See [caching.md](caching.md#unread-count-cache-15-minutes-ttl).
 
-**Solutions**:
+To check that refreshes are running in production:
+
 ```bash
-# Check manual refresh
-curl -X POST "http://localhost:8080/api/feeds/refresh" \
-  -H "Cookie: session=..."
+gcloud app logs read -s default --limit 1000 | grep -i "refresh"
+```
 
-# Check cron job (App Engine)
-gcloud app logs tail -s default | grep refresh
+To force a refresh locally, press `r` in the web app, and check `last_fetch` in the database:
 
-# Verify feed last_fetch timestamp
+```bash
 sqlite3 goread2.db "SELECT title, last_fetch FROM feeds;"
 ```
 
-**Common Causes**:
-- Background refresh not configured
-- Feed URL changed or blocked
-- Server timezone issues
-- Network connectivity problems
+### OPML Import Fails
 
-### OPML Import Issues
-
-**Problem**: OPML import fails or imports incomplete
-
-**Solutions**:
-```bash
-# Validate OPML file format
-xmllint --format subscriptions.opml
-
-# Check file size (max 10MB)
-ls -lh subscriptions.opml
-
-# Test with smaller OPML subset
-head -50 subscriptions.opml > test.opml
-```
-
-**Common Causes**:
-- Malformed OPML XML
-- File too large
-- Feed limit reached during import
-- Nested folder structure unsupported
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "The file exceeds the maximum allowed size of 10 MB." | File over 10 MB | Split the file |
+| "Import would exceed your feed limit of 20 feeds." | Trial account limit. The response's `imported_count` gives the number imported before the limit | Subscribe, or import fewer feeds |
+| "An internal error occurred while importing." | Malformed XML, nesting deeper than 50 levels, or more than 50,000 elements | Validate with `xmllint --noout subscriptions.opml`, and check the server log |
 
 ## Database Issues
 
-Local development uses SQLite (`goread2.db`); production uses Google Cloud Datastore. See [setup.md](setup.md#database-configuration) for how the database is selected.
+Local development uses SQLite (`goread2.db`), and production uses Google Cloud Datastore. The commands in this section apply only to SQLite. See [setup.md](setup.md#database-configuration).
 
-### SQLite Database Locked
+### "Database is locked"
 
-**Problem**: "Database is locked" errors (local development only)
+Another process is writing to the same SQLite file, usually a second server or an admin command. Stop the other process and retry:
 
-**Solutions**:
 ```bash
-# Stop all GoRead2 instances
+pgrep -fl goread2
 pkill goread2
-
-# Check for zombie processes
-ps aux | grep goread2
-
-# Fix permissions
-sudo chown $USER:$USER goread2.db
-chmod 644 goread2.db
-
-# Remove lock file if exists
-rm -f goread2.db.lock
 ```
 
-**Common Causes**:
-- Multiple GoRead2 instances running
-- Improper shutdown leaving connections open
-- File permission issues
+### Corrupted Local Database
 
-### User Data Isolation Failures
-
-**Problem**: Users seeing other users' data
-
-**Solutions**:
 ```bash
-# Run isolation tests
-go test ./test/integration/... -v -run TestUserIsolation
-
-# Check user session
-curl "http://localhost:8080/auth/me" -H "Cookie: session=..."
-
-# Verify database queries include user filtering
-grep -r "user_id" internal/database/
-```
-
-**Common Causes**:
-- Missing user_id filters in database queries
-- Session middleware not working
-- Database schema issues
-
-### Database Corruption
-
-**Problem**: Database errors or inconsistent data (local SQLite only)
-
-**Solutions**:
-```bash
-# Check database integrity
 sqlite3 goread2.db "PRAGMA integrity_check;"
+```
 
-# Backup and recreate (DESTRUCTIVE)
-cp goread2.db goread2_backup.db
-rm goread2.db
-# Restart application to recreate schema
+If the check fails, move the file aside and restart the server, which creates an empty database. This loses all local data:
+
+```bash
+mv goread2.db goread2_backup.db
 ```
 
 ## Subscription Issues
 
+See [stripe.md](stripe.md) for setup and webhook configuration.
+
 ### Subscription Routes Return 404
 
-**Problem**: Subscription-related API routes return 404
+The checkout, portal, Stripe config, and webhook routes are registered only when `SUBSCRIPTION_ENABLED=true`. See [feature-flags.md](feature-flags.md).
 
-**Solutions**:
-- Check `SUBSCRIPTION_ENABLED=true` is set
-- Verify Stripe configuration (see below)
+### Stripe Configuration Errors
 
-**Common Causes**:
-- `SUBSCRIPTION_ENABLED` unset or `false`; routes are only registered when it's enabled, see [feature-flags.md](feature-flags.md)
+Check the configuration with:
 
-### Stripe Configuration Problems
-
-**Problem**: "Stripe not configured" or payment failures
-
-**Solutions**:
 ```bash
-# Validate Stripe configuration
 go run cmd/setup-stripe/main.go validate
-
-# Check environment variables
-echo $SUBSCRIPTION_ENABLED
-echo $STRIPE_SECRET_KEY
-echo $STRIPE_PUBLISHABLE_KEY
 ```
 
-**Common Causes**:
-- Missing Stripe environment variables
-- Using test keys in production (or vice versa)
-- Product/price not created
-- Webhook secret mismatch
+A successful run prints the publishable key, which is not secret. To check that a secret is set without printing it:
+
+```bash
+[ -n "$STRIPE_SECRET_KEY" ] && echo set || echo unset
+```
+
+A price ID that does not exist in the current Stripe mode makes checkout fail. Test and live mode have separate prices and keys, so check that both come from the same mode. To create a price, run `go run cmd/setup-stripe/main.go create-product` and set `STRIPE_PRICE_ID` to the printed ID.
 
 ### Feed Limit Not Enforced
 
-**Problem**: Users can add unlimited feeds when they shouldn't
-
-**Solutions**:
-```bash
-# Check subscription system is enabled
-echo $SUBSCRIPTION_ENABLED
-
-# Verify user subscription status
-./admin.sh info user@example.com
-
-# Check subscription service logic
-grep -r "CanUserAddFeed" internal/services/
-```
-
-**Common Causes**:
-- `SUBSCRIPTION_ENABLED=false`
-- User has admin privileges
-- User has free months remaining
-- Subscription check bypassed
+The limit does not apply when `SUBSCRIPTION_ENABLED` is off, or to admins, active subscribers, and accounts with granted free months. Check the account with `./admin.sh info user@example.com`.
 
 ### Webhook Failures
 
-**Problem**: Stripe webhooks returning errors
+Check delivery attempts in the Stripe Dashboard under Developers → Webhooks. The endpoint returns:
 
-**Solutions**:
+| Response | Meaning | Fix |
+|----------|---------|-----|
+| 400 "Webhook signature verification failed." | `STRIPE_WEBHOOK_SECRET` does not match this endpoint | Copy the signing secret for this endpoint. The Stripe CLI uses a different secret from the Dashboard endpoint |
+| 500 "The webhook endpoint is not properly configured." | `STRIPE_WEBHOOK_SECRET` is unset | Set the secret |
+| 404 | `SUBSCRIPTION_ENABLED` is off | Enable the flag |
+
+An unsigned test request should return the 400 response, which confirms that the endpoint is reachable:
+
 ```bash
-# Check webhook endpoint
-curl -X POST https://your-domain.com/webhooks/stripe \
-  -H "Content-Type: application/json" \
-  -d '{"type": "ping"}'
-
-# Verify webhook secret
-echo $STRIPE_WEBHOOK_SECRET
-
-# Check webhook logs in Stripe Dashboard
-# Go to Developers → Webhooks → View logs
+curl -i -X POST https://example.com/webhooks/stripe -d '{}'
 ```
 
-**Common Causes**:
-- Webhook endpoint not publicly accessible
-- Incorrect webhook secret
-- HTTPS required for production
-- Webhook signature verification failing
+### Real Cards Fail in Production
 
-### Product/Price Not Found
-
-**Problem**: Checkout fails to load, or logs show "Price not found"
-
-**Solutions**:
-```bash
-# Recreate product and price
-go run cmd/setup-stripe/main.go create-product
-
-# Update STRIPE_PRICE_ID with the new price ID
-export STRIPE_PRICE_ID=price_new_id_here
-```
-
-### Payment Fails in Production
-
-**Problem**: Stripe test cards work, but real cards are declined or checkout errors in production
-
-**Solutions**:
-- Switch to live API keys (`sk_live_`/`pk_live_`) in production
-- Ensure the webhook endpoint uses HTTPS
-- Check the Stripe Dashboard for detailed error messages
-- Verify business information is complete in the Stripe account
-
-See [stripe.md](stripe.md) for the full Stripe setup and webhook configuration.
+Test cards work only with test keys. Production needs live keys (`sk_live_`, `pk_live_`) and a live-mode price and webhook. The Stripe Dashboard's logs show the reason for a declined payment.
 
 ## Admin Issues
 
+See [admin.md](admin.md) for the admin token system and CLI reference.
+
+### Admin Token Errors
+
+| Message | Cause | Fix |
+|---------|-------|-----|
+| "ADMIN_TOKEN environment variable must be set" | The variable is unset | Set it to a token from `create-token` |
+| "ADMIN_TOKEN must be exactly 64 lowercase hex characters (32 bytes)" | The format is wrong | Use a token from `create-token` |
+| "Invalid ADMIN_TOKEN - token not found in database or inactive" | The token was revoked, belongs to another database, or was not created by `create-token` | Create a new token. A value from `openssl rand` is not valid, because tokens must exist in the database |
+| "No admin users found in database" | Bootstrap needs an existing admin | Sign in once, then set the account as admin. See [admin.md](admin.md#initial-setup-bootstrap) |
+| "Admin tokens already exist in the database" | A warning when creating another token | Confirm with `y` if authorized |
+
 ### User Not Found
 
-**Solutions**:
-```bash
-# Check email spelling and case sensitivity
-./admin.sh info user@example.com
-
-# Verify user has logged in at least once
-./admin.sh list | grep user@example.com
-```
-
-**Common Causes**:
-- User must have logged in at least once (account must exist)
-- Email spelling or case mismatch
-
-### Database Locked When Running Admin Commands
-
-**Solutions**:
-```bash
-# Stop the local GoRead2 process before running admin commands
-pkill goread2
-./admin.sh admin user@example.com on
-```
-
-**Common Causes**:
-- The application is still running locally against the same SQLite file
-- Only one process can access the local SQLite database at a time
+The account must exist, so the user must have signed in at least once. Check the spelling with `./admin.sh list`.
 
 ### Admin Changes Not Reflected
 
-**Solutions**:
-- Restart the local GoRead2 process (or redeploy, in production)
-- Have the user log out and log back in
-- Clear browser cache/cookies
+Each instance caches the session and its user record for up to 10 minutes, the default `SESSION_CACHE_TTL`. A change to admin status or free months can therefore take that long to appear. Restart the local server to see it at once.
 
-### Stripe Integration Conflicts
+### Admins See Upgrade Prompts
 
-Admin and free-month users may still see Stripe UI elements. This is by design: admin status overrides subscription requirements, so any payment prompts can be ignored.
-
-### Admin Token Error Messages
-
-- **"ADMIN_TOKEN must be exactly 64 lowercase hex characters (32 bytes)"**: Token format is invalid. Use `create-token` to generate a valid one.
-- **"Invalid ADMIN_TOKEN - token not found in database or inactive"**: Token doesn't exist or was revoked. Generate a new one with `create-token`.
-- **"ADMIN_TOKEN environment variable must be set"**: Set `ADMIN_TOKEN` to a valid 64-character token.
-- **"No admin users found in database"** (bootstrap): create a user account and set it as admin in the database first.
-- **"Admin tokens already exist"**: shown when creating additional tokens; confirm with `y` if authorized.
-
-See [admin.md](admin.md) for the full admin token and CLI reference.
+Admin and free-month accounts may still see Stripe UI elements. Admin status overrides subscription requirements, so these prompts can be ignored.
 
 ## Performance Issues
 
-### Slow Page Loading
+See [performance.md](performance.md) for the optimizations in place.
 
-**Problem**: Application takes 5+ seconds to load
+### Slow Pages
 
-**Solutions**:
+Find the slow request in the browser's DevTools Network tab. Datastore operations over 200 ms are logged as warnings:
+
 ```bash
-# Check database query performance (local SQLite)
-sqlite3 goread2.db ".timer on"
-sqlite3 goread2.db "SELECT * FROM feeds LIMIT 10;"
-
-# Monitor network requests in browser DevTools
-# Look for slow API calls
-
-# Check for database indexes (local SQLite)
-sqlite3 goread2.db ".schema" | grep INDEX
+gcloud app logs read -s default --limit 1000 | grep -i "slow"
 ```
-
-**Common Causes**:
-- Missing database indexes
-- Large number of feeds/articles
-- Slow external feed fetching
-- Inefficient database queries
-
-See [performance.md](performance.md) for the optimizations already in place.
 
 ### High Memory Usage
 
-**Problem**: GoRead2 consuming excessive memory
-
-**Solutions**:
 ```bash
 # Resident memory of a locally built server (make build && ./goread2)
 ps -o pid,rss,command -p "$(pgrep -x goread2)"
@@ -444,236 +238,98 @@ go tool pprof -top -sample_index=alloc_space /tmp/goread2-mem.prof
 
 The server does not register the `net/http/pprof` handlers, so there is no live heap profile endpoint.
 
-**Common Causes**:
-- Database connection leaks
-- Session cleanup not running
-- Large feed content cached in memory
-- Background tasks accumulating
-
-### Feed Refresh Timeouts
-
-**Problem**: Feed refresh takes too long or times out
-
-**Solutions**:
-```bash
-# Check feed fetch timeout settings
-grep -r "timeout" internal/services/feed_*
-
-# Test slow feeds manually
-time curl "https://slow-feed.example.com/rss"
-```
-
-**Common Causes**:
-- Slow external RSS servers
-- Too many feeds refreshed simultaneously
-- Network connectivity issues
-- Large feed content
-
 ## Deployment Issues
 
-GoRead2 deploys exclusively to Google App Engine; see [deployment.md](deployment.md) for the full pipeline.
+GoRead2 deploys only to Google App Engine, through GitHub Actions. See [deployment.md](deployment.md) for the pipeline.
 
-### App Engine Deployment Failures
+### A Deploy Workflow Fails
 
-**Problem**: Deployment fails
+Check the failed job in the Actions tab first, and then the application logs:
 
-**Solutions**:
 ```bash
-# Deploys are automated via GitHub Actions (see docs/deployment.md):
-# push to main for staging, or trigger production manually:
-gh workflow run deploy-prod.yml --repo jeffreyp/goread2
-
-# Manual deployment debugging
-gcloud app deploy --dry-run
-
-# Verify Go version compatibility
-grep runtime app.yaml
-
-# Check environment variable format
-grep -A 20 env_variables app.yaml
-
-# Review deployment logs
+gh run list --repo jeffreyp/goread2 --limit 5
 gcloud app logs tail -s default
 ```
 
-**Common Causes**:
-- Invalid app.yaml syntax
-- Missing required environment variables
-- Go version incompatibility
-- Resource limits exceeded
+A version that deploys but returns 503 usually failed configuration validation at startup, which the logs report. Check that the secrets it needs exist in Secret Manager, and that `app.yaml` contains no unresolved `${VAR}` placeholders.
 
 ## Monitoring Issues
 
+See [monitoring.md](monitoring.md) for the dashboards and alerting setup.
+
 ### Dashboard Not Showing Data
 
-**Solutions**:
-- Verify that the app is deployed and receiving traffic
-- Check that metrics are being generated in Metrics Explorer
-- Datastore metrics may take a few minutes to appear after deployment
+Metrics Explorer shows whether a metric exists. Datastore metrics can take a few minutes to appear after a deploy. Usage dashboard charts stay empty until the first daily cron run.
 
 ### Alerts Not Firing
 
-**Solutions**:
-- Confirm notification channels are configured
-- Check alert policy status in Cloud Console
-- Verify that thresholds are being exceeded using Metrics Explorer
+Check the policy's status and notification channels in Cloud Console, and use Metrics Explorer to confirm that the threshold was exceeded.
 
 ### Permission Errors
 
-**Required IAM roles**:
-- `roles/monitoring.dashboardEditor` - Create/edit dashboards
-- `roles/monitoring.alertPolicyEditor` - Create/edit alerting policies
-
-See [monitoring.md](monitoring.md) for the full dashboard and alerting setup.
+Creating or editing monitoring resources requires `roles/monitoring.dashboardEditor` for dashboards and `roles/monitoring.alertPolicyEditor` for alerting policies.
 
 ## Development Issues
 
-### Build Failures
+### Tests Fail in CI
 
-**Problem**: Build fails
+The `Tests` workflow runs separate jobs, so find the failed job in the Actions tab before looking at test logic. See [testing.md](testing.md#cicd-integration) for what each job runs.
 
-**Solutions**:
+### Tests Fail Locally
+
+Run the suite through `make test`, which sets the environment variables the tests need:
+
 ```bash
-# Use Makefile for complete build (recommended)
-make all
-
-# Build specific components
-make build          # Build Go application
-make build-frontend # Build JS/CSS assets
-make test           # Run test suite
-
-# Manual troubleshooting
-go mod tidy
-go clean -modcache
-go version
-```
-
-**Common Causes**:
-- Outdated dependencies
-- Go version incompatibility
-- Missing environment variables
-- Import path issues
-
-### Test Failures
-
-**Problem**: Tests failing unexpectedly
-
-**Solutions**:
-```bash
-# Use Makefile for testing (recommended)
 make test
-
-# Manual test troubleshooting
-go test -v ./test/...
-go test -v -run TestSpecificFunction ./test/unit/
-
-# Check test environment
-env | grep -E "(GOOGLE|STRIPE)"
-
-# Clean test databases
-rm -f test_*.db
+go test -v -run TestName ./internal/services/
 ```
 
-**Common Causes**:
-- Missing test dependencies
-- Environment variable conflicts
-- Test data isolation issues
-- Timing-dependent test failures
+Datastore-backed tests skip without an emulator. `make test-datastore` runs them. See [testing.md](testing.md#datastore-emulator-internalservicesadmin_token_datastore_testgo).
 
-**CI-specific**: a red `Tests` run on GitHub covers six separate jobs in `.github/workflows/test.yml`: `test` (Go unit/integration), `lint` (golangci-lint), `frontend-build` (ESLint + Jest + `make build-frontend`), `benchmark` (regression-gated Go benchmarks), `security` (`test/security/` + `govulncheck`), and `build`. Check which job failed in the Actions tab before assuming it's a test logic problem; see [testing.md](testing.md#cicd-integration) for what each job runs.
+### The App Does Not Render
 
-### Frontend Issues
+Minified JS and CSS are not checked in. Without them, templates point at files that do not exist, and the server logs an error when it computes their versions. Build them and restart the server:
 
-**Problem**: JavaScript errors or UI not working
-
-**Solutions**:
 ```bash
-# Check browser console for errors
-# Open DevTools → Console
-
-# Verify static files served correctly
-curl -I http://localhost:8080/static/js/app.min.js
-
-# Check for missing dependencies
-ls web/static/js/
-ls web/static/css/
-
-# Test frontend in isolation
-npm test
+npm install
+make build-frontend
 ```
 
-**Common Causes**:
-- JavaScript syntax errors
-- Missing static files
-- CSS/JavaScript not minified
-- Browser caching old files
+Then check the browser console for errors, and confirm that the assets load:
+
+```bash
+curl -I http://localhost:8080/static/js/app.min.js
+```
 
 ## Logging and Debugging
 
-### Enable Debug Logging
+GoRead2 logs to stdout and has no log file. Locally, logs appear in the terminal running the server. In production:
 
 ```bash
-# Development mode with verbose logging
-export GIN_MODE=debug
-go run main.go
-```
-
-GoRead2 logs to stdout; there is no log file. Locally that means the terminal running the
-process. In production, use `gcloud app logs tail -s default` (see below).
-
-### Common Log Locations
-
-```bash
-# Local development: stdout of the running process (go run main.go / make dev)
-
-# App Engine
 gcloud app logs tail -s default
 ```
 
-### Debug Commands
+The `request_id` field on a 401 or 403 response correlates a client-reported failure with the server logs.
 
-```bash
-# SECURITY: Set admin token first
-export ADMIN_TOKEN="$(openssl rand -hex 32)"
-
-# Check system status
-go run cmd/admin/main.go system-info
-
-# Validate configuration
-go run cmd/setup-stripe/main.go validate
-
-# Test database connection
-go run cmd/admin/main.go list-users
-
-# Check feed fetching
-curl -v "https://example.com/feed.xml"
-```
+To test the database connection and admin token together, run `go run cmd/admin/main.go list-users` with a valid `ADMIN_TOKEN`.
 
 ## Getting Help
 
-### Collect Debug Information
+Report bugs at [GitHub Issues](https://github.com/jeffreyp/goread2/issues). GitHub issues are public, so do not report security vulnerabilities there. See [security.md](security.md#reporting-security-issues).
 
-When reporting issues, include:
+**Do not include secrets or personal data in a report.** Remove OAuth secrets, Stripe keys, admin tokens, `CSRF_SECRET`, session cookies, and user email addresses from anything pasted. Do not paste the output of `env`, and if a secret is posted by accident, rotate it.
 
-```bash
-# System information
-go version
-cat app.yaml
-env | grep -E "(GOOGLE|STRIPE|SUBSCRIPTION)"
+Include:
 
-# Database state
-./admin.sh list
-./admin.sh info your-email@example.com
+- The steps to reproduce the failure, and the error message
+- The environment: local development, staging, or production
+- The build version shown in the footer of the help modal (`?`), or the output of `git rev-parse --short HEAD` for a local build
+- The output of `go version`
+- The names of the relevant variables that are set, without their values:
 
-# Test results
-./test.sh 2>&1 | tail -50
-```
-
-### Report Issues
-
-- **GitHub Issues**: [goread2/issues](https://github.com/jeffreyp/goread2/issues)
-- **Include**: Error messages, logs, configuration, steps to reproduce
-- **Environment**: Local development or App Engine (staging/production)
+  ```bash
+  env | cut -d= -f1 | grep -E '^(GOOGLE|STRIPE|SUBSCRIPTION)' | sort
+  ```
 
 ## Related Documentation
 

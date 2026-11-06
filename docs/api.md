@@ -5,6 +5,7 @@ Reference for GoRead2's REST API endpoints, for developers integrating with or e
 ## Table of Contents
 
 - [Overview](#overview)
+- [Authenticating Requests](#authenticating-requests)
 - [Authentication Endpoints](#authentication-endpoints)
 - [Feed Endpoints](#feed-endpoints)
 - [Article Endpoints](#article-endpoints)
@@ -15,28 +16,53 @@ Reference for GoRead2's REST API endpoints, for developers integrating with or e
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
 - [CORS Policy](#cors-policy)
-- [Session Management](#session-management)
 - [API Versioning](#api-versioning)
-- [Examples and SDKs](#examples-and-sdks)
+- [Other Routes](#other-routes)
 - [Related Documentation](#related-documentation)
 
 ## Overview
 
-GoRead2 provides a RESTful API for managing feeds, articles, and user subscriptions. All endpoints require authentication via session cookies obtained through Google OAuth.
+GoRead2 provides a REST API for managing feeds, articles, and subscriptions. Endpoints under `/api` and `/admin` require a session cookie obtained through Google OAuth. `/auth/login`, `/auth/callback`, and `/auth/token` are public, and `POST /webhooks/stripe` authenticates by signature.
 
 **Base URL**: `http://localhost:8080` in development, or the deployed application domain in production
 
-**Cookie name**: the session cookie is named `session_id_local` in local development and `session_id` in production, to prevent conflicts when testing against both from the same browser. Examples below use `session_id` as a placeholder; substitute the environment-appropriate name.
+**Cookie name**: the session cookie is named `session_id_local` in local development and `session_id` in production, so that both can be used from one browser. Examples below use `session_id`.
 
-**Authentication**: Session-based authentication with HTTP-only cookies
+**CSRF protection**: every POST, PUT, and DELETE under `/api` and `/admin`, and `POST /auth/logout`, requires a valid token in the `X-CSRF-Token` header. A missing or invalid token returns `403 Forbidden`.
 
-**CSRF Protection**: All state-changing operations (POST, PUT, DELETE) require a valid CSRF token in the `X-CSRF-Token` header
+**Rate limits**: see [Rate Limiting](#rate-limiting).
 
-**Rate Limiting**:
-- Auth endpoints: 10 requests/second (burst: 20)
-- API endpoints: 30 requests/second (burst: 50)
-- Data export: 1 request/minute (burst: 3)
-- Returns `429 Too Many Requests` when limit exceeded
+## Authenticating Requests
+
+Sign-in requires a browser, because it goes through Google's consent screen. A script therefore reuses the session cookie of a signed-in browser. To call the API with curl, copy the cookie's value from the browser's developer tools, fetch the CSRF token, and send both:
+
+```bash
+SESSION="session-cookie-value"
+CSRF=$(curl -s -H "Cookie: session_id=$SESSION" "http://localhost:8080/auth/me" | jq -r .csrf_token)
+
+curl -X POST "http://localhost:8080/api/feeds" \
+  -H "Cookie: session_id=$SESSION" \
+  -H "X-CSRF-Token: $CSRF" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/feed.xml"}'
+```
+
+Browser code on the same origin sends the cookie automatically and adds the header itself:
+
+```javascript
+const { csrf_token } = await (await fetch('/auth/me')).json();
+
+const response = await fetch('/api/feeds', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRF-Token': csrf_token
+  },
+  body: JSON.stringify({ url: 'https://example.com/feed.xml' })
+});
+```
+
+The iOS and macOS apps obtain their session through `POST /auth/token`. See [authentication.md](authentication.md#native-client-flow-ios-and-macos).
 
 ## Authentication Endpoints
 
@@ -52,7 +78,7 @@ Initiate Google OAuth authentication flow.
 
 **Example**:
 ```bash
-curl -L "http://localhost:8080/auth/login"
+curl "http://localhost:8080/auth/login"
 ```
 
 #### `GET /auth/callback`
@@ -100,7 +126,8 @@ Logout and clear session.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/auth/logout" \
-  -H "Cookie: session_id=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token"
 ```
 
 #### `GET /auth/me`
@@ -114,13 +141,14 @@ Get current authenticated user information and CSRF token.
     "email": "user@example.com",
     "name": "John Doe",
     "avatar": "https://lh3.googleusercontent.com/...",
+    "created_at": "2023-01-01T00:00:00Z",
     "max_articles_on_feed_add": 100
   },
   "csrf_token": "your-csrf-token-here"
 }
 ```
 
-**Note**: The `csrf_token` must be included in the `X-CSRF-Token` header for all POST, PUT, and DELETE requests.
+Returns `401 Unauthorized` without a valid session.
 
 **Example**:
 ```bash
@@ -131,8 +159,6 @@ curl "http://localhost:8080/auth/me" \
 ## Feed Endpoints
 
 All feed endpoints are user-specific and require authentication.
-
-**Note**: All POST, PUT, and DELETE endpoints require the `X-CSRF-Token` header with a valid token obtained from `/auth/me`.
 
 ### `GET /api/feeds`
 List user's subscribed feeds.
@@ -147,12 +173,15 @@ List user's subscribed feeds.
     "description": "An example RSS feed",
     "created_at": "2023-01-01T00:00:00Z",
     "updated_at": "2023-01-01T00:00:00Z",
-    "last_fetch": "2023-01-01T12:00:00Z"
+    "last_fetch": "2023-01-01T12:00:00Z",
+    "last_checked": "2023-01-01T12:00:00Z",
+    "last_had_new_content": "2023-01-01T12:00:00Z",
+    "average_update_interval": 86400,
+    "etag": "",
+    "last_modified": ""
   }
 ]
 ```
-
-**Caching**: 5 minutes (`Cache-Control: private, max-age=300`)
 
 **Example**:
 ```bash
@@ -182,13 +211,18 @@ Subscribe user to a new feed.
   "description": "Feed description",
   "created_at": "2023-01-01T00:00:00Z",
   "updated_at": "2023-01-01T00:00:00Z",
-  "last_fetch": "2023-01-01T00:00:00Z"
+  "last_fetch": "2023-01-01T00:00:00Z",
+  "last_checked": "2023-01-01T00:00:00Z",
+  "last_had_new_content": "2023-01-01T00:00:00Z",
+  "average_update_interval": 0,
+  "etag": "",
+  "last_modified": ""
 }
 ```
 
 **Error Responses**:
-- `400 Bad Request` - Invalid URL format or SSRF-blocked URL
-- `402 Payment Required` - Feed limit reached or trial expired
+- `400 Bad Request` - Invalid URL format, SSRF-blocked URL, or an unparseable body
+- `402 Payment Required` - Feed limit reached or trial expired, in the format described under [Subscription-Specific Errors](#subscription-specific-errors)
 - `403 Forbidden` - Invalid or missing CSRF token
 - `404 Not Found` - No RSS/Atom feeds found at the URL
 - `408 Request Timeout` - Feed discovery/fetch exceeded timeout (15 seconds)
@@ -213,13 +247,13 @@ Subscribe user to a new feed.
 - `invalid_feed_format` - Invalid XML or unsupported format (422)
 - `network_error` - DNS, connection, or HTTP errors (502)
 - `database_error` - Database operation failed (500)
-- `limit_reached` - Free user feed limit reached (402)
-- `trial_expired` - Trial period ended (402)
+- `unknown_error` - Any other failure (500)
 
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/feeds" \
   -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com/feed.xml"}'
 ```
@@ -241,16 +275,17 @@ Unsubscribe user from a feed.
 - `400 Bad Request` - Invalid feed ID
 - `500 Internal Server Error` - Database error
 
-Note: there is no `404` case today. Unsubscribing from a feed ID with no active subscription is not distinguished from a successful unsubscribe at the handler level.
+Unsubscribing from a feed ID with no active subscription returns the same success response.
 
 **Example**:
 ```bash
 curl -X DELETE "http://localhost:8080/api/feeds/1" \
-  -H "Cookie: session_id=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token"
 ```
 
 ### `POST /api/feeds/refresh`
-Manually refresh all user's feeds.
+Refresh feeds now, and respond when the refresh finishes. The refresh is not limited to the caller's feeds: it covers every feed due for a check, using the same selection as the scheduled refresh.
 
 **Response**:
 ```json
@@ -262,7 +297,8 @@ Manually refresh all user's feeds.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/feeds/refresh" \
-  -H "Cookie: session_id=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token"
 ```
 
 ### `GET /api/feeds/unread-counts`
@@ -271,13 +307,13 @@ Get unread article counts for all user's feeds.
 **Response**:
 ```json
 {
-  "1": 5,    // Feed ID 1 has 5 unread articles
-  "2": 12,   // Feed ID 2 has 12 unread articles
-  "3": 0     // Feed ID 3 has 0 unread articles
+  "1": 5,
+  "2": 12,
+  "3": 0
 }
 ```
 
-**Caching**: 10 seconds (`Cache-Control: private, max-age=10`)
+Keys are feed IDs, and values are unread article counts.
 
 **Example**:
 ```bash
@@ -306,9 +342,9 @@ Import feeds from OPML file.
 
 **Error Responses**:
 - `400 Bad Request` - No file provided or file too large
-- `402 Payment Required` - Import would exceed feed limit
+- `402 Payment Required` - Import would exceed the feed limit, or the trial has expired. A limit response includes `imported_count`, the number of feeds added before the limit
 - `403 Forbidden` - Invalid or missing CSRF token
-- `500 Internal Server Error` - OPML parsing failed
+- `500 Internal Server Error` - The file could not be read or parsed
 
 **Example**:
 ```bash
@@ -462,12 +498,14 @@ Mark article as read or unread for current user.
 # Mark as read
 curl -X POST "http://localhost:8080/api/articles/1/read" \
   -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token" \
   -H "Content-Type: application/json" \
   -d '{"is_read": true}'
 
 # Mark as unread
 curl -X POST "http://localhost:8080/api/articles/1/read" \
   -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token" \
   -H "Content-Type: application/json" \
   -d '{"is_read": false}'
 ```
@@ -491,7 +529,8 @@ Toggle star status for article.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/articles/1/star" \
-  -H "Cookie: session_id=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token"
 ```
 
 ### `POST /api/articles/mark-all-read`
@@ -523,46 +562,46 @@ curl -X POST "http://localhost:8080/api/articles/mark-all-read" \
   -H "X-CSRF-Token: your-csrf-token"
 ```
 
-**Note**: reachable from the UI via the `a` keyboard shortcut, in addition to direct API use for automation scripts or third-party integrations.
+The web app's `a` keyboard shortcut calls this endpoint.
 
 ## Subscription Endpoints
 
-These endpoints are only available when `SUBSCRIPTION_ENABLED=true`.
+`GET /api/subscription` is always available. The other endpoints in this section are registered only when `SUBSCRIPTION_ENABLED=true`, and return `404 Not Found` otherwise.
 
 ### `GET /api/subscription`
-Get user's subscription information and limits.
+Get the user's subscription information and limits.
 
-**Response** (Subscription Enabled):
+**Response**:
 ```json
 {
   "status": "trial",
+  "subscription_id": "",
   "trial_ends_at": "2023-02-01T00:00:00Z",
-  "feed_count": 15,
+  "last_payment_date": "0001-01-01T00:00:00Z",
+  "current_feeds": 15,
   "feed_limit": 20,
-  "days_remaining": 25,
   "can_add_feeds": true,
-  "subscription_id": null,
-  "last_payment_date": null
+  "is_active": true,
+  "trial_days_remaining": 25
 }
 ```
 
-**Response** (Subscription Disabled):
-```json
-{
-  "status": "unlimited",
-  "feed_count": 150,
-  "feed_limit": -1,
-  "can_add_feeds": true,
-  "subscription_enabled": false
-}
-```
+**Fields**:
+- `feed_limit` is `-1` when feeds are unlimited
+- `last_payment_date` is Go's zero time, shown above in UTC, if no payment has been recorded
+- `next_billing_date` is included only when a next billing date is known
+- `trial_days_remaining` is included only for accounts in the `trial` state with days remaining
 
 **Status Values**:
 - `trial` - Free trial period
 - `active` - Paid subscription
+- `past_due`, `unpaid` - Stripe could not collect a payment
 - `cancelled` - Cancelled subscription
-- `expired` - Expired trial or subscription
-- `unlimited` - Admin or subscription disabled
+- `expired` - Expired subscription
+- `free_months` - Granted free months
+- `admin` - Admin with an active subscription
+- `admin_trial` - Admin without an active subscription
+- `unlimited` - `SUBSCRIPTION_ENABLED` is off; `feed_limit` is `-1` and `can_add_feeds` is `true` for every user
 
 **Example**:
 ```bash
@@ -571,19 +610,25 @@ curl "http://localhost:8080/api/subscription" \
 ```
 
 ### `POST /api/subscription/checkout`
-Create Stripe checkout session for subscription.
+Create a Stripe checkout session for a subscription.
 
 **Response**:
 ```json
 {
-  "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_..."
+  "session_id": "cs_test_...",
+  "session_url": "https://checkout.stripe.com/c/pay/cs_test_..."
 }
 ```
+
+**Error Responses**:
+- `409 Conflict` - The user already has an active subscription
+- `500 Internal Server Error` - The session could not be created
 
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/subscription/checkout" \
-  -H "Cookie: session_id=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token"
 ```
 
 ### `POST /api/subscription/portal`
@@ -599,7 +644,8 @@ Create Stripe customer portal session for billing management.
 **Example**:
 ```bash
 curl -X POST "http://localhost:8080/api/subscription/portal" \
-  -H "Cookie: session_id=your-session-cookie"
+  -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token"
 ```
 
 ### `GET /api/stripe/config`
@@ -608,8 +654,7 @@ Get Stripe configuration for frontend.
 **Response**:
 ```json
 {
-  "publishable_key": "pk_test_...",
-  "price_id": "price_..."
+  "publishable_key": "pk_test_..."
 }
 ```
 
@@ -635,9 +680,11 @@ Get detailed account statistics.
     "status": "active",
     "feed_limit": -1
   },
-  "feeds": [...]
+  "feeds": []
 }
 ```
+
+`subscription_info` has the shape returned by [`GET /api/subscription`](#get-apisubscription), shortened above. `feeds` has the shape returned by [`GET /api/feeds`](#get-apifeeds). `total_unread` and `active_feeds` count only articles published in the last 90 days.
 
 **Example**:
 ```bash
@@ -670,6 +717,7 @@ Update the maximum number of articles to import when adding a new feed.
 ```bash
 curl -X PUT "http://localhost:8080/api/account/max-articles" \
   -H "Cookie: session_id=your-session-cookie" \
+  -H "X-CSRF-Token: your-csrf-token" \
   -H "Content-Type: application/json" \
   -d '{"max_articles": 250}'
 ```
@@ -816,9 +864,9 @@ Stripe webhook endpoint for subscription events.
 
 ## Admin Endpoints
 
-**⚠️ Admin Only**: All `/admin/*` endpoints require an authenticated admin session. See [admin.md](admin.md) for the equivalent CLI commands.
+All `/admin/*` endpoints require an authenticated admin session. See [admin.md](admin.md) for the equivalent CLI commands.
 
-- `GET /admin/users` - Not yet implemented; returns `501 Not Implemented` with a note to use the CLI instead
+- `GET /admin/users` - Returns `501 Not Implemented` with a note to use the CLI instead
 - `GET /admin/users/:email` - Get a user's account and subscription info
 - `POST /admin/users/:email/admin` - Set a user's admin status (`{"is_admin": true|false}`); returns `403` when an admin attempts to remove their own admin privileges
 - `POST /admin/users/:email/free-months` - Grant free subscription months (`{"months": N}`)
@@ -835,17 +883,25 @@ Stripe webhook endpoint for subscription events.
 }
 ```
 
+A 401 or 403 from the authentication middleware also includes `request_id`, which correlates the failure with the server logs. `POST /api/feeds` adds `error_code` and `details`, as described under that endpoint.
+
 ### HTTP Status Codes
 
 - `200 OK` - Success
 - `201 Created` - Resource created successfully
+- `202 Accepted` - Work queued, as with `DELETE /api/account`
 - `400 Bad Request` - Invalid request data
 - `401 Unauthorized` - Authentication required
 - `402 Payment Required` - Subscription required
-- `403 Forbidden` - Access denied
+- `403 Forbidden` - Access denied, or a missing or invalid CSRF token
 - `404 Not Found` - Resource not found
-- `409 Conflict` - Resource already exists
+- `408 Request Timeout` - Feed fetch timed out
+- `409 Conflict` - The user already has an active subscription
+- `422 Unprocessable Entity` - Invalid feed format
+- `429 Too Many Requests` - Rate limit exceeded
 - `500 Internal Server Error` - Server error
+- `501 Not Implemented` - `GET /admin/users` only
+- `502 Bad Gateway` - The feed's server could not be reached
 
 ### Subscription-Specific Errors
 
@@ -870,14 +926,14 @@ When trial has expired:
 
 ## Rate Limiting
 
-Rate limiting is enforced per IP address (as described in the Overview section):
+Rate limiting is enforced per IP address:
 
-- **Authentication endpoints**: 10 requests/second (burst: 20)
-- **API endpoints**: 30 requests/second (burst: 50)
+- **Authentication endpoints** (`/auth/*`): 10 requests/second (burst: 20)
+- **API endpoints** (`/api/*`): 30 requests/second (burst: 50)
 - **Webhook endpoint**: 5 requests/second (burst: 10)
 - **Data export** (`GET /api/account/export`): 1 request/minute (burst: 3), in addition to the API limit
 
-Exceeded requests return `429 Too Many Requests`.
+Exceeded requests return `429 Too Many Requests`. `/admin/*` endpoints are not rate limited.
 
 ## CORS Policy
 
@@ -887,98 +943,26 @@ CORS is disabled by default, so only same-origin requests are allowed. Setting t
 - **Credentials**: cookies included, both same-origin and for the allowlisted cross-origin case
 - **Headers**: `Content-Type`, `Authorization`, `X-CSRF-Token`
 
-## Session Management
-
-### Session Cookies
-
-- **Name**: `session_id` in production, `session_id_local` in local development
-- **Security**: HTTP-only, Secure in production, SameSite=Lax
-- **Expiration**: 7 days, extended on use
-- **Domain**: Same as application domain
-
-### Session Validation
-
-All protected endpoints validate:
-1. Session cookie exists and is valid
-2. Session hasn't expired
-3. Associated user exists and is active
-4. User context is properly set
-
 ## API Versioning
 
 The API is unversioned; all endpoints are implicitly v1.
 
-## Examples and SDKs
+## Other Routes
 
-### JavaScript Example
+These routes are not part of the client API:
 
-```javascript
-// Authenticated API request
-async function getFeeds() {
-  const response = await fetch('/api/feeds', {
-    credentials: 'include'  // Include session cookie
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  
-  return await response.json();
-}
-
-// Add new feed
-async function addFeed(url) {
-  const response = await fetch('/api/feeds', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ url })
-  });
-  
-  return await response.json();
-}
-```
-
-### curl Examples
-
-```bash
-# Login and save session cookie
-curl -c cookies.txt -L "http://localhost:8080/auth/login"
-
-# Use session cookie for API requests
-curl -b cookies.txt "http://localhost:8080/api/feeds"
-
-# Add feed with session
-curl -b cookies.txt -X POST "http://localhost:8080/api/feeds" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com/feed.xml"}'
-```
-
-### Python Example
-
-```python
-import requests
-
-# Create session to maintain cookies
-session = requests.Session()
-
-# Login (follow redirects)
-login_response = session.get('http://localhost:8080/auth/login', allow_redirects=True)
-
-# Make authenticated API calls
-feeds_response = session.get('http://localhost:8080/api/feeds')
-feeds = feeds_response.json()
-
-# Add new feed
-add_response = session.post('http://localhost:8080/api/feeds', 
-                           json={'url': 'https://example.com/feed.xml'})
-```
+| Route | Purpose |
+|-------|---------|
+| `GET /`, `/privacy` | HTML pages, public |
+| `GET /account`, `/subscription` | HTML pages, requiring a session |
+| `GET /subscription/success`, `/subscription/cancel` | Stripe checkout return pages, registered only when `SUBSCRIPTION_ENABLED=true` |
+| `GET` or `POST /cron/*` | Scheduled jobs in `cron.yaml`, restricted to App Engine Cron. See [deployment.md](deployment.md#cronyaml-configuration) |
+| `POST /tasks/*` | Cloud Tasks workers, restricted to Cloud Tasks. See [deployment.md](deployment.md#async-task-processing-cloud-tasks) |
+| `GET /_ah/warmup` | App Engine warmup request |
 
 ## Related Documentation
 
-- [Authentication](authentication.md) - Session and OAuth implementation details
+- [Authentication](authentication.md) - Session cookies, expiry, and OAuth implementation details
 - [Security Guidelines](security.md) - CSRF, rate limiting, and input validation
 - [Admin Guide](admin.md) - Admin endpoint authentication
 - [Troubleshooting Guide](troubleshooting.md) - Common issues
