@@ -255,8 +255,16 @@ The Xcode project stays on automatic signing for local development. The `beta` l
 
 1. **App record**: register the `org.jeffreypratt.goread2` bundle ID and create the app in [App Store Connect](https://appstoreconnect.apple.com/). TestFlight uploads require the app record to exist.
 2. **App Store Connect API key**: under Users and Access → Integrations, create a team key with the App Manager role. Record the Key ID and Issuer ID, and download the `.p8` file.
-3. **Certificates repository**: create a private git repository (for example `goread2-certificates`) to hold the encrypted signing assets, plus a fine-grained personal access token with read access to it for CI.
-4. **Generate signing assets** from a developer machine. match prompts for an encryption passphrase, which becomes `MATCH_PASSWORD`:
+3. **Certificates repository**: create a private git repository (for example `goread2-certificates`) to hold the encrypted signing assets, plus a read-only SSH deploy key that gives CI access to it. The key has no passphrase because CI cannot supply one. Delete the local copy after storing it as a secret:
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C "goread2-ci-match" -f match_deploy_key
+   gh repo deploy-key add match_deploy_key.pub --repo jeffreyp/goread2-certificates --title "goread2 CI (fastlane match)"
+   gh secret set MATCH_GIT_PRIVATE_KEY --repo jeffreyp/goread2 < match_deploy_key
+   rm match_deploy_key match_deploy_key.pub
+   ```
+
+4. **Generate signing assets** from a developer machine, which authenticates with the developer's own GitHub credentials because the deploy key cannot write. match prompts for an encryption passphrase, which becomes `MATCH_PASSWORD`:
 
    ```bash
    cd ios
@@ -276,8 +284,8 @@ The Xcode project stays on automatic signing for local development. The `beta` l
    | `ASC_KEY_ID` | secret | App Store Connect API Key ID |
    | `ASC_ISSUER_ID` | secret | App Store Connect API Issuer ID |
    | `ASC_KEY_CONTENT` | secret | Base64 of the `.p8` key: `base64 -i AuthKey_XXXXXXXX.p8` |
-   | `MATCH_GIT_URL` | secret | HTTPS URL of the certificates repository |
-   | `MATCH_GIT_BASIC_AUTHORIZATION` | secret | `echo -n "<github user>:<PAT>" \| base64` |
+   | `MATCH_GIT_URL` | secret | SSH URL of the certificates repository: `git@github.com:jeffreyp/goread2-certificates.git` |
+   | `MATCH_GIT_PRIVATE_KEY` | secret | Private key of the deploy key from step 3 |
    | `MATCH_PASSWORD` | secret | match encryption passphrase from step 4 |
 
 After the first successful run, the build appears in App Store Connect → TestFlight once Apple finishes processing it. Distribution to devices is managed there by adding testers to an internal group.
