@@ -56,6 +56,7 @@ Before working in a feature area, read the corresponding doc for context. If you
 | Test infrastructure, `test.sh` | `docs/testing.md` |
 | User-facing features (UI, keyboard shortcuts) | `docs/features.md` |
 | `ios/` (SwiftUI app, Xcode project, fastlane) | `docs/ios.md` |
+| `ios/fastlane/`, `ios-release.yml`, `macos-release.yml` | `docs/apple-releases.md` |
 
 ## Commit Conventions
 

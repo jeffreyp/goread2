@@ -21,8 +21,8 @@ permissions:
 
 jobs:
   dmg:
-    # Skips cleanly until the one-time Apple setup (docs/deployment.md,
-    # "macOS Release Pipeline") has populated the repository variable.
+    # Skips cleanly until the one-time Apple setup (docs/apple-releases.md)
+    # has populated the repository variable.
     if: vars.APPLE_TEAM_ID != ''
     runs-on: macos-15
     permissions:

@@ -54,6 +54,7 @@ Deployment is automated via GitHub Actions, not the Makefile. See
 | [**Authentication Guide**](docs/authentication.md) | OAuth flow, session management, and security |
 | [**Deployment Guide**](docs/deployment.md) | Google App Engine deployment and CI/CD pipeline (includes Google Secret Manager setup) |
 | [**iOS and macOS Apps**](docs/ios.md) | Native Apple clients: local development, the macOS build, and on-device testing |
+| [**Apple Release Guide**](docs/apple-releases.md) | Releasing to iOS, iPadOS, and macOS: setup, status, renewals, and troubleshooting |
 | [**Admin Guide**](docs/admin.md) | User management and admin commands |
 | [**Stripe Setup**](docs/stripe.md) | Payment processing configuration |
 | [**Testing Guide**](docs/testing.md) | Running and writing tests |
