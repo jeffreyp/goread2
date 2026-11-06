@@ -329,6 +329,18 @@ git tag macos-v1.2.0
 git push origin macos-v1.2.0
 ```
 
+### Fastlane updates
+
+Dependabot opens weekly pull requests that update fastlane in `ios/Gemfile.lock`. Merging one does not exercise the `release` lane, which runs only on a `macos-v*` tag or `workflow_dispatch`. A fastlane release that removes or changes an action option therefore fails the next time the lane runs, which can be at release time.
+
+To check an update, run the workflow manually after merging it:
+
+```bash
+gh workflow run macos-release.yml --repo jeffreyp/goread2 --ref main
+```
+
+This submits the app and disk image to Apple for notarization and leaves the DMG as a workflow artifact, without publishing a release. Failures in the `notarize` action name the rejected option in the final `[!]` line of the log.
+
 ### One-time setup
 
 The App Store Connect API key, certificates repository, and GitHub secrets are shared with the [iOS pipeline](#ios-release-pipeline-githubworkflowsios-releaseyml), so steps 2, 3, and 5 of that setup are prerequisites here. Two of its steps are not:
