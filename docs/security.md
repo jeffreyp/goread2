@@ -215,7 +215,8 @@ Protection against brute force and DoS attacks:
 - **API endpoints** (`/api/*`) - 30 requests/second, burst of 50
 - **Webhook endpoint** (`/webhooks/stripe`) - 5 requests/second, burst of 10
 - **Data export** (`/api/account/export`) - 1 request/minute, burst of 3, because each export reads the user's full history
-- **IP-based tracking** - Each client IP has independent limits
+- **Manual feed refresh** (`/api/feeds/refresh`) - 1 request every 30 seconds, burst of 3, tracked per user so one account cannot bypass it by changing IP address. The endpoint refreshes only the caller's own feeds.
+- **IP-based tracking** - Each client IP has independent limits, except for the per-user manual refresh limit
 - **Automatic cleanup** - Old IP entries cleaned up hourly
 
 ### Input Validation

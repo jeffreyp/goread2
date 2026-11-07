@@ -344,15 +344,21 @@ func (fh *FeedHandler) RefreshFeeds(c *gin.Context) {
 		return
 	}
 
-	// Manual (API) path: run synchronously so the caller gets a result.
-	log.Printf("Manual feed refresh started at %v", time.Now())
-	if err := fh.doRefreshFeeds(); err != nil {
-		log.Printf("Feed refresh failed: %v", err)
+	// Manual (API) path: refresh only the caller's own feeds, synchronously,
+	// so the caller gets a result. The global refresh is reserved for the
+	// cron and Cloud Tasks paths.
+	user, exists := auth.GetUserFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You must be signed in to access this resource."})
+		return
+	}
+
+	if err := fh.feedService.RefreshUserFeeds(user.ID); err != nil {
+		log.Printf("Manual feed refresh for user %d failed: %v", user.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh feeds. Please try again."})
 		return
 	}
 
-	log.Printf("Feed refresh completed successfully at %v", time.Now())
 	c.JSON(http.StatusOK, gin.H{"message": "Feeds refreshed successfully"})
 }
 

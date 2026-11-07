@@ -83,6 +83,8 @@ func main() {
 	webhookRateLimiter := auth.NewRateLimiter(5, 10)
 	// Data export: 1 request per minute with burst of 3 (each export reads the user's full history)
 	exportRateLimiter := auth.NewRateLimiter(1.0/60, 3)
+	// Manual feed refresh: per user, 1 request every 30 seconds with burst of 3
+	refreshRateLimiter := auth.NewRateLimiter(1.0/30, 3)
 
 	// Initialize feed scheduler for staggered updates
 	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{
@@ -355,7 +357,7 @@ func main() {
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
 		api.POST("/articles/mark-all-read", feedHandler.MarkAllRead)
-		api.POST("/feeds/refresh", feedHandler.RefreshFeeds) // Keep for authenticated manual refresh
+		api.POST("/feeds/refresh", auth.UserRateLimitMiddleware(refreshRateLimiter), feedHandler.RefreshFeeds)
 
 		// Payment/subscription routes - only if subscriptions are enabled
 		if cfg.SubscriptionEnabled && paymentHandler != nil {

@@ -881,13 +881,39 @@ func (fs *FeedService) RefreshFeeds() error {
 		feedMap[feed.URL] = feed
 	}
 
+	feeds := make([]database.Feed, 0, len(feedMap))
+	for _, feed := range feedMap {
+		feeds = append(feeds, feed)
+	}
+
+	fs.refreshDueFeeds(feeds, "Feed refresh")
+	return nil
+}
+
+// RefreshUserFeeds refreshes only the feeds userID subscribes to, skipping
+// any that shouldCheckFeed says are not yet due. It backs the manual
+// refresh endpoint, so a signed-in user cannot trigger the global refresh.
+func (fs *FeedService) RefreshUserFeeds(userID int) error {
+	feeds, err := fs.GetUserFeeds(userID)
+	if err != nil {
+		return err
+	}
+
+	fs.refreshDueFeeds(feeds, fmt.Sprintf("Feed refresh for user %d", userID))
+	return nil
+}
+
+// refreshDueFeeds fetches each feed in feeds that is due for a check, saves
+// new articles, and records the result. Per-feed failures are logged and do
+// not stop the remaining feeds.
+func (fs *FeedService) refreshDueFeeds(feeds []database.Feed, label string) {
 	now := time.Now()
 	checked := 0
 	skipped := 0
 	hasNewContent := 0
 	notModified := 0
 
-	for _, feed := range feedMap {
+	for _, feed := range feeds {
 		// Smart feed prioritization: only check feeds that are due
 		if !fs.shouldCheckFeed(feed, now) {
 			skipped++
@@ -952,9 +978,7 @@ func (fs *FeedService) RefreshFeeds() error {
 		_ = fs.updateFeedAfterRefreshSuccess(feed, hadNewContent, now, etag, lastModified)
 	}
 
-	log.Printf("Feed refresh complete: checked=%d, skipped=%d, not_modified=%d, had_new_content=%d", checked, skipped, notModified, hasNewContent)
-
-	return nil
+	log.Printf("%s complete: checked=%d, skipped=%d, not_modified=%d, had_new_content=%d", label, checked, skipped, notModified, hasNewContent)
 }
 
 // shouldCheckFeed determines if a feed should be checked based on smart prioritization

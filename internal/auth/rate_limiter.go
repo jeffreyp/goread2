@@ -3,6 +3,7 @@ package auth
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -115,6 +116,30 @@ func RateLimitMiddleware(limiter *RateLimiter) gin.HandlerFunc {
 		// Check if request is allowed
 		if !ipLimiter.Allow() {
 			log.Printf("SECURITY: rate limit exceeded for IP %s on %s %s", ip, c.Request.Method, c.Request.URL.Path)
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Rate limit exceeded. Please try again later.",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// UserRateLimitMiddleware rate-limits requests per signed-in user rather than
+// per IP, so one account cannot exceed the limit by spreading requests across
+// addresses. It must run after the auth middleware; requests without a user
+// in the context fall back to the client IP.
+func UserRateLimitMiddleware(limiter *RateLimiter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key := "ip:" + GetSecureClientIP(c)
+		if user, ok := GetUserFromContext(c); ok {
+			key = "user:" + strconv.Itoa(user.ID)
+		}
+
+		if !limiter.GetLimiter(key).Allow() {
+			log.Printf("SECURITY: rate limit exceeded for %s on %s %s", key, c.Request.Method, c.Request.URL.Path)
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error": "Rate limit exceeded. Please try again later.",
 			})

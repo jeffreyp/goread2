@@ -285,7 +285,10 @@ curl -X DELETE "http://localhost:8080/api/feeds/1" \
 ```
 
 ### `POST /api/feeds/refresh`
-Refresh feeds now, and respond when the refresh finishes. The refresh is not limited to the caller's feeds: it covers every feed due for a check, using the same selection as the scheduled refresh.
+Refresh the caller's subscribed feeds now, and respond when the refresh finishes. Feeds that are not yet due for a check, by the same schedule the periodic refresh uses, are skipped. Other users' feeds are refreshed only by the scheduled refresh.
+
+**Errors**:
+- `429 Too Many Requests` - More than 3 refreshes in quick succession (refills at 1 every 30 seconds, per user)
 
 **Response**:
 ```json
@@ -926,12 +929,13 @@ When trial has expired:
 
 ## Rate Limiting
 
-Rate limiting is enforced per IP address:
+Rate limiting is enforced per IP address, except where noted:
 
 - **Authentication endpoints** (`/auth/*`): 10 requests/second (burst: 20)
 - **API endpoints** (`/api/*`): 30 requests/second (burst: 50)
 - **Webhook endpoint**: 5 requests/second (burst: 10)
 - **Data export** (`GET /api/account/export`): 1 request/minute (burst: 3), in addition to the API limit
+- **Manual feed refresh** (`POST /api/feeds/refresh`): 1 request every 30 seconds (burst: 3) per user rather than per IP address, in addition to the API limit
 
 Exceeded requests return `429 Too Many Requests`. `/admin/*` endpoints are not rate limited.
 

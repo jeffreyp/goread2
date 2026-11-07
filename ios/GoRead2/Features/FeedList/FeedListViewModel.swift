@@ -59,7 +59,7 @@ final class FeedListViewModel: ObservableObject {
         unreadCounts[feedID] = max(0, (unreadCounts[feedID] ?? 0) + delta)
     }
 
-    /// Pull-to-refresh: asks the server to re-fetch every feed, then
+    /// Pull-to-refresh: asks the server to re-fetch the user's due feeds, then
     /// reloads the list and counts.
     func refresh() async {
         do {

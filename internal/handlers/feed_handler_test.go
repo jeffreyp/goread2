@@ -41,6 +41,8 @@ type mockDBFeedHandler struct {
 	mockFeedArticles              []database.Article
 	mockNextCursor                string
 	shouldFailGetUserFeedArticles bool
+	getFeedsCalls                 int
+	getAllUserFeedsCalls          int
 }
 
 func newMockDBFeedHandler() *mockDBFeedHandler {
@@ -87,6 +89,7 @@ func (m *mockDBFeedHandler) AddFeed(*database.Feed) error                       
 func (m *mockDBFeedHandler) UpdateFeed(*database.Feed) error                         { return nil }
 func (m *mockDBFeedHandler) UpdateFeedTracking(int, time.Time, time.Time, int) error { return nil }
 func (m *mockDBFeedHandler) GetFeeds() ([]database.Feed, error) {
+	m.getFeedsCalls++
 	if m.shouldFailGetFeeds {
 		return nil, errors.New("database error")
 	}
@@ -99,9 +102,12 @@ func (m *mockDBFeedHandler) GetUserFeeds(int) ([]database.Feed, error) {
 	}
 	return m.mockUserFeeds, nil
 }
-func (m *mockDBFeedHandler) GetAllUserFeeds() ([]database.Feed, error) { return nil, nil }
-func (m *mockDBFeedHandler) DeleteFeed(int) error                      { return nil }
-func (m *mockDBFeedHandler) SubscribeUserToFeed(int, int) error        { return nil }
+func (m *mockDBFeedHandler) GetAllUserFeeds() ([]database.Feed, error) {
+	m.getAllUserFeedsCalls++
+	return nil, nil
+}
+func (m *mockDBFeedHandler) DeleteFeed(int) error               { return nil }
+func (m *mockDBFeedHandler) SubscribeUserToFeed(int, int) error { return nil }
 func (m *mockDBFeedHandler) UnsubscribeUserFromFeed(userID, feedID int) error {
 	if m.shouldFailUnsubscribe {
 		return errors.New("database error")
@@ -2156,24 +2162,42 @@ func TestImportOPML(t *testing.T) {
 func TestRefreshFeeds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	t.Run("manual refresh success", func(t *testing.T) {
+	t.Run("manual refresh covers only the caller's feeds", func(t *testing.T) {
+		db := newMockDBFeedHandler()
+		handler := newFeedHandlerWithSubscription(db)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/feeds/refresh", nil)
+		c.Set("user", &database.User{ID: 7})
+		handler.RefreshFeeds(c)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		if db.getFeedsCalls != 0 || db.getAllUserFeedsCalls != 0 {
+			t.Errorf("manual refresh must not load the global feed lists; GetFeeds=%d GetAllUserFeeds=%d",
+				db.getFeedsCalls, db.getAllUserFeedsCalls)
+		}
+	})
+
+	t.Run("manual refresh without a user returns 401", func(t *testing.T) {
 		handler := newFeedHandlerWithSubscription(newMockDBFeedHandler())
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/api/feeds/refresh", nil)
 		handler.RefreshFeeds(c)
-		if w.Code != http.StatusOK {
-			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d: %s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("manual refresh database error returns 500", func(t *testing.T) {
 		db := newMockDBFeedHandler()
-		db.shouldFailGetFeeds = true
+		db.shouldFailGetUserFeeds = true
 		handler := newFeedHandlerWithSubscription(db)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/api/feeds/refresh", nil)
+		c.Set("user", &database.User{ID: 7})
 		handler.RefreshFeeds(c)
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected 500, got %d: %s", w.Code, w.Body.String())

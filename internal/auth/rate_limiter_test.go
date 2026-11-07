@@ -12,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
+
+	"github.com/jeffreyp/goread2/internal/database"
 )
 
 func TestRateLimiter(t *testing.T) {
@@ -388,6 +390,63 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 		if c2.IsAborted() {
 			t.Error("IP2 should not be rate limited")
+		}
+	})
+}
+
+func TestUserRateLimitMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	run := func(rl *RateLimiter, user *database.User, remoteAddr string) *gin.Context {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/feeds/refresh", nil)
+		c.Request.RemoteAddr = remoteAddr
+		if user != nil {
+			c.Set(string(UserContextKey), user)
+		}
+		UserRateLimitMiddleware(rl)(c)
+		return c
+	}
+
+	t.Run("limits a user across IP addresses", func(t *testing.T) {
+		rl := NewRateLimiter(rate.Limit(0.001), 2)
+		user := &database.User{ID: 42}
+
+		if c := run(rl, user, "10.0.0.1:1"); c.IsAborted() {
+			t.Fatal("first request should be allowed")
+		}
+		if c := run(rl, user, "10.0.0.2:1"); c.IsAborted() {
+			t.Fatal("second request should be allowed")
+		}
+		c := run(rl, user, "10.0.0.3:1")
+		if !c.IsAborted() {
+			t.Fatal("third request from a new IP should be rate limited for the same user")
+		}
+		if c.Writer.Status() != 429 {
+			t.Errorf("expected 429, got %d", c.Writer.Status())
+		}
+	})
+
+	t.Run("users sharing an IP are independent", func(t *testing.T) {
+		rl := NewRateLimiter(rate.Limit(0.001), 1)
+
+		if c := run(rl, &database.User{ID: 1}, "10.0.0.9:1"); c.IsAborted() {
+			t.Fatal("user 1 should be allowed")
+		}
+		if c := run(rl, &database.User{ID: 2}, "10.0.0.9:1"); c.IsAborted() {
+			t.Error("user 2 should not share user 1's limit")
+		}
+	})
+
+	t.Run("falls back to the client IP without a user", func(t *testing.T) {
+		rl := NewRateLimiter(rate.Limit(0.001), 1)
+
+		if c := run(rl, nil, "10.0.0.20:1"); c.IsAborted() {
+			t.Fatal("first anonymous request should be allowed")
+		}
+		if c := run(rl, nil, "10.0.0.20:1"); !c.IsAborted() {
+			t.Error("second anonymous request from the same IP should be limited")
 		}
 	})
 }
