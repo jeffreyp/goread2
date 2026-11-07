@@ -81,10 +81,9 @@ func main() {
 	apiRateLimiter := auth.NewRateLimiter(30, 50)
 	// Webhook: 5 requests per second with burst of 10 (Stripe traffic is low-volume)
 	webhookRateLimiter := auth.NewRateLimiter(5, 10)
-	// Data export: 1 request per minute with burst of 3 (each export reads the user's full history)
-	exportRateLimiter := auth.NewRateLimiter(1.0/60, 3)
-	// Manual feed refresh: per user, 1 request every 30 seconds with burst of 3
-	refreshRateLimiter := auth.NewRateLimiter(1.0/30, 3)
+	// Data export and manual feed refresh have their own, stricter limits.
+	exportRateLimiter := auth.NewExportRateLimiter()
+	refreshRateLimiter := auth.NewFeedRefreshRateLimiter()
 
 	// Initialize feed scheduler for staggered updates
 	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{

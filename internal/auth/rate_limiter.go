@@ -17,6 +17,20 @@ type ipEntry struct {
 	lastAccess time.Time
 }
 
+// NewExportRateLimiter returns the limiter for GET /api/account/export:
+// 1 request per minute with a burst of 3, because each export reads the
+// user's full history.
+func NewExportRateLimiter() *RateLimiter {
+	return NewRateLimiter(rate.Limit(1.0/60), 3)
+}
+
+// NewFeedRefreshRateLimiter returns the limiter for POST /api/feeds/refresh:
+// 1 request every 30 seconds with a burst of 3. Use it with
+// UserRateLimitMiddleware so the limit applies per user.
+func NewFeedRefreshRateLimiter() *RateLimiter {
+	return NewRateLimiter(rate.Limit(1.0/30), 3)
+}
+
 // RateLimiter stores rate limiters for each IP address
 type RateLimiter struct {
 	ips map[string]*ipEntry

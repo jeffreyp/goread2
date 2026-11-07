@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -1576,5 +1577,90 @@ func TestGetCacheStats(t *testing.T) {
 	unread, _ = fs.GetCacheStats()
 	if unread.Hits != 1 {
 		t.Errorf("Expected 1 unread hit after second lookup, got %d", unread.Hits)
+	}
+}
+
+// TestRefreshUserFeeds checks that a user-scoped refresh fetches only that
+// user's feeds that are due for a check.
+func TestRefreshUserFeeds(t *testing.T) {
+	db := setupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	var mu sync.Mutex
+	hits := map[string]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits[r.URL.Path]++
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = fmt.Fprintf(w, `<?xml version="1.0"?><rss version="2.0"><channel><title>T</title>
+<item><title>Article at %s</title><link>https://example.com%s/1</link><guid>%s-1</guid></item>
+</channel></rss>`, r.URL.Path, r.URL.Path, r.URL.Path)
+	}))
+	defer server.Close()
+
+	fs := NewFeedService(db, nil)
+	fs.SetHTTPClient(&mockHTTPClient{Server: server})
+
+	now := time.Now()
+	newUser := func(googleID string) *database.User {
+		u := &database.User{GoogleID: googleID, Email: googleID + "@example.com", Name: googleID, CreatedAt: now}
+		if err := db.CreateUser(u); err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		return u
+	}
+	newFeed := func(path string, lastChecked time.Time, subscriber *database.User) *database.Feed {
+		f := &database.Feed{Title: path, URL: server.URL + path, CreatedAt: now, UpdatedAt: now, LastChecked: lastChecked}
+		if err := db.AddFeed(f); err != nil {
+			t.Fatalf("AddFeed: %v", err)
+		}
+		if err := db.SubscribeUserToFeed(subscriber.ID, f.ID); err != nil {
+			t.Fatalf("SubscribeUserToFeed: %v", err)
+		}
+		return f
+	}
+
+	caller := newUser("caller")
+	other := newUser("other")
+
+	due := newFeed("/caller-due", time.Time{}, caller)
+	newFeed("/caller-recent", now.Add(-time.Minute), caller)
+	newFeed("/other-due", time.Time{}, other)
+
+	if err := fs.RefreshUserFeeds(caller.ID); err != nil {
+		t.Fatalf("RefreshUserFeeds: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if hits["/caller-due"] != 1 {
+		t.Errorf("expected the caller's due feed to be fetched once, got %d", hits["/caller-due"])
+	}
+	if hits["/caller-recent"] != 0 {
+		t.Errorf("a feed checked a minute ago should be skipped, got %d fetches", hits["/caller-recent"])
+	}
+	if hits["/other-due"] != 0 {
+		t.Errorf("another user's feed must not be fetched, got %d fetches", hits["/other-due"])
+	}
+
+	articles, err := db.GetArticles(due.ID)
+	if err != nil {
+		t.Fatalf("GetArticles: %v", err)
+	}
+	if len(articles) != 1 {
+		t.Errorf("expected 1 article saved for the due feed, got %d", len(articles))
+	}
+}
+
+// TestRefreshUserFeedsDatabaseError checks that a failure loading the user's
+// feeds is returned to the caller.
+func TestRefreshUserFeedsDatabaseError(t *testing.T) {
+	db := setupTestDB(t)
+	fs := NewFeedService(db, nil)
+	_ = db.Close()
+
+	if err := fs.RefreshUserFeeds(1); err == nil {
+		t.Error("expected an error when the user's feeds cannot be loaded")
 	}
 }

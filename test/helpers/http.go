@@ -60,6 +60,9 @@ func SetupTestServerWithDB(t testing.TB, db database.Database) *TestServer {
 	authHandler := handlers.NewAuthHandler(authService, sessionManager, csrfManager)
 	accountHandler := handlers.NewAccountHandler(services.NewUserDataService(db), sessionManager)
 	authMiddleware := auth.NewMiddleware(sessionManager)
+	// Mirror the per-endpoint limits main.go applies.
+	exportRateLimiter := auth.NewExportRateLimiter()
+	refreshRateLimiter := auth.NewFeedRefreshRateLimiter()
 
 	router := gin.New()
 
@@ -82,13 +85,13 @@ func SetupTestServerWithDB(t testing.TB, db database.Database) *TestServer {
 		api.DELETE("/feeds/:id", feedHandler.DeleteFeed)
 		api.POST("/feeds/import", feedHandler.ImportOPML)
 		api.GET("/feeds/export", feedHandler.ExportOPML)
-		api.GET("/account/export", accountHandler.ExportData)
+		api.GET("/account/export", auth.RateLimitMiddleware(exportRateLimiter), accountHandler.ExportData)
 		api.DELETE("/account", accountHandler.DeleteAccount)
 		api.GET("/feeds/:id/articles", feedHandler.GetArticles)
 		api.POST("/articles/:id/read", feedHandler.MarkRead)
 		api.POST("/articles/:id/star", feedHandler.ToggleStar)
 		api.POST("/articles/mark-all-read", feedHandler.MarkAllRead)
-		api.POST("/feeds/refresh", feedHandler.RefreshFeeds)
+		api.POST("/feeds/refresh", auth.UserRateLimitMiddleware(refreshRateLimiter), feedHandler.RefreshFeeds)
 	}
 
 	return &TestServer{

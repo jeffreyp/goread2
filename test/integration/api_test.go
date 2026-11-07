@@ -556,3 +556,67 @@ func TestAuthAPI(t *testing.T) {
 		}
 	})
 }
+
+// TestFeedRefreshRateLimit exercises the per-user limit on manual refresh
+// through the router, so it also checks that the limiter runs after
+// authentication and keys on the user rather than the IP address.
+func TestFeedRefreshRateLimit(t *testing.T) {
+	t.Parallel()
+
+	helpers.SetupTestEnv(t)
+	defer helpers.CleanupTestEnv(t)
+
+	testServer := helpers.SetupTestServer(t)
+	alice := helpers.CreateTestUser(t, testServer.DB, "google-refresh-limit-a", "refresh-a@example.com", "Refresh A")
+	bob := helpers.CreateTestUser(t, testServer.DB, "google-refresh-limit-b", "refresh-b@example.com", "Refresh B")
+
+	refresh := func(user *database.User, remoteAddr string) int {
+		req := testServer.CreateAuthenticatedRequest(t, "POST", "/api/feeds/refresh", nil, user)
+		req.RemoteAddr = remoteAddr
+		return testServer.ExecuteRequest(req).Code
+	}
+
+	// The burst of 3 is allowed, each request from a different IP address.
+	for i := 1; i <= 3; i++ {
+		if code := refresh(alice, "198.51.100."+strconv.Itoa(i)+":1234"); code != http.StatusOK {
+			t.Fatalf("request %d: expected 200, got %d", i, code)
+		}
+	}
+
+	// A fourth request from yet another IP is still limited for the same user.
+	if code := refresh(alice, "198.51.100.4:1234"); code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 once the user's burst is spent, got %d", code)
+	}
+
+	// Another user on an IP alice already used has their own limit.
+	if code := refresh(bob, "198.51.100.1:1234"); code != http.StatusOK {
+		t.Errorf("expected 200 for a different user, got %d", code)
+	}
+}
+
+// TestAccountExportRateLimit checks that the export limit is applied through
+// the router: a burst of 3 from one IP address, then 429.
+func TestAccountExportRateLimit(t *testing.T) {
+	t.Parallel()
+
+	helpers.SetupTestEnv(t)
+	defer helpers.CleanupTestEnv(t)
+
+	testServer := helpers.SetupTestServer(t)
+	user := helpers.CreateTestUser(t, testServer.DB, "google-export-limit", "export-limit@example.com", "Export Limit")
+
+	export := func() int {
+		req := testServer.CreateAuthenticatedRequest(t, "GET", "/api/account/export", nil, user)
+		req.RemoteAddr = "203.0.113.7:1234"
+		return testServer.ExecuteRequest(req).Code
+	}
+
+	for i := 1; i <= 3; i++ {
+		if code := export(); code != http.StatusOK {
+			t.Fatalf("request %d: expected 200, got %d", i, code)
+		}
+	}
+	if code := export(); code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 after the burst, got %d", code)
+	}
+}
