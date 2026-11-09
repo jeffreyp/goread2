@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -296,8 +297,8 @@ func TestGetUserByGoogleIDNotFound(t *testing.T) {
 	db := setupTestDB(t)
 
 	_, err := db.GetUserByGoogleID("nonexistent_google_id")
-	if err == nil {
-		t.Error("Expected error for nonexistent user, got nil")
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("Expected ErrUserNotFound for nonexistent user, got %v", err)
 	}
 }
 

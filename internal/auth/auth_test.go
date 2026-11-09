@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"net/url"
 	"os"
@@ -49,7 +50,7 @@ func (m *mockDBForAuth) GetUserByGoogleID(googleID string) (*database.User, erro
 	}
 	user, exists := m.users[googleID]
 	if !exists {
-		return nil, errors.New("user not found")
+		return nil, database.ErrUserNotFound
 	}
 	return user, nil
 }
@@ -428,4 +429,47 @@ func contains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestSignInGoogleUserCreatesAccountOnlyWhenNotFound(t *testing.T) {
+	identity := GoogleUserInfo{ID: "google-123", Email: "reader@example.com", Name: "Reader"}
+
+	t.Run("not found creates the account", func(t *testing.T) {
+		db := newMockDBForAuth()
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(), identity)
+		if err != nil {
+			t.Fatalf("SignInGoogleUser() error = %v", err)
+		}
+		if db.users[identity.ID] != user {
+			t.Errorf("expected the new account to be stored under Google ID %q", identity.ID)
+		}
+	})
+
+	t.Run("existing account is returned without creating another", func(t *testing.T) {
+		db := newMockDBForAuth()
+		existing := &database.User{ID: 7, GoogleID: identity.ID, Email: identity.Email}
+		db.users[identity.ID] = existing
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(), identity)
+		if err != nil {
+			t.Fatalf("SignInGoogleUser() error = %v", err)
+		}
+		if user != existing || len(db.usersByID) != 0 {
+			t.Errorf("expected the existing account and no CreateUser call, got user %+v and %d created", user, len(db.usersByID))
+		}
+	})
+
+	t.Run("lookup failure is returned without creating an account", func(t *testing.T) {
+		db := newMockDBForAuth()
+		db.shouldFailGetByGoogle = true
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(), identity)
+		if err == nil {
+			t.Fatalf("SignInGoogleUser() = %+v, want an error when the lookup fails", user)
+		}
+		if errors.Is(err, database.ErrUserNotFound) {
+			t.Errorf("SignInGoogleUser() error = %v, should not report the user as not found", err)
+		}
+		if len(db.usersByID) != 0 {
+			t.Errorf("expected no account to be created on a lookup failure, got %d", len(db.usersByID))
+		}
+	})
 }

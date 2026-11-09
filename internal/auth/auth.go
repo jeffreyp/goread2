@@ -164,7 +164,10 @@ func (a *AuthService) HandleCallback(code, host string) (*database.User, error) 
 }
 
 // SignInGoogleUser returns the account for a Google identity, creating it on
-// first sign-in. A new account for a Google ID that previously deleted its
+// first sign-in. It creates an account only when the lookup reports
+// database.ErrUserNotFound; any other lookup error is returned, so that a
+// transient database failure cannot create a second account for an existing
+// identity. A new account for a Google ID that previously deleted its
 // GoRead2 account starts with the trial already ended. An existing account
 // with a deletion in flight returns ErrAccountDeletionPending instead.
 // HandleCallback calls it with the identity Google reports; the devlogin
@@ -173,6 +176,9 @@ func (a *AuthService) HandleCallback(code, host string) (*database.User, error) 
 func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUserInfo) (*database.User, error) {
 	// Check if user exists in our database
 	user, err := a.db.GetUserByGoogleID(googleUser.ID)
+	if err != nil && !errors.Is(err, database.ErrUserNotFound) {
+		return nil, fmt.Errorf("failed to look up user: %w", err)
+	}
 	if err != nil {
 		// User doesn't exist, create new user
 		user = &database.User{

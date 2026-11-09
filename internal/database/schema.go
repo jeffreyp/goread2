@@ -20,7 +20,9 @@ var ErrSelfDemotion = errors.New("cannot remove your own admin privileges")
 // they are not subscribed to.
 var ErrArticleAccessDenied = errors.New("not subscribed to this article's feed")
 
-// ErrUserNotFound is wrapped by GetUserByID when no user has the given ID.
+// ErrUserNotFound is wrapped by GetUserByID and GetUserByGoogleID when no user
+// matches. Callers that create a user on a miss must check for it with
+// errors.Is rather than treating every lookup error as a miss.
 var ErrUserNotFound = errors.New("user not found")
 
 // paginationOverfetch is added to the requested limit to detect whether more results exist.
@@ -787,6 +789,9 @@ func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
 		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate, &nextBillingDate,
 		&user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd, &deletionRequestedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("%w: %w", ErrUserNotFound, err)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -4,7 +4,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -35,7 +34,7 @@ func (db *devLoginDB) GetUserByGoogleID(googleID string) (*database.User, error)
 	if user, ok := db.users[googleID]; ok {
 		return user, nil
 	}
-	return nil, errors.New("user not found")
+	return nil, database.ErrUserNotFound
 }
 
 func (db *devLoginDB) CreateUser(user *database.User) error {

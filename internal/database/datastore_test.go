@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -530,8 +531,8 @@ func TestDatastoreGetUserByGoogleID(t *testing.T) {
 	}
 
 	_, err = db.GetUserByGoogleID("nonexistent-google-id")
-	if err == nil {
-		t.Error("Expected error for nonexistent Google ID")
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("Expected ErrUserNotFound for nonexistent Google ID, got %v", err)
 	}
 }
 

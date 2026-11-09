@@ -642,7 +642,7 @@ func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
 	}
 
 	if len(entities) == 0 {
-		return nil, fmt.Errorf("user not found")
+		return nil, ErrUserNotFound
 	}
 
 	entity := entities[0]
