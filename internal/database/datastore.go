@@ -93,6 +93,7 @@ type UserEntity struct {
 	IsAdmin              bool      `datastore:"is_admin"`
 	FreeMonthsRemaining  int       `datastore:"free_months_remaining"`
 	MaxArticlesOnFeedAdd int       `datastore:"max_articles_on_feed_add"`
+	DeletionRequestedAt  time.Time `datastore:"deletion_requested_at"`
 }
 
 type UserFeedEntity struct {
@@ -616,6 +617,7 @@ func (db *DatastoreDB) CreateUser(user *User) error {
 		IsAdmin:              user.IsAdmin,
 		FreeMonthsRemaining:  user.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: user.MaxArticlesOnFeedAdd,
+		DeletionRequestedAt:  user.DeletionRequestedAt,
 	}
 
 	key := datastore.IncompleteKey("User", nil)
@@ -666,6 +668,7 @@ func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
 		IsAdmin:              entity.IsAdmin,
 		FreeMonthsRemaining:  entity.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: maxArticles,
+		DeletionRequestedAt:  entity.DeletionRequestedAt,
 	}, nil
 }
 
@@ -704,6 +707,7 @@ func (db *DatastoreDB) GetUserByID(userID int) (*User, error) {
 		IsAdmin:              entity.IsAdmin,
 		FreeMonthsRemaining:  entity.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: maxArticles,
+		DeletionRequestedAt:  entity.DeletionRequestedAt,
 	}, nil
 }
 
@@ -2434,6 +2438,20 @@ func (db *DatastoreDB) GrantFreeMonths(userID int, months int) error {
 	return nil
 }
 
+// SetDeletionRequestedAt records that userID asked to delete their account, so
+// that a deletion left incomplete by an outage is retried by the data
+// retention run and a re-sign-in before it completes is refused.
+func (db *DatastoreDB) SetDeletionRequestedAt(userID int, at time.Time) error {
+	err := db.updateUser(userID, func(user *UserEntity) error {
+		user.DeletionRequestedAt = at
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set deletion requested time: %w", err)
+	}
+	return nil
+}
+
 func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
@@ -2776,6 +2794,7 @@ func (db *DatastoreDB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
 			CreatedAt:           user.CreatedAt,
 			TrialEndsAt:         trialEndsAt,
 			LastSeenAt:          lastSeen[userKeys[i].ID],
+			DeletionRequestedAt: user.DeletionRequestedAt,
 		}
 	}
 	return infos, nil

@@ -79,6 +79,7 @@ func (m *mockDB) DeleteUserSessions(int) error                              { re
 func (m *mockDB) DeleteUserAccount(int) error                               { return nil }
 func (m *mockDB) CreateAccountTombstone(string) error                       { return nil }
 func (m *mockDB) HasAccountTombstone(string) (bool, error)                  { return false, nil }
+func (m *mockDB) SetDeletionRequestedAt(int, time.Time) error               { return nil }
 func (m *mockDB) RecordUserActivity(int, time.Time) error                   { return nil }
 func (m *mockDB) GetUserLastSeen(int) (time.Time, error)                    { return time.Time{}, nil }
 func (m *mockDB) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) { return nil, nil }

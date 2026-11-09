@@ -98,6 +98,7 @@ type Database interface {
 	DeleteUserAccount(userID int) error
 	CreateAccountTombstone(id string) error
 	HasAccountTombstone(id string) (bool, error)
+	SetDeletionRequestedAt(userID int, at time.Time) error
 
 	// Data retention methods
 	RecordUserActivity(userID int, at time.Time) error
@@ -126,14 +127,15 @@ type User struct {
 	Name                 string    `json:"name"`
 	Avatar               string    `json:"avatar"`
 	CreatedAt            time.Time `json:"created_at"`
-	SubscriptionStatus   string    `json:"subscription_status"`      // 'trial', 'active', 'cancelled', 'expired', 'admin'
-	SubscriptionID       string    `json:"subscription_id"`          // Stripe subscription ID
-	TrialEndsAt          time.Time `json:"trial_ends_at"`            // When free trial expires
-	LastPaymentDate      time.Time `json:"last_payment_date"`        // Last successful payment
-	NextBillingDate      time.Time `json:"next_billing_date"`        // Next billing date for active subscriptions
-	IsAdmin              bool      `json:"is_admin"`                 // Admin users bypass subscription limits
-	FreeMonthsRemaining  int       `json:"free_months_remaining"`    // Additional free months granted
-	MaxArticlesOnFeedAdd int       `json:"max_articles_on_feed_add"` // Max articles to import when adding a new feed (0 = unlimited)
+	SubscriptionStatus   string    `json:"subscription_status"`            // 'trial', 'active', 'cancelled', 'expired', 'admin'
+	SubscriptionID       string    `json:"subscription_id"`                // Stripe subscription ID
+	TrialEndsAt          time.Time `json:"trial_ends_at"`                  // When free trial expires
+	LastPaymentDate      time.Time `json:"last_payment_date"`              // Last successful payment
+	NextBillingDate      time.Time `json:"next_billing_date"`              // Next billing date for active subscriptions
+	IsAdmin              bool      `json:"is_admin"`                       // Admin users bypass subscription limits
+	FreeMonthsRemaining  int       `json:"free_months_remaining"`          // Additional free months granted
+	MaxArticlesOnFeedAdd int       `json:"max_articles_on_feed_add"`       // Max articles to import when adding a new feed (0 = unlimited)
+	DeletionRequestedAt  time.Time `json:"deletion_requested_at,omitzero"` // Set when DELETE /api/account is requested; zero if none is pending
 }
 
 type Feed struct {
@@ -188,6 +190,7 @@ type UserRetentionInfo struct {
 	CreatedAt           time.Time
 	TrialEndsAt         time.Time
 	LastSeenAt          time.Time // zero if no activity has been recorded
+	DeletionRequestedAt time.Time // zero if no deletion is pending
 }
 
 // DeletedUserPseudonym replaces a deleted user's email in retained audit log
@@ -273,7 +276,8 @@ func (db *DB) CreateTables() error {
 		next_billing_date DATETIME,
 		is_admin BOOLEAN DEFAULT 0,
 		free_months_remaining INTEGER DEFAULT 0,
-		max_articles_on_feed_add INTEGER DEFAULT 100
+		max_articles_on_feed_add INTEGER DEFAULT 100,
+		deletion_requested_at DATETIME
 	);`
 
 	feedsTable := `
@@ -446,6 +450,7 @@ func (db *DB) migrateDatabase() error {
 		"ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
 		"ALTER TABLE users ADD COLUMN free_months_remaining INTEGER DEFAULT 0",
 		"ALTER TABLE users ADD COLUMN max_articles_on_feed_add INTEGER DEFAULT 100",
+		"ALTER TABLE users ADD COLUMN deletion_requested_at DATETIME",
 	}
 
 	for _, alterQuery := range userColumns {
@@ -768,18 +773,20 @@ func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
 			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
 			  COALESCE(free_months_remaining, 0) as free_months_remaining,
-			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add
+			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add,
+			  deletion_requested_at
 			  FROM users WHERE google_id = ?`
 
 	var user User
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
 	var nextBillingDate sql.NullTime
+	var deletionRequestedAt sql.NullTime
 
 	err := db.QueryRow(query, googleID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
 		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate, &nextBillingDate,
-		&user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd)
+		&user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd, &deletionRequestedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -800,6 +807,10 @@ func (db *DB) GetUserByGoogleID(googleID string) (*User, error) {
 		user.NextBillingDate = nextBillingDate.Time
 	}
 
+	if deletionRequestedAt.Valid {
+		user.DeletionRequestedAt = deletionRequestedAt.Time
+	}
+
 	return &user, nil
 }
 
@@ -810,18 +821,20 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
 			  COALESCE(free_months_remaining, 0) as free_months_remaining,
-			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add
+			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add,
+			  deletion_requested_at
 			  FROM users WHERE id = ?`
 
 	var user User
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
 	var nextBillingDate sql.NullTime
+	var deletionRequestedAt sql.NullTime
 
 	err := db.QueryRow(query, userID).Scan(&user.ID, &user.GoogleID, &user.Email,
 		&user.Name, &user.Avatar, &user.CreatedAt, &user.SubscriptionStatus,
 		&user.SubscriptionID, &trialEndsAt, &lastPaymentDate, &nextBillingDate,
-		&user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd)
+		&user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd, &deletionRequestedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("%w: %w", ErrUserNotFound, err)
 	}
@@ -843,6 +856,10 @@ func (db *DB) GetUserByID(userID int) (*User, error) {
 
 	if nextBillingDate.Valid {
 		user.NextBillingDate = nextBillingDate.Time
+	}
+
+	if deletionRequestedAt.Valid {
+		user.DeletionRequestedAt = deletionRequestedAt.Time
 	}
 
 	return &user, nil
@@ -1547,6 +1564,14 @@ func (db *DB) UpdateUserMaxArticlesOnFeedAdd(userID int, maxArticles int) error 
 	return updateUserRow(db, userID, query, maxArticles, userID)
 }
 
+// SetDeletionRequestedAt records that userID asked to delete their account, so
+// that a deletion left incomplete by an outage is retried by the data
+// retention run and a re-sign-in before it completes is refused.
+func (db *DB) SetDeletionRequestedAt(userID int, at time.Time) error {
+	query := `UPDATE users SET deletion_requested_at = ? WHERE id = ?`
+	return updateUserRow(db, userID, query, at, userID)
+}
+
 // Admin management methods
 func (db *DB) SetUserAdmin(userID int, isAdmin bool) error {
 	query := `UPDATE users SET is_admin = ? WHERE id = ?`
@@ -1724,7 +1749,7 @@ func (db *DB) GetUserLastSeen(userID int) (time.Time, error) {
 
 func (db *DB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
 	rows, err := db.Query(`SELECT u.id, COALESCE(u.subscription_status, 'trial'), COALESCE(u.is_admin, 0),
-		COALESCE(u.free_months_remaining, 0), u.created_at, u.trial_ends_at, a.last_seen_at
+		COALESCE(u.free_months_remaining, 0), u.created_at, u.trial_ends_at, a.last_seen_at, u.deletion_requested_at
 		FROM users u LEFT JOIN user_activity a ON a.user_id = u.id`)
 	if err != nil {
 		return nil, err
@@ -1734,8 +1759,8 @@ func (db *DB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
 	infos := []UserRetentionInfo{}
 	for rows.Next() {
 		var info UserRetentionInfo
-		var trialEndsAt, lastSeen sql.NullTime
-		if err := rows.Scan(&info.UserID, &info.SubscriptionStatus, &info.IsAdmin, &info.FreeMonthsRemaining, &info.CreatedAt, &trialEndsAt, &lastSeen); err != nil {
+		var trialEndsAt, lastSeen, deletionRequestedAt sql.NullTime
+		if err := rows.Scan(&info.UserID, &info.SubscriptionStatus, &info.IsAdmin, &info.FreeMonthsRemaining, &info.CreatedAt, &trialEndsAt, &lastSeen, &deletionRequestedAt); err != nil {
 			return nil, err
 		}
 		if trialEndsAt.Valid {
@@ -1745,6 +1770,9 @@ func (db *DB) GetUserRetentionInfo() ([]UserRetentionInfo, error) {
 		}
 		if lastSeen.Valid {
 			info.LastSeenAt = lastSeen.Time
+		}
+		if deletionRequestedAt.Valid {
+			info.DeletionRequestedAt = deletionRequestedAt.Time
 		}
 		infos = append(infos, info)
 	}

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
 	"github.com/jeffreyp/goread2/internal/secrets"
@@ -194,5 +195,35 @@ func TestDeleteAccountWithoutCustomerDeleter(t *testing.T) {
 				t.Errorf("calls = %v, want %v", calls, tt.wantCalls)
 			}
 		})
+	}
+}
+
+// mockDBRequestDeletion records the userID and time RequestDeletion passes to
+// SetDeletionRequestedAt.
+type mockDBRequestDeletion struct {
+	database.Database
+	userID int
+	at     time.Time
+}
+
+func (m *mockDBRequestDeletion) SetDeletionRequestedAt(userID int, at time.Time) error {
+	m.userID = userID
+	m.at = at
+	return nil
+}
+
+func TestRequestDeletion(t *testing.T) {
+	db := &mockDBRequestDeletion{}
+	service := NewUserDataService(db)
+
+	before := time.Now()
+	if err := service.RequestDeletion(42); err != nil {
+		t.Fatalf("RequestDeletion() error = %v", err)
+	}
+	if db.userID != 42 {
+		t.Errorf("SetDeletionRequestedAt called for user %d, want 42", db.userID)
+	}
+	if db.at.Before(before.Add(-time.Second)) || db.at.After(time.Now()) {
+		t.Errorf("SetDeletionRequestedAt time = %v, want close to now", db.at)
 	}
 }

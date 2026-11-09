@@ -126,6 +126,37 @@ func TestRetentionRunContinuesPastFailedDeletion(t *testing.T) {
 	}
 }
 
+func TestRetentionRunRetriesPendingDeletion(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	stale := now.Add(-pendingDeletionRetryDelay - time.Minute)
+	fresh := now.Add(-pendingDeletionRetryDelay + time.Minute)
+	db := &mockDBRetention{
+		infos: []database.UserRetentionInfo{
+			// decideRetention alone would keep an active subscriber, but a
+			// stale pending deletion overrides that.
+			{UserID: 1, SubscriptionStatus: "active", DeletionRequestedAt: stale},
+			// Too recent to retry: Cloud Tasks may still be working on it.
+			{UserID: 2, SubscriptionStatus: "active", DeletionRequestedAt: fresh},
+			{UserID: 3, SubscriptionStatus: "active", DeletionRequestedAt: stale},
+		},
+		failDeleteFor: 3,
+	}
+	service := NewRetentionService(db, NewUserDataService(db))
+
+	result, err := service.Run(now)
+
+	if err == nil || !strings.Contains(err.Error(), "1 account deletions failed") {
+		t.Errorf("Run() error = %v, want the failed retry reported so the task retries", err)
+	}
+	if !reflect.DeepEqual(db.deletedIDs, []int{1}) {
+		t.Errorf("deleted users = %v, want [1] (user 2 not due yet, user 3's retry failed)", db.deletedIDs)
+	}
+	want := RetentionResult{AccountsDeleted: 1, DeletionsFailed: 1}
+	if result != want {
+		t.Errorf("Run() result = %+v, want %+v", result, want)
+	}
+}
+
 func TestRetentionRunStopsWhenAccountsCannotBeLoaded(t *testing.T) {
 	db := &mockDBRetention{infoErr: errors.New("datastore unavailable")}
 	service := NewRetentionService(db, NewUserDataService(db))

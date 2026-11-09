@@ -161,8 +161,7 @@ func (ah *AuthHandler) DevLoginCallback(c *gin.Context) {
 		Name:  form.Name,
 	})
 	if err != nil {
-		log.Printf("Dev login error: %v", err)
-		ah.callbackError(c, native, http.StatusInternalServerError, "Authentication failed. Please try signing in again.")
+		ah.handleSignInError(c, native, "Dev login error", err)
 		return
 	}
 	log.Printf("Dev login: signed in user %d (native=%v)", user.ID, native)

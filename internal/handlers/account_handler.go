@@ -76,7 +76,11 @@ func (ah *AccountHandler) ExportData(c *gin.Context) {
 // deletion is queued, followed by a second sweep after
 // accountDeletionSweepDelay, and the response is 202; without it the deletion
 // runs in-process and the response is 200. Either way every session is revoked
-// and the session cookie cleared before responding.
+// and the session cookie cleared before responding. With Cloud Tasks, the
+// request is also recorded on the user record (UserDataService.RequestDeletion)
+// so that a deletion left incomplete by an outage spanning both Cloud Tasks
+// passes is retried by the next data retention run instead of leaving the
+// account, and any Stripe subscription on it, in place indefinitely.
 func (ah *AccountHandler) DeleteAccount(c *gin.Context) {
 	user, exists := auth.GetUserFromContext(c)
 	if !exists {
@@ -104,6 +108,12 @@ func (ah *AccountHandler) DeleteAccount(c *gin.Context) {
 			log.Printf("Failed to enqueue account deletion for user %d: %v", user.ID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start account deletion. Please try again."})
 			return
+		}
+		// The deletion is queued regardless of what happens next, so record the
+		// request even if this write fails: it only affects the retention retry
+		// and the sign-in block, not whether the deletion itself proceeds.
+		if err := ah.userDataService.RequestDeletion(user.ID); err != nil {
+			log.Printf("Failed to record deletion request for user %d: %v", user.ID, err)
 		}
 		if err := ah.taskQueue.EnqueueAfter(c.Request.Context(), taskURI, accountDeletionSweepDelay); err != nil {
 			// The first pass still deletes everything; the sweep only catches

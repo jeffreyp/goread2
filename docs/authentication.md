@@ -57,7 +57,7 @@ Create session and set session cookie
 Redirect to application
 ```
 
-`AuthService.SignInGoogleUser` (`internal/auth/auth.go`) performs the create-or-load step. A new user whose Google ID matches a deleted-account tombstone is created with the free trial already ended, so deleting and recreating an account does not grant a second trial. See [security.md](security.md#account-deletion).
+`AuthService.SignInGoogleUser` (`internal/auth/auth.go`) performs the create-or-load step. A new user whose Google ID matches a deleted-account tombstone is created with the free trial already ended, so deleting and recreating an account does not grant a second trial. An existing account with a deletion in flight (`DELETE /api/account` was called but has not finished) refuses the sign-in instead, returning `ErrAccountDeletionPending`; the callback reports this to the client as a 403 rather than creating a session. See [security.md](security.md#account-deletion).
 
 ### 3. Authenticated Requests
 

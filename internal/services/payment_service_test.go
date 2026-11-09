@@ -137,6 +137,7 @@ func (m *mockDBPayment) DeleteUserSessions(int) error                           
 func (m *mockDBPayment) DeleteUserAccount(int) error                               { return nil }
 func (m *mockDBPayment) CreateAccountTombstone(string) error                       { return nil }
 func (m *mockDBPayment) HasAccountTombstone(string) (bool, error)                  { return false, nil }
+func (m *mockDBPayment) SetDeletionRequestedAt(int, time.Time) error               { return nil }
 func (m *mockDBPayment) RecordUserActivity(int, time.Time) error                   { return nil }
 func (m *mockDBPayment) GetUserLastSeen(int) (time.Time, error)                    { return time.Time{}, nil }
 func (m *mockDBPayment) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) { return nil, nil }

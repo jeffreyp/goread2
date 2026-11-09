@@ -75,6 +75,46 @@ func TestDeleteAccountQueuesDeletionAndSweep(t *testing.T) {
 	}
 }
 
+// mockDBRecordsDeletionRequest records the userID and time DeleteAccount
+// passes to SetDeletionRequestedAt.
+type mockDBRecordsDeletionRequest struct {
+	mockDBAuthHandler
+	userID int
+	at     time.Time
+}
+
+func (m *mockDBRecordsDeletionRequest) SetDeletionRequestedAt(userID int, at time.Time) error {
+	m.userID = userID
+	m.at = at
+	return nil
+}
+
+func TestDeleteAccountRecordsDeletionRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db := &mockDBRecordsDeletionRequest{}
+	handler := NewAccountHandler(services.NewUserDataService(db), auth.NewSessionManager(db))
+	handler.SetTaskQueue(&fakeAccountTaskQueue{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodDelete, "/api/account", bytes.NewBufferString(`{"confirm_email": "reader@example.com"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(auth.UserContextKey), &database.User{ID: 42, Email: "reader@example.com"})
+
+	handler.DeleteAccount(c)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("Expected 202, got %d: %s", w.Code, w.Body.String())
+	}
+	if db.userID != 42 {
+		t.Errorf("SetDeletionRequestedAt called for user %d, want 42", db.userID)
+	}
+	if db.at.IsZero() {
+		t.Error("expected a non-zero deletion-requested time")
+	}
+}
+
 func TestDeleteAccountEnqueueFailureKeepsSession(t *testing.T) {
 	queue := &fakeAccountTaskQueue{err: errors.New("queue unavailable")}
 	w := runDeleteAccount(t, queue, `{"confirm_email": "reader@example.com"}`)

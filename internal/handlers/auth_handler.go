@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -81,12 +82,23 @@ func (ah *AuthHandler) Callback(c *gin.Context) {
 	// Handle the OAuth callback
 	user, err := ah.authService.HandleCallback(code, c.Request.Host)
 	if err != nil {
-		log.Printf("OAuth callback error: %v", err)
-		ah.callbackError(c, native, http.StatusInternalServerError, "Authentication failed. Please try signing in again.")
+		ah.handleSignInError(c, native, "OAuth callback error", err)
 		return
 	}
 
 	ah.completeSignIn(c, user, native)
+}
+
+// handleSignInError reports a sign-in failure from HandleCallback or
+// SignInGoogleUser, giving a user-visible reason when the account has a
+// deletion pending rather than the generic failure message.
+func (ah *AuthHandler) handleSignInError(c *gin.Context, native bool, logPrefix string, err error) {
+	log.Printf("%s: %v", logPrefix, err)
+	if errors.Is(err, auth.ErrAccountDeletionPending) {
+		ah.callbackError(c, native, http.StatusForbidden, "This account is scheduled for deletion and cannot sign in.")
+		return
+	}
+	ah.callbackError(c, native, http.StatusInternalServerError, "Authentication failed. Please try signing in again.")
 }
 
 // consumeOAuthState checks the callback's state parameter against the state

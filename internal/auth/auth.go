@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -15,6 +16,12 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+// ErrAccountDeletionPending is returned by SignInGoogleUser when the matching
+// account has a deletion in flight (DELETE /api/account was called but has
+// not finished). Signing in would resurrect activity on an account that is
+// about to disappear, so the sign-in is refused rather than completed.
+var ErrAccountDeletionPending = errors.New("account deletion is pending")
 
 // redactEmail redacts an email address for logging, keeping only first char and domain
 func redactEmail(email string) string {
@@ -158,9 +165,11 @@ func (a *AuthService) HandleCallback(code, host string) (*database.User, error) 
 
 // SignInGoogleUser returns the account for a Google identity, creating it on
 // first sign-in. A new account for a Google ID that previously deleted its
-// GoRead2 account starts with the trial already ended. HandleCallback calls it
-// with the identity Google reports; the devlogin build's local sign-in calls
-// it with a typed one, so both paths share this logic.
+// GoRead2 account starts with the trial already ended. An existing account
+// with a deletion in flight returns ErrAccountDeletionPending instead.
+// HandleCallback calls it with the identity Google reports; the devlogin
+// build's local sign-in calls it with a typed one, so both paths share this
+// logic.
 func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUserInfo) (*database.User, error) {
 	// Check if user exists in our database
 	user, err := a.db.GetUserByGoogleID(googleUser.ID)
@@ -182,6 +191,11 @@ func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUse
 		if err := a.db.CreateUser(user); err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
 		}
+		return user, nil
+	}
+
+	if !user.DeletionRequestedAt.IsZero() {
+		return nil, ErrAccountDeletionPending
 	}
 
 	return user, nil

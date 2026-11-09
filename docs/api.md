@@ -90,6 +90,11 @@ OAuth callback handler (configured in Google Cloud Console).
 
 **Response**: Redirects to the main application with a session cookie. For flows started with `client=ios` or `client=macos`, redirects to `goread2://auth?code=<one-time-code>` instead, without setting a session cookie; the app exchanges the code via `POST /auth/token`. Native-flow failures redirect to `goread2://auth?error=<message>` so the in-app auth sheet dismisses.
 
+**Error Responses**:
+- `400 Bad Request` - Invalid, expired, or already-used `state`, or a missing `code`
+- `403 Forbidden` - The Google account has a GoRead2 account with a deletion in flight (see [security.md](security.md#account-deletion))
+- `500 Internal Server Error` - The code exchange, user-info lookup, or session creation failed
+
 #### `POST /auth/token`
 Exchange a one-time code from the native app OAuth callback for the session token. Codes are single-use and expire after 2 minutes. This endpoint keeps session tokens out of the `goread2://` callback URL, where they could leak into device logs.
 

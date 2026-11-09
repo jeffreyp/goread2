@@ -15,10 +15,18 @@ const (
 	// auditLogIPRetentionMonths is how long audit log entries keep the IP
 	// address of the admin who performed the action.
 	auditLogIPRetentionMonths = 12
+	// pendingDeletionRetryDelay is how long a self-requested deletion
+	// (DELETE /api/account) waits before Run retries it. It must comfortably
+	// exceed both Cloud Tasks passes (the immediate attempt and the 15-minute
+	// sweep), so Run only ever retries a deletion those have already given up
+	// on, never one still in flight.
+	pendingDeletionRetryDelay = 1 * time.Hour
 )
 
 // RetentionService applies GoRead2's data retention policy: it deletes
-// inactive unpaid accounts and expires IP addresses in the audit log.
+// inactive unpaid accounts, expires IP addresses in the audit log, and
+// retries any self-requested deletion (DELETE /api/account) that Cloud Tasks
+// gave up on.
 type RetentionService struct {
 	db              database.Database
 	userDataService *UserDataService
@@ -82,6 +90,17 @@ func (s *RetentionService) Run(now time.Time) (RetentionResult, error) {
 	}
 
 	for _, info := range infos {
+		if !info.DeletionRequestedAt.IsZero() && info.DeletionRequestedAt.Before(now.Add(-pendingDeletionRetryDelay)) {
+			log.Printf("Retention: retrying pending deletion for user %d, requested at %s", info.UserID, info.DeletionRequestedAt.Format(time.RFC3339))
+			if err := s.userDataService.DeleteAccount(info.UserID); err != nil {
+				log.Printf("Pending account deletion retry failed for user %d: %v", info.UserID, err)
+				result.DeletionsFailed++
+				continue
+			}
+			result.AccountsDeleted++
+			continue
+		}
+
 		switch decideRetention(info, now) {
 		case backfillActivity:
 			if err := s.db.RecordUserActivity(info.UserID, now); err != nil {

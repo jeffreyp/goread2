@@ -168,3 +168,25 @@ alertStrategy:
   notificationRateLimit:
     period: "300s"  # log-match conditions require a rate limit; 5 minutes is the minimum
   autoClose: "1800s"
+
+---
+# Alert 8: Pending Account Deletion Retry Failed
+displayName: "Pending Account Deletion Retry Failed"
+documentation:
+  content: |
+    The monthly data retention run retried a self-requested account deletion (DELETE /api/account) whose deletion_requested_at timestamp was more than an hour old, meaning both Cloud Tasks passes had already failed (see Account Deletion Task Failed). That retry also failed, so the account, and any Stripe subscription on it, has been in this state for up to a month. Follow the manual re-run in docs/deployment.md (Account deletion failures).
+  mimeType: "text/markdown"
+conditions:
+  - displayName: "Log line: Pending account deletion retry failed"
+    conditionMatchedLog:
+      filter: 'resource.type="gae_app" AND logName="projects/goread-467200/logs/stderr" AND textPayload:"Pending account deletion retry failed for user"'
+      labelExtractors:
+        user_id: 'REGEXP_EXTRACT(textPayload, "failed for user ([0-9]+)")'
+combiner: "OR"
+enabled: true
+notificationChannels:
+  - "projects/goread-467200/notificationChannels/5854116738752263410"  # GoRead2 Alerts Email
+alertStrategy:
+  notificationRateLimit:
+    period: "300s"  # log-match conditions require a rate limit; 5 minutes is the minimum
+  autoClose: "1800s"

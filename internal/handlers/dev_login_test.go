@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jeffreyp/goread2/internal/auth"
@@ -256,6 +257,28 @@ func TestDevLoginTombstonedIDStartsWithTrialEnded(t *testing.T) {
 	}
 	if fresh := db.users["dev-fresh"]; fresh == nil || !fresh.TrialEndsAt.IsZero() {
 		t.Errorf("expected a new ID to keep the default trial, got %+v", fresh)
+	}
+}
+
+func TestDevLoginRefusesSignInWithPendingDeletion(t *testing.T) {
+	clearDevLoginGuardEnv(t)
+	db := newDevLoginDB()
+	db.users["dev-pending"] = &database.User{
+		ID: 1, GoogleID: "dev-pending", Email: "pending@example.test",
+		DeletionRequestedAt: time.Now(),
+	}
+	r, _, _ := newDevLoginRouter(t, db)
+
+	state, stateCookie := startDevLogin(t, r, "")
+	w := devLoginCallback(r, stateCookie, url.Values{
+		"state": {state}, "id": {"dev-pending"}, "email": {"pending@example.test"},
+	})
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for an account with a deletion pending, got %d: %s", w.Code, w.Body.String())
+	}
+	if w.Header().Get("Set-Cookie") != "" {
+		t.Error("expected no session cookie for a refused sign-in")
 	}
 }
 

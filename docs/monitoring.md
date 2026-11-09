@@ -160,7 +160,7 @@ Or use the [Logs Explorer](https://console.cloud.google.com/logs) to:
 
 ## Alerting Policies
 
-The alert configuration (`monitoring/alert-policies.yaml`) includes seven policies. Policies 1 through 6 monitor for cost spikes and unusual patterns; policy 7 reports failed account deletions.
+The alert configuration (`monitoring/alert-policies.yaml`) includes eight policies. Policies 1 through 6 monitor for cost spikes and unusual patterns; policies 7 and 8 report failed account deletions.
 
 ### 1. High Datastore Read Operations
 - **Threshold**: >1000 reads/minute (~16.67/second) sustained for 5 minutes
@@ -209,6 +209,13 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes seven polici
 - **Notification rate limit**: 5 minutes, the minimum for log-match conditions; repeated failures within that window send one notification
 - **Auto-close**: 30 minutes
 - **Testing**: write a matching entry to the `stderr` log with a `gae_app` resource through the Logging API (`entries:write`). The incident opens and the email is sent about two minutes later. A log-match condition does not evaluate entries written within the first minute or so after the policy is created or updated, so wait several minutes after a change before testing.
+
+### 8. Pending Account Deletion Retry Failed
+- **Condition**: log-match on `Pending account deletion retry failed for user <id>` in the App Engine `stderr` log; the alert's `user_id` label carries the ID
+- **Purpose**: `RetentionService.Run` retries, once a month, any account whose `DELETE /api/account` deletion left a `deletion_requested_at` timestamp more than an hour old, meaning both Cloud Tasks passes already failed (see policy 7). A failure here means that retry also failed, so the account, and any Stripe subscription on it, has been in that state for up to a month
+- **Actions**: Follow [Account Deletion Failures](deployment.md#account-deletion-failures) in deployment.md
+- **Notification rate limit**: 5 minutes, the minimum for log-match conditions
+- **Auto-close**: 30 minutes
 
 ## Post-Promote Health Watch (a second consumer of these signals)
 

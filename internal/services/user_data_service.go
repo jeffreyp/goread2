@@ -93,6 +93,15 @@ func (s *UserDataService) DeleteAccount(userID int) error {
 	return nil
 }
 
+// RequestDeletion records that userID asked to delete their account. It lets
+// the data retention run retry a deletion left incomplete by an outage
+// instead of leaving the account, and any Stripe subscription on it, in place
+// indefinitely, and makes the auth callback refuse a re-sign-in while the
+// deletion is in flight.
+func (s *UserDataService) RequestDeletion(userID int) error {
+	return s.db.SetDeletionRequestedAt(userID, time.Now().UTC())
+}
+
 // hasLiveSubscription reports whether Stripe may still bill user.
 func hasLiveSubscription(user *database.User) bool {
 	if user.SubscriptionID == "" {
