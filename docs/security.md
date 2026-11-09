@@ -282,10 +282,10 @@ Shared `Feed` and `Article` records are not touched. Other App Engine instances 
 
 ### Data Retention
 
-`RetentionService` (`internal/services/retention_service.go`) applies the retention policy on the first of each month through `/cron/apply-retention`:
+`RetentionService` (`internal/services/retention_service.go`) applies the following policy on the first of each month through `/cron/apply-retention`, and applies the pending-deletion rule alone every day through `/cron/retry-pending-deletions`:
 
 - **Inactive accounts**: an account is deleted, through the same path as `DELETE /api/account`, once it has had no activity for 24 months and its subscription status is `trial`, `cancelled`, or `expired`. Paying accounts (`active`, `past_due`, `unpaid`), admins, and accounts with granted free months are never deleted for inactivity. No warning is sent before deletion.
-- **Pending self-requested deletions**: any account with a `deletion_requested_at` timestamp older than one hour is deleted, regardless of subscription status. This is the backstop for a `DELETE /api/account` deletion whose Cloud Tasks passes both failed (see [Account Deletion Failures](deployment.md#account-deletion-failures)), so a paying subscriber whose deletion failed during an outage is not billed indefinitely.
+- **Pending self-requested deletions**: any account with a `deletion_requested_at` timestamp older than one hour is deleted, regardless of subscription status. This is the backstop for a `DELETE /api/account` deletion whose Cloud Tasks passes both failed (see [Account Deletion Failures](deployment.md#account-deletion-failures)). Because it runs daily, a paying subscriber whose deletion failed during an outage remains subscribed for about a day at most.
 - **Audit log IP addresses**: blanked on entries older than 12 months; the rest of each entry is kept.
 - **Request logs**: Cloud Logging's `_Default` bucket keeps App Engine request logs, including IP addresses and user agents, for 30 days.
 

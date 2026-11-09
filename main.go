@@ -318,6 +318,8 @@ func main() {
 		cronRoutes.POST("/cleanup-orphaned-articles", feedHandler.CleanupOrphanedUserArticles)
 		cronRoutes.GET("/apply-retention", retentionHandler.CronRetention)
 		cronRoutes.POST("/apply-retention", retentionHandler.CronRetention)
+		cronRoutes.GET("/retry-pending-deletions", retentionHandler.CronRetryPendingDeletions)
+		cronRoutes.POST("/retry-pending-deletions", retentionHandler.CronRetryPendingDeletions)
 		cronRoutes.GET("/record-usage-metrics", usageMetricsHandler.CronRecordUsageMetrics)
 		cronRoutes.POST("/record-usage-metrics", usageMetricsHandler.CronRecordUsageMetrics)
 	}
@@ -331,6 +333,7 @@ func main() {
 		taskRoutes.POST("/cleanup-orphaned-articles", feedHandler.TaskCleanupOrphanedArticles)
 		taskRoutes.POST("/delete-account", accountHandler.TaskDeleteAccount)
 		taskRoutes.POST("/apply-retention", retentionHandler.TaskRetention)
+		taskRoutes.POST("/retry-pending-deletions", retentionHandler.TaskRetryPendingDeletions)
 	}
 
 	// Protected API routes

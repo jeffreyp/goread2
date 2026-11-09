@@ -174,7 +174,7 @@ alertStrategy:
 displayName: "Pending Account Deletion Retry Failed"
 documentation:
   content: |
-    The monthly data retention run retried a self-requested account deletion (DELETE /api/account) whose deletion_requested_at timestamp was more than an hour old, meaning both Cloud Tasks passes had already failed (see Account Deletion Task Failed). That retry also failed, so the account, and any Stripe subscription on it, has been in this state for up to a month. Follow the manual re-run in docs/deployment.md (Account deletion failures).
+    The daily pending-deletion retry retried a self-requested account deletion (DELETE /api/account) whose deletion_requested_at timestamp was more than an hour old, meaning both Cloud Tasks passes had already failed (see Account Deletion Task Failed). That retry also failed, so the account, and any Stripe subscription on it, has been in this state for up to a day. The retry runs again each day until it succeeds. Follow the manual re-run in docs/deployment.md (Account deletion failures).
   mimeType: "text/markdown"
 conditions:
   - displayName: "Log line: Pending account deletion retry failed"

@@ -173,3 +173,75 @@ func TestRetentionRunStopsWhenAccountsCannotBeLoaded(t *testing.T) {
 		t.Errorf("ClearAuditLogIPsBefore called %d times, want 0", db.clearCalls)
 	}
 }
+
+func TestRetryPendingDeletionsAppliesNoOtherRetentionRule(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	longAgo := now.AddDate(0, -25, 0)
+	stale := now.Add(-pendingDeletionRetryDelay - time.Minute)
+	fresh := now.Add(-pendingDeletionRetryDelay + time.Minute)
+	db := &mockDBRetention{
+		infos: []database.UserRetentionInfo{
+			{UserID: 1, SubscriptionStatus: "active", DeletionRequestedAt: stale},
+			// Too recent to retry: Cloud Tasks may still be working on it.
+			{UserID: 2, SubscriptionStatus: "active", DeletionRequestedAt: fresh},
+			// Run would delete or backfill these; the daily retry must not.
+			{UserID: 3, SubscriptionStatus: "expired", LastSeenAt: longAgo},
+			{UserID: 4, SubscriptionStatus: "expired", CreatedAt: longAgo},
+		},
+	}
+	service := NewRetentionService(db, NewUserDataService(db))
+
+	result, err := service.RetryPendingDeletions(now)
+
+	if err != nil {
+		t.Errorf("RetryPendingDeletions() error = %v, want nil", err)
+	}
+	if want := (RetentionResult{AccountsDeleted: 1}); result != want {
+		t.Errorf("RetryPendingDeletions() result = %+v, want %+v", result, want)
+	}
+	if !reflect.DeepEqual(db.deletedIDs, []int{1}) {
+		t.Errorf("deleted users = %v, want [1]", db.deletedIDs)
+	}
+	if len(db.backfilled) != 0 {
+		t.Errorf("backfilled = %v, want none", db.backfilled)
+	}
+	if db.clearCalls != 0 {
+		t.Errorf("ClearAuditLogIPsBefore called %d times, want 0", db.clearCalls)
+	}
+}
+
+func TestRetryPendingDeletionsReportsFailure(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	stale := now.Add(-pendingDeletionRetryDelay - time.Minute)
+	db := &mockDBRetention{
+		infos: []database.UserRetentionInfo{
+			{UserID: 1, SubscriptionStatus: "active", DeletionRequestedAt: stale},
+			{UserID: 2, SubscriptionStatus: "active", DeletionRequestedAt: stale},
+		},
+		failDeleteFor: 1,
+	}
+	service := NewRetentionService(db, NewUserDataService(db))
+
+	result, err := service.RetryPendingDeletions(now)
+
+	if err == nil || !strings.Contains(err.Error(), "1 account deletions failed") {
+		t.Errorf("RetryPendingDeletions() error = %v, want the failed retry reported so the task retries", err)
+	}
+	if want := (RetentionResult{AccountsDeleted: 1, DeletionsFailed: 1}); result != want {
+		t.Errorf("RetryPendingDeletions() result = %+v, want %+v", result, want)
+	}
+	if !reflect.DeepEqual(db.deletedIDs, []int{2}) {
+		t.Errorf("deleted users = %v, want [2] (user 1 failed, user 2 still attempted)", db.deletedIDs)
+	}
+}
+
+func TestRetryPendingDeletionsStopsWhenAccountsCannotBeLoaded(t *testing.T) {
+	db := &mockDBRetention{infoErr: errors.New("datastore unavailable")}
+	service := NewRetentionService(db, NewUserDataService(db))
+
+	_, err := service.RetryPendingDeletions(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
+
+	if err == nil || !strings.Contains(err.Error(), "failed to load accounts") {
+		t.Errorf("RetryPendingDeletions() error = %v, want failure to load accounts", err)
+	}
+}

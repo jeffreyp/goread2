@@ -398,6 +398,15 @@ cron:
     max_backoff_seconds: 300
     max_doublings: 3
 
+- description: "Retry self-requested account deletions that Cloud Tasks gave up on"
+  url: /cron/retry-pending-deletions
+  schedule: every day 10:00
+  target: default
+  retry_parameters:
+    min_backoff_seconds: 10
+    max_backoff_seconds: 300
+    max_doublings: 3
+
 - description: "Record usage statistics as Cloud Monitoring custom metrics"
   url: /cron/record-usage-metrics
   schedule: every day 00:30
@@ -408,7 +417,7 @@ cron:
     max_doublings: 3
 ```
 
-`/cron/apply-retention` applies the data retention policy described in [security.md](security.md#data-retention). `/cron/record-usage-metrics` records the usage statistics as Cloud Monitoring custom metrics, described in [monitoring.md](monitoring.md#usage-metrics); it runs in the cron request rather than as a Cloud Task.
+`/cron/apply-retention` applies the data retention policy described in [security.md](security.md#data-retention). `/cron/retry-pending-deletions` applies only the part of that policy that retries failed self-requested deletions, daily rather than monthly. `/cron/record-usage-metrics` records the usage statistics as Cloud Monitoring custom metrics, described in [monitoring.md](monitoring.md#usage-metrics); it runs in the cron request rather than as a Cloud Task.
 
 ### Deployment Steps
 
@@ -448,13 +457,14 @@ cron:
 
 ## Async Task Processing (Cloud Tasks)
 
-The `/cron/refresh-feeds`, `/cron/cleanup-orphaned-articles`, and `/cron/apply-retention` cron handlers enqueue their work as Cloud Tasks instead of running it in the request that App Engine Cron triggers. This keeps the cron request itself under 100ms, so App Engine doesn't hold an instance open for the duration of a feed refresh, and Cloud Tasks retries the work independently of cron's own retry policy if it fails.
+The `/cron/refresh-feeds`, `/cron/cleanup-orphaned-articles`, `/cron/apply-retention`, and `/cron/retry-pending-deletions` cron handlers enqueue their work as Cloud Tasks instead of running it in the request that App Engine Cron triggers. This keeps the cron request itself under 100ms, so App Engine doesn't hold an instance open for the duration of a feed refresh, and Cloud Tasks retries the work independently of cron's own retry policy if it fails.
 
 Each cron handler enqueues a task targeting a corresponding worker endpoint on the same App Engine service:
 
 - `/cron/refresh-feeds` enqueues `/tasks/refresh-feeds`
 - `/cron/cleanup-orphaned-articles` enqueues `/tasks/cleanup-orphaned-articles`
 - `/cron/apply-retention` enqueues `/tasks/apply-retention`
+- `/cron/retry-pending-deletions` enqueues `/tasks/retry-pending-deletions`
 
 Account deletion uses the same queue. `DELETE /api/account` enqueues `/tasks/delete-account?user_id=<id>` twice: once for immediate dispatch, and once delayed by 15 minutes. The delayed pass removes any rows recreated after the first pass by requests on sessions still held in another instance's session cache, whose TTL is 10 minutes. Both passes run the same idempotent deletion, so either one can finish a deletion the other left incomplete.
 
@@ -491,7 +501,7 @@ Queue name and location default to `cron-tasks` and `us-central1`; override with
 
 ### Account Deletion Failures
 
-Each failed attempt logs `Account deletion task failed for user <id>`, which triggers the `Account Deletion Task Failed` alert (see [monitoring.md](monitoring.md#7-account-deletion-task-failed)). With the queue's retry settings above, each pass gives up after about 2.5 minutes, so a deletion fails permanently only if Stripe or Datastore is unavailable during both passes. The user has already received a success response and been signed out, and cannot sign back in to retry, since the account carries a `deletion_requested_at` timestamp (see [security.md](security.md#account-deletion)). The monthly data retention run retries any account in that state once it is more than an hour old, so the deletion completes without manual action. If that retry also fails, it logs `Pending account deletion retry failed for user <id>`, which triggers the `Pending Account Deletion Retry Failed` alert (see [monitoring.md](monitoring.md#8-pending-account-deletion-retry-failed)). To complete a deletion before the next retention run, re-enqueue it as described below.
+Each failed attempt logs `Account deletion task failed for user <id>`, which triggers the `Account Deletion Task Failed` alert (see [monitoring.md](monitoring.md#7-account-deletion-task-failed)). With the queue's retry settings above, each pass gives up after about 2.5 minutes, so a deletion fails permanently only if Stripe or Datastore is unavailable during both passes. The user has already received a success response and been signed out, and cannot sign back in to retry, since the account carries a `deletion_requested_at` timestamp (see [security.md](security.md#account-deletion)). The daily `/cron/retry-pending-deletions` job retries any account in that state once it is more than an hour old, so the deletion completes without manual action within a day. If that retry also fails, it logs `Pending account deletion retry failed for user <id>`, which triggers the `Pending Account Deletion Retry Failed` alert (see [monitoring.md](monitoring.md#8-pending-account-deletion-retry-failed)). To complete a deletion before the next daily retry, re-enqueue it as described below.
 
 When the alert fires, check whether the account still exists about 20 minutes after the request, once both passes have run, by looking for the ID in the first column of the admin CLI's user list (see [admin.md](admin.md#admin-script-usage)):
 

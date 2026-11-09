@@ -212,7 +212,7 @@ The alert configuration (`monitoring/alert-policies.yaml`) includes eight polici
 
 ### 8. Pending Account Deletion Retry Failed
 - **Condition**: log-match on `Pending account deletion retry failed for user <id>` in the App Engine `stderr` log; the alert's `user_id` label carries the ID
-- **Purpose**: `RetentionService.Run` retries, once a month, any account whose `DELETE /api/account` deletion left a `deletion_requested_at` timestamp more than an hour old, meaning both Cloud Tasks passes already failed (see policy 7). A failure here means that retry also failed, so the account, and any Stripe subscription on it, has been in that state for up to a month
+- **Purpose**: `RetentionService.RetryPendingDeletions` retries, once a day, any account whose `DELETE /api/account` deletion left a `deletion_requested_at` timestamp more than an hour old, meaning both Cloud Tasks passes already failed (see policy 7). A failure here means that retry also failed, so the account, and any Stripe subscription on it, has been in that state for up to a day. The alert fires again on each day's retry until the deletion succeeds
 - **Actions**: Follow [Account Deletion Failures](deployment.md#account-deletion-failures) in deployment.md
 - **Notification rate limit**: 5 minutes, the minimum for log-match conditions
 - **Auto-close**: 30 minutes

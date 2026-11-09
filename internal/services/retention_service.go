@@ -26,7 +26,8 @@ const (
 // RetentionService applies GoRead2's data retention policy: it deletes
 // inactive unpaid accounts, expires IP addresses in the audit log, and
 // retries any self-requested deletion (DELETE /api/account) that Cloud Tasks
-// gave up on.
+// gave up on. Run applies the whole policy monthly; RetryPendingDeletions
+// applies only the last part, daily.
 type RetentionService struct {
 	db              database.Database
 	userDataService *UserDataService
@@ -90,14 +91,7 @@ func (s *RetentionService) Run(now time.Time) (RetentionResult, error) {
 	}
 
 	for _, info := range infos {
-		if !info.DeletionRequestedAt.IsZero() && info.DeletionRequestedAt.Before(now.Add(-pendingDeletionRetryDelay)) {
-			log.Printf("Retention: retrying pending deletion for user %d, requested at %s", info.UserID, info.DeletionRequestedAt.Format(time.RFC3339))
-			if err := s.userDataService.DeleteAccount(info.UserID); err != nil {
-				log.Printf("Pending account deletion retry failed for user %d: %v", info.UserID, err)
-				result.DeletionsFailed++
-				continue
-			}
-			result.AccountsDeleted++
+		if s.retryPendingDeletion(info, now, &result) {
 			continue
 		}
 
@@ -128,4 +122,46 @@ func (s *RetentionService) Run(now time.Time) (RetentionResult, error) {
 		return result, fmt.Errorf("%d account deletions failed", result.DeletionsFailed)
 	}
 	return result, nil
+}
+
+// RetryPendingDeletions retries only the self-requested deletions
+// (DELETE /api/account) that Cloud Tasks gave up on, without applying the
+// rest of the retention policy. It runs daily, so a deletion that failed
+// during an outage completes, and stops any Stripe billing, within a day
+// rather than at the next monthly Run. Like Run, it continues past a failed
+// deletion and then returns an error so that the task is retried.
+func (s *RetentionService) RetryPendingDeletions(now time.Time) (RetentionResult, error) {
+	var result RetentionResult
+
+	infos, err := s.db.GetUserRetentionInfo()
+	if err != nil {
+		return result, fmt.Errorf("failed to load accounts: %w", err)
+	}
+
+	for _, info := range infos {
+		s.retryPendingDeletion(info, now, &result)
+	}
+
+	if result.DeletionsFailed > 0 {
+		return result, fmt.Errorf("%d account deletions failed", result.DeletionsFailed)
+	}
+	return result, nil
+}
+
+// retryPendingDeletion deletes the account if it has a self-requested
+// deletion older than pendingDeletionRetryDelay, counting the outcome in
+// result. It reports whether the account had such a deletion, in which case
+// the caller must not apply any other retention rule to it.
+func (s *RetentionService) retryPendingDeletion(info database.UserRetentionInfo, now time.Time, result *RetentionResult) bool {
+	if info.DeletionRequestedAt.IsZero() || !info.DeletionRequestedAt.Before(now.Add(-pendingDeletionRetryDelay)) {
+		return false
+	}
+	log.Printf("Retention: retrying pending deletion for user %d, requested at %s", info.UserID, info.DeletionRequestedAt.Format(time.RFC3339))
+	if err := s.userDataService.DeleteAccount(info.UserID); err != nil {
+		log.Printf("Pending account deletion retry failed for user %d: %v", info.UserID, err)
+		result.DeletionsFailed++
+		return true
+	}
+	result.AccountsDeleted++
+	return true
 }
