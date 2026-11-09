@@ -455,6 +455,28 @@ cron:
 - **User isolation**: All queries filtered by authenticated user ID
 - **Scalability**: Handles multiple concurrent users efficiently
 
+### Point-in-Time Recovery
+
+The production `(default)` database in `goread-467200` has point-in-time recovery (PITR) enabled, with a 7-day version retention period. Any state of the database within the last 7 days, at minute granularity, can be recovered. This covers mistakes such as a wrong account deletion (`DELETE /api/account` or the retention run) or a bad migration. It has no scheduled backups, so nothing older than 7 days can be restored. PITR is billed for the storage of the retained versions.
+
+To check the setting and the earliest recoverable time:
+
+```bash
+gcloud firestore databases describe --database='(default)' --project=goread-467200 \
+  --format='yaml(pointInTimeRecoveryEnablement,versionRetentionPeriod,earliestVersionTime)'
+```
+
+To recover, clone the database as it was at a given minute into a new database. The clone does not modify `(default)`:
+
+```bash
+gcloud firestore databases clone --project=goread-467200 \
+  --source-database='projects/goread-467200/databases/(default)' \
+  --snapshot-time='2026-11-08T10:20:00Z' \
+  --destination-database=restore-20261108
+```
+
+The application always reads `(default)`, so recovered entities must be copied from the clone back into `(default)` with the Datastore client or console. There is no tool for this in the repository. Delete the clone once the copy is verified. To restore the whole database, copy every kind back, or delete `(default)` and clone the recovered database into a new `(default)`; the second option takes the application offline until the clone completes. No restore has yet been performed against production.
+
 ## Async Task Processing (Cloud Tasks)
 
 The `/cron/refresh-feeds`, `/cron/cleanup-orphaned-articles`, `/cron/apply-retention`, and `/cron/retry-pending-deletions` cron handlers enqueue their work as Cloud Tasks instead of running it in the request that App Engine Cron triggers. This keeps the cron request itself under 100ms, so App Engine doesn't hold an instance open for the duration of a feed refresh, and Cloud Tasks retries the work independently of cron's own retry policy if it fails.
