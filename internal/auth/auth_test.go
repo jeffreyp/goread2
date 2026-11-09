@@ -483,7 +483,7 @@ func TestSignInGoogleUserGrantsInitialAdminOnCreation(t *testing.T) {
 	t.Run("listed email becomes admin, ignoring case", func(t *testing.T) {
 		db := newMockDBForAuth()
 		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
-			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com"})
+			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com", VerifiedEmail: true})
 		if err != nil {
 			t.Fatalf("SignInGoogleUser() error = %v", err)
 		}
@@ -495,7 +495,7 @@ func TestSignInGoogleUserGrantsInitialAdminOnCreation(t *testing.T) {
 	t.Run("unlisted email is not admin", func(t *testing.T) {
 		db := newMockDBForAuth()
 		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
-			GoogleUserInfo{ID: "google-reader", Email: "reader@example.com"})
+			GoogleUserInfo{ID: "google-reader", Email: "reader@example.com", VerifiedEmail: true})
 		if err != nil {
 			t.Fatalf("SignInGoogleUser() error = %v", err)
 		}
@@ -504,11 +504,23 @@ func TestSignInGoogleUserGrantsInitialAdminOnCreation(t *testing.T) {
 		}
 	})
 
+	t.Run("unverified listed email is not admin", func(t *testing.T) {
+		db := newMockDBForAuth()
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
+			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com"})
+		if err != nil {
+			t.Fatalf("SignInGoogleUser() error = %v", err)
+		}
+		if user.IsAdmin {
+			t.Errorf("expected an unverified email not to be granted admin, got %+v", user)
+		}
+	})
+
 	t.Run("failure to grant admin does not fail sign-in", func(t *testing.T) {
 		db := newMockDBForAuth()
 		db.shouldFailSetAdmin = true
 		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
-			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com"})
+			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com", VerifiedEmail: true})
 		if err != nil {
 			t.Fatalf("SignInGoogleUser() error = %v, want sign-in to succeed", err)
 		}
@@ -523,7 +535,7 @@ func TestSignInGoogleUserGrantsInitialAdminOnCreation(t *testing.T) {
 		db.users[existing.GoogleID] = existing
 		db.usersByID[existing.ID] = existing
 		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
-			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com"})
+			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com", VerifiedEmail: true})
 		if err != nil {
 			t.Fatalf("SignInGoogleUser() error = %v", err)
 		}

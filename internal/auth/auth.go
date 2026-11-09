@@ -58,10 +58,11 @@ type AuthService struct {
 }
 
 type GoogleUserInfo struct {
-	ID      string `json:"id"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	Picture string `json:"picture"`
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	VerifiedEmail bool   `json:"verified_email"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
 }
 
 func NewAuthService(db database.Database) *AuthService {
@@ -198,7 +199,9 @@ func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUse
 		if err := a.db.CreateUser(user); err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
 		}
-		a.grantInitialAdmin(user)
+		if googleUser.VerifiedEmail {
+			a.grantInitialAdmin(user)
+		}
 		return user, nil
 	}
 
@@ -210,7 +213,9 @@ func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUse
 }
 
 // grantInitialAdmin makes a newly created user an admin if their email is in
-// INITIAL_ADMIN_EMAILS. InitializeAdminUsers applies the list only at startup
+// INITIAL_ADMIN_EMAILS. SignInGoogleUser calls it only when Google reports
+// the email as verified, so an unverified address that matches a listed admin
+// cannot claim admin access; the devlogin sign-in never sets VerifiedEmail. InitializeAdminUsers applies the list only at startup
 // and only to existing users, so without this a listed admin who signs in
 // for the first time, or signs in again after deleting their account, would
 // have no admin access until the next instance restart. A failure is logged
