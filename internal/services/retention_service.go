@@ -15,6 +15,10 @@ const (
 	// auditLogIPRetentionMonths is how long audit log entries keep the IP
 	// address of the admin who performed the action.
 	auditLogIPRetentionMonths = 12
+	// inactiveAccountTombstoneMonths is how long the tombstone written for an
+	// account deleted for inactivity blocks a new free trial. A tombstone
+	// written for a self-requested deletion never expires.
+	inactiveAccountTombstoneMonths = 24
 	// pendingDeletionRetryDelay is how long a self-requested deletion
 	// (DELETE /api/account) waits before Run retries it. It must comfortably
 	// exceed both Cloud Tasks passes (the immediate attempt and the 15-minute
@@ -43,6 +47,7 @@ type RetentionResult struct {
 	AccountsBackfilled int `json:"accounts_backfilled"`
 	DeletionsFailed    int `json:"deletions_failed"`
 	AuditIPsCleared    int `json:"audit_ips_cleared"`
+	TombstonesPurged   int `json:"tombstones_purged"`
 }
 
 // retentionDecision is what Run does with one account.
@@ -103,7 +108,7 @@ func (s *RetentionService) Run(now time.Time) (RetentionResult, error) {
 			result.AccountsBackfilled++
 		case deleteAccount:
 			log.Printf("Retention: deleting user %d, inactive since %s", info.UserID, info.LastSeenAt.Format(time.RFC3339))
-			if err := s.userDataService.DeleteAccount(info.UserID); err != nil {
+			if err := s.userDataService.DeleteInactiveAccount(info.UserID, now.AddDate(0, inactiveAccountTombstoneMonths, 0)); err != nil {
 				log.Printf("Retention: failed to delete user %d: %v", info.UserID, err)
 				result.DeletionsFailed++
 				continue
@@ -116,6 +121,12 @@ func (s *RetentionService) Run(now time.Time) (RetentionResult, error) {
 	result.AuditIPsCleared = cleared
 	if err != nil {
 		return result, fmt.Errorf("failed to expire audit log IPs: %w", err)
+	}
+
+	purged, err := s.db.DeleteExpiredAccountTombstones(now)
+	result.TombstonesPurged = purged
+	if err != nil {
+		return result, fmt.Errorf("failed to purge expired account tombstones: %w", err)
 	}
 
 	if result.DeletionsFailed > 0 {

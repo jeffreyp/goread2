@@ -182,14 +182,15 @@ func (m *mockDBFeedHandler) CleanupOrphanedUserArticles(days int) (int, error) {
 func (m *mockDBFeedHandler) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
 	return nil, "", nil
 }
-func (m *mockDBFeedHandler) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
-func (m *mockDBFeedHandler) DeleteUserSessions(int) error                    { return nil }
-func (m *mockDBFeedHandler) DeleteUserAccount(int) error                     { return nil }
-func (m *mockDBFeedHandler) CreateAccountTombstone(string) error             { return nil }
-func (m *mockDBFeedHandler) HasAccountTombstone(string) (bool, error)        { return false, nil }
-func (m *mockDBFeedHandler) SetDeletionRequestedAt(int, time.Time) error     { return nil }
-func (m *mockDBFeedHandler) RecordUserActivity(int, time.Time) error         { return nil }
-func (m *mockDBFeedHandler) GetUserLastSeen(int) (time.Time, error)          { return time.Time{}, nil }
+func (m *mockDBFeedHandler) GetUserSessions(int) ([]database.Session, error)       { return nil, nil }
+func (m *mockDBFeedHandler) DeleteUserSessions(int) error                          { return nil }
+func (m *mockDBFeedHandler) DeleteUserAccount(int) error                           { return nil }
+func (m *mockDBFeedHandler) CreateAccountTombstone(string, time.Time) error        { return nil }
+func (m *mockDBFeedHandler) DeleteExpiredAccountTombstones(time.Time) (int, error) { return 0, nil }
+func (m *mockDBFeedHandler) HasAccountTombstone(string) (bool, error)              { return false, nil }
+func (m *mockDBFeedHandler) SetDeletionRequestedAt(int, time.Time) error           { return nil }
+func (m *mockDBFeedHandler) RecordUserActivity(int, time.Time) error               { return nil }
+func (m *mockDBFeedHandler) GetUserLastSeen(int) (time.Time, error)                { return time.Time{}, nil }
 func (m *mockDBFeedHandler) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) {
 	return nil, nil
 }

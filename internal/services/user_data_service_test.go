@@ -16,8 +16,9 @@ import (
 // which fails the test if DeleteAccount starts touching other data.
 type mockDBDeletion struct {
 	database.Database
-	user  *database.User
-	calls *[]string
+	user               *database.User
+	calls              *[]string
+	tombstoneExpiresAt time.Time
 }
 
 func (m *mockDBDeletion) GetUserByID(userID int) (*database.User, error) {
@@ -28,8 +29,9 @@ func (m *mockDBDeletion) GetUserByID(userID int) (*database.User, error) {
 	return m.user, nil
 }
 
-func (m *mockDBDeletion) CreateAccountTombstone(id string) error {
+func (m *mockDBDeletion) CreateAccountTombstone(id string, expiresAt time.Time) error {
 	*m.calls = append(*m.calls, "CreateAccountTombstone")
+	m.tombstoneExpiresAt = expiresAt
 	return nil
 }
 
@@ -226,4 +228,34 @@ func TestRequestDeletion(t *testing.T) {
 	if db.at.Before(before.Add(-time.Second)) || db.at.After(time.Now()) {
 		t.Errorf("SetDeletionRequestedAt time = %v, want close to now", db.at)
 	}
+}
+
+func TestDeleteAccountTombstoneExpiry(t *testing.T) {
+	setTombstoneKey(t, "test-tombstone-key")
+	expiresAt := time.Date(2028, 10, 1, 9, 0, 0, 0, time.UTC)
+
+	t.Run("self-requested deletion writes a permanent tombstone", func(t *testing.T) {
+		var calls []string
+		db := &mockDBDeletion{user: &database.User{ID: 7, GoogleID: "google-7"}, calls: &calls}
+		if err := NewUserDataService(db).DeleteAccount(7); err != nil {
+			t.Fatalf("DeleteAccount() error = %v", err)
+		}
+		if !db.tombstoneExpiresAt.IsZero() {
+			t.Errorf("tombstone expires at %v, want never", db.tombstoneExpiresAt)
+		}
+	})
+
+	t.Run("inactive-account deletion writes an expiring tombstone", func(t *testing.T) {
+		var calls []string
+		db := &mockDBDeletion{user: &database.User{ID: 7, GoogleID: "google-7"}, calls: &calls}
+		if err := NewUserDataService(db).DeleteInactiveAccount(7, expiresAt); err != nil {
+			t.Fatalf("DeleteInactiveAccount() error = %v", err)
+		}
+		if !db.tombstoneExpiresAt.Equal(expiresAt) {
+			t.Errorf("tombstone expires at %v, want %v", db.tombstoneExpiresAt, expiresAt)
+		}
+		if want := []string{"GetUserByID", "CreateAccountTombstone", "DeleteUserAccount"}; !reflect.DeepEqual(calls, want) {
+			t.Errorf("calls = %v, want %v", calls, want)
+		}
+	})
 }

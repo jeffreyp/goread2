@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jeffreyp/goread2/internal/database"
+	"github.com/jeffreyp/goread2/internal/secrets"
 )
 
 func TestDecideRetention(t *testing.T) {
@@ -57,6 +58,14 @@ type mockDBRetention struct {
 	clearCutoff   time.Time
 	clearCalls    int
 	ipsCleared    int
+	purgeNow      time.Time
+	purged        int
+	purgeErr      error
+}
+
+func (m *mockDBRetention) DeleteExpiredAccountTombstones(now time.Time) (int, error) {
+	m.purgeNow = now
+	return m.purged, m.purgeErr
 }
 
 func (m *mockDBRetention) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) {
@@ -102,6 +111,7 @@ func TestRetentionRunContinuesPastFailedDeletion(t *testing.T) {
 		},
 		failDeleteFor: 2,
 		ipsCleared:    6,
+		purged:        4,
 	}
 	service := NewRetentionService(db, NewUserDataService(db))
 
@@ -110,7 +120,7 @@ func TestRetentionRunContinuesPastFailedDeletion(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "1 account deletions failed") {
 		t.Errorf("Run() error = %v, want the failed deletion reported so the task retries", err)
 	}
-	want := RetentionResult{AccountsDeleted: 2, AccountsBackfilled: 1, DeletionsFailed: 1, AuditIPsCleared: 6}
+	want := RetentionResult{AccountsDeleted: 2, AccountsBackfilled: 1, DeletionsFailed: 1, AuditIPsCleared: 6, TombstonesPurged: 4}
 	if result != want {
 		t.Errorf("Run() result = %+v, want %+v", result, want)
 	}
@@ -119,6 +129,9 @@ func TestRetentionRunContinuesPastFailedDeletion(t *testing.T) {
 	}
 	if !reflect.DeepEqual(db.backfilled, map[int]time.Time{5: now}) {
 		t.Errorf("backfilled = %v, want user 5 at %v", db.backfilled, now)
+	}
+	if !db.purgeNow.Equal(now) {
+		t.Errorf("DeleteExpiredAccountTombstones called with %v, want %v", db.purgeNow, now)
 	}
 	if db.clearCalls != 1 || !db.clearCutoff.Equal(now.AddDate(0, -auditLogIPRetentionMonths, 0)) {
 		t.Errorf("ClearAuditLogIPsBefore called %d times with cutoff %v, want once with %v",
@@ -243,5 +256,52 @@ func TestRetryPendingDeletionsStopsWhenAccountsCannotBeLoaded(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "failed to load accounts") {
 		t.Errorf("RetryPendingDeletions() error = %v, want failure to load accounts", err)
+	}
+}
+
+func TestRetentionRunReportsTombstonePurgeFailure(t *testing.T) {
+	db := &mockDBRetention{purgeErr: errors.New("datastore unavailable")}
+	service := NewRetentionService(db, NewUserDataService(db))
+
+	_, err := service.Run(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
+
+	if err == nil || !strings.Contains(err.Error(), "failed to purge expired account tombstones") {
+		t.Errorf("Run() error = %v, want the purge failure reported so the task retries", err)
+	}
+}
+
+// mockDBInactiveDeletion lets Run reach DeleteInactiveAccount's tombstone
+// write for one inactive account, recording the expiry it is given.
+type mockDBInactiveDeletion struct {
+	mockDBRetention
+	tombstoneExpiresAt time.Time
+}
+
+func (m *mockDBInactiveDeletion) GetUserByID(id int) (*database.User, error) {
+	return &database.User{ID: id, GoogleID: "google-inactive", SubscriptionStatus: "expired"}, nil
+}
+
+func (m *mockDBInactiveDeletion) CreateAccountTombstone(id string, expiresAt time.Time) error {
+	m.tombstoneExpiresAt = expiresAt
+	return nil
+}
+
+func TestRetentionRunWritesExpiringTombstoneForInactiveAccount(t *testing.T) {
+	t.Setenv("ACCOUNT_TOMBSTONE_KEY", "test-tombstone-key")
+	t.Setenv("GOOGLE_CLOUD_PROJECT", "")
+	secrets.ResetCacheForTesting()
+	t.Cleanup(secrets.ResetCacheForTesting)
+
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	db := &mockDBInactiveDeletion{mockDBRetention: mockDBRetention{
+		infos: []database.UserRetentionInfo{{UserID: 1, SubscriptionStatus: "expired", LastSeenAt: now.AddDate(0, -25, 0)}},
+	}}
+	service := NewRetentionService(db, NewUserDataService(db))
+
+	if _, err := service.Run(now); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if want := now.AddDate(0, inactiveAccountTombstoneMonths, 0); !db.tombstoneExpiresAt.Equal(want) {
+		t.Errorf("tombstone expires at %v, want %v", db.tombstoneExpiresAt, want)
 	}
 }

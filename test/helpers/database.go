@@ -115,7 +115,8 @@ func createTestTables(db *database.DB) error {
 		)`,
 		`CREATE TABLE account_tombstones (
 			id TEXT PRIMARY KEY,
-			deleted_at DATETIME NOT NULL
+			deleted_at DATETIME NOT NULL,
+			expires_at DATETIME
 		)`,
 		`CREATE TABLE user_activity (
 			user_id INTEGER PRIMARY KEY,

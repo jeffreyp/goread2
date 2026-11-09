@@ -151,14 +151,15 @@ func (m *mockDBAdminHandler) CleanupOrphanedUserArticles(int) (int, error) { ret
 func (m *mockDBAdminHandler) GetUserArticleHistoryPage(int, string, int) ([]database.UserArticleRecord, string, error) {
 	return nil, "", nil
 }
-func (m *mockDBAdminHandler) GetUserSessions(int) ([]database.Session, error) { return nil, nil }
-func (m *mockDBAdminHandler) DeleteUserSessions(int) error                    { return nil }
-func (m *mockDBAdminHandler) DeleteUserAccount(int) error                     { return nil }
-func (m *mockDBAdminHandler) CreateAccountTombstone(string) error             { return nil }
-func (m *mockDBAdminHandler) HasAccountTombstone(string) (bool, error)        { return false, nil }
-func (m *mockDBAdminHandler) SetDeletionRequestedAt(int, time.Time) error     { return nil }
-func (m *mockDBAdminHandler) RecordUserActivity(int, time.Time) error         { return nil }
-func (m *mockDBAdminHandler) GetUserLastSeen(int) (time.Time, error)          { return time.Time{}, nil }
+func (m *mockDBAdminHandler) GetUserSessions(int) ([]database.Session, error)       { return nil, nil }
+func (m *mockDBAdminHandler) DeleteUserSessions(int) error                          { return nil }
+func (m *mockDBAdminHandler) DeleteUserAccount(int) error                           { return nil }
+func (m *mockDBAdminHandler) CreateAccountTombstone(string, time.Time) error        { return nil }
+func (m *mockDBAdminHandler) DeleteExpiredAccountTombstones(time.Time) (int, error) { return 0, nil }
+func (m *mockDBAdminHandler) HasAccountTombstone(string) (bool, error)              { return false, nil }
+func (m *mockDBAdminHandler) SetDeletionRequestedAt(int, time.Time) error           { return nil }
+func (m *mockDBAdminHandler) RecordUserActivity(int, time.Time) error               { return nil }
+func (m *mockDBAdminHandler) GetUserLastSeen(int) (time.Time, error)                { return time.Time{}, nil }
 func (m *mockDBAdminHandler) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) {
 	return nil, nil
 }

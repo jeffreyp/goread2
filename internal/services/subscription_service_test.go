@@ -149,7 +149,8 @@ func (m *mockDBForSub) GetUserArticleHistoryPage(int, string, int) ([]database.U
 func (m *mockDBForSub) GetUserSessions(int) ([]database.Session, error)           { return nil, nil }
 func (m *mockDBForSub) DeleteUserSessions(int) error                              { return nil }
 func (m *mockDBForSub) DeleteUserAccount(int) error                               { return nil }
-func (m *mockDBForSub) CreateAccountTombstone(string) error                       { return nil }
+func (m *mockDBForSub) CreateAccountTombstone(string, time.Time) error            { return nil }
+func (m *mockDBForSub) DeleteExpiredAccountTombstones(time.Time) (int, error)     { return 0, nil }
 func (m *mockDBForSub) HasAccountTombstone(string) (bool, error)                  { return false, nil }
 func (m *mockDBForSub) SetDeletionRequestedAt(int, time.Time) error               { return nil }
 func (m *mockDBForSub) RecordUserActivity(int, time.Time) error                   { return nil }

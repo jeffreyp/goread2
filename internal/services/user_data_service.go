@@ -57,14 +57,29 @@ func (s *UserDataService) SetCustomerDeleter(cd CustomerDeleter) {
 
 // DeleteAccount permanently deletes userID's account. While the user record
 // still exists it deletes the user's Stripe customer (cancelling any
-// subscription immediately) and writes a tombstone so that signing in again
-// does not start a new free trial; it then deletes all of the user's data,
+// subscription immediately) and writes a permanent tombstone so that signing
+// in again does not start a new free trial; it then deletes all of the user's data,
 // removing the user record last. Each step is idempotent, so a failed run can
 // be retried, and running it again after the user is gone sweeps up any rows
 // and Stripe customers recreated in the meantime by requests on stale cached
 // sessions. Without a CustomerDeleter it refuses to delete a user whose
 // subscription is still live, returning ErrNoCustomerDeleter.
 func (s *UserDataService) DeleteAccount(userID int) error {
+	return s.deleteAccount(userID, time.Time{})
+}
+
+// DeleteInactiveAccount deletes userID's account as DeleteAccount does, but
+// writes a tombstone that expires at tombstoneExpiresAt. The data retention
+// run uses it for accounts deleted for inactivity, so that a long-inactive
+// user who returns after the tombstone expires is offered a new free trial.
+// A permanent tombstone already written for the same Google account is kept.
+func (s *UserDataService) DeleteInactiveAccount(userID int, tombstoneExpiresAt time.Time) error {
+	return s.deleteAccount(userID, tombstoneExpiresAt)
+}
+
+// deleteAccount implements DeleteAccount and DeleteInactiveAccount. A zero
+// tombstoneExpiresAt writes a tombstone that never expires.
+func (s *UserDataService) deleteAccount(userID int, tombstoneExpiresAt time.Time) error {
 	user, err := s.db.GetUserByID(userID)
 	if err != nil && !errors.Is(err, database.ErrUserNotFound) {
 		return fmt.Errorf("failed to get user: %w", err)
@@ -78,7 +93,7 @@ func (s *UserDataService) DeleteAccount(userID int) error {
 		} else if hasLiveSubscription(user) {
 			return fmt.Errorf("cannot delete user %d: %w", userID, ErrNoCustomerDeleter)
 		}
-		if err := s.writeTombstone(user); err != nil {
+		if err := s.writeTombstone(user, tombstoneExpiresAt); err != nil {
 			return err
 		}
 	} else if s.customerDeleter != nil {
@@ -114,7 +129,7 @@ func hasLiveSubscription(user *database.User) bool {
 	return false
 }
 
-func (s *UserDataService) writeTombstone(user *database.User) error {
+func (s *UserDataService) writeTombstone(user *database.User, expiresAt time.Time) error {
 	id, err := secrets.AccountTombstoneID(context.Background(), user.GoogleID)
 	if id == "" {
 		// Deletion must not depend on the anti-abuse tombstone, so a missing
@@ -122,7 +137,7 @@ func (s *UserDataService) writeTombstone(user *database.User) error {
 		log.Printf("Warning: account tombstone key unavailable, deleting user %d without a tombstone: %v", user.ID, err)
 		return nil
 	}
-	if err := s.db.CreateAccountTombstone(id); err != nil {
+	if err := s.db.CreateAccountTombstone(id, expiresAt); err != nil {
 		return fmt.Errorf("failed to write account tombstone: %w", err)
 	}
 	return nil

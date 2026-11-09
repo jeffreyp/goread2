@@ -75,8 +75,8 @@ func (rh *RetentionHandler) cron(c *gin.Context, taskPath, name string, job func
 
 func (rh *RetentionHandler) run(c *gin.Context, name string, job func(time.Time) (services.RetentionResult, error)) {
 	result, err := job(time.Now())
-	log.Printf("%s run: %d accounts deleted, %d backfilled, %d deletions failed, %d audit IPs cleared",
-		name, result.AccountsDeleted, result.AccountsBackfilled, result.DeletionsFailed, result.AuditIPsCleared)
+	log.Printf("%s run: %d accounts deleted, %d backfilled, %d deletions failed, %d audit IPs cleared, %d tombstones purged",
+		name, result.AccountsDeleted, result.AccountsBackfilled, result.DeletionsFailed, result.AuditIPsCleared, result.TombstonesPurged)
 	if err != nil {
 		log.Printf("%s run failed: %v", name, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": name + " run failed", "result": result})

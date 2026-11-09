@@ -2859,19 +2859,61 @@ func (db *DatastoreDB) ClearAuditLogIPsBefore(cutoff time.Time) (int, error) {
 // AccountTombstoneEntity marks a deleted account so that signing in again
 // with the same Google account does not start a new free trial. It is keyed
 // by an HMAC of the Google ID and holds nothing else that identifies the user.
+// ExpiresAt is zero for a tombstone that never expires, which includes every
+// tombstone written before expiry existed; DeleteExpiredAccountTombstones
+// excludes those by querying only expiries after the Unix epoch.
 type AccountTombstoneEntity struct {
 	DeletedAt time.Time `datastore:"deleted_at"`
+	ExpiresAt time.Time `datastore:"expires_at"`
 }
 
-func (db *DatastoreDB) CreateAccountTombstone(id string) error {
+func (db *DatastoreDB) CreateAccountTombstone(id string, expiresAt time.Time) error {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
 	key := datastore.NameKey("AccountTombstone", id, nil)
-	if _, err := db.client.Put(ctx, key, &AccountTombstoneEntity{DeletedAt: time.Now()}); err != nil {
+	_, err := db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		var existing AccountTombstoneEntity
+		err := tx.Get(key, &existing)
+		switch {
+		case err == datastore.ErrNoSuchEntity:
+		case err != nil:
+			return err
+		case existing.ExpiresAt.IsZero():
+			expiresAt = time.Time{} // never shorten a permanent tombstone
+		case !expiresAt.IsZero() && existing.ExpiresAt.After(expiresAt):
+			expiresAt = existing.ExpiresAt
+		}
+		_, err = tx.Put(key, &AccountTombstoneEntity{DeletedAt: time.Now(), ExpiresAt: expiresAt})
+		return err
+	})
+	if err != nil {
 		return fmt.Errorf("failed to create account tombstone: %w", err)
 	}
 	return nil
+}
+
+func (db *DatastoreDB) DeleteExpiredAccountTombstones(now time.Time) (int, error) {
+	ctx, cancel := newDatastoreContext()
+	defer cancel()
+
+	query := datastore.NewQuery("AccountTombstone").
+		FilterField("expires_at", ">", time.Unix(0, 0)).
+		FilterField("expires_at", "<=", now).
+		KeysOnly()
+	keys, err := db.client.GetAll(ctx, query, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query expired account tombstones: %w", err)
+	}
+
+	const batchSize = 500
+	for start := 0; start < len(keys); start += batchSize {
+		end := min(start+batchSize, len(keys))
+		if err := db.client.DeleteMulti(ctx, keys[start:end]); err != nil {
+			return start, fmt.Errorf("failed to delete expired account tombstones: %w", err)
+		}
+	}
+	return len(keys), nil
 }
 
 func (db *DatastoreDB) HasAccountTombstone(id string) (bool, error) {
@@ -2886,7 +2928,7 @@ func (db *DatastoreDB) HasAccountTombstone(id string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to get account tombstone: %w", err)
 	}
-	return true, nil
+	return entity.ExpiresAt.IsZero() || entity.ExpiresAt.After(time.Now()), nil
 }
 
 // Audit log methods for Datastore

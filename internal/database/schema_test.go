@@ -175,6 +175,33 @@ func TestMigrateDatabase(t *testing.T) {
 	}
 }
 
+// TestMigrateDatabaseAddsTombstoneExpiry checks that a database created
+// before tombstones could expire gains expires_at on migration, and that its
+// existing tombstones, with a NULL expiry, still count and are never purged.
+func TestMigrateDatabaseAddsTombstoneExpiry(t *testing.T) {
+	db := setupTestDB(t)
+
+	if _, err := db.Exec("DROP TABLE account_tombstones"); err != nil {
+		t.Fatalf("Failed to drop the table: %v", err)
+	}
+	if _, err := db.Exec("CREATE TABLE account_tombstones (id TEXT PRIMARY KEY, deleted_at DATETIME NOT NULL)"); err != nil {
+		t.Fatalf("Failed to create the older table: %v", err)
+	}
+	if _, err := db.Exec("INSERT INTO account_tombstones (id, deleted_at) VALUES ('old', ?)", time.Now()); err != nil {
+		t.Fatalf("Failed to insert an older tombstone: %v", err)
+	}
+	if err := db.migrateDatabase(); err != nil {
+		t.Fatalf("Migration failed: %v", err)
+	}
+
+	if n, err := db.DeleteExpiredAccountTombstones(time.Now()); err != nil || n != 0 {
+		t.Errorf("DeleteExpiredAccountTombstones() = %d, %v; want 0, nil", n, err)
+	}
+	if found, err := db.HasAccountTombstone("old"); err != nil || !found {
+		t.Errorf("HasAccountTombstone(old) = %v, %v; want true, nil", found, err)
+	}
+}
+
 // TestMigrateDatabaseAddsDeletionRequestedAt checks that a database created
 // before deletion_requested_at existed gains the column on migration, so the
 // user queries that select it keep working after an upgrade.

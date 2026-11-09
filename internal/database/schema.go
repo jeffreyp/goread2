@@ -98,8 +98,16 @@ type Database interface {
 
 	// Account deletion methods
 	DeleteUserAccount(userID int) error
-	CreateAccountTombstone(id string) error
+	// CreateAccountTombstone writes a tombstone that expires at expiresAt,
+	// or never if expiresAt is zero. It never shortens an existing
+	// tombstone: a permanent one stays permanent, and otherwise the later
+	// expiry wins.
+	CreateAccountTombstone(id string, expiresAt time.Time) error
+	// HasAccountTombstone reports whether an unexpired tombstone exists.
 	HasAccountTombstone(id string) (bool, error)
+	// DeleteExpiredAccountTombstones deletes tombstones that expired before
+	// now and returns how many it deleted.
+	DeleteExpiredAccountTombstones(now time.Time) (int, error)
 	SetDeletionRequestedAt(userID int, at time.Time) error
 
 	// Data retention methods
@@ -375,7 +383,8 @@ func (db *DB) CreateTables() error {
 	accountTombstonesTable := `
 	CREATE TABLE IF NOT EXISTS account_tombstones (
 		id TEXT PRIMARY KEY,
-		deleted_at DATETIME NOT NULL
+		deleted_at DATETIME NOT NULL,
+		expires_at DATETIME
 	);`
 
 	tables := []string{usersTable, feedsTable, articlesTable, userFeedsTable, userArticlesTable, adminTokensTable, sessionsTable, auditLogsTable, accountTombstonesTable, userActivityTable}
@@ -453,6 +462,7 @@ func (db *DB) migrateDatabase() error {
 		"ALTER TABLE users ADD COLUMN free_months_remaining INTEGER DEFAULT 0",
 		"ALTER TABLE users ADD COLUMN max_articles_on_feed_add INTEGER DEFAULT 100",
 		"ALTER TABLE users ADD COLUMN deletion_requested_at DATETIME",
+		"ALTER TABLE account_tombstones ADD COLUMN expires_at DATETIME",
 	}
 
 	for _, alterQuery := range userColumns {
@@ -1821,15 +1831,40 @@ func (db *DB) ClearAuditLogIPsBefore(cutoff time.Time) (int, error) {
 	return int(n), err
 }
 
-func (db *DB) CreateAccountTombstone(id string) error {
-	_, err := db.Exec(`INSERT OR REPLACE INTO account_tombstones (id, deleted_at) VALUES (?, ?)`, id, time.Now())
+// CreateAccountTombstone stores expires_at in UTC, truncated to the second,
+// so that SQLite's text comparison of DATETIME values orders it correctly. A
+// NULL expires_at means the tombstone never expires.
+func (db *DB) CreateAccountTombstone(id string, expiresAt time.Time) error {
+	var expires sql.NullTime
+	if !expiresAt.IsZero() {
+		expires = sql.NullTime{Time: expiresAt.UTC().Truncate(time.Second), Valid: true}
+	}
+	_, err := db.Exec(`
+		INSERT INTO account_tombstones (id, deleted_at, expires_at) VALUES (?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			deleted_at = excluded.deleted_at,
+			expires_at = CASE
+				WHEN account_tombstones.expires_at IS NULL OR excluded.expires_at IS NULL THEN NULL
+				ELSE MAX(account_tombstones.expires_at, excluded.expires_at)
+			END`, id, time.Now(), expires)
 	return err
 }
 
 func (db *DB) HasAccountTombstone(id string) (bool, error) {
 	var count int
-	err := db.QueryRow(`SELECT COUNT(*) FROM account_tombstones WHERE id = ?`, id).Scan(&count)
+	err := db.QueryRow(`SELECT COUNT(*) FROM account_tombstones WHERE id = ? AND (expires_at IS NULL OR expires_at > ?)`,
+		id, time.Now().UTC().Truncate(time.Second)).Scan(&count)
 	return count > 0, err
+}
+
+func (db *DB) DeleteExpiredAccountTombstones(now time.Time) (int, error) {
+	result, err := db.Exec(`DELETE FROM account_tombstones WHERE expires_at IS NOT NULL AND expires_at <= ?`,
+		now.UTC().Truncate(time.Second))
+	if err != nil {
+		return 0, err
+	}
+	n, err := result.RowsAffected()
+	return int(n), err
 }
 
 func (db *DB) GetUserSessions(userID int) ([]Session, error) {

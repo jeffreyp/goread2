@@ -250,17 +250,83 @@ func TestDatastoreAccountTombstone(t *testing.T) {
 func checkAccountTombstone(t *testing.T, db Database) {
 	t.Helper()
 
-	id := fmt.Sprintf("tombstone-test-%d", time.Now().UnixNano())
-	if found, err := db.HasAccountTombstone(id); err != nil || found {
-		t.Fatalf("Expected no tombstone before creation, got %v (err %v)", found, err)
+	prefix := fmt.Sprintf("tombstone-test-%d", time.Now().UnixNano())
+	now := time.Now()
+	later := now.Add(48 * time.Hour)
+	past := now.Add(-48 * time.Hour)
+	has := func(id string) bool {
+		t.Helper()
+		found, err := db.HasAccountTombstone(id)
+		if err != nil {
+			t.Fatalf("HasAccountTombstone(%q) failed: %v", id, err)
+		}
+		return found
 	}
-	for i := 0; i < 2; i++ { // creating twice is not an error
-		if err := db.CreateAccountTombstone(id); err != nil {
-			t.Fatalf("CreateAccountTombstone failed: %v", err)
+	create := func(id string, expiresAt time.Time) {
+		t.Helper()
+		if err := db.CreateAccountTombstone(id, expiresAt); err != nil {
+			t.Fatalf("CreateAccountTombstone(%q, %v) failed: %v", id, expiresAt, err)
 		}
 	}
-	if found, err := db.HasAccountTombstone(id); err != nil || !found {
-		t.Errorf("Expected tombstone after creation, got %v (err %v)", found, err)
+
+	permanent := prefix + "-permanent"
+	if has(permanent) {
+		t.Fatal("Expected no tombstone before creation")
+	}
+	create(permanent, time.Time{})
+	create(permanent, time.Time{}) // creating twice is not an error
+	if !has(permanent) {
+		t.Error("Expected a permanent tombstone after creation")
+	}
+
+	// An expiring write never shortens a permanent tombstone.
+	create(permanent, past)
+	if !has(permanent) {
+		t.Error("Expected a permanent tombstone to survive an expired write")
+	}
+
+	expiring := prefix + "-expiring"
+	create(expiring, later)
+	if !has(expiring) {
+		t.Error("Expected an unexpired tombstone to count")
+	}
+	// The later expiry wins.
+	create(expiring, past)
+	if !has(expiring) {
+		t.Error("Expected an earlier expiry not to shorten the tombstone")
+	}
+
+	expired := prefix + "-expired"
+	create(expired, past)
+	if has(expired) {
+		t.Error("Expected an expired tombstone not to count")
+	}
+
+	// A permanent write makes an expiring tombstone permanent.
+	upgraded := prefix + "-upgraded"
+	create(upgraded, past)
+	create(upgraded, time.Time{})
+	if !has(upgraded) {
+		t.Error("Expected a permanent write to replace an expired tombstone")
+	}
+
+	n, err := db.DeleteExpiredAccountTombstones(now)
+	if err != nil {
+		t.Fatalf("DeleteExpiredAccountTombstones failed: %v", err)
+	}
+	if n < 1 {
+		t.Errorf("DeleteExpiredAccountTombstones deleted %d, want at least the expired one", n)
+	}
+	// Recreating the purged id as unexpired shows its old row is gone rather
+	// than merged; the others are untouched by the purge.
+	create(expired, later)
+	if !has(expired) || !has(permanent) || !has(expiring) || !has(upgraded) {
+		t.Error("Expected the purge to delete only expired tombstones")
+	}
+	if n, err := db.DeleteExpiredAccountTombstones(now); err != nil {
+		t.Errorf("Second DeleteExpiredAccountTombstones failed: %v", err)
+	} else if n != 0 {
+		t.Logf("Second purge deleted %d tombstones from other tests", n)
 	}
 }
 
