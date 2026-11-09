@@ -54,7 +54,7 @@ curl -X POST "https://yourdomain.com/admin/users/user@example.com/admin" \
 
 ### Initial Admin Setup
 
-Set initial admin users via environment variable (users must sign in first):
+Set initial admin users via environment variable. A listed email is made an admin when sign-in creates its account, and existing accounts with a listed email are made admins at startup:
 
 ```bash
 export INITIAL_ADMIN_EMAILS="admin1@example.com,admin2@example.com"

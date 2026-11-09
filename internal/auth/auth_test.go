@@ -473,3 +473,62 @@ func TestSignInGoogleUserCreatesAccountOnlyWhenNotFound(t *testing.T) {
 		}
 	})
 }
+
+func TestSignInGoogleUserGrantsInitialAdminOnCreation(t *testing.T) {
+	t.Setenv("INITIAL_ADMIN_EMAILS", "Admin@Example.com")
+	config.ResetForTesting()
+	t.Cleanup(config.ResetForTesting)
+	config.Load()
+
+	t.Run("listed email becomes admin, ignoring case", func(t *testing.T) {
+		db := newMockDBForAuth()
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
+			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com"})
+		if err != nil {
+			t.Fatalf("SignInGoogleUser() error = %v", err)
+		}
+		if !user.IsAdmin || !db.usersByID[user.ID].IsAdmin {
+			t.Errorf("expected the new account for a listed email to be an admin, got %+v", user)
+		}
+	})
+
+	t.Run("unlisted email is not admin", func(t *testing.T) {
+		db := newMockDBForAuth()
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
+			GoogleUserInfo{ID: "google-reader", Email: "reader@example.com"})
+		if err != nil {
+			t.Fatalf("SignInGoogleUser() error = %v", err)
+		}
+		if user.IsAdmin {
+			t.Errorf("expected an unlisted email not to be an admin, got %+v", user)
+		}
+	})
+
+	t.Run("failure to grant admin does not fail sign-in", func(t *testing.T) {
+		db := newMockDBForAuth()
+		db.shouldFailSetAdmin = true
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
+			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com"})
+		if err != nil {
+			t.Fatalf("SignInGoogleUser() error = %v, want sign-in to succeed", err)
+		}
+		if user.IsAdmin {
+			t.Errorf("expected IsAdmin false when SetUserAdmin fails, got %+v", user)
+		}
+	})
+
+	t.Run("existing non-admin account is not promoted", func(t *testing.T) {
+		db := newMockDBForAuth()
+		existing := &database.User{ID: 3, GoogleID: "google-admin", Email: "admin@example.com"}
+		db.users[existing.GoogleID] = existing
+		db.usersByID[existing.ID] = existing
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(),
+			GoogleUserInfo{ID: "google-admin", Email: "admin@example.com"})
+		if err != nil {
+			t.Fatalf("SignInGoogleUser() error = %v", err)
+		}
+		if user.IsAdmin {
+			t.Errorf("expected an existing account to keep its admin status, got %+v", user)
+		}
+	})
+}

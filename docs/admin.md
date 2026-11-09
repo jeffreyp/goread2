@@ -134,7 +134,9 @@ The safest way to set up admin access for new deployments:
    go run main.go
    ```
 
-3. **Sign in with Google OAuth** - Admin privileges will be automatically granted
+3. **Sign in with Google OAuth.** A new account whose email is in `INITIAL_ADMIN_EMAILS` (compared without regard to case) is made an admin when sign-in creates it. At startup, each instance also grants admin to every existing account with a listed email.
+
+The sign-in grant also restores admin access if the last admin deletes their own account: signing in again creates a new account, which is made an admin if its email is listed. An existing account is not promoted at sign-in, so revoking admin from a listed account lasts until the next instance restart.
 
 ## Admin Token System
 

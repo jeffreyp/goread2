@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jeffreyp/goread2/internal/config"
@@ -197,6 +198,7 @@ func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUse
 		if err := a.db.CreateUser(user); err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
 		}
+		a.grantInitialAdmin(user)
 		return user, nil
 	}
 
@@ -205,6 +207,35 @@ func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUse
 	}
 
 	return user, nil
+}
+
+// grantInitialAdmin makes a newly created user an admin if their email is in
+// INITIAL_ADMIN_EMAILS. InitializeAdminUsers applies the list only at startup
+// and only to existing users, so without this a listed admin who signs in
+// for the first time, or signs in again after deleting their account, would
+// have no admin access until the next instance restart. A failure is logged
+// and does not fail sign-in.
+func (a *AuthService) grantInitialAdmin(user *database.User) {
+	if !isInitialAdminEmail(user.Email) {
+		return
+	}
+	if err := a.db.SetUserAdmin(user.ID, true); err != nil {
+		log.Printf("Error granting admin privileges to new user %s: %v", redactEmail(user.Email), err)
+		return
+	}
+	user.IsAdmin = true
+	log.Printf("Granted admin privileges to new user %s from INITIAL_ADMIN_EMAILS", redactEmail(user.Email))
+}
+
+// isInitialAdminEmail reports whether email is listed in INITIAL_ADMIN_EMAILS,
+// ignoring case.
+func isInitialAdminEmail(email string) bool {
+	for _, adminEmail := range config.Get().InitialAdminEmails {
+		if strings.EqualFold(adminEmail, email) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasDeletedAccount reports whether a tombstone exists for googleID, meaning
