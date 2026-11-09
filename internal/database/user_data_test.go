@@ -363,52 +363,61 @@ func checkGetAllUserFeedSubscriptions(t *testing.T, db Database, first, second *
 	}
 }
 
-func TestClearAuditLogIPsBefore(t *testing.T) {
-	checkClearAuditLogIPsBefore(t, setupTestDB(t))
+func TestClearAuditLogIPsBetween(t *testing.T) {
+	checkClearAuditLogIPsBetween(t, setupTestDB(t))
 }
 
-func TestDatastoreClearAuditLogIPsBefore(t *testing.T) {
-	checkClearAuditLogIPsBefore(t, setupTestDatastoreDB(t))
+func TestDatastoreClearAuditLogIPsBetween(t *testing.T) {
+	checkClearAuditLogIPsBetween(t, setupTestDatastoreDB(t))
 }
 
-func checkClearAuditLogIPsBefore(t *testing.T, db Database) {
+func checkClearAuditLogIPsBetween(t *testing.T, db Database) {
 	t.Helper()
 
 	operation := fmt.Sprintf("retention_test_%d", time.Now().UnixNano())
 	now := time.Now().UTC()
-	for _, age := range []time.Duration{400 * 24 * time.Hour, 24 * time.Hour} {
+	to := now.AddDate(-1, 0, 0)
+	from := to.AddDate(0, -3, 0)
+	const ip = "203.0.113.9"
+	// One entry before the window, one inside it, and one after it.
+	ages := map[string]time.Duration{
+		"before": 500 * 24 * time.Hour,
+		"inside": 400 * 24 * time.Hour,
+		"after":  24 * time.Hour,
+	}
+	for _, age := range ages {
 		if err := db.CreateAuditLog(&AuditLog{
 			Timestamp:     now.Add(-age),
 			AdminEmail:    "admin@example.com",
 			OperationType: operation,
-			IPAddress:     "203.0.113.9",
+			IPAddress:     ip,
 			Result:        "success",
 		}); err != nil {
 			t.Fatalf("CreateAuditLog failed: %v", err)
 		}
 	}
 
-	if _, err := db.ClearAuditLogIPsBefore(now.AddDate(-1, 0, 0)); err != nil {
-		t.Fatalf("ClearAuditLogIPsBefore failed: %v", err)
+	if _, err := db.ClearAuditLogIPsBetween(from, to); err != nil {
+		t.Fatalf("ClearAuditLogIPsBetween failed: %v", err)
 	}
 
 	logs, err := db.GetAuditLogs(10, 0, map[string]interface{}{"operation_type": operation})
-	if err != nil || len(logs) != 2 {
-		t.Fatalf("Expected 2 audit logs, got %d (err %v)", len(logs), err)
+	if err != nil || len(logs) != len(ages) {
+		t.Fatalf("Expected %d audit logs, got %d (err %v)", len(ages), len(logs), err)
 	}
 	for _, entry := range logs {
-		old := entry.Timestamp.Before(now.AddDate(-1, 0, 0))
-		if old && entry.IPAddress != "" {
-			t.Errorf("Expected the old entry's IP to be cleared, got %q", entry.IPAddress)
+		inside := !entry.Timestamp.Before(from) && entry.Timestamp.Before(to)
+		if inside && entry.IPAddress != "" {
+			t.Errorf("Expected the entry inside the window to have its IP cleared, got %q", entry.IPAddress)
 		}
-		if !old && entry.IPAddress != "203.0.113.9" {
-			t.Errorf("Expected the recent entry's IP to be kept, got %q", entry.IPAddress)
+		if !inside && entry.IPAddress != ip {
+			t.Errorf("Expected the entry at %v, outside the window, to keep its IP, got %q", entry.Timestamp, entry.IPAddress)
 		}
 	}
 
 	// A second run finds nothing left to clear among these entries.
-	if n, err := db.ClearAuditLogIPsBefore(now.AddDate(-1, 0, 0)); err != nil {
-		t.Errorf("Second ClearAuditLogIPsBefore failed: %v", err)
+	if n, err := db.ClearAuditLogIPsBetween(from, to); err != nil {
+		t.Errorf("Second ClearAuditLogIPsBetween failed: %v", err)
 	} else if n != 0 {
 		t.Logf("Second run cleared %d entries from other tests", n)
 	}

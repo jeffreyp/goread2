@@ -15,6 +15,12 @@ const (
 	// auditLogIPRetentionMonths is how long audit log entries keep the IP
 	// address of the admin who performed the action.
 	auditLogIPRetentionMonths = 12
+	// auditLogIPSweepWindowMonths is how far before the IP retention cutoff
+	// each run looks for entries to clear. Earlier runs have already cleared
+	// anything older, so the window keeps each run's reads bounded as the
+	// audit log grows. Three months still covers two consecutive missed
+	// monthly runs.
+	auditLogIPSweepWindowMonths = 3
 	// pendingDeletionRetryDelay is how long a self-requested deletion
 	// (DELETE /api/account) waits before Run retries it. It must comfortably
 	// exceed both Cloud Tasks passes (the immediate attempt and the 15-minute
@@ -112,7 +118,8 @@ func (s *RetentionService) Run(now time.Time) (RetentionResult, error) {
 		}
 	}
 
-	cleared, err := s.db.ClearAuditLogIPsBefore(now.AddDate(0, -auditLogIPRetentionMonths, 0))
+	ipCutoff := now.AddDate(0, -auditLogIPRetentionMonths, 0)
+	cleared, err := s.db.ClearAuditLogIPsBetween(ipCutoff.AddDate(0, -auditLogIPSweepWindowMonths, 0), ipCutoff)
 	result.AuditIPsCleared = cleared
 	if err != nil {
 		return result, fmt.Errorf("failed to expire audit log IPs: %w", err)

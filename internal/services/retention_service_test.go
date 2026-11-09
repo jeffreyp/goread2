@@ -54,6 +54,7 @@ type mockDBRetention struct {
 	failDeleteFor int
 	deletedIDs    []int
 	backfilled    map[int]time.Time
+	clearFrom     time.Time
 	clearCutoff   time.Time
 	clearCalls    int
 	ipsCleared    int
@@ -83,9 +84,10 @@ func (m *mockDBRetention) DeleteUserAccount(userID int) error {
 	return nil
 }
 
-func (m *mockDBRetention) ClearAuditLogIPsBefore(cutoff time.Time) (int, error) {
+func (m *mockDBRetention) ClearAuditLogIPsBetween(from, to time.Time) (int, error) {
 	m.clearCalls++
-	m.clearCutoff = cutoff
+	m.clearFrom = from
+	m.clearCutoff = to
 	return m.ipsCleared, nil
 }
 
@@ -120,9 +122,11 @@ func TestRetentionRunContinuesPastFailedDeletion(t *testing.T) {
 	if !reflect.DeepEqual(db.backfilled, map[int]time.Time{5: now}) {
 		t.Errorf("backfilled = %v, want user 5 at %v", db.backfilled, now)
 	}
-	if db.clearCalls != 1 || !db.clearCutoff.Equal(now.AddDate(0, -auditLogIPRetentionMonths, 0)) {
-		t.Errorf("ClearAuditLogIPsBefore called %d times with cutoff %v, want once with %v",
-			db.clearCalls, db.clearCutoff, now.AddDate(0, -auditLogIPRetentionMonths, 0))
+	wantTo := now.AddDate(0, -auditLogIPRetentionMonths, 0)
+	wantFrom := wantTo.AddDate(0, -auditLogIPSweepWindowMonths, 0)
+	if db.clearCalls != 1 || !db.clearFrom.Equal(wantFrom) || !db.clearCutoff.Equal(wantTo) {
+		t.Errorf("ClearAuditLogIPsBetween called %d times with [%v, %v), want once with [%v, %v)",
+			db.clearCalls, db.clearFrom, db.clearCutoff, wantFrom, wantTo)
 	}
 }
 
@@ -170,7 +174,7 @@ func TestRetentionRunStopsWhenAccountsCannotBeLoaded(t *testing.T) {
 		t.Errorf("Run() result = %+v, want zero counts", result)
 	}
 	if db.clearCalls != 0 {
-		t.Errorf("ClearAuditLogIPsBefore called %d times, want 0", db.clearCalls)
+		t.Errorf("ClearAuditLogIPsBetween called %d times, want 0", db.clearCalls)
 	}
 }
 
@@ -206,7 +210,7 @@ func TestRetryPendingDeletionsAppliesNoOtherRetentionRule(t *testing.T) {
 		t.Errorf("backfilled = %v, want none", db.backfilled)
 	}
 	if db.clearCalls != 0 {
-		t.Errorf("ClearAuditLogIPsBefore called %d times, want 0", db.clearCalls)
+		t.Errorf("ClearAuditLogIPsBetween called %d times, want 0", db.clearCalls)
 	}
 }
 

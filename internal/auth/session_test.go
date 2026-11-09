@@ -85,7 +85,7 @@ func (m *mockDB) GetUserLastSeen(int) (time.Time, error)                    { re
 func (m *mockDB) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) { return nil, nil }
 
 func (m *mockDB) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) { return nil, nil }
-func (m *mockDB) ClearAuditLogIPsBefore(time.Time) (int, error)               { return 0, nil }
+func (m *mockDB) ClearAuditLogIPsBetween(time.Time, time.Time) (int, error)   { return 0, nil }
 func (m *mockDB) UpdateFeedLastFetch(int, time.Time) error                    { return nil }
 func (m *mockDB) UpdateUserMaxArticlesOnFeedAdd(int, int) error               { return nil }
 func (m *mockDB) CreateAuditLog(*database.AuditLog) error                     { return nil }

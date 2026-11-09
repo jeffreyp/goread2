@@ -107,7 +107,7 @@ type Database interface {
 	GetUserLastSeen(userID int) (time.Time, error)
 	GetUserRetentionInfo() ([]UserRetentionInfo, error)
 	GetAllUserFeedSubscriptions() ([]UserFeed, error)
-	ClearAuditLogIPsBefore(cutoff time.Time) (int, error)
+	ClearAuditLogIPsBetween(from, to time.Time) (int, error)
 
 	// Audit log methods
 	CreateAuditLog(log *AuditLog) error
@@ -1810,10 +1810,10 @@ func (db *DB) GetAllUserFeedSubscriptions() ([]UserFeed, error) {
 	return subs, rows.Err()
 }
 
-// ClearAuditLogIPsBefore blanks the IP address of audit log entries older
-// than cutoff and returns how many entries changed.
-func (db *DB) ClearAuditLogIPsBefore(cutoff time.Time) (int, error) {
-	result, err := db.Exec(`UPDATE audit_logs SET ip_address = '' WHERE timestamp < ? AND ip_address IS NOT NULL AND ip_address != ''`, cutoff)
+// ClearAuditLogIPsBetween blanks the IP address of audit log entries with a
+// timestamp in [from, to) and returns how many entries changed.
+func (db *DB) ClearAuditLogIPsBetween(from, to time.Time) (int, error) {
+	result, err := db.Exec(`UPDATE audit_logs SET ip_address = '' WHERE timestamp >= ? AND timestamp < ? AND ip_address IS NOT NULL AND ip_address != ''`, from, to)
 	if err != nil {
 		return 0, err
 	}

@@ -2818,14 +2818,19 @@ func (db *DatastoreDB) GetAllUserFeedSubscriptions() ([]UserFeed, error) {
 	return subs, nil
 }
 
-// ClearAuditLogIPsBefore blanks the IP address of AuditLog entities older
-// than cutoff and returns how many entities changed.
-func (db *DatastoreDB) ClearAuditLogIPsBefore(cutoff time.Time) (int, error) {
+// ClearAuditLogIPsBetween blanks the IP address of AuditLog entities with a
+// timestamp in [from, to) and returns how many entities changed. The caller
+// bounds the window, so each run loads only recent entities rather than the
+// whole history of already-cleared ones.
+func (db *DatastoreDB) ClearAuditLogIPsBetween(from, to time.Time) (int, error) {
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
 
 	var entities []AuditLogEntity
-	keys, err := db.client.GetAll(ctx, datastore.NewQuery("AuditLog").FilterField("timestamp", "<", cutoff), &entities)
+	query := datastore.NewQuery("AuditLog").
+		FilterField("timestamp", ">=", from).
+		FilterField("timestamp", "<", to)
+	keys, err := db.client.GetAll(ctx, query, &entities)
 	if err != nil {
 		return 0, fmt.Errorf("failed to query audit logs: %w", err)
 	}
