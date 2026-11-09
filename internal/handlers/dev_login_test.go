@@ -277,8 +277,12 @@ func TestDevLoginRefusesSignInWithPendingDeletion(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 for an account with a deletion pending, got %d: %s", w.Code, w.Body.String())
 	}
-	if w.Header().Get("Set-Cookie") != "" {
-		t.Error("expected no session cookie for a refused sign-in")
+	// The OAuth state cookie is cleared either way; only a session cookie
+	// would mean the refused sign-in went through.
+	for _, cookie := range w.Result().Cookies() {
+		if strings.HasPrefix(cookie.Name, "session_id") {
+			t.Errorf("expected no session cookie for a refused sign-in, got %q", cookie.Name)
+		}
 	}
 }
 

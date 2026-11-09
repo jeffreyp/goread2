@@ -2491,6 +2491,7 @@ func (db *DatastoreDB) GetUserByEmail(email string) (*User, error) {
 		IsAdmin:              user.IsAdmin,
 		FreeMonthsRemaining:  user.FreeMonthsRemaining,
 		MaxArticlesOnFeedAdd: maxArticles,
+		DeletionRequestedAt:  user.DeletionRequestedAt,
 	}, nil
 }
 

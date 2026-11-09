@@ -48,7 +48,8 @@ func createTestTables(db *database.DB) error {
 			next_billing_date DATETIME,
 			is_admin BOOLEAN DEFAULT 0,
 			free_months_remaining INTEGER DEFAULT 0,
-			max_articles_on_feed_add INTEGER DEFAULT 100
+			max_articles_on_feed_add INTEGER DEFAULT 100,
+			deletion_requested_at DATETIME
 		)`,
 		`CREATE TABLE feeds (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

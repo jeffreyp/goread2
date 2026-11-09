@@ -1608,18 +1608,21 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 			  trial_ends_at, last_payment_date, next_billing_date,
 			  COALESCE(is_admin, 0) as is_admin,
 			  COALESCE(free_months_remaining, 0) as free_months_remaining,
-			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add
+			  COALESCE(max_articles_on_feed_add, 100) as max_articles_on_feed_add,
+			  deletion_requested_at
 			  FROM users WHERE email = ?`
 
 	var user User
 	var trialEndsAt sql.NullTime
 	var lastPaymentDate sql.NullTime
 	var nextBillingDate sql.NullTime
+	var deletionRequestedAt sql.NullTime
 
 	err := db.QueryRow(query, email).Scan(
 		&user.ID, &user.GoogleID, &user.Email, &user.Name, &user.Avatar,
 		&user.CreatedAt, &user.SubscriptionStatus, &user.SubscriptionID,
 		&trialEndsAt, &lastPaymentDate, &nextBillingDate, &user.IsAdmin, &user.FreeMonthsRemaining, &user.MaxArticlesOnFeedAdd,
+		&deletionRequestedAt,
 	)
 
 	if err != nil {
@@ -1640,6 +1643,10 @@ func (db *DB) GetUserByEmail(email string) (*User, error) {
 
 	if nextBillingDate.Valid {
 		user.NextBillingDate = nextBillingDate.Time
+	}
+
+	if deletionRequestedAt.Valid {
+		user.DeletionRequestedAt = deletionRequestedAt.Time
 	}
 
 	return &user, nil
