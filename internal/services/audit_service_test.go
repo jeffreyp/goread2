@@ -150,7 +150,7 @@ func (m *mockDBAudit) GetUserLastSeen(int) (time.Time, error)                   
 func (m *mockDBAudit) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) { return nil, nil }
 
 func (m *mockDBAudit) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) { return nil, nil }
-func (m *mockDBAudit) ClearAuditLogIPsBetween(time.Time, time.Time) (int, error)   { return 0, nil }
+func (m *mockDBAudit) ClearAuditLogIPsBefore(time.Time) (int, error)               { return 0, nil }
 func (m *mockDBAudit) UpdateFeedLastFetch(int, time.Time) error                    { return nil }
 func (m *mockDBAudit) UpdateUserMaxArticlesOnFeedAdd(int, int) error               { return nil }
 func (m *mockDBAudit) CreateSession(*database.Session) error                       { return nil }

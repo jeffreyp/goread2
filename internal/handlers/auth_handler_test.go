@@ -85,7 +85,7 @@ func (m *mockDBAuthHandler) GetAllUserFeedSubscriptions() ([]database.UserFeed, 
 func (m *mockDBAuthHandler) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) {
 	return nil, nil
 }
-func (m *mockDBAuthHandler) ClearAuditLogIPsBetween(time.Time, time.Time) (int, error) { return 0, nil }
+func (m *mockDBAuthHandler) ClearAuditLogIPsBefore(time.Time) (int, error) { return 0, nil }
 func (m *mockDBAuthHandler) GetUserArticlesByIDs(int, []int) ([]database.Article, error) {
 	return nil, nil
 }

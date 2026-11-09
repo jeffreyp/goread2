@@ -143,7 +143,7 @@ func (m *mockDBPayment) GetUserLastSeen(int) (time.Time, error)                 
 func (m *mockDBPayment) GetAllUserFeedSubscriptions() ([]database.UserFeed, error) { return nil, nil }
 
 func (m *mockDBPayment) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) { return nil, nil }
-func (m *mockDBPayment) ClearAuditLogIPsBetween(time.Time, time.Time) (int, error)   { return 0, nil }
+func (m *mockDBPayment) ClearAuditLogIPsBefore(time.Time) (int, error)               { return 0, nil }
 func (m *mockDBPayment) CreateSession(*database.Session) error                       { return nil }
 func (m *mockDBPayment) GetSession(string) (*database.Session, error)                { return nil, nil }
 func (m *mockDBPayment) UpdateSessionExpiry(string, time.Time) error                 { return nil }

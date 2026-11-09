@@ -166,7 +166,7 @@ func (m *mockDBAdminHandler) GetAllUserFeedSubscriptions() ([]database.UserFeed,
 func (m *mockDBAdminHandler) GetUserRetentionInfo() ([]database.UserRetentionInfo, error) {
 	return nil, nil
 }
-func (m *mockDBAdminHandler) ClearAuditLogIPsBetween(time.Time, time.Time) (int, error) {
+func (m *mockDBAdminHandler) ClearAuditLogIPsBefore(time.Time) (int, error) {
 	return 0, nil
 }
 func (m *mockDBAdminHandler) UpdateFeedLastFetch(int, time.Time) error      { return nil }
