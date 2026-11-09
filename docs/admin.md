@@ -346,14 +346,10 @@ curl -X GET "https://yourdomain.com/admin/audit-logs?operation_type=grant_admin"
 
 ### Audit Log Retention
 
-**SQLite (Local Development):**
-- Audit logs are stored indefinitely in the `audit_logs` table
-- Consider implementing periodic cleanup for very old logs
+Audit log entries are stored in the `audit_logs` table on SQLite and as `AuditLog` entities on Datastore. Entries themselves are never deleted, but two rules limit the personal data they hold:
 
-**Google Datastore (Production):**
-- Audit logs are stored as `AuditLog` entities
-- Consider implementing automatic expiration policies
-- Monitor Datastore costs for high-volume audit logging
+- The monthly data retention run blanks the IP address of entries older than 12 months (see [security.md](security.md#data-retention))
+- Deleting an account replaces the user's email with `deleted-user-<id>` in every entry that names it, and clears the IP address of actions the user performed as an admin (see [security.md](security.md#account-deletion))
 
 ### Security and Compliance
 
@@ -366,7 +362,7 @@ curl -X GET "https://yourdomain.com/admin/audit-logs?operation_type=grant_admin"
 
 **Best Practices:**
 - Regularly review audit logs for suspicious activity
-- Export and archive logs for long-term compliance
+- Do not copy audit logs out of GoRead2 for archiving: a copy keeps IP addresses and the emails of deleted users past the limits above, contrary to the privacy policy
 - Monitor failed operations for security issues
 - Use audit logs to track admin privilege grants/revocations
 

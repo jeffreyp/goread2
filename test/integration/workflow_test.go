@@ -320,7 +320,7 @@ func findSubstring(s, substr string) bool {
 	return false
 }
 
-// TestDataExportWorkflow tests the GDPR data export:
+// TestDataExportWorkflow tests the account data export:
 // Create feeds, articles, and audit entries → Export → Verify contents and isolation
 func TestDataExportWorkflow(t *testing.T) {
 	t.Parallel()
@@ -427,7 +427,7 @@ func TestDataExportWorkflow(t *testing.T) {
 	}
 }
 
-// TestAccountDeletionWorkflow tests GDPR account deletion:
+// TestAccountDeletionWorkflow tests account deletion:
 // Mismatched confirmation is rejected → Delete → Data, sessions, and cookie are gone,
 // another user's data is untouched, and a tombstone records the deleted Google account
 func TestAccountDeletionWorkflow(t *testing.T) {

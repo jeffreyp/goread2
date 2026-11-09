@@ -22,8 +22,8 @@ const (
 	exportAuditPageSize   = 500
 )
 
-// UserDataService serves GDPR requests: it assembles a user's personal data
-// for access and portability, and deletes it for erasure.
+// UserDataService handles a user's requests about their own data: it
+// assembles their personal data for export, and deletes their account.
 type UserDataService struct {
 	db              database.Database
 	customerDeleter CustomerDeleter

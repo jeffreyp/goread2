@@ -27,7 +27,7 @@ indexes:
   - name: feed_id
 
 # Indexes for audit log queries filtered by user, newest first
-# Used in: GetAuditLogs(filters) from the admin audit-log endpoint and the GDPR data export
+# Used in: GetAuditLogs(filters) from the admin audit-log endpoint and the account data export
 # Query: AuditLog.FilterField("target_user_id" | "admin_user_id", "=", userID).Order("-timestamp")
 - kind: AuditLog
   properties:

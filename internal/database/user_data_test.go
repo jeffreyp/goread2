@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Tests for the per-user queries behind the GDPR data export, run against
+// Tests for the per-user queries behind the account data export, run against
 // both the SQLite and Datastore implementations.
 
 func TestGetUserArticleHistoryPage(t *testing.T) {
