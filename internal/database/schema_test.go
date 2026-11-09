@@ -174,6 +174,36 @@ func TestMigrateDatabase(t *testing.T) {
 	}
 }
 
+// TestMigrateDatabaseAddsDeletionRequestedAt checks that a database created
+// before deletion_requested_at existed gains the column on migration, so the
+// user queries that select it keep working after an upgrade.
+func TestMigrateDatabaseAddsDeletionRequestedAt(t *testing.T) {
+	db := setupTestDB(t)
+
+	if _, err := db.Exec("ALTER TABLE users DROP COLUMN deletion_requested_at"); err != nil {
+		t.Fatalf("Failed to drop the column to simulate an older database: %v", err)
+	}
+	if err := db.migrateDatabase(); err != nil {
+		t.Fatalf("Migration failed: %v", err)
+	}
+
+	user := &User{GoogleID: "migrated-google-id", Email: "migrated@example.com", Name: "Migrated User", CreatedAt: time.Now()}
+	if err := db.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+	at := time.Now().UTC().Truncate(time.Second)
+	if err := db.SetDeletionRequestedAt(user.ID, at); err != nil {
+		t.Fatalf("SetDeletionRequestedAt failed after migration: %v", err)
+	}
+	stored, err := db.GetUserByID(user.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed after migration: %v", err)
+	}
+	if !stored.DeletionRequestedAt.Equal(at) {
+		t.Errorf("deletion_requested_at = %v, want %v", stored.DeletionRequestedAt, at)
+	}
+}
+
 // User CRUD tests
 
 func TestCreateUser(t *testing.T) {
