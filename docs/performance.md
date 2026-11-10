@@ -1,349 +1,127 @@
-# Performance & Cost Optimization
+# Performance and Caching
 
-Documents GoRead2's performance and cost-optimization strategies and their measured or estimated impact.
+How GoRead2 keeps Datastore reads, instance time, and page latency low, and the HTTP and in-memory caches it uses to do so. [monitoring.md](monitoring.md) covers the dashboards, budget, and alerts that track the resulting cost.
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Cost Optimization Strategy](#cost-optimization-strategy)
-- [Performance Optimizations](#performance-optimizations)
-- [Database Query Patterns](#database-query-patterns)
-- [Monitoring & Metrics](#monitoring--metrics)
-- [Future Optimization Opportunities](#future-optimization-opportunities)
+- [Feed Refresh](#feed-refresh)
+- [Database Queries](#database-queries)
+- [Client Loading](#client-loading)
+- [HTTP Caching](#http-caching)
+- [In-Memory Caches](#in-memory-caches)
 - [Testing Performance](#testing-performance)
-- [Deployment Considerations](#deployment-considerations)
-- [Summary](#summary)
+- [Troubleshooting](#troubleshooting)
 - [Related Documentation](#related-documentation)
 
-## Overview
+## Feed Refresh
 
-GoRead2 is designed to be cost-effective while maintaining excellent performance. This document outlines the optimization strategies in place and their impact.
+App Engine Cron starts a refresh of every subscribed feed every 2 hours, through the `/tasks/refresh-feeds` Cloud Task (see [deployment.md](deployment.md#async-task-processing-cloud-tasks)). `FeedScheduler.RefreshFeedsStaggered` runs it:
 
-## Cost Optimization Strategy
+- **Only due feeds are fetched.** `FeedService.shouldCheckFeed` skips a feed checked too recently. A feed with a known update frequency is due once half its average interval has passed since the last check. Otherwise the interval depends on when the feed last had new content: 30 minutes within the last week, 1 hour within the last month, and 6 hours after that. A feed that has never had new content is checked hourly. Because cron runs every 2 hours, every interval shorter than that means "on every run".
+- **Update frequency adapts.** Each fetch that finds new content updates the feed's average update interval as a weighted average, 70% the previous value and 30% the latest interval.
+- **Unchanged feeds cost little.** Each fetch sends the `ETag` and `Last-Modified` values from the feed's previous response as `If-None-Match` and `If-Modified-Since`. A `304 Not Modified` response skips downloading and parsing the feed.
+- **Fetches are spread and bounded.** The scheduler spreads fetches across `SCHEDULER_UPDATE_WINDOW`, runs at most `SCHEDULER_MAX_CONCURRENT` at once, and limits the requests sent to each feed domain (see [configuration.md](configuration.md#feed-fetching)).
 
-GoRead2's pricing model ($9.99/month unlimited feeds) requires aggressive cost optimization to remain profitable. The following strategies reduce Google Cloud / Datastore costs:
+At the end, the scheduler logs `Feed refresh complete: checked=<n>, skipped=<n>, had_new_content=<n>`.
 
-### Current Optimizations
+A user's manual refresh, `POST /api/feeds/refresh`, fetches only that user's feeds and applies the same due check.
 
-#### 1. Smart Feed Update Prioritization ($30-60/month savings)
+## Database Queries
 
-Feed refresh runs on an hourly cron schedule and prioritizes feeds based on their observed update patterns, implemented in both `FeedService.RefreshFeeds()` and `FeedScheduler.updateSingleFeed()`:
-- **Feeds with known update frequency**: checked at 50% of their average update interval
-- **Active feeds** (< 1 week since last update): checked every 30 minutes
-- **Regular feeds** (< 1 month): checked every 1 hour
-- **Dormant feeds** (> 1 month): checked every 6 hours
+- **Bounded queries.** Every article query is limited to one feed or one user, through methods such as `GetArticles(feedID)` and `GetUserArticles(userID)`. No code path scans every article.
+- **Cursor pagination.** Article lists page with a cursor that encodes the last article's publish time and ID, so a deep page costs the same as the first. On SQLite, `GetUserArticlesPaginated` in `schema.go` positions with a `WHERE` clause. On Datastore, `getUserArticlesPaginated` in `datastore.go` runs one projection query per feed for publish times at or below the cursor, fetching `limit + 1` references from each. A feed that fills its window may have older articles, so references are trusted only down to the frontier, the newest of those feeds' oldest publish times. Articles exactly at the frontier are fetched by an equality query, because feeds with day-only or missing dates give many articles the same timestamp; that query reads at most 500 articles per feed, since feed content is external and could otherwise force an unbounded read on every page. Unread-only pages that skip read articles continue in further rounds below the frontier, capped at 1,000 scanned articles or 10 rounds per request; at the cap the page is returned short, with a cursor.
+- **Concurrent projections.** `projectArticleRefs` runs the per-feed projection queries in parallel, at most `maxConcurrentFeedProjections` (25) at a time, so a user with 50 feeds waits for about two rounds of queries per page.
+- **Deferred unsubscribe cleanup.** `UnsubscribeUserFromFeed` deletes only the `UserFeed` record. The daily `/cron/cleanup-orphaned-articles` job, through `CleanupOrphanedUserArticles`, later deletes `UserArticle` records for feeds the user no longer follows, once they are more than 7 days old. Article lists exclude unsubscribed feeds in the meantime.
+- **Batch writes.** On subscribing, `BatchSetUserArticleStatus` writes the user's state for the feed's articles in one call rather than one write per article.
+- **Indexes.** The composite indexes that Datastore queries need are in `index.yaml`, deployed with each staging deploy.
+- **Slow query logging.** Datastore operations that take longer than 200 ms are logged by `logSlowQuery` in `datastore.go`. The SQLite implementation does not log slow queries.
 
-Each feed's update frequency is tracked with a weighted running average (70% historical, 30% new), so the schedule adapts automatically over time.
+## Client Loading
 
-**Implementation:**
-- Smart prioritization logic: `internal/services/feed_service.go:789-857`
-- Integrated into scheduler: `internal/services/feed_scheduler.go:320-371`
-- Database tracking fields: `LastChecked`, `LastHadNewContent`, `AverageUpdateInterval`
+- **Content on demand.** List endpoints return articles without their `content`. The web app fetches the full content from `GET /api/articles/:id` when an article is opened, then prefetches the previous and next articles so that `j` and `k` show content without waiting. A prefetch still in flight when its article is opened is reused. The native app does the same (see [ios.md](ios.md#data-loading)).
+- **Parallel startup.** `GoReadApp.init` in `web/static/js/app.js` requests `/api/feeds`, `/api/feeds/unread-counts`, and the first page of All Articles at once. The All Articles entry is static markup in `index.html`, so its articles do not wait for the feed list.
+- **Article limit on subscribing.** Subscribing to a feed marks at most `max_articles_on_feed_add` of its most recent articles as unread for the user, 100 by default. Each user can change the limit on the account page, and 0 removes it.
 
-**Impact:**
-- 20-40% reduction in unnecessary feed fetches (compared to checking all feeds every hour)
-- Better resource utilization for dormant feeds
-- Expected savings: $30-60/month in bandwidth and compute costs
+## HTTP Caching
 
-#### 2. Bounded Queries ($300-500/month savings)
+**CSS and JavaScript** are cached for a year (`Cache-Control: public, max-age=31536000`). Templates reference every CSS and JS file through a versioned URL, so a changed file always gets a new URL and browsers never use a stale copy.
 
-All article queries are feed-specific or user-specific and bounded, via `GetArticles(feedID)` or `GetUserArticles(userID)`. No code path performs an unbounded full-table scan.
+**Other static files**, such as images and favicons under `/static`, are cached for 10 minutes (`Cache-Control: public, max-age=600`). These URLs are not versioned, so a short lifetime keeps changes visible soon after a deploy.
 
-**Impact:**
-- Eliminates unbounded Datastore entity reads
-- Expected savings: $300-500/month
+**API responses, HTML pages, and authentication endpoints** are not cached. HTML pages carry the current asset versions, so caching them would serve outdated asset URLs. The server sends no ETags and no `stale-while-revalidate` directives.
 
-#### 3. Cursor-Based Pagination ($100-200/month savings)
+In production, App Engine serves `/static` directly and sets these expirations in `app.yaml` (see [deployment.md](deployment.md#static-file-handlers)). The local server sets the same headers in a middleware in `main.go`.
 
-Pagination uses cursors that encode the last article's timestamp and ID, avoiding the cost of scanning or fetching skipped rows:
-- SQLite: keyset pagination via a `WHERE` clause gives O(1) positioning instead of O(offset) scanning.
-- Datastore: each per-feed projection query filters on `published_at` at or below the cursor and fetches `limit + 1` refs, so every page costs about the same regardless of depth. A feed that fills its window may have older articles, so refs are trusted only down to the frontier, the newest of those feeds' oldest publish times. Articles exactly at the frontier are fetched by an equality query, because feeds with day-only or missing dates give many articles the same timestamp; that query reads at most 500 articles per feed, since feed content is external and could otherwise force an unbounded read on every page. Unread-only pages that skip read articles continue in further rounds below the frontier, capped at 1,000 scanned articles or 10 rounds per request; at the cap the page is returned short, with a cursor.
+### Versioned CSS and JS
 
-**Implementation:**
-- SQLite: `internal/database/schema.go:814-909`
-- Datastore: `internal/database/datastore.go:843-1195`
-- API: `internal/handlers/feed_handler.go:132-161` (cursor parameter)
+`internal/assets` computes a SHA-256 hash of each file's content, and templates call it through the `asset` template function:
 
-**Impact:**
-- Scales with deep pagination instead of degrading
-- For a user with 10 feeds on page 2: saves ~500+ entity reads compared to offset-based pagination
-- Expected savings: $100-200/month
-
-#### 4. Cache GetAllUserFeeds() ($50-100/month savings)
-
-`FeedListCache` caches the result of `GetAllUserFeeds()` with a 20-minute TTL, invalidated automatically on subscribe/unsubscribe. This reduces the call from 48 queries/day (once per hourly refresh) to about 3/day.
-
-**Implementation:** `internal/cache/feed_list_cache.go`
-
-**Impact:**
-- ~45 fewer expensive queries per day
-- Expected savings: $50-100/month
-
-#### 5. Deferred Cleanup for UnsubscribeUserFromFeed ($20-50/month savings)
-
-`UnsubscribeUserFromFeed()` only deletes the `UserFeed` subscription record, an instant operation. Cleanup of the associated user-article relationships (which would otherwise require a subquery DELETE on SQLite or querying every article and `UserArticle` entity in the feed on Datastore) is deferred to `CleanupOrphanedUserArticles()`, run by a daily cron job that removes orphaned records older than 7 days. Articles from unsubscribed feeds are filtered out of the UI by `GetUserArticlesPaginated` in the meantime.
-
-**Implementation:**
-- Database methods: `internal/database/schema.go:787-794`, `internal/database/datastore.go:664-677`
-- Cleanup methods: `internal/database/schema.go:1090-1114`, `internal/database/datastore.go:1255-1347`
-- Cron handler: `internal/handlers/feed_handler.go:379-411` (enqueues to the `/tasks/cleanup-orphaned-articles` Cloud Task; see [Async Task Processing](deployment.md#async-task-processing-cloud-tasks))
-- Cron schedule: `cron.yaml:20-27`
-
-**Impact:**
-- 10-100x faster unsubscribe operations than synchronous cleanup
-- Spreads cleanup cost over time instead of a spike per unsubscribe
-- Expected savings: $20-50/month
-
-#### 6. HTTP Conditional Requests (ETag/If-Modified-Since) ($40-80/month savings)
-
-Feed fetches store the `ETag` and `Last-Modified` response headers from feed servers and send them back as `If-None-Match` and `If-Modified-Since` on subsequent requests. A `304 Not Modified` response skips re-downloading and re-parsing the feed, which most hourly refreshes hit since feeds update infrequently.
-
-**Implementation:**
-- Database fields: `Feed.ETag`, `Feed.LastModified` (both SQLite and Datastore)
-- Conditional request logic: `internal/services/feed_service.go` (`fetchFeed` with `FetchOptions`)
-- Cache header persistence: `Database.UpdateFeedCacheHeaders()`
-- Integration in `RefreshFeeds()`: builds `FetchOptions` from stored headers, handles 304
-
-**Impact:**
-- Estimated ~90% bandwidth reduction for unchanged feeds
-- Faster refresh cycles (304 responses skip body parsing)
-- Expected savings: $40-80/month in bandwidth and compute costs
-
-### Total Cost Savings
-
-**Estimated total: $590-1,090/month**
-
-This reduces per-user costs by approximately $6-12/month, making the $9.99/month pricing sustainable and profitable.
-
-## Performance Optimizations
-
-### 1. Unread Count Caching
-
-**Purpose:** Avoid expensive COUNT queries on every page load
-
-**Implementation:**
-- In-memory cache with 5-minute TTL
-- Incremental updates when marking articles read/unread
-- Thread-safe with sync.RWMutex
-- Bounded to 10,000 users, with a periodic background sweep for expired entries
-
-**Benefits:**
-- ~70% reduction in count queries
-- Instant feedback when marking articles read
-- Better user experience
-
-See [caching.md](caching.md) for details.
-
-### 2. Concurrent Feed Fetching
-
-**Implementation:**
-- Processes feeds in parallel batches of 5
-- Uses goroutines for concurrent HTTP requests
-- Rate limiting per domain to avoid overwhelming servers
-
-**Benefits:**
-- Feed refresh completes much faster
-- Better resource utilization
-
-### 3. Smart Article Limits
-
-**Implementation:**
-- Configurable max articles per feed on initial import
-- Prevents database overload with high-volume feeds
-- Default: 100 articles per feed
-
-**Benefits:**
-- Faster initial feed imports
-- Lower storage costs
-- Better user experience (no overwhelming article counts)
-
-### 4. On-Demand Article Content
-
-**Implementation:**
-- List endpoints return articles with an empty `content` field; the web app fetches full content from `GET /api/articles/:id` when an article is opened
-- After displaying an article, the web app prefetches the content of the previous and next articles in the list, so moving with `j`/`k` does not wait for a request
-- A prefetch still in flight when its article is opened is reused rather than repeated
-
-**Benefits:**
-- Smaller article list responses
-- Keyboard navigation between neighbouring articles displays content immediately
-
-### 5. Parallel Startup Requests
-
-**Implementation:**
-- `GoReadApp.init()` in `web/static/js/app.js` fetches `/api/feeds`, `/api/feeds/unread-counts`, and the default "All Articles" view (`/api/feeds/all/articles`) as one parallel wave, rather than waiting for the feed list to return before requesting articles
-- The "All Articles" sidebar entry is static markup rendered in `index.html`, not generated from the feeds response, so selecting it and starting its article fetch does not depend on the feeds request completing first
-
-**Benefits:**
-- One fewer sequential round trip before articles appear on load
-- Perceived load time improves most for users with a large number of feeds, where the feeds and unread-counts queries take longest
-
-### 6. Bounded-Concurrency Article Projection
-
-**Implementation:**
-- `getUserArticlesPaginated` in `internal/database/datastore.go` pages through a user's articles by projecting publish timestamps per feed via `projectArticleRefs`
-- `projectArticleRefs` runs one projection query per feed with `errgroup`, bounded to `maxConcurrentFeedProjections` (25) concurrent Datastore calls, instead of waiting on fixed batches of 5 before starting the next batch
-- A user with 50 feeds now pays about 2 concurrent rounds per page instead of 10 sequential ones
-
-**Benefits:**
-- Lower page latency for users subscribed to many feeds
-- Each user's own feed list is also served from the cache described in [caching.md](caching.md#user-feeds-cache-5-minutes-ttl-datastore-only), removing a `UserFeed` query and a `Feed` `GetMulti` from every page
-
-## Database Query Patterns
-
-### Best Practices
-
-1. **Always use bounded queries**
-   - ✅ `GetArticles(feedID)`
-   - ✅ `GetUserArticles(userID)`
-   - ❌ `GetAllArticles()` (removed)
-
-2. **Use indexes efficiently**
-   - Queries filtered by user_id use indexes
-   - Order by published_at DESC for recent articles first
-   - Composite indexes for complex queries
-
-3. **Batch operations where possible**
-   - `BatchSetUserArticleStatus()` instead of individual calls
-   - Reduces database round trips
-
-4. **Cache expensive queries**
-   - Unread counts (5min TTL)
-   - Feed lists (20min TTL)
-   - Automatic invalidation on changes
-   - Both caches are size-bounded with eviction; see [caching.md](caching.md#cache-design-principles) for limits and eviction behavior
-
-5. **Log slow queries**
-   - Datastore operations exceeding 200ms are logged as warnings (`internal/database/datastore.go`, `logSlowQuery`)
-   - SQLite path has no equivalent slow-query logging today
-
-### Query Optimization Examples
-
-**Bad:**
-```go
-// Fetches ALL articles from database
-articles := db.GetAllArticles()
-for _, article := range articles {
-    if article.FeedID == targetFeedID {
-        // Process article
-    }
-}
+```html
+<script src="{{asset "js/app.min.js"}}"></script>
+<!-- renders as /static/js/app.min.js?v=<hash> -->
 ```
 
-**Good:**
-```go
-// Fetches only articles from specific feed
-articles := db.GetArticles(targetFeedID)
-for _, article := range articles {
-    // Process article
-}
-```
+Hashes are computed on first use and cached until the process restarts. If a file cannot be read, for example because the frontend has not been built, `asset` logs the error and returns the URL without a version.
 
-## Monitoring & Metrics
+`app.js` loads `modals.min.js` lazily on first use. `index.html` passes the versioned URL in a `data-modals-src` attribute on the `app.min.js` script tag, and `app.js` falls back to `./modals.js` when the attribute is absent, as in the Jest tests.
 
-### Key Metrics to Track
+Rebuilding the frontend changes the hash of every modified file. The new versions take effect after a server restart locally, and after the next deploy in production. A browser with the old page open keeps using the old files until it reloads the page.
 
-1. **Database query counts**
-   - GetAllUserFeeds calls per day
-   - Unread count cache hit rate
-   - Feed list cache hit rate
-
-2. **Feed refresh performance**
-   - Feeds checked per refresh cycle
-   - Feeds skipped due to prioritization
-   - Average refresh duration
-
-3. **Cost metrics**
-   - Datastore entity reads per day
-   - Instance hours per day
-   - Bandwidth usage
-
-### Logging
-
-Enable detailed logging for cost analysis:
+To check the headers locally:
 
 ```bash
-# Feed refresh stats
-2025-11-02 12:00:00 Feed refresh complete: checked=45, skipped=23, not_modified=18, had_new_content=12
+# List the versioned asset URLs on the home page
+curl -s http://localhost:8080/ | grep -o '/static/[^"]*?v=[0-9a-f]*'
 
-# Cache hit rates
-2025-11-02 12:00:00 Unread cache stats: users=15, feeds=120, hit_rate=73%
+# A versioned asset, using a URL from the list above, is cached for a year
+curl -I 'http://localhost:8080/static/js/app.min.js?v=<hash>'
+
+# API responses carry no Cache-Control header
+curl -I http://localhost:8080/api/feeds
 ```
 
-## Future Optimization Opportunities
+## In-Memory Caches
 
-Remaining optimizations are tracked in the Beads issue tracker:
+Each App Engine instance keeps its own caches; instances share nothing but the database (see [architecture.md](architecture.md#instances-and-in-memory-state)). All of the caches below are safe for concurrent use, return copies rather than shared values, expire entries after a fixed lifetime, and fall back to the database on a miss.
 
-1. **Keys-only queries** (P2) - Where full entities not needed
+| Cache | Location | Lifetime | Size limit | Invalidated by |
+|-------|----------|----------|------------|----------------|
+| Sessions | `SessionManager` in `internal/auth/session.go` | 10 minutes, set by `SESSION_CACHE_TTL` | None | Sign-out and session revocation on the same instance |
+| Unread counts | `internal/cache/unread_cache.go` | 15 minutes | 10,000 users | Read-state changes, which update counts in place, and subscribing or unsubscribing |
+| Feed list | `internal/cache/feed_list_cache.go` | 20 minutes | 50,000 feeds | Subscribing or unsubscribing |
+| Each user's feeds, Datastore only | `internal/database/user_feeds_cache.go` | 5 minutes | 10,000 users | `SubscribeUserToFeed` and `UnsubscribeUserFromFeed` |
+| Per request | `internal/middleware/request_cache.go` | One API request | None | Feed mutations within the request |
+| Usage statistics | `StatsService` | 15 minutes | One entry | Expiry only |
 
-Run `bd ready` to see all available optimization issues.
+- **Sessions.** A revoked session can stay valid on another instance until its cache entry expires, which is why account deletion runs a second pass after 15 minutes (see [privacy.md](privacy.md#account-deletion)).
+- **Unread counts.** The lifetime is longer than the web client's 5-minute unread-count poll, so polls are served from the cache. A miss on Datastore costs one read per recent article and one per matching `UserArticle`. Counts for newly fetched articles can lag by up to the lifetime. When the cache is full, the entry closest to expiry is evicted.
+- **Feed list.** Holds every feed with at least one subscriber, for `FeedService.RefreshFeeds`. The cron refresh goes through `FeedScheduler`, which reads the feed list directly, so in production this cache is not read. If the list exceeds the size limit, the cache is bypassed.
+- **Each user's feeds.** `GetUserArticlesPaginated` reads the user's feed list on every page, and this cache removes a `UserFeed` query and a `Feed` read from each. It lives in `internal/database` rather than `internal/cache`, because `internal/cache` imports `internal/database`. The 5-minute lifetime bounds drift between instances. The SQLite implementation has no such cache.
+- **Per request.** Holds the signed-in user's feeds for the length of one API request, so handlers that need them more than once read them once.
+
+The unread count and feed list caches start background sweeps of expired entries from `FeedService.Start`, which stop when the server shuts down. `go test ./internal/cache/...` covers expiry, concurrency, invalidation, copying, and eviction.
 
 ## Testing Performance
 
-### Benchmark Tests
+Go benchmarks in `internal/database/schema_bench_test.go`, such as `BenchmarkGetUserArticlesPaginatedFirstPage` and `BenchmarkGetUserUnreadCounts`, measure the main queries. A `benchmark` job in CI fails when one regresses (see [testing.md](testing.md#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh)).
 
 ```bash
-# Run performance benchmarks
-go test -bench=. ./internal/database/...
-go test -bench=. ./internal/cache/...
+go test -bench=. ./internal/database/... ./internal/cache/...
 
-# Profile memory allocation (one package per run; -memprofile rejects multiple packages)
+# Memory profile, one package per run
 go test -run '^$' -bench . -benchmem -memprofile /tmp/goread2-mem.prof ./internal/database/
 go tool pprof -top -sample_index=alloc_space /tmp/goread2-mem.prof
 ```
 
-### Load Testing
+`go test ./test/integration -run TestConcurrentUserOperations` exercises concurrent operations by several users.
 
-```bash
-# Test concurrent user operations
-go test ./test/integration -run TestConcurrentUserOperations
-```
+## Troubleshooting
 
-Timing-based performance checks are Go benchmarks (`BenchmarkGetUserArticlesPaginatedFirstPage`, `BenchmarkGetUserUnreadCounts`, etc. in `internal/database/schema_bench_test.go`), gated in CI by a dedicated `benchmark` job. See [testing.md](testing.md#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) for details.
-
-## Deployment Considerations
-
-### Production Settings
-
-1. **App Engine instance settings**
-   - Use F1 instances (cost-effective)
-   - Automatic scaling based on load
-   - Min instances: 0 (save costs when idle)
-
-2. **Datastore settings**
-   - Use composite indexes for complex queries
-   - Monitor entity read/write counts
-   - Set up budget alerts
-
-3. **Cron jobs**
-   - Feed refresh: every 1 hour
-   - Orphaned article cleanup: every 24 hours
-   - Monitor via App Engine logs
-
-### Cost Alerts
-
-Set up Google Cloud budget alerts:
-- Alert at 50% of monthly budget
-- Alert at 80% of monthly budget
-- Alert at 100% of monthly budget
-
-## Summary
-
-These optimizations have reduced operational costs by $590-1,090/month while maintaining excellent performance and user experience. Key strategies:
-
-1. ✅ Smart feed update prioritization
-2. ✅ Remove unbounded queries
-3. ✅ Cursor-based pagination (replaces offset-based)
-4. ✅ Cache expensive operations
-5. ✅ Deferred cleanup for unsubscribe operations
-6. ✅ Concurrent processing where safe
-7. ✅ HTTP conditional requests (ETag/If-Modified-Since)
-
-These optimizations make the $9.99/month pricing sustainable and profitable.
+See [Troubleshooting Guide](troubleshooting.md#performance-issues) for slow pages, and [Feed Issues](troubleshooting.md#feed-issues) for refresh problems.
 
 ## Related Documentation
 
-- [Caching Strategy](caching.md) - Unread count and feed list caches
-- [Monitoring Setup](monitoring.md) - Dashboards and cost/alert tracking
-- [Testing Guide](testing.md) - Benchmark regression gate
-- [Troubleshooting Guide](troubleshooting.md) - Performance issues
+- [Architecture](architecture.md) - Instances, caches, and background work in context
+- [Monitoring](monitoring.md) - Dashboards, the budget, and cost alerts
+- [Configuration Reference](configuration.md#feed-fetching) - The feed fetching variables
+- [Testing Guide](testing.md) - The benchmark regression gate

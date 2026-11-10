@@ -88,7 +88,7 @@ This is usually expected, for these reasons:
 
 - `/cron/refresh-feeds` runs every 2 hours in production (`cron.yaml`).
 - Each run skips feeds that were checked recently, and rarely updated feeds are checked least often. See [performance.md](performance.md).
-- Unread counts for newly fetched articles can lag by up to 15 minutes. See [caching.md](caching.md#unread-count-cache-15-minutes-ttl).
+- Unread counts for newly fetched articles can lag by up to 15 minutes. See [performance.md](performance.md#in-memory-caches).
 
 To check that refreshes are running in production:
 

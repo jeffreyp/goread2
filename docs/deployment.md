@@ -337,7 +337,7 @@ handlers:
   secure: always
 ```
 
-The first handler serves CSS and JS with a one-year expiration. Templates reference these files with a `?v=` content hash, so a deploy that changes a file also changes its URL (see [caching.md](caching.md#versioned-css-and-js)). The `go126` runtime always makes static files readable by the app, which reads them to compute the hashes. The second handler serves every other static file, such as images and favicons, with App Engine's default 10-minute expiration.
+The first handler serves CSS and JS with a one-year expiration. Templates reference these files with a `?v=` content hash, so a deploy that changes a file also changes its URL (see [performance.md](performance.md#versioned-css-and-js)). The `go126` runtime always makes static files readable by the app, which reads them to compute the hashes. The second handler serves every other static file, such as images and favicons, with App Engine's default 10-minute expiration.
 
 ### Instance Shutdown
 

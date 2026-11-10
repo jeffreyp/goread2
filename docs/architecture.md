@@ -64,7 +64,7 @@ The code under `internal/` is split by layer:
 | `middleware` | Security headers, CORS, body limits, the request-scoped cache, and the 404 handler |
 | `cache` | The per-instance feed list and unread count caches |
 | `config`, `secrets` | Environment variables and Secret Manager lookups (see [configuration.md](configuration.md)) |
-| `assets` | Content hashes for the `?v=` query on CSS and JS URLs (see [caching.md](caching.md#versioned-css-and-js)) |
+| `assets` | Content hashes for the `?v=` query on CSS and JS URLs (see [performance.md](performance.md#versioned-css-and-js)) |
 
 The command-line tools in `cmd/` use the same packages: `admin` for user management, `setup-stripe` for the Stripe product, `validate-config` for `make validate-config`, and `generate-test-articles` for test data.
 
@@ -84,7 +84,7 @@ Staging and production share one Datastore database, `(default)` in project `gor
 App Engine runs between zero and ten instances, and each keeps its own in-memory state. Nothing is shared between instances except the database, so a cached value can be stale on one instance after another changes it:
 
 - **Sessions** are cached for 10 minutes by default (`SESSION_CACHE_TTL`). A revoked session can keep working on another instance until its cache entry expires, which is why account deletion runs a second pass after 15 minutes (see [privacy.md](privacy.md#account-deletion)).
-- **Unread counts, the feed list, and each user's subscriptions** are cached with short lifetimes and updated in place on writes from the same instance. [caching.md](caching.md#caches-in-use) lists every cache with its lifetime and invalidation.
+- **Unread counts, the feed list, and each user's subscriptions** are cached with short lifetimes and updated in place on writes from the same instance. [performance.md](performance.md#in-memory-caches) lists every cache with its lifetime and invalidation.
 - **Rate limiters** count per instance, so the effective limit grows with the number of instances.
 - **Usage statistics** are reused for 15 minutes.
 
@@ -245,5 +245,5 @@ The schema in `schema.go` declares foreign keys as separate `FOREIGN KEY` clause
 - [Configuration Reference](configuration.md) - Every environment variable
 - [Deployment Guide](deployment.md) - App Engine, Cloud Tasks, and the deploy pipeline
 - [Privacy and Personal Data](privacy.md) - What the data model holds about users
-- [Caching Strategy](caching.md) - The per-instance caches in detail
+- [Performance and Caching](performance.md) - The per-instance caches in detail
 - [Testing Guide](testing.md) - Running the suite against SQLite and Datastore

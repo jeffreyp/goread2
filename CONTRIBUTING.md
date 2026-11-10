@@ -266,7 +266,7 @@ GoRead2 uses **bundle splitting with lazy loading** to optimize performance:
 
 #### Lazy Loading
 
-Modal code is lazy-loaded using native ES6 dynamic imports. `index.html` passes the versioned `modals.min.js` URL to `app.js` in a `data-modals-src` attribute, so the module is cached like every other asset (see [caching.md](docs/caching.md#versioned-css-and-js)):
+Modal code is lazy-loaded using native ES6 dynamic imports. `index.html` passes the versioned `modals.min.js` URL to `app.js` in a `data-modals-src` attribute, so the module is cached like every other asset (see [performance.md](docs/performance.md#versioned-css-and-js)):
 
 ```javascript
 // In app.js - falls back to the source file when the attribute is absent, as in tests
