@@ -59,6 +59,10 @@ struct FeedListView: View {
         }
         .task {
             viewModel.onSessionExpired = { authManager.sessionExpired() }
+            // .task re-fires when a pushed article list pops; only the first
+            // appearance should load. The roots keep the unread counts
+            // current after that.
+            guard !viewModel.hasLoaded else { return }
             await viewModel.load()
         }
     }
@@ -78,13 +82,6 @@ struct FeedListView: View {
             } else {
                 await viewModel.refresh()
             }
-        }
-        .onAppear {
-            // Re-fires when a pushed article screen pops; picks up counts
-            // changed by read actions. The initial appearance is covered by
-            // .task, so skip until that load finishes.
-            guard viewModel.hasLoaded else { return }
-            Task { await viewModel.refreshUnreadCounts() }
         }
     }
 

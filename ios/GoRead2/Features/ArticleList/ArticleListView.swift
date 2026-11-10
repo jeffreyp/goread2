@@ -198,21 +198,42 @@ struct ArticleListView: View {
 }
 
 /// iPhone wrapper for the pushed article list: owns the view model for the
-/// screen's lifetime and hosts the reader's push destination.
+/// screen's lifetime and hosts the reader's push destination. It keeps the
+/// feed list underneath current without that list refetching when it
+/// reappears: read-state changes are reported through `onUnreadCountChange`,
+/// and pull-to-refresh and Mark All Read end with `refreshUnreadCounts`.
 struct ArticleListScreen: View {
     @StateObject private var viewModel: ArticleListViewModel
 
     private let selection: FeedSelection
+    private let onUnreadCountChange: (_ feedID: Int, _ delta: Int) -> Void
+    private let refreshUnreadCounts: () async -> Void
 
-    init(selection: FeedSelection) {
+    init(selection: FeedSelection,
+         onUnreadCountChange: @escaping (_ feedID: Int, _ delta: Int) -> Void = { _, _ in },
+         refreshUnreadCounts: @escaping () async -> Void = {}) {
         self.selection = selection
+        self.onUnreadCountChange = onUnreadCountChange
+        self.refreshUnreadCounts = refreshUnreadCounts
         _viewModel = StateObject(wrappedValue: ArticleListViewModel(selection: selection))
     }
 
     var body: some View {
-        ArticleListView(viewModel: viewModel, selection: selection)
+        ArticleListView(viewModel: viewModel,
+                        selection: selection,
+                        refreshAction: {
+                            await viewModel.load()
+                            await refreshUnreadCounts()
+                        },
+                        markAllReadAction: {
+                            await viewModel.markAllRead()
+                            await refreshUnreadCounts()
+                        })
             .navigationDestination(for: Article.self) { article in
                 ArticleReaderScreen(viewModel: viewModel, articleID: article.id)
+            }
+            .onAppear {
+                viewModel.onUnreadCountChange = onUnreadCountChange
             }
     }
 }
