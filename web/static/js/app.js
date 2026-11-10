@@ -2863,8 +2863,6 @@ class GoReadApp {
                 <p>Upgrade to <strong>GoRead2 Pro</strong> for:</p>
                 <ul>
                     <li>Unlimited RSS feeds</li>
-                    <li>Priority support</li>
-                    <li>Advanced features</li>
                 </ul>
                 <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $9.99/month</p>
                 <div class="form-actions">
@@ -2911,7 +2909,6 @@ class GoReadApp {
                 <ul>
                     <li>Unlimited RSS feeds</li>
                     <li>Continued access to all articles</li>
-                    <li>Priority support</li>
                 </ul>
                 <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $9.99/month</p>
                 <div class="form-actions">

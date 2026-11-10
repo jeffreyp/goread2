@@ -147,7 +147,6 @@ Use the radio buttons in the article pane header:
 ### GoRead2 Pro
 - Unlimited RSS feeds
 - Continued access to all features
-- Priority support
 - $9.99/month subscription
 
 ### Account Management
