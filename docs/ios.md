@@ -108,11 +108,18 @@ The reader carries its actions in one toolbar group, placed in the bottom bar on
 
 | Action | SF Symbol | Behaviour |
 |--------|-----------|-----------|
-| Previous Article | `chevron.up` | Moves back one article, and from the caught-up screen to the last article |
-| Next Article | `chevron.down` | Moves forward one article, or to the caught-up screen past the last one |
+| Previous Article | `chevron.up` | Moves back one article, and from the end-of-list page to the last article |
+| Next Article | `chevron.down` | Moves forward one article, or to the end-of-list page past the last one |
 | Star | `star`, filled when starred | Toggles the starred flag through the shared list view model |
 | Open in Browser | `safari` | Opens the article's source URL outside the reader's `WKWebView`. Hidden when the article carries no http or https URL |
 | Share | `square.and.arrow.up` | Raises the system share sheet for the source URL |
+
+Moving forward from the last article always leads somewhere, whatever the read state of the list, so Next Article is enabled on the last article. `ArticleListViewModel.destination(from:offset:)` decides where, for the toolbar buttons, the swipe gestures, the j and k keys, and the Mac menu commands alike:
+
+- When the server has another page, the move waits for that page and continues into it. The reader shows a "Loading more articles" indicator during the wait. If the page fails to load, the reader stays on the current article and the list reports the error.
+- When no further page exists, the move lands on the end-of-list page. The page reads "All Caught Up!" when every loaded article is read. Otherwise it reads "That's the Last Article" and gives the number of loaded articles still unread, which updates if a pending mark-read request completes.
+
+From the end-of-list page, moving back returns to the last article and continues through earlier articles, including read ones.
 
 Open in Browser and links tapped inside the article content take the same path, `webPage(item:)` in `SafariView.swift`: an `SFSafariViewController` sheet on iOS and iPadOS, the default browser on macOS. Links with other schemes, such as `mailto`, go to the system handler instead.
 

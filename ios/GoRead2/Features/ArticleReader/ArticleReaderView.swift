@@ -5,9 +5,9 @@ import SwiftUI
 /// and share. Swiping left/right on the content also moves to the
 /// next/previous article. Opening an article (including via previous/next)
 /// marks it read. The standard edge-swipe pops back to the article list.
-/// Advancing past the last article when nothing unread remains lands on a
-/// caught-up screen, so finishing the list gets an explicit signal instead
-/// of a dead gesture.
+/// Advancing past the last article always lands on an end-of-list page once
+/// no further pages can load, so finishing the list gets an explicit signal
+/// instead of a dead gesture.
 ///
 /// The view shares the list's view model so star and read changes made here
 /// show up in the list rows immediately. The current article is a binding:
@@ -15,11 +15,6 @@ import SwiftUI
 /// moves the list highlight as well; on iPhone `ArticleReaderScreen` holds
 /// it as local state.
 struct ArticleReaderView: View {
-    /// Sentinel `currentID` for the position one past the last article,
-    /// where the reader shows the caught-up screen instead of an article.
-    /// Real article IDs from the server are positive.
-    static let caughtUpID = -1
-
     @ObservedObject var viewModel: ArticleListViewModel
     @Binding var currentID: Int
     @State private var safariItem: SafariItem?
@@ -35,8 +30,8 @@ struct ArticleReaderView: View {
 
     var body: some View {
         Group {
-            if currentID == Self.caughtUpID {
-                caughtUpView
+            if currentID == ArticleListViewModel.endOfListID {
+                endOfListView
             } else if let article {
                 ArticleWebView(article: article,
                                showsContentPlaceholder: article.content.isEmpty
@@ -56,6 +51,13 @@ struct ArticleReaderView: View {
                 // A refresh can replace the list while the reader is open;
                 // the article may no longer be loaded.
                 ContentUnavailableCompatView()
+            }
+        }
+        .overlay {
+            if viewModel.isLoadingNextArticle {
+                ProgressView("Loading more articles")
+                    .padding()
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             }
         }
         .navigationTitle(article?.feedTitle ?? "")
@@ -126,14 +128,26 @@ struct ArticleReaderView: View {
         }
     }
 
-    /// The caught-up screen, shown one position past the last article.
-    /// Swiping right returns to the last article, mirroring the reader's
-    /// swipe navigation.
-    private var caughtUpView: some View {
-        EmptyStateView(systemImage: "checkmark.circle",
-                       title: "All Caught Up!",
-                       message: "You've read all your articles. Great job! "
-                           + "New articles will appear here as they're published.")
+    /// The end-of-list page, shown one position past the last article.
+    /// It congratulates only when nothing unread remains, and otherwise
+    /// says how many loaded articles are still unread. Swiping right returns
+    /// to the last article, mirroring the reader's swipe navigation.
+    private var endOfListView: some View {
+        Group {
+            if viewModel.isCaughtUp {
+                EmptyStateView(systemImage: "checkmark.circle",
+                               title: "All Caught Up!",
+                               message: "You've read all your articles. Great job! "
+                                   + "New articles will appear here as they're published.")
+            } else {
+                let unread = viewModel.unreadLoadedCount
+                EmptyStateView(systemImage: "flag.checkered",
+                               title: "That's the Last Article",
+                               message: unread == 1
+                                   ? "1 article in this list is still unread."
+                                   : "\(unread) articles in this list are still unread.")
+            }
+        }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
             .gesture(DragGesture().onEnded { value in
@@ -144,33 +158,24 @@ struct ArticleReaderView: View {
     }
 
     private func canMove(_ offset: Int) -> Bool {
-        if currentID == Self.caughtUpID {
+        if currentID == ArticleListViewModel.endOfListID {
             return offset < 0 && !viewModel.articles.isEmpty
         }
         guard let index = currentIndex else { return false }
-        if viewModel.articles.indices.contains(index + offset) { return true }
-        // One past the last article is the caught-up screen, reachable once
-        // nothing unread remains.
-        return offset > 0 && viewModel.isCaughtUp
+        // Forward always leads somewhere: the next article, the next page,
+        // or the end-of-list page.
+        return offset > 0 || index > 0
     }
 
     private func move(_ offset: Int) {
         guard canMove(offset) else { return }
-        if currentID == Self.caughtUpID {
-            currentID = viewModel.articles[viewModel.articles.count - 1].id
-            return
-        }
-        guard let index = currentIndex else { return }
-        let target = index + offset
-        guard viewModel.articles.indices.contains(target) else {
-            currentID = Self.caughtUpID
-            return
-        }
-        currentID = viewModel.articles[target].id
-        // Approaching the end of the loaded pages: fetch the next one so
-        // "next" keeps working past the page boundary.
-        if offset > 0, target >= viewModel.articles.count - 3 {
-            Task { await viewModel.loadMore() }
+        let origin = currentID
+        Task {
+            // The move can wait on the next page; drop it if the reader has
+            // moved elsewhere in the meantime.
+            guard let destination = await viewModel.destination(from: origin, offset: offset),
+                  currentID == origin else { return }
+            currentID = destination
         }
     }
 }

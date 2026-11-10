@@ -176,36 +176,20 @@ struct SplitRootView: View {
         return articleViewModel.articles.first { $0.id == selectedArticleID }
     }
 
+    /// The j and k shortcuts and the menu commands. Shares the reader's
+    /// rules: forward from the last article waits for the next page or
+    /// lands on the end-of-list page, and back from there returns to the
+    /// last article.
     private func moveSelection(_ offset: Int) {
         guard let viewModel = articleViewModel else { return }
-        let articles = viewModel.articles
-        guard !articles.isEmpty else { return }
-        // From the caught-up screen, k returns to the last article and j
-        // stays put.
-        if selectedArticleID == ArticleReaderView.caughtUpID {
-            if offset < 0 {
-                selectedArticleID = articles[articles.count - 1].id
-            }
-            return
-        }
-        var newIndex = 0
-        if let selectedArticleID,
-           let index = articles.firstIndex(where: { $0.id == selectedArticleID }) {
-            newIndex = index + offset
-        }
-        guard articles.indices.contains(newIndex) else {
-            // One past the last article is the caught-up screen, reachable
-            // once nothing unread remains.
-            if offset > 0, newIndex == articles.count, viewModel.isCaughtUp {
-                selectedArticleID = ArticleReaderView.caughtUpID
-            }
-            return
-        }
-        selectedArticleID = articles[newIndex].id
-        // Approaching the end of the loaded pages: fetch the next one so
-        // "next" keeps working past the page boundary.
-        if offset > 0, newIndex >= articles.count - 3 {
-            Task { await viewModel.loadMore() }
+        let origin = selectedArticleID
+        Task {
+            // The move can wait on the next page; drop it if the selection
+            // or the feed has changed in the meantime.
+            guard let destination = await viewModel.destination(from: origin, offset: offset),
+                  selectedArticleID == origin,
+                  articleViewModel === viewModel else { return }
+            selectedArticleID = destination
         }
     }
 
