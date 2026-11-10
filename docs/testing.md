@@ -734,7 +734,7 @@ Without `GOOGLE_CLOUD_PROJECT`, accounts are stored in the local SQLite file, `g
 GOOGLE_CLOUD_PROJECT=goread2-local-test ./scripts/with-datastore-emulator.sh make dev-login
 ```
 
-Without Cloud Tasks, `DELETE /api/account` deletes the account in-process and responds `200` instead of queueing it. The iOS and macOS apps use the dev login through their usual sign-in button when the Debug scheme points at the local server (see [ios.md](ios.md#schemes-and-the-api-base-url)).
+Without Cloud Tasks, `DELETE /api/account` deletes the account in-process and responds `200` instead of queueing it. The iOS and macOS apps use the dev login through their usual sign-in button when the Debug scheme points at the local server (see [apple-apps.md](apple-apps.md#schemes-and-the-api-base-url)).
 
 ### HTTP Test Setup
 

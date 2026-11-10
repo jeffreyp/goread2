@@ -47,26 +47,7 @@ Deployment is automated via GitHub Actions, not the Makefile. See
 
 ## Documentation
 
-| Guide | Purpose |
-|-------|---------|
-| [**Features Guide**](docs/features.md) | Complete feature overview and usage tips |
-| [**Setup Guide**](docs/setup.md) | Complete installation and configuration |
-| [**Architecture**](docs/architecture.md) | How the components fit together, and the data model |
-| [**Authentication Guide**](docs/authentication.md) | OAuth flow, session management, and security |
-| [**Deployment Guide**](docs/deployment.md) | Google App Engine deployment and CI/CD pipeline (includes Google Secret Manager setup) |
-| [**iOS and macOS Apps**](docs/ios.md) | Native Apple clients: local development, the macOS build, and on-device testing |
-| [**Apple Release Guide**](docs/apple-releases.md) | Releasing to iOS, iPadOS, and macOS: setup, status, renewals, and troubleshooting |
-| [**Admin Guide**](docs/admin.md) | User management and admin commands |
-| [**Stripe Setup**](docs/stripe.md) | Payment processing configuration |
-| [**Testing Guide**](docs/testing.md) | Running and writing tests |
-| [**API Reference**](docs/api.md) | API endpoints and usage |
-| [**Configuration**](docs/configuration.md) | Every environment variable, with defaults and secrets |
-| [**Security Guide**](docs/security.md) | Security controls and where each is implemented |
-| [**Privacy and Personal Data**](docs/privacy.md) | Stored personal data, cookies, export, deletion, and retention |
-| [**Performance and Caching**](docs/performance.md) | Feed refresh, query patterns, and HTTP and in-memory caching |
-| [**Monitoring**](docs/monitoring.md) | Cloud Monitoring dashboards and cost tracking |
-| [**Troubleshooting**](docs/troubleshooting.md) | Common issues and solutions |
-| [**Contributing**](CONTRIBUTING.md) | Development and contribution guide |
+The [documentation index](docs/README.md) lists every guide, grouped for users, API clients, operators, and contributors. Start with the [Setup Guide](docs/setup.md) to run GoRead2 locally, or the [Architecture](docs/architecture.md) guide for an overview of how it works.
 
 ## Contributing
 

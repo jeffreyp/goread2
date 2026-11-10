@@ -38,7 +38,7 @@ A user's manual refresh, `POST /api/feeds/refresh`, fetches only that user's fee
 
 ## Client Loading
 
-- **Content on demand.** List endpoints return articles without their `content`. The web app fetches the full content from `GET /api/articles/:id` when an article is opened, then prefetches the previous and next articles so that `j` and `k` show content without waiting. A prefetch still in flight when its article is opened is reused. The native app does the same (see [ios.md](ios.md#data-loading)).
+- **Content on demand.** List endpoints return articles without their `content`. The web app fetches the full content from `GET /api/articles/:id` when an article is opened, then prefetches the previous and next articles so that `j` and `k` show content without waiting. A prefetch still in flight when its article is opened is reused. The native app does the same (see [apple-apps.md](apple-apps.md#data-loading)).
 - **Parallel startup.** `GoReadApp.init` in `web/static/js/app.js` requests `/api/feeds`, `/api/feeds/unread-counts`, and the first page of All Articles at once. The All Articles entry is static markup in `index.html`, so its articles do not wait for the feed list.
 - **Article limit on subscribing.** Subscribing to a feed marks at most `max_articles_on_feed_add` of its most recent articles as unread for the user, 100 by default. Each user can change the limit on the account page, and 0 removes it.
 

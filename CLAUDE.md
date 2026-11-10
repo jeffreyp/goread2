@@ -24,6 +24,8 @@ Without an emulator, the Datastore-backed tests skip. To run them, use `make tes
 
 Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`); this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `apple-releases.md`).
 
+`docs/README.md` indexes the guides by audience; add a new guide there and to the map below. Each guide opens with a summary and a table of contents and ends with Related Documentation. Give a guide a Troubleshooting section only when it has troubleshooting content of its own or `docs/troubleshooting.md` has a section on its topic.
+
 ### Writing Style
 
 All documentation in `docs/`, `README.md`, and `CONTRIBUTING.md` must be written in a professional, plain, and precise tone. Write as if for a colleague reading a reference manual, not a friend. Do not add commentary that the content already demonstrates (for example, avoid a line like "the caching strategy is dead simple" above a section that already shows it is simple).
@@ -66,7 +68,7 @@ Before working in a feature area, read the corresponding doc for context. If you
 | Test infrastructure, `test.sh`, `test.yml`, `docs.yml`, `scripts/with-datastore-emulator.sh`, `scripts/check-benchmark-regression.sh`, `cmd/generate-test-articles/` | `docs/testing.md` |
 | Error messages and log lines that operators act on | `docs/troubleshooting.md` |
 | User-facing features (UI, keyboard shortcuts) | `docs/features.md` |
-| `ios/` (SwiftUI app, Xcode project, fastlane) | `docs/ios.md` |
+| `ios/` (SwiftUI app, Xcode project, fastlane) | `docs/apple-apps.md` |
 | `ios/fastlane/`, `ios-release.yml`, `macos-release.yml` | `docs/apple-releases.md` |
 
 ## Commit Conventions

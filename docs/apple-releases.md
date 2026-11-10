@@ -1,6 +1,6 @@
 # Apple Release Guide
 
-Process for releasing the GoRead2 native app on iOS, iPadOS, and macOS. Local development and on-device testing are covered in the [iOS and macOS app guide](ios.md).
+Process for releasing the GoRead2 native app on iOS, iPadOS, and macOS. Local development and on-device testing are covered in the [Apple apps guide](apple-apps.md).
 
 ## Table of Contents
 
@@ -11,6 +11,7 @@ Process for releasing the GoRead2 native app on iOS, iPadOS, and macOS. Local de
 - [Fastlane Updates](#fastlane-updates)
 - [Renewals](#renewals)
 - [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
 
 ## Channels and Status
 
@@ -76,7 +77,7 @@ Repository Settings → Secrets and variables → Actions:
 
 ### Local toolchain
 
-The commands that generate signing assets run on a developer machine with the Ruby version in `ios/.ruby-version`. See [Ruby Toolchain for fastlane](ios.md#ruby-toolchain-for-fastlane).
+The commands that generate signing assets run on a developer machine with the Ruby version in `ios/.ruby-version`. See [Ruby Toolchain for fastlane](apple-apps.md#ruby-toolchain-for-fastlane).
 
 ## iOS and iPadOS
 
@@ -103,7 +104,7 @@ Every push to `main` that touches `ios/**` or the workflow file runs `bundle exe
 
 4. **Trigger the first build** by pushing a commit that touches `ios/**`.
 5. **Confirm the upload.** The build appears in App Store Connect → TestFlight once Apple finishes processing it. `Info.plist` does not set `ITSAppUsesNonExemptEncryption`, so App Store Connect asks for an export compliance answer before the build can be tested.
-6. **Install it.** Add testers to an internal group in App Store Connect, then install the TestFlight app on an iPhone and on an iPad. Test both, since the layouts differ. See [Platform Differences](ios.md#platform-differences).
+6. **Install it.** Add testers to an internal group in App Store Connect, then install the TestFlight app on an iPhone and on an iPad. Test both, since the layouts differ. See [Platform Differences](apple-apps.md#platform-differences).
 
 ### Versioning
 
@@ -137,7 +138,7 @@ Notarization runs twice through `xcrun notarytool`, using the App Store Connect 
 1. The exported `GoRead2.app` is notarized and stapled. Stapling before packaging means the ticket travels with the bundle after it is dragged to `/Applications`, so a first launch on a machine with no network still passes Gatekeeper.
 2. The DMG is built from the stapled app, signed with the same certificate, then notarized and stapled itself. Gatekeeper checks the disk image separately when it is opened from a quarantined download.
 
-The hardened runtime is enabled for both configurations in `ios/GoRead2.xcodeproj`, which notarization requires. The entitlements are the sandboxed set described in [Building for macOS](ios.md#building-for-macos).
+The hardened runtime is enabled for both configurations in `ios/GoRead2.xcodeproj`, which notarization requires. The entitlements are the sandboxed set described in [Building for macOS](apple-apps.md#building-for-macos).
 
 ### Regenerating the signing assets
 
@@ -214,3 +215,8 @@ The certificates repository's deploy key and the App Store Connect API key have 
 | Git authentication failure at the match step | The deploy key or `MATCH_GIT_URL` is wrong. | Replace the key as described in [Certificates repository access](#certificates-repository-access), and confirm that the URL is the SSH form. |
 | match cannot decrypt the repository | `MATCH_PASSWORD` differs from the passphrase that encrypted the assets. | Set the secret to the correct passphrase. |
 | match cannot find a certificate or profile | The assets for that channel have not been generated. | Run the matching `fastlane match` command from a developer machine. CI runs match read-only and cannot create them. |
+
+## Related Documentation
+
+- [Apple Apps](apple-apps.md) - Local development, the macOS build, and on-device testing
+- [Deployment Guide](deployment.md) - The App Engine pipeline, which Apple releases do not affect

@@ -36,7 +36,7 @@ One Go binary serves the web pages, the JSON API, and the scheduled jobs. It run
 ## Clients
 
 - **Web frontend**: Go templates in `web/templates/` render the pages, and the JavaScript in `web/static/js/` drives them through the API. `app.js` is the reader, `account.js` the account page, and `modals.js` the shared dialogs. `make build-frontend` minifies them; the minified files are not committed. [features.md](features.md) describes the interface.
-- **Native app**: a SwiftUI app in `ios/` builds for iOS, iPadOS, and macOS from one target and uses the same API. It signs in through a one-time code exchange and sends the session token as the cookie the web uses (see [authentication.md](authentication.md#native-client-flow-ios-and-macos) and [ios.md](ios.md)).
+- **Native app**: a SwiftUI app in `ios/` builds for iOS, iPadOS, and macOS from one target and uses the same API. It signs in through a one-time code exchange and sends the session token as the cookie the web uses (see [authentication.md](authentication.md#native-client-flow-ios-and-macos) and [apple-apps.md](apple-apps.md)).
 
 Both clients authenticate with the session cookie and send the CSRF token from `GET /auth/me` on every mutating request. [api.md](api.md) documents the API.
 

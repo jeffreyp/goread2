@@ -631,7 +631,7 @@ See [performance.md](performance.md) for the cost-driven optimizations already i
 ## Related Documentation
 
 - [Stripe Setup](stripe.md) - Configuring subscription payments
-- [iOS App](ios.md) - Local development and on-device testing for the native client
+- [Apple Apps](apple-apps.md) - Local development and on-device testing for the native app
 - [Apple Release Guide](apple-releases.md) - TestFlight and notarized DMG releases
 - [Monitoring Setup](monitoring.md) - Dashboards, alerts, and cost tracking
 - [Security Guidelines](security.md) - Security controls and best practices

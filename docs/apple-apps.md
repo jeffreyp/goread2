@@ -1,4 +1,4 @@
-# iOS and macOS Apps
+# Apple Apps
 
 GoRead2 ships a native client for iOS, iPadOS, and macOS, a SwiftUI app in `ios/` that consumes the same REST API as the web frontend. The Xcode project is `ios/GoRead2.xcodeproj`, the bundle identifier is `org.jeffreypratt.goread2`, and the deployment targets are iOS 16 and macOS 13.
 
@@ -21,6 +21,7 @@ This guide covers local development and testing on a physical device. Release di
 - [Free-Account Limitations](#free-account-limitations)
 - [Ruby Toolchain for fastlane](#ruby-toolchain-for-fastlane)
 - [Release Distribution](#release-distribution)
+- [Related Documentation](#related-documentation)
 
 ## Schemes and the API Base URL
 
@@ -198,3 +199,10 @@ fastlane drives the signing and release commands in `ios/`, and the repository f
 ## Release Distribution
 
 iOS and iPadOS are distributed through TestFlight, and macOS as a signed and notarized DMG on the repository's releases page. The process, its one-time setup, and the status of each platform are documented in the [Apple release guide](apple-releases.md).
+
+## Related Documentation
+
+- [Apple Release Guide](apple-releases.md) - TestFlight and notarized DMG releases
+- [Authentication](authentication.md#native-client-flow-ios-and-macos) - The native sign-in handoff
+- [API Reference](api.md) - The endpoints the app calls
+- [Testing Guide](testing.md#local-dev-login-make-dev-login) - Signing the app in to a local server without Google
