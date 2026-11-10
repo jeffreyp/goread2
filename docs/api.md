@@ -92,7 +92,7 @@ OAuth callback handler (configured in Google Cloud Console).
 
 **Error Responses**:
 - `400 Bad Request` - Invalid, expired, or already-used `state`, or a missing `code`
-- `403 Forbidden` - The Google account has a GoRead2 account with a deletion in flight (see [security.md](security.md#account-deletion))
+- `403 Forbidden` - The Google account has a GoRead2 account with a deletion in flight (see [privacy.md](privacy.md#account-deletion))
 - `500 Internal Server Error` - The code exchange, user-info lookup, or session creation failed
 
 #### `POST /auth/token`
@@ -813,7 +813,7 @@ curl "http://localhost:8080/api/account/export" \
 ```
 
 ### `DELETE /api/account`
-Permanently delete the current user's account and data. See [security.md](security.md#account-deletion) for what is deleted, in what order, and what is retained.
+Permanently delete the current user's account and data. See [privacy.md](privacy.md#account-deletion) for what is deleted, in what order, and what is retained.
 
 **Headers**:
 - `X-CSRF-Token` (required) - CSRF token from `/auth/me`

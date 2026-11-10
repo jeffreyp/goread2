@@ -61,8 +61,8 @@ Before working in a feature area, read the corresponding doc for context. If you
 | Monitoring (`monitoring/`) | `docs/monitoring.md` |
 | Performance, query optimisation | `docs/performance.md` |
 | Security controls, input validation | `docs/security.md` |
-| Account deletion, data export, retention (`internal/services/user_data_service.go`, `internal/services/retention_service.go`, `internal/handlers/account_handler.go`) | `docs/security.md` |
-| Cookies or browser storage | `docs/security.md` (cookie inventory) and `web/templates/privacy.html` |
+| Personal data stored, account deletion, data export, retention (`internal/services/user_data_service.go`, `internal/services/retention_service.go`, `internal/handlers/account_handler.go`) | `docs/privacy.md` and `web/templates/privacy.html` |
+| Cookies, browser storage, or third-party requests from the web app | `docs/privacy.md` (cookie inventory) and `web/templates/privacy.html` |
 | Test infrastructure, `test.sh`, `test.yml`, `docs.yml`, `scripts/with-datastore-emulator.sh`, `scripts/check-benchmark-regression.sh`, `cmd/generate-test-articles/` | `docs/testing.md` |
 | Error messages and log lines that operators act on | `docs/troubleshooting.md` |
 | User-facing features (UI, keyboard shortcuts) | `docs/features.md` |

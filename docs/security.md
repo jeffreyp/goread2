@@ -1,6 +1,6 @@
 # Security
 
-The security controls in GoRead2, where each is implemented, and how account data is deleted and retained. GoRead2 runs only on Google App Engine, which serves it over HTTPS.
+The security controls in GoRead2 and where each is implemented. GoRead2 runs only on Google App Engine, which serves it over HTTPS.
 
 ## Table of Contents
 
@@ -11,9 +11,7 @@ The security controls in GoRead2, where each is implemented, and how account dat
 - [Input Validation](#input-validation)
 - [Cross-Origin Requests](#cross-origin-requests)
 - [Content Security Policy](#content-security-policy)
-- [Cookie and Tracking Inventory](#cookie-and-tracking-inventory)
-- [Account Deletion](#account-deletion)
-- [Data Retention](#data-retention)
+- [Personal Data](#personal-data)
 - [Logging and Audit](#logging-and-audit)
 - [Regression Tests and Dependency Scanning](#regression-tests-and-dependency-scanning)
 - [Reporting Security Issues](#reporting-security-issues)
@@ -27,7 +25,7 @@ GoRead2 signs users in with Google OAuth 2.0 and stores no passwords. [authentic
 - **Session cookie**: `HttpOnly`, so scripts cannot read it, and `Secure` in production, which means App Engine or `ENVIRONMENT=production`. A session lasts 7 days and is renewed on use.
 - **SameSite**: the session and OAuth state cookies use `Lax` mode, which withholds them from cross-site subrequests and POSTs while still sending the OAuth state cookie on Google's top-level redirect back to `/auth/callback`.
 - **Cleanup**: the `/cron/cleanup-sessions` job deletes expired sessions once a day.
-- **Environment isolation**: local and production servers use different cookie names (see [Cookie and Tracking Inventory](#cookie-and-tracking-inventory)), so a browser can be signed in to both.
+- **Environment isolation**: local and production servers use different cookie names (see [privacy.md](privacy.md#cookies-and-browser-storage)), so a browser can be signed in to both.
 
 ## Authorization
 
@@ -96,49 +94,9 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 
 `style-src` allows `https://fonts.googleapis.com` for the Inter font stylesheet, and still allows `'unsafe-inline'` because sanitized article content and templates carry inline `style` attributes.
 
-## Cookie and Tracking Inventory
+## Personal Data
 
-The web frontend sets the following cookies and browser storage entries. `web/templates/privacy.html` documents the same list for users and must be updated when an entry is added or removed.
-
-| Name in production | Name on a local server | Type | Set by | Lifetime | Purpose |
-|--------------------|------------------------|------|--------|----------|---------|
-| `session_id` | `session_id_local` | Cookie, strictly necessary | `internal/auth/session.go` | 7 days, renewed on use | Authenticated session |
-| `oauth_state` | `oauth_state_local` | Cookie, strictly necessary | `internal/handlers/auth_handler.go` | 10 minutes | OAuth CSRF state, cleared on callback |
-| `tabletHelpDismissed` | Same | `localStorage`, functional | `web/static/js/app.js` | Persistent | Hides the tablet help hint once dismissed |
-
-GoRead2 uses no third-party analytics or tracking. Every page requests resources from Google Fonts (the Inter stylesheet) and cdn.jsdelivr.net (DOMPurify), which receive the visitor's IP address but set no cookies.
-
-## Account Deletion
-
-`DELETE /api/account` permanently deletes the signed-in user's account. The request must pass CSRF validation and repeat the account email as `confirm_email`, compared case-insensitively. The handler queues the deletion before revoking the user's sessions, so a queueing failure leaves the user signed in and able to retry; it then revokes every session and clears the cookie.
-
-In production, once the deletion is queued, the handler also records a `deletion_requested_at` timestamp on the `User` record (`UserDataService.RequestDeletion`). This timestamp does two things: it lets the data retention run retry a deletion that both Cloud Tasks passes failed to complete (see [Data Retention](#data-retention) below), and it makes `SignInGoogleUser` refuse a re-sign-in on the Google identity while the deletion is in flight, returning `ErrAccountDeletionPending` instead of creating a session. Signing back in through the normal flow after the account is actually gone is unaffected, since deletion removes the `User` record.
-
-`UserDataService.DeleteAccount` (`internal/services/user_data_service.go`) runs the deletion in this order, and every step is idempotent:
-
-1. Delete the user's Stripe customers, which cancels any subscription (see [stripe.md](stripe.md#account-deletion)). If Stripe is not configured and the subscription is still live, the deletion stops here with an error.
-2. Write the account tombstone
-3. Delete `UserArticle`, `UserFeed`, and `Session` records in batches of 500, then the `UserActivity` record that tracks the account's last activity for retention
-4. Pseudonymize audit log entries: the user's email becomes `deleted-user-<id>`, and the IP address of actions the user performed as an admin is cleared. Entries are kept for the admin trail.
-5. Delete the `User` record last, so a partial failure leaves an account that a retry can find and finish
-
-Shared `Feed` and `Article` records are not touched. Other App Engine instances can keep serving a deleted user from their in-memory session cache for up to its 10-minute TTL, so a second pass runs 15 minutes later to remove anything those requests recreated, including Stripe customers, which it finds by their `user_id` metadata (see [deployment.md](deployment.md#async-task-processing-cloud-tasks)).
-
-**Account tombstones** stop a deleted account from starting a second free trial by signing in again. A tombstone is an `AccountTombstone` entity keyed by HMAC-SHA256 of the Google ID under `ACCOUNT_TOMBSTONE_KEY`, holding only the deletion time and an optional expiry. A self-requested deletion writes a tombstone that never expires. A deletion for inactivity writes one that expires 24 months later, so a returning user is offered a new trial after that. Writing a tombstone never shortens an existing one: a permanent tombstone stays permanent, and otherwise the later expiry is kept. An expired tombstone no longer counts at sign-in. A plain hash would not protect the numeric Google ID from brute force. On sign-in, a new account whose Google ID has an unexpired tombstone is created with its trial already ended. Without the key, deletion still works but writes no tombstone, and the sign-in check is skipped. The key is cached once read; a Secret Manager error other than a missing secret is not cached, so the next deletion or sign-in retries the lookup.
-
-## Data Retention
-
-`RetentionService` (`internal/services/retention_service.go`) applies the following policy on the first of each month through `/cron/apply-retention`, and applies the pending-deletion rule alone every day through `/cron/retry-pending-deletions`:
-
-- **Inactive accounts**: an account is deleted, through the same path as `DELETE /api/account`, once it has had no activity for 24 months and its subscription status is `trial`, `cancelled`, or `expired`. Paying accounts (`active`, `past_due`, `unpaid`), admins, and accounts with granted free months are never deleted for inactivity. No warning is sent before deletion. The account's tombstone expires 24 months after the deletion (see [Account Deletion](#account-deletion)).
-- **Pending self-requested deletions**: any account with a `deletion_requested_at` timestamp older than one hour is deleted, regardless of subscription status. This is the backstop for a `DELETE /api/account` deletion whose Cloud Tasks passes both failed (see [Account Deletion Failures](deployment.md#account-deletion-failures)). Because it runs daily, a paying subscriber whose deletion failed during an outage remains subscribed for about a day at most.
-- **Account tombstones**: deleted once expired. Tombstones from self-requested deletions never expire.
-- **Audit log IP addresses**: blanked on entries older than 12 months; the rest of each entry is kept. Each run reads only entries that still have an IP address, so an entry that a failed run missed is cleared by the next successful one.
-- **Request logs**: Cloud Logging's `_Default` bucket keeps App Engine request logs, including IP addresses and user agents, for 30 days.
-
-Activity is a `UserActivity` record per user holding the last time any session for that account was created or used. `SessionManager` writes it at sign-in and then at most once a day per user on each instance, rather than on every request. An account with no `UserActivity` record is not judged by its creation date: the first retention run records it as active as of that run, so it can be deleted for inactivity no sooner than 24 months later.
-
-A failed deletion is logged and counted; the run continues with other accounts and then returns an error so that Cloud Tasks retries it. Each retry repeats only the work still outstanding.
+[privacy.md](privacy.md) describes the personal data GoRead2 stores, the cookies it sets, and how accounts are exported, deleted, and retained.
 
 ## Logging and Audit
 
@@ -172,6 +130,7 @@ See [Troubleshooting Guide](troubleshooting.md#authentication-issues) for sign-i
 
 - [Authentication](authentication.md) - Session and OAuth implementation
 - [Configuration Reference](configuration.md#security) - The variables that configure these controls
+- [Privacy and Personal Data](privacy.md) - Stored data, cookies, export, deletion, and retention
 - [Admin Guide](admin.md) - Admin tokens and the audit log
 - [API Reference](api.md) - Rate limits and authentication per endpoint
 - [Testing Guide](testing.md) - Security regression suite

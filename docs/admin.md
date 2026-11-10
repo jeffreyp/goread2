@@ -348,8 +348,8 @@ curl -X GET "https://yourdomain.com/admin/audit-logs?operation_type=grant_admin"
 
 Audit log entries are stored in the `audit_logs` table on SQLite and as `AuditLog` entities on Datastore. Entries themselves are never deleted, but two rules limit the personal data they hold:
 
-- The monthly data retention run blanks the IP address of entries older than 12 months (see [security.md](security.md#data-retention))
-- Deleting an account replaces the user's email with `deleted-user-<id>` in every entry that names it, and clears the IP address of actions the user performed as an admin (see [security.md](security.md#account-deletion))
+- The monthly data retention run blanks the IP address of entries older than 12 months (see [privacy.md](privacy.md#data-retention))
+- Deleting an account replaces the user's email with `deleted-user-<id>` in every entry that names it, and clears the IP address of actions the user performed as an admin (see [privacy.md](privacy.md#account-deletion))
 
 ### Security and Compliance
 

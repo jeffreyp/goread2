@@ -60,7 +60,8 @@ Deployment is automated via GitHub Actions, not the Makefile. See
 | [**Testing Guide**](docs/testing.md) | Running and writing tests |
 | [**API Reference**](docs/api.md) | API endpoints and usage |
 | [**Configuration**](docs/configuration.md) | Every environment variable, with defaults and secrets |
-| [**Security Guide**](docs/security.md) | Security features and best practices |
+| [**Security Guide**](docs/security.md) | Security controls and where each is implemented |
+| [**Privacy and Personal Data**](docs/privacy.md) | Stored personal data, cookies, export, deletion, and retention |
 | [**Performance & Cost**](docs/performance.md) | Optimization strategies and cost savings |
 | [**Monitoring**](docs/monitoring.md) | Cloud Monitoring dashboards and cost tracking |
 | [**Caching Strategy**](docs/caching.md) | HTTP and application-level caching |
