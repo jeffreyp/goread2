@@ -116,12 +116,11 @@ func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
 
 ### Admin Commands
 
-All admin commands require `ADMIN_TOKEN` authentication.
+All admin commands require `ADMIN_TOKEN` to hold a token created by `create-token` and stored in the database. A random value is rejected (see [admin.md](admin.md#admin-token-system)).
 
 **Always Available:**
 ```bash
-export ADMIN_TOKEN="$(openssl rand -hex 32)"
-export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
+export ADMIN_TOKEN="token_printed_by_create-token"
 
 go run cmd/admin/main.go list-users
 go run cmd/admin/main.go set-admin user@example.com true
@@ -130,10 +129,6 @@ go run cmd/admin/main.go user-info user@example.com
 
 **Only When Enabled:**
 ```bash
-# Requires both tokens for sensitive operations
-export ADMIN_TOKEN="$(openssl rand -hex 32)"
-export ADMIN_TOKEN_VERIFY="$ADMIN_TOKEN"
-
 go run cmd/admin/main.go grant-months user@example.com 3
 ```
 

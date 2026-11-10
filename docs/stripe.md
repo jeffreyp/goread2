@@ -67,17 +67,15 @@ export SUBSCRIPTION_ENABLED=true
 
 ### Production (App Engine)
 
+`app.yaml` carries only the feature flag:
+
 ```yaml
 # app.yaml
 env_variables:
   SUBSCRIPTION_ENABLED: "true"
-  STRIPE_SECRET_KEY: "sk_live_your_secret_key_here"
-  STRIPE_PUBLISHABLE_KEY: "pk_live_your_publishable_key_here"
-  STRIPE_WEBHOOK_SECRET: "whsec_your_webhook_secret_here"
-  STRIPE_PRICE_ID: "price_your_price_id_here"
 ```
 
-In practice these are stored in Google Secret Manager and referenced from `app.yaml`; see [deployment.md](deployment.md#setting-up-google-secret-manager).
+The four Stripe values are stored in Google Secret Manager under the fixed names `stripe-secret-key`, `stripe-publishable-key`, `stripe-webhook-secret`, and `stripe-price-id`. The server fetches them at runtime, and they must not appear in `app.yaml`. See [deployment.md](deployment.md#setting-up-google-secret-manager) for the commands that create them.
 
 ## Step 3: Create Product and Price
 

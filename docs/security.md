@@ -66,26 +66,29 @@ This is the **recommended way** to grant initial admin access for new deployment
 
 ### Environment Variables
 
-**Required for all deployments:**
+The security-relevant variables are listed below. [deployment.md](deployment.md#environment-variables) lists every variable.
+
 ```bash
 # OAuth (required)
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 GOOGLE_REDIRECT_URL="https://yourdomain.com/auth/callback"
 
-# Admin security (highly recommended)
-ADMIN_TOKEN="your-64-char-token"
-INITIAL_ADMIN_EMAILS="your-admin-email@example.com"
-
-# CSRF Protection (recommended for production)
+# CSRF protection (required in production)
 # Generate with: openssl rand -base64 32
-# Ensures CSRF tokens survive application restarts
+# In production the server exits at startup without it. A local server
+# generates a random secret at each start when it is unset.
 CSRF_SECRET="your-base64-encoded-32-byte-secret"
 
-# Optional features
-SUBSCRIPTION_ENABLED=false  # Set to true for paid features
+# Optional
+INITIAL_ADMIN_EMAILS="your-admin-email@example.com"  # Accounts granted admin access
+ACCOUNT_TOMBSTONE_KEY="your-base64-encoded-key"      # Enables deleted-account tombstones
+ALLOWED_ORIGIN="https://other-origin.example.com"    # Allows one cross-origin API caller
 CSP_REPORT_ONLY=false       # Set to true to report CSP violations without blocking them
+SUBSCRIPTION_ENABLED=false  # Set to true for paid features
 ```
+
+`ADMIN_TOKEN` is not part of the server's configuration on App Engine. The admin CLI reads it from the shell that runs it (see [CLI Tool Security](#cli-tool-security-critical)). A server outside App Engine also compares it with the `X-Admin-Token` header on cron and task requests (see [Endpoint Protection](#endpoint-protection)).
 
 ### Database Security
 
@@ -248,7 +251,7 @@ CORS is disabled by default (`internal/middleware/cors.go`). Setting `ALLOWED_OR
 
 ### Endpoint Protection
 
-- **Cron endpoints** - Protected by App Engine cron header validation (production) or admin auth (local)
+- **Cron and task endpoints** - Protected by App Engine's `X-Appengine-Cron` and `X-AppEngine-QueueName` headers in production. Outside App Engine they require an admin session and an `X-Admin-Token` header equal to the server's `ADMIN_TOKEN`, and reject every request when `ADMIN_TOKEN` is unset.
 - **Admin endpoints** - Require authenticated admin session
 - **Unmatched paths** - Return an explicit 404 via `middleware.NotFoundHandler` (`internal/middleware/not_found.go`). Gin's built-in fallback writes its 404 after the gzip middleware has closed its writer, so clients that accept gzip received an empty response that the App Engine frontend reported as status 200, which vulnerability scanners interpreted as a hit.
 

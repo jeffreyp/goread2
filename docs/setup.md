@@ -97,7 +97,7 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 
 3. **Set up environment:**
 
-   Export the required values in the shell; the application does not load `.env` files. `.env.example` lists every variable the application reads, but it is a reference only.
+   Export the required values in the shell; the application does not load `.env` files. `.env.example` describes the configuration variables, as a reference only. [deployment.md](deployment.md#environment-variables) lists every variable.
 
    ```bash
    export GOOGLE_CLIENT_ID="your-client-id"
@@ -143,20 +143,22 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 - `GOOGLE_CLIENT_ID` - Google OAuth client ID
 - `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
 - `GOOGLE_REDIRECT_URL` - OAuth redirect URL
-- `CSRF_SECRET` - HMAC secret for CSRF token generation
-
-`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CSRF_SECRET`, `ADMIN_TOKEN`, and `INITIAL_ADMIN_EMAILS` are not set as plain env vars in production (App Engine). They're fetched from Secret Manager at startup (`internal/secrets/secrets.go`) using secret names configured in `app.yaml`; local development still reads them directly from the environment.
 
 **Optional:**
+- `CSRF_SECRET` - Base64-encoded secret of at least 32 bytes for CSRF tokens. A local server generates a random secret at each start when it is unset, which invalidates CSRF tokens issued before the restart. It is required in production, where the server exits at startup without it.
 - `GOOGLE_CLOUD_PROJECT` - Use Google Cloud Datastore (if set)
 - `PORT` - Server port (default: 8080)
-- `ADMIN_TOKEN` - Bearer token for `cmd/admin` CLI authentication
+- `ADMIN_TOKEN` - Admin token for the `cmd/admin` CLI and `admin.sh`. It must be a token created by `create-token` and stored in the database (see [admin.md](admin.md#admin-token-system)).
 - `INITIAL_ADMIN_EMAILS` - Comma-separated emails granted admin on first login
 - `STRIPE_SECRET_KEY` - Stripe secret key for payment processing
 - `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key for frontend
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook endpoint secret
 - `STRIPE_PRICE_ID` - Stripe price ID for Pro subscription
 - `SUBSCRIPTION_ENABLED` - Enable/disable subscription system (default: false)
+
+These are the variables used in local development. [deployment.md](deployment.md#environment-variables) lists every variable the server reads, with defaults.
+
+On App Engine, the OAuth credentials, `CSRF_SECRET`, `INITIAL_ADMIN_EMAILS`, and the Stripe variables are not set as environment variables. The server fetches them from Secret Manager (`internal/secrets/secrets.go`) under fixed secret names. Only the two OAuth secret names can be changed in `app.yaml` (see [deployment.md](deployment.md#environment-variables-setup)).
 
 ### Database Configuration
 

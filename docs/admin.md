@@ -123,10 +123,9 @@ go run cmd/admin/main.go list-users
 
 The safest way to set up admin access for new deployments:
 
-1. **Set environment variables:**
+1. **Set the environment variable:**
    ```bash
    export INITIAL_ADMIN_EMAILS="your-email@gmail.com"
-   export ADMIN_TOKEN="$(openssl rand -hex 32)"
    ```
 
 2. **Start the application:**
@@ -153,7 +152,8 @@ The sign-in grant also restores admin access if the last admin deletes their own
 - **Purpose**: Contains the actual admin token for authentication
 - **Format**: Exactly 64 lowercase hexadecimal characters; other values are rejected before the database lookup
 - **Security**: Validated against database on every use
-- **Usage**: Required for all admin commands except initial bootstrap
+- **Usage**: Required for all admin commands. The bootstrap `create-token` command accepts any non-empty value.
+- **Server use**: A server outside App Engine separately compares its own `ADMIN_TOKEN`, which may be any string, with the `X-Admin-Token` header on cron and task requests. That value is not validated against the database and is unrelated to CLI tokens (see [deployment.md](deployment.md#environment-variables)).
 
 ### Token Lifecycle Management
 
