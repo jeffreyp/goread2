@@ -245,20 +245,7 @@ See [security.md](security.md) for more details on security implementation.
 
 ### Configuration
 
-Required environment variables:
-
-```bash
-# Google OAuth (required)
-GOOGLE_CLIENT_ID="your-client-id"
-GOOGLE_CLIENT_SECRET="your-client-secret"
-GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
-
-# Optional: fixed staging redirect URL (production App Engine deploys only, see below)
-STAGING_REDIRECT_URL="https://staging-dot-goread-467200.uc.r.appspot.com/auth/callback"
-
-# Optional: Force production mode
-ENVIRONMENT="production"
-```
+[configuration.md](configuration.md#authentication-and-sessions) lists the OAuth and session variables: the three required OAuth variables, `STAGING_REDIRECT_URL`, `SESSION_CACHE_TTL`, and `ENVIRONMENT`, which forces production behavior outside App Engine.
 
 ### Host-Aware Redirect URL (staging support)
 

@@ -22,7 +22,7 @@ Without an emulator, the Datastore-backed tests skip. To run them, use `make tes
 
 ## Documentation Conventions
 
-Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`); this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `feature-flags.md`).
+Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`); this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `apple-releases.md`).
 
 ### Writing Style
 
@@ -45,7 +45,8 @@ Before working in a feature area, read the corresponding doc for context. If you
 |----------------|--------------|
 | `internal/auth/`, OAuth flow, sessions | `docs/authentication.md` |
 | `internal/handlers/admin*`, `cmd/admin/` | `docs/admin.md` |
-| `internal/services/subscription*`, Stripe webhooks | `docs/stripe.md`, `docs/feature-flags.md` |
+| `internal/services/subscription*`, Stripe webhooks | `docs/stripe.md` |
+| Environment variables (`internal/config/`, `internal/secrets/`) | `docs/configuration.md` |
 | `internal/cache/`, HTTP cache headers | `docs/caching.md` |
 | `internal/database/`, schema migrations | `docs/setup.md` (schema section) |
 | API endpoints (`internal/handlers/`) | `docs/api.md` |

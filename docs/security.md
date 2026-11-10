@@ -66,29 +66,7 @@ This is the **recommended way** to grant initial admin access for new deployment
 
 ### Environment Variables
 
-The security-relevant variables are listed below. [deployment.md](deployment.md#environment-variables) lists every variable.
-
-```bash
-# OAuth (required)
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-GOOGLE_REDIRECT_URL="https://yourdomain.com/auth/callback"
-
-# CSRF protection (required in production)
-# Generate with: openssl rand -base64 32
-# In production the server exits at startup without it. A local server
-# generates a random secret at each start when it is unset.
-CSRF_SECRET="your-base64-encoded-32-byte-secret"
-
-# Optional
-INITIAL_ADMIN_EMAILS="your-admin-email@example.com"  # Accounts granted admin access
-ACCOUNT_TOMBSTONE_KEY="your-base64-encoded-key"      # Enables deleted-account tombstones
-ALLOWED_ORIGIN="https://other-origin.example.com"    # Allows one cross-origin API caller
-CSP_REPORT_ONLY=false       # Set to true to report CSP violations without blocking them
-SUBSCRIPTION_ENABLED=false  # Set to true for paid features
-```
-
-`ADMIN_TOKEN` is not part of the server's configuration on App Engine. The admin CLI reads it from the shell that runs it (see [CLI Tool Security](#cli-tool-security-critical)). A server outside App Engine also compares it with the `X-Admin-Token` header on cron and task requests (see [Endpoint Protection](#endpoint-protection)).
+[configuration.md](configuration.md#security) lists the variables that configure these controls: `CSRF_SECRET`, `ACCOUNT_TOMBSTONE_KEY`, `ALLOWED_ORIGIN`, `CSP_REPORT_ONLY`, and `ENVIRONMENT`. Production requires `CSRF_SECRET`; the others are optional. It also describes the two uses of `ADMIN_TOKEN`: the admin CLI reads it from the shell that runs it (see [CLI Tool Security](#cli-tool-security-critical)), and a server outside App Engine compares it with the `X-Admin-Token` header on cron and task requests (see [Endpoint Protection](#endpoint-protection)).
 
 ### Database Security
 

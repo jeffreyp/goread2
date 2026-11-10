@@ -30,7 +30,7 @@ This guide explains how to contribute to GoRead2.
 
 3. **Set up environment**:
 
-   `.env.example` describes the configuration variables, as a reference only. The application does not load `.env` files, so export the needed values in the shell. [docs/deployment.md](docs/deployment.md#environment-variables) lists every variable.
+   `.env.example` describes the configuration variables, as a reference only. The application does not load `.env` files, so export the needed values in the shell. [docs/configuration.md](docs/configuration.md) lists every variable.
 
    ```bash
    export GOOGLE_CLIENT_ID="your-client-id"

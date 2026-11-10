@@ -9,7 +9,7 @@ Installation and configuration guide for running GoRead2 locally.
 - [Stripe Setup (Optional)](#stripe-setup-optional)
 - [Installation](#installation)
 - [Configuration](#configuration)
-- [Feature Flags](#feature-flags)
+- [Subscriptions](#subscriptions)
 - [First Run](#first-run)
 - [Troubleshooting](#troubleshooting)
 - [Development Setup](#development-setup)
@@ -97,7 +97,7 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 
 3. **Set up environment:**
 
-   Export the required values in the shell; the application does not load `.env` files. `.env.example` describes the configuration variables, as a reference only. [deployment.md](deployment.md#environment-variables) lists every variable.
+   Export the required values in the shell; the application does not load `.env` files. `.env.example` describes the configuration variables, as a reference only. [configuration.md](configuration.md) lists every variable.
 
    ```bash
    export GOOGLE_CLIENT_ID="your-client-id"
@@ -139,26 +139,7 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
 
 ### Environment Variables
 
-**Required:**
-- `GOOGLE_CLIENT_ID` - Google OAuth client ID
-- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
-- `GOOGLE_REDIRECT_URL` - OAuth redirect URL
-
-**Optional:**
-- `CSRF_SECRET` - Base64-encoded secret of at least 32 bytes for CSRF tokens. A local server generates a random secret at each start when it is unset, which invalidates CSRF tokens issued before the restart. It is required in production, where the server exits at startup without it.
-- `GOOGLE_CLOUD_PROJECT` - Use Google Cloud Datastore (if set)
-- `PORT` - Server port (default: 8080)
-- `ADMIN_TOKEN` - Admin token for the `cmd/admin` CLI and `admin.sh`. It must be a token created by `create-token` and stored in the database (see [admin.md](admin.md#admin-token-system)).
-- `INITIAL_ADMIN_EMAILS` - Comma-separated emails granted admin on first login
-- `STRIPE_SECRET_KEY` - Stripe secret key for payment processing
-- `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key for frontend
-- `STRIPE_WEBHOOK_SECRET` - Stripe webhook endpoint secret
-- `STRIPE_PRICE_ID` - Stripe price ID for Pro subscription
-- `SUBSCRIPTION_ENABLED` - Enable/disable subscription system (default: false)
-
-These are the variables used in local development. [deployment.md](deployment.md#environment-variables) lists every variable the server reads, with defaults.
-
-On App Engine, the OAuth credentials, `CSRF_SECRET`, `INITIAL_ADMIN_EMAILS`, and the Stripe variables are not set as environment variables. The server fetches them from Secret Manager (`internal/secrets/secrets.go`) under fixed secret names. Only the two OAuth secret names can be changed in `app.yaml` (see [deployment.md](deployment.md#environment-variables-setup)).
+A local server needs only `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URL`, exported as in step 3 above. [configuration.md](configuration.md) lists every variable, with defaults and the values production requires.
 
 ### Database Configuration
 
@@ -171,26 +152,9 @@ On App Engine, the OAuth credentials, `CSRF_SECRET`, `INITIAL_ADMIN_EMAILS`, and
 - **Expiration**: 24-hour session lifetime
 - **Cleanup**: Automatic cleanup of expired sessions
 
-## Feature Flags
+## Subscriptions
 
-### Subscription System Toggle
-
-Control the subscription system using the `SUBSCRIPTION_ENABLED` environment variable:
-
-```bash
-# Enable subscription system
-export SUBSCRIPTION_ENABLED=true
-
-# Disable subscription system (default)
-export SUBSCRIPTION_ENABLED=false
-```
-
-When disabled:
-- **Unlimited feeds** for all users
-- **No billing** or payment processing
-- **Simplified UI** without upgrade prompts
-
-See [Feature Flags Guide](feature-flags.md) for complete details.
+The subscription system is off unless `SUBSCRIPTION_ENABLED=true`, so every local account has unlimited feeds and no billing. To work on billing locally, follow [stripe.md](stripe.md), which also describes what the flag changes.
 
 ## First Run
 

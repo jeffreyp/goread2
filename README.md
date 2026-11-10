@@ -59,7 +59,7 @@ Deployment is automated via GitHub Actions, not the Makefile. See
 | [**Stripe Setup**](docs/stripe.md) | Payment processing configuration |
 | [**Testing Guide**](docs/testing.md) | Running and writing tests |
 | [**API Reference**](docs/api.md) | API endpoints and usage |
-| [**Feature Flags**](docs/feature-flags.md) | Configuration and feature toggles |
+| [**Configuration**](docs/configuration.md) | Every environment variable, with defaults and secrets |
 | [**Security Guide**](docs/security.md) | Security features and best practices |
 | [**Performance & Cost**](docs/performance.md) | Optimization strategies and cost savings |
 | [**Monitoring**](docs/monitoring.md) | Cloud Monitoring dashboards and cost tracking |

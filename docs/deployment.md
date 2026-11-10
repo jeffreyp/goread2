@@ -241,13 +241,7 @@ The native iOS, iPadOS, and macOS apps are released through separate GitHub Acti
 
 ### Environment Variables Setup
 
-**Important**: For Google App Engine deployments, environment variables should be configured in Google Secret Manager for security, not hardcoded in `app.yaml`.
-
-**Secret Reference Convention**: The application supports a `_secret:` prefix for environment variables to explicitly trigger Secret Manager lookups. For example, setting `GOOGLE_CLIENT_ID=_secret:my-client-id` will fetch the secret from Google Secret Manager. This convention is consistent across all credentials (OAuth and Stripe) and prevents accidental conflicts with actual secret values.
-
-**CSRF_SECRET, INITIAL_ADMIN_EMAILS, ACCOUNT_TOMBSTONE_KEY, and the four Stripe variables** all follow the same pattern as `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`: fetched from Secret Manager at runtime (secret names `csrf-secret`, `initial-admin-emails`, `account-tombstone-key`, `stripe-secret-key`, `stripe-publishable-key`, `stripe-webhook-secret`, `stripe-price-id`) and absent from `app.yaml` entirely. The server reads `ADMIN_TOKEN` only outside App Engine, so an App Engine deployment needs no `admin-token` secret (see [Environment Variables](#environment-variables)).
-
-`ACCOUNT_TOMBSTONE_KEY` is the HMAC key for deleted-account tombstones, which stop a deleted account's Google ID from starting a second free trial (see [security.md](security.md#account-deletion)). Without it, account deletion still works but writes no tombstone, and sign-in skips the check. Do not rotate it: tombstones written under the old key stop matching.
+On App Engine, every secret is stored in Google Secret Manager, never in `app.yaml`. The server fetches the OAuth credentials, `CSRF_SECRET`, `INITIAL_ADMIN_EMAILS`, `ACCOUNT_TOMBSTONE_KEY`, and the four Stripe variables at runtime under fixed secret names. [configuration.md](configuration.md#how-values-are-resolved) describes how values are resolved and lists each secret's name.
 
 The Stripe placeholders were removed 2026-07-04 while debugging why the first automated staging deploy (gr-rfd) 503'd: `deploy-staging.yml` deploys `app.yaml` directly with no `envsubst` step, so the old `${STRIPE_SECRET_KEY}`-style placeholders were being deployed as literal, unresolved strings. `secrets.GetStripeCredentials()` read that literal garbage from the env var (non-empty, so it never fell through to Secret Manager) and failed config validation. Same root cause `make substitute-secrets` existed to paper over for manual deploys. `app.yaml` now has zero `${VAR}` placeholders; the manual `make deploy-dev`/`deploy-prod`/`substitute-secrets` Makefile targets were removed once the GitHub Actions pipeline (staging/prod deploy workflows documented above) fully replaced them; see [Deployment Steps](#deployment-steps) below.
 
@@ -309,7 +303,7 @@ The Stripe placeholders were removed 2026-07-04 while debugging why the first au
 
 ### app.yaml Configuration
 
-This is the actual production `app.yaml`. It carries no OAuth or Stripe values at all, only the Secret Manager secret *names* to look up; `CSRF_SECRET`, `INITIAL_ADMIN_EMAILS`, `ACCOUNT_TOMBSTONE_KEY`, and the four Stripe variables aren't listed here because they're fetched from Secret Manager under fixed default names with no `app.yaml` entry needed at all (see the Secret Reference Convention note above).
+This is the actual production `app.yaml`. It carries no OAuth or Stripe values at all, only the Secret Manager secret *names* to look up; `CSRF_SECRET`, `INITIAL_ADMIN_EMAILS`, `ACCOUNT_TOMBSTONE_KEY`, and the four Stripe variables aren't listed here because they're fetched from Secret Manager under fixed default names with no `app.yaml` entry needed at all (see [Environment Variables Setup](#environment-variables-setup)).
 
 ```yaml
 runtime: go126
@@ -538,61 +532,7 @@ Then confirm in the Stripe dashboard that no customer with the user's email rema
 
 ## Environment Variables
 
-The server reads every variable from the process environment. A variable with a Secret Manager name is also fetched from Google Secret Manager under that name when it is unset or holds a `_secret:` reference, which requires `GOOGLE_CLOUD_PROJECT`. On App Engine these values are stored in Secret Manager, not in `app.yaml` (see [Google App Engine Configuration](#google-app-engine-configuration)).
-
-### Required Variables
-
-| Variable | Secret Manager name | Description |
-|----------|---------------------|-------------|
-| `GOOGLE_CLIENT_ID` | `google-client-id` | OAuth 2.0 client ID from the Google Cloud Console |
-| `GOOGLE_CLIENT_SECRET` | `google-client-secret` | OAuth 2.0 client secret from the Google Cloud Console |
-| `GOOGLE_REDIRECT_URL` | None | OAuth callback URL, which must match a redirect URI registered on the OAuth client |
-| `CSRF_SECRET` | `csrf-secret` | Base64-encoded secret of at least 32 bytes for CSRF tokens. In production, which means App Engine or `ENVIRONMENT=production`, the server exits at startup if it is missing, malformed, or too short. Elsewhere the server generates a random secret at each start when it is unset. |
-
-### Optional Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GOOGLE_CLOUD_PROJECT` | Unset | Google Cloud project ID. When set, the server uses Datastore instead of the local SQLite file and can read Secret Manager. |
-| `STAGING_REDIRECT_URL` | Unset | OAuth callback URL for the fixed `staging` version, selected by the request's `Host` header |
-| `SECRET_CLIENT_ID_NAME` | `google-client-id` | Secret Manager name to read the OAuth client ID from |
-| `SECRET_CLIENT_SECRET_NAME` | `google-client-secret` | Secret Manager name to read the OAuth client secret from |
-| `GIN_MODE` | `debug` | Gin framework mode. Production sets `release`. |
-| `PORT` | `8080` | Server port |
-| `ENVIRONMENT` | Unset | Set to `production` to get production behavior outside App Engine: Secure cookies, the production cookie names, and a mandatory `CSRF_SECRET` |
-| `SESSION_CACHE_TTL` | `10m` | In-memory session cache duration, as a Go duration such as `5m` or `1h` |
-| `SUBSCRIPTION_ENABLED` | `false` | Enables the subscription system (see [feature-flags.md](feature-flags.md)) |
-| `INITIAL_ADMIN_EMAILS` | Unset | Comma-separated emails granted admin privileges (see [admin.md](admin.md)). Secret Manager name `initial-admin-emails`. |
-| `ADMIN_TOKEN` | Unset | Has two unrelated uses, described below |
-| `ACCOUNT_TOMBSTONE_KEY` | Unset | HMAC key for deleted-account tombstones (see [security.md](security.md#account-deletion)). Secret Manager name `account-tombstone-key`. |
-| `ALLOWED_ORIGIN` | Unset | The single origin allowed to make cross-origin API requests (see [security.md](security.md#cross-origin-requests)) |
-| `CSP_REPORT_ONLY` | `false` | Set to `true` to send the Content Security Policy in report-only mode (see [security.md](security.md#content-security-policy)) |
-| `CLOUD_TASKS_QUEUE` | `cron-tasks` | Cloud Tasks queue name (see [Async Task Processing](#async-task-processing-cloud-tasks)) |
-| `CLOUD_TASKS_LOCATION` | `us-central1` | Cloud Tasks queue location |
-| `RATE_LIMIT_REQUESTS_PER_MINUTE` | `120` | Maximum feed fetches per minute sent to a single feed domain |
-| `RATE_LIMIT_BURST_SIZE` | `30` | Feed fetches to a single domain allowed in a burst above the per-minute rate |
-| `SCHEDULER_UPDATE_WINDOW` | `15m` | Window across which a feed refresh spreads its fetches, as a Go duration |
-| `SCHEDULER_MIN_INTERVAL` | `5m` | Minimum time between two fetches of the same feed. It must not exceed `SCHEDULER_UPDATE_WINDOW`. |
-| `SCHEDULER_MAX_CONCURRENT` | `10` | Maximum concurrent feed fetches during a refresh |
-| `SCHEDULER_CLEANUP_INTERVAL` | `1h` | Interval of the scheduler's background cleanup loop. The server does not start that loop, so the value has no effect. |
-
-`ADMIN_TOKEN` is read in two places that do not share a value:
-
-- **Admin CLI**: `cmd/admin` and `admin.sh` read it from the environment of the shell that runs them and validate it against the admin tokens stored in the database. The value must be a token printed by `create-token` (see [admin.md](admin.md#admin-token-system)).
-- **Server outside App Engine**: the cron and task endpoints require an admin session and an `X-Admin-Token` header equal to the server's `ADMIN_TOKEN`, which may be any string. The server also accepts the value from the Secret Manager secret `admin-token`. If the value is unset, these endpoints reject every request. On App Engine the server never reads it, because the endpoints check the `X-Appengine-Cron` and `X-AppEngine-QueueName` headers instead.
-
-`make validate-config` also reads `VALIDATE_STRICT`. Set to `true`, it makes missing OAuth credentials and a missing `GOOGLE_CLOUD_PROJECT` errors, as a check before a production deployment.
-
-### Stripe Variables
-
-The server needs these when `SUBSCRIPTION_ENABLED=true`, and while any subscription is still live (see [feature-flags.md](feature-flags.md#when-subscriptions-are-disabled)).
-
-| Variable | Secret Manager name | Description |
-|----------|---------------------|-------------|
-| `STRIPE_SECRET_KEY` | `stripe-secret-key` | Stripe secret key for API calls |
-| `STRIPE_PUBLISHABLE_KEY` | `stripe-publishable-key` | Stripe publishable key for the frontend |
-| `STRIPE_WEBHOOK_SECRET` | `stripe-webhook-secret` | Webhook signing secret for signature verification |
-| `STRIPE_PRICE_ID` | `stripe-price-id` | Stripe price ID for the Pro subscription |
+[configuration.md](configuration.md) lists every variable the server reads, with its default and Secret Manager name.
 
 ## Security Considerations
 

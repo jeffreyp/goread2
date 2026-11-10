@@ -153,7 +153,7 @@ The sign-in grant also restores admin access if the last admin deletes their own
 - **Format**: Exactly 64 lowercase hexadecimal characters; other values are rejected before the database lookup
 - **Security**: Validated against database on every use
 - **Usage**: Required for all admin commands. The bootstrap `create-token` command accepts any non-empty value.
-- **Server use**: A server outside App Engine separately compares its own `ADMIN_TOKEN`, which may be any string, with the `X-Admin-Token` header on cron and task requests. That value is not validated against the database and is unrelated to CLI tokens (see [deployment.md](deployment.md#environment-variables)).
+- **Server use**: A server outside App Engine separately compares its own `ADMIN_TOKEN`, which may be any string, with the `X-Admin-Token` header on cron and task requests. That value is not validated against the database and is unrelated to CLI tokens (see [configuration.md](configuration.md#administration)).
 
 ### Token Lifecycle Management
 
@@ -799,5 +799,5 @@ if err != nil {
 - [API Reference](api.md) - Endpoint documentation
 - [Security Guidelines](security.md) - Admin token security model
 - [Stripe Setup](stripe.md) - Subscription and billing configuration
-- [Feature Flags](feature-flags.md) - Enabling/disabling the subscription system
+- [Configuration Reference](configuration.md) - `ADMIN_TOKEN`, `INITIAL_ADMIN_EMAILS`, and the subscription flag
 - [Troubleshooting Guide](troubleshooting.md) - Common issues

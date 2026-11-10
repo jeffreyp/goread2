@@ -141,7 +141,7 @@ See [stripe.md](stripe.md) for setup and webhook configuration.
 
 ### Subscription Routes Return 404
 
-The checkout, portal, Stripe config, and webhook routes are registered only when `SUBSCRIPTION_ENABLED=true`. See [feature-flags.md](feature-flags.md).
+The checkout, portal, Stripe config, and webhook routes are registered only when `SUBSCRIPTION_ENABLED=true`. See [stripe.md](stripe.md#subscription-flag).
 
 ### Stripe Configuration Errors
 
