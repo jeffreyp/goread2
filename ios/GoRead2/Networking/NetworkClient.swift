@@ -449,28 +449,38 @@ final class NetworkClient {
     /// Go's encoding/json emits time.Time as RFC 3339 with optional
     /// fractional seconds (RFC3339Nano), which no single built-in strategy
     /// parses.
+    // The formatters are built once and shared: a page of articles decodes
+    // two dates per article, and constructing a formatter costs far more
+    // than parsing with one. Both formatter classes are safe to use from
+    // several threads at once.
+    private static let fractionalDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let plainDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    /// RFC3339Nano can carry more fractional digits than
+    /// ISO8601DateFormatter accepts.
+    private static let nanoDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXXXX"
+        return formatter
+    }()
+
     private static func decodeRFC3339Date(_ decoder: Decoder) throws -> Date {
         let container = try decoder.singleValueContainer()
         let string = try container.decode(String.self)
 
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: string) {
-            return date
-        }
-
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        if let date = plain.date(from: string) {
-            return date
-        }
-
-        // RFC3339Nano can carry more fractional digits than
-        // ISO8601DateFormatter accepts.
-        let nano = DateFormatter()
-        nano.locale = Locale(identifier: "en_US_POSIX")
-        nano.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSSXXXXX"
-        if let date = nano.date(from: string) {
+        if let date = fractionalDateFormatter.date(from: string)
+            ?? plainDateFormatter.date(from: string)
+            ?? nanoDateFormatter.date(from: string) {
             return date
         }
 
