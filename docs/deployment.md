@@ -585,7 +585,7 @@ The server reads every variable from the process environment. A variable with a 
 
 ### Stripe Variables
 
-The server needs these when `SUBSCRIPTION_ENABLED=true`, and while any subscription is still live (see [feature-flags.md](feature-flags.md#when-subscription-system-is-disabled)).
+The server needs these when `SUBSCRIPTION_ENABLED=true`, and while any subscription is still live (see [feature-flags.md](feature-flags.md#when-subscriptions-are-disabled)).
 
 | Variable | Secret Manager name | Description |
 |----------|---------------------|-------------|

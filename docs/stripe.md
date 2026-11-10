@@ -11,28 +11,29 @@ Guide for integrating Stripe payment processing with GoRead2's subscription syst
 - [Step 3: Create Product and Price](#step-3-create-product-and-price)
 - [Step 4: Set Up Webhooks](#step-4-set-up-webhooks)
 - [Step 5: Test the Integration](#step-5-test-the-integration)
-- [Stripe Test Cards](#stripe-test-cards)
 - [Subscription Management](#subscription-management)
-- [Configuration Options](#configuration-options)
-- [Monitoring and Analytics](#monitoring-and-analytics)
-- [Security Best Practices](#security-best-practices)
-- [Going Live](#going-live)
+- [Trial and Price](#trial-and-price)
+- [Checking the Webhook Endpoint](#checking-the-webhook-endpoint)
+- [Security](#security)
 - [Troubleshooting](#troubleshooting)
 - [Related Documentation](#related-documentation)
 
 ## Overview
 
-GoRead2 uses Stripe for subscription billing with the following features:
-- **30-day free trial** with 20 feed limit
-- **$9.99/month Pro subscription** for unlimited feeds
-- **Customer portal** for billing management
-- **Webhook integration** for real-time subscription updates
+GoRead2 uses Stripe for subscription billing:
+
+- A new account gets a 30-day free trial limited to 20 feeds.
+- GoRead2 Pro, a $9.99 monthly subscription, removes the feed limit.
+- The Stripe customer portal handles payment methods, invoices, and cancellation.
+- Stripe webhooks keep each account's subscription status current.
+
+Billing is active only when `SUBSCRIPTION_ENABLED=true` (see [feature-flags.md](feature-flags.md)).
 
 ## Prerequisites
 
-1. **Stripe Account**: Create a free account at [stripe.com](https://stripe.com)
-2. **GoRead2 Running**: Have GoRead2 configured with OAuth authentication
-3. **HTTPS in Production**: Required for webhook endpoints
+1. **Stripe account**: create one at [stripe.com](https://stripe.com).
+2. **GoRead2 running locally** with OAuth configured (see [setup.md](setup.md)).
+3. **HTTPS in production**, which Stripe requires for webhook endpoints.
 
 ## Step 1: Get Stripe API Keys
 
@@ -81,26 +82,22 @@ The four Stripe values are stored in Google Secret Manager under the fixed names
 
 Use the setup tool to create the GoRead2 Pro product:
 
+With the variables from Step 2 exported:
+
 ```bash
-# Set your environment variables first
-export STRIPE_SECRET_KEY=sk_test_your_secret_key_here
-export STRIPE_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
-
-# Validate configuration
-go run cmd/setup-stripe/main.go validate
-
-# Create product and price
-go run cmd/setup-stripe/main.go create-product
+go run cmd/setup-stripe/main.go validate        # checks the Stripe configuration
+go run cmd/setup-stripe/main.go create-product  # creates the product and price
 ```
 
-**Output example:**
+`create-product` creates the GoRead2 Pro product with a $9.99 monthly USD price and prints its ID:
+
 ```
-✅ Product created: GoRead2 Pro
-✅ Price created: price_1ABC123def456789
-📝 Add this to your environment: STRIPE_PRICE_ID=price_1ABC123def456789
+✅ Successfully created product and price!
+Price ID: price_1ABC123def456789
+Amount: $9.99/month
 ```
 
-Update the environment variables with the returned Price ID.
+Set `STRIPE_PRICE_ID` to the printed ID.
 
 ## Step 4: Set Up Webhooks
 
@@ -108,30 +105,16 @@ Webhooks notify the application when subscription events occur.
 
 ### Development (using Stripe CLI)
 
-1. **Install Stripe CLI**: Follow instructions at [stripe.com/docs/stripe-cli](https://stripe.com/docs/stripe-cli)
-
-2. **Login to Stripe CLI**:
-   ```bash
-   stripe login
-   ```
-
-3. **Forward webhooks to local server**:
+1. Install the [Stripe CLI](https://docs.stripe.com/stripe-cli) and run `stripe login`.
+2. Forward webhooks to the local server:
    ```bash
    stripe listen --forward-to localhost:8080/webhooks/stripe
    ```
-
-4. **Copy the webhook secret** from CLI output and set as `STRIPE_WEBHOOK_SECRET`
-
-**Example CLI output:**
-```
-> Ready! Your webhook signing secret is whsec_1234567890abcdef...
-```
+3. Set `STRIPE_WEBHOOK_SECRET` to the `whsec_` signing secret the command prints, then restart the server.
 
 ### Production
 
-1. **Create webhook endpoint** in Stripe Dashboard:
-   - Go to **Developers → Webhooks**
-   - Click **Add endpoint**
+1. In the Stripe Dashboard, under **Developers → Webhooks**, add an endpoint:
    - URL: `https://your-domain.com/webhooks/stripe`
    - Events to send:
      - `checkout.session.completed`
@@ -139,43 +122,17 @@ Webhooks notify the application when subscription events occur.
      - `customer.subscription.updated`
      - `customer.subscription.deleted`
 
-   These are the only events `internal/handlers/payment_handler.go` handles; sending others is harmless but they won't trigger any action.
+   These are the only events `internal/handlers/payment_handler.go` handles. Other events are acknowledged and ignored.
 
-2. **Copy the webhook secret** and set as `STRIPE_WEBHOOK_SECRET`
+2. Store the endpoint's signing secret as the `stripe-webhook-secret` secret (see [Step 2](#production-app-engine)).
 
 ## Step 5: Test the Integration
 
-### Start Application
+With the Step 2 variables exported and `stripe listen` running, start the server with `make dev`, then:
 
-```bash
-# Set all environment variables
-export SUBSCRIPTION_ENABLED=true
-export STRIPE_SECRET_KEY=sk_test_...
-export STRIPE_PUBLISHABLE_KEY=pk_test_...
-export STRIPE_WEBHOOK_SECRET=whsec_...
-export STRIPE_PRICE_ID=price_...
-
-# Start GoRead2
-make dev
-```
-
-### Test Subscription Flow
-
-1. **Trigger subscription prompt**:
-   - Add more than 20 feeds to hit the limit
-   - Should see "Upgrade to Pro" modal
-
-2. **Test payment process**:
-   - Click "Upgrade to Pro"
-   - Complete checkout using test card: `4242 4242 4242 4242`
-   - Use any future expiry date, any 3-digit CVC, any ZIP code
-
-3. **Verify subscription activation**:
-   - Should redirect back with unlimited access
-   - Check subscription status in UI
-   - Verify in Stripe Dashboard
-
-### Test Webhook Processing
+1. Add feeds until the 20-feed limit is reached. The web app shows the Upgrade to Pro prompt.
+2. Choose Upgrade to Pro and complete checkout with the test card `4242 4242 4242 4242`, any future expiry date, and any CVC. Stripe's [testing guide](https://docs.stripe.com/testing) lists cards for declines, 3D Secure, and other cases.
+3. Checkout returns to `/subscription/success`, and the account page shows the Pro subscription with unlimited feeds.
 
 Watch the application's stdout (see [troubleshooting.md](troubleshooting.md#logging-and-debugging)) for entries like the following. Stripe object IDs are truncated to their first 8 characters, and user IDs, customer IDs, and subscription metadata are not logged.
 ```
@@ -185,41 +142,11 @@ INFO: Webhook - Received event: customer.subscription.created (ID: evt_...)
 INFO: Webhook - Updated subscription sub_1Abc*** (status: active)
 ```
 
-## Stripe Test Cards
-
-Use these test card numbers for development:
-
-| Card Number | Description |
-|-------------|-------------|
-| `4242 4242 4242 4242` | Successful payment |
-| `4000 0000 0000 0002` | Declined payment |
-| `4000 0025 0000 3155` | Requires authentication (3D Secure) |
-| `4000 0000 0000 9995` | Insufficient funds |
-| `4000 0000 0000 9987` | Lost card |
-
-**For all test cards:**
-- Use any future expiry date (e.g., 12/34)
-- Use any 3-digit CVC (e.g., 123)
-- Use any ZIP code (e.g., 12345)
-
 ## Subscription Management
 
 ### Customer Portal
 
-GoRead2 includes Stripe's Customer Portal for self-service billing:
-
-**Features:**
-- Update payment methods
-- Download invoices
-- Cancel subscriptions
-- View billing history
-- Update billing address
-
-**Access:**
-- Users click "Account" button in GoRead2
-- Creates temporary portal session
-- Redirects to Stripe-hosted portal
-- Returns to GoRead2 after changes
+The Manage Subscription button on the account page calls `POST /api/subscription/portal`, which creates a Stripe customer portal session, and redirects the browser to it. The portal's features are configured in the Stripe Dashboard, not in GoRead2.
 
 ### Account Deletion
 
@@ -227,120 +154,34 @@ Deleting a GoRead2 account (`DELETE /api/account`) deletes the user's Stripe cus
 
 A second deletion pass runs 15 minutes later, after the `User` record is gone, and deletes any customer whose `user_id` metadata names the deleted user. This removes a customer created by a checkout or portal request on another instance's stale session cache after the first pass searched Stripe.
 
-Account deletion uses the Stripe credentials even when `SUBSCRIPTION_ENABLED=false`, so that subscriptions started while the flag was on are still cancelled. Without credentials, deleting an account with a live subscription (status `active`, `past_due`, or `unpaid`) fails and leaves the account in place. See [feature-flags.md](feature-flags.md#when-subscription-system-is-disabled).
+Account deletion uses the Stripe credentials even when `SUBSCRIPTION_ENABLED=false`, so that subscriptions started while the flag was on are still cancelled. Without credentials, deleting an account with a live subscription (status `active`, `past_due`, or `unpaid`) fails and leaves the account in place. See [feature-flags.md](feature-flags.md#when-subscriptions-are-disabled).
 
 Stripe then sends `customer.subscription.deleted`, often while the deletion is still in progress. The subscription update reads and writes the user record in one transaction, so it never recreates a user that the deletion has removed. The webhook handler acknowledges events for missing users instead of failing, so Stripe does not retry them.
 
-### Manual Management
+## Trial and Price
 
-Manage subscriptions through the Stripe Dashboard:
+The trial length and the free-tier feed limit are fixed in code: `FreeTrialFeedLimit` in `internal/services/subscription_service.go` sets the 20-feed limit, and the database layer sets each account's trial end to 30 days after creation. Changing either requires a code change.
 
-1. **View customers**: Customers → All customers
-2. **Subscription details**: Click customer → Subscriptions tab
-3. **Actions available**:
-   - Pause/resume subscriptions
-   - Issue refunds
-   - Update pricing
-   - Cancel subscriptions
-   - View payment history
+The trial is GoRead2's own; the Stripe price carries no trial period, so checkout bills immediately. To change the price, create a new price on the GoRead2 Pro product in the Stripe Dashboard and update the `stripe-price-id` secret. Existing subscriptions keep their original price. The web app shows the price as text in `web/static/js/account.js`, which must be updated to match.
 
-## Configuration Options
+## Checking the Webhook Endpoint
 
-### Subscription Settings
-
-Customize subscription behavior with these environment variables:
+A request without a valid Stripe signature confirms the route is registered and verifying signatures:
 
 ```bash
-# Required - Enable subscription system
-SUBSCRIPTION_ENABLED=true
-
-# Required - Stripe integration
-STRIPE_SECRET_KEY=sk_...
-STRIPE_PUBLISHABLE_KEY=pk_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_ID=price_...
+curl -i -X POST https://your-domain.com/webhooks/stripe -d '{}'
 ```
 
-The 30-day trial length and 20-feed free-tier limit are not configurable via environment variables. They're compile-time constants (`internal/services/subscription_service.go`'s `FreeTrialFeedLimit`, and a hardcoded 30-day offset in the database layer), so changing them requires a code change.
+The expected response is `400` with `Webhook signature verification failed.` A `404` means the route is not registered, because `SUBSCRIPTION_ENABLED` is not `true`. Stripe's own delivery attempts are listed under **Developers → Webhooks** in the Stripe Dashboard.
 
-### Product Configuration
+## Security
 
-The default GoRead2 Pro product includes:
+- Stripe keys are stored in Secret Manager in production and never committed. Rotate a key in the Stripe Dashboard if it is exposed, then update its secret.
+- The webhook handler verifies each event's signature against `STRIPE_WEBHOOK_SECRET` before acting on it.
 
-- **Price**: $9.99/month USD
-- **Billing**: Monthly recurring
-- **Trial**: 30-day free trial
-- **Features**: Unlimited feeds, all features
-
-To modify pricing:
-
-1. Create new price in Stripe Dashboard
-2. Update `STRIPE_PRICE_ID` environment variable
-3. Deploy updated configuration
-
-## Monitoring and Analytics
-
-### Stripe Dashboard
-
-Monitor key metrics:
-
-- **Revenue**: Monthly recurring revenue (MRR)
-- **Subscriptions**: Active, churned, past due
-- **Customers**: New signups, payment failures
-- **Billing**: Successful payments, refunds
-
-- **Events**: Developers → Events (shows all webhook deliveries)
-- **Logs**: Developers → Logs (API request logs)
-- **Webhooks**: Developers → Webhooks (delivery attempts)
-
-### Health Check
-
-Verify the webhook endpoint is reachable:
-
-```bash
-curl -X POST https://your-domain.com/webhooks/stripe \
-  -H "Content-Type: application/json" \
-  -d '{"type": "ping"}'
-
-# Should return 200 OK (may show signature error, but endpoint is reachable)
-```
-
-## Security Best Practices
-
-### API Key Management
-
-- Never commit keys to version control
-- Use environment variables (or Secret Manager, in production) for all deployments
-- Rotate keys if compromised
-- Use restricted keys when possible
-
-### Webhook Security
-
-- Signature verification is handled automatically by the Stripe SDK
-- Use HTTPS for webhook endpoints in production
-
-### Customer Data
-
-- Card details are never stored by GoRead2; Stripe handles PCI compliance
-- GoRead2 stores the Stripe subscription ID on the user record, not the customer ID. Customers are linked to GoRead2 users through `user_id` metadata on the Stripe customer
-- Account deletion deletes the Stripe customer; see [Account Deletion](#account-deletion)
-
-## Going Live
-
-### Pre-Launch Checklist
-
-- [ ] Switch to live Stripe API keys
-- [ ] Update webhook endpoints to production URLs
-- [ ] Test complete subscription flow with real payment
-- [ ] Verify customer portal functionality
-- [ ] Monitor webhook delivery for 24 hours
-
-### Launch Process
-
-1. Update environment variables to live keys
-2. Deploy application with new configuration
-3. Test subscription flow end-to-end
-4. Monitor Stripe Dashboard for issues
+- GoRead2 never handles card details, which Stripe collects on its hosted checkout page.
+- GoRead2 stores the Stripe subscription ID on the user record, not the customer ID. Customers are linked to GoRead2 users through `user_id` metadata on the Stripe customer.
+- Account deletion deletes the Stripe customer (see [Account Deletion](#account-deletion)).
 
 ## Troubleshooting
 

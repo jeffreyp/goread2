@@ -1,208 +1,69 @@
 # Feature Flags
 
-Configuration options for enabling or disabling GoRead2 features, primarily the subscription system.
+GoRead2 has one feature flag, `SUBSCRIPTION_ENABLED`, which turns the subscription system on or off. Production sets it to `true` in `app.yaml`.
 
 ## Table of Contents
 
-- [Subscription System Toggle](#subscription-system-toggle)
-- [Implementation Details](#implementation-details)
-- [Migration Strategy](#migration-strategy)
+- [Configuration](#configuration)
+- [When Subscriptions Are Enabled](#when-subscriptions-are-enabled)
+- [When Subscriptions Are Disabled](#when-subscriptions-are-disabled)
 - [Environment Variables Summary](#environment-variables-summary)
-- [Testing Different Modes](#testing-different-modes)
+- [Checking the Current Mode](#checking-the-current-mode)
 - [Troubleshooting](#troubleshooting)
 - [Related Documentation](#related-documentation)
 
-## Subscription System Toggle
-
-### Overview
-
-The subscription system can be enabled or disabled using the `SUBSCRIPTION_ENABLED` environment variable. This makes it possible to:
-
-- **Safely deploy** subscription features without affecting existing users
-- **Run GoRead2 as a free service** without any subscription limits
-- **Test deployments** without enabling billing
-- **Gradually roll out** subscription functionality
-
-### Configuration
+## Configuration
 
 ```bash
-# Enable subscription system
-export SUBSCRIPTION_ENABLED=true
-
-# Disable subscription system (default)
-export SUBSCRIPTION_ENABLED=false
+export SUBSCRIPTION_ENABLED=true   # enable
+export SUBSCRIPTION_ENABLED=false  # disable (the default)
 ```
 
-**Accepted values:**
-- `true`, `1`, `yes`, `on`, `enabled` → Enables subscriptions
-- `false`, `0`, `no`, `off`, `disabled` → Disables subscriptions
-- Empty or unset → Defaults to disabled (false)
+The server reads the flag once at startup, so a change takes effect on the next restart or deployment. Accepted values, compared without regard to case:
 
-### When Subscription System is ENABLED
+- `true`, `1`, `yes`, `on`, `enabled` enable subscriptions.
+- `false`, `0`, `no`, `off`, `disabled` disable them.
+- An empty or unset value disables them.
 
-**Active Features:**
-- 30-day free trial with 20 feed limit
-- Stripe integration for payments
-- Subscription upgrade prompts
-- Feed limit enforcement
-- Admin commands for subscription management
-- Customer portal access
-- Webhook processing
+## When Subscriptions Are Enabled
 
-**Required Configuration:**
-```bash
-SUBSCRIPTION_ENABLED=true
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_ID=price_...
-```
+- A new account starts a 30-day free trial limited to 20 feeds. Both values are fixed in code (see [stripe.md](stripe.md#trial-and-price)).
+- The server registers the Stripe routes: `GET /api/stripe/config`, `POST /api/subscription/checkout`, `POST /api/subscription/portal`, `POST /webhooks/stripe`, and the `/subscription/success` and `/subscription/cancel` pages.
+- The web app shows upgrade prompts when the feed limit is reached, and the account page offers checkout and the Stripe customer portal.
+- The admin CLI offers `grant-months`.
 
-### When Subscription System is DISABLED
+The four Stripe variables must be configured (see [stripe.md](stripe.md#step-2-configure-environment-variables)).
 
-**Default Behavior:**
-- Unlimited feeds for all users
-- No billing or payment processing
-- No subscription limits or restrictions
-- Simplified UI without upgrade prompts
+## When Subscriptions Are Disabled
 
-**Disabled Features:**
-- Stripe payment processing
-- Subscription upgrade flows
-- Feed limit enforcement
-- Trial period restrictions
-- Customer portal
-- Subscription webhooks
+- `GET /api/subscription` reports every account with `status` `unlimited` and `feed_limit` `-1`, and no feed limit or trial is enforced.
+- The Stripe routes listed above are not registered and return 404.
+- The account page shows "Unlimited Access" and no upgrade or billing controls.
+- The admin CLI refuses `grant-months`.
 
-**Required Configuration:**
-```bash
-SUBSCRIPTION_ENABLED=false
-# Stripe keys not required, unless any user has subscribed
-```
-
-**Disabling after users have subscribed:** disabling the flag does not cancel existing Stripe subscriptions, which keep billing. Keep the Stripe credentials configured while any user has a subscription status of `active`, `past_due`, or `unpaid`. With the flag disabled, the server still loads the credentials when they are available and uses them only for account deletion, which deletes the user's Stripe customers and so cancels the subscription (see [stripe.md](stripe.md#account-deletion)). Without the credentials, deleting an account with a live subscription fails with an error and leaves the account in place, and the server logs a warning at startup.
-
-## Implementation Details
-
-### Backend Changes
-
-**Service Layer:**
-```go
-func (ss *SubscriptionService) CanUserAddFeed(userID int) error {
-    // If subscription system is disabled, allow unlimited feeds
-    if !config.IsSubscriptionEnabled() {
-        return nil
-    }
-    // ... normal subscription logic
-}
-```
-
-**API Routes:**
-- Subscription-related routes only registered when enabled
-- Payment handlers conditionally initialized
-- Webhook endpoints only active when enabled
-
-### Frontend Changes
-
-**Status Display:**
-- Shows "UNLIMITED" badge when subscriptions disabled
-- Hides upgrade buttons and subscription prompts
-- Account page shows unlimited access message
-
-**Error Handling:**
-- No feed limit errors when disabled
-- Subscription-related modals not shown
-- Payment flows completely bypassed
-
-### Admin Commands
-
-All admin commands require `ADMIN_TOKEN` to hold a token created by `create-token` and stored in the database. A random value is rejected (see [admin.md](admin.md#admin-token-system)).
-
-**Always Available:**
-```bash
-export ADMIN_TOKEN="token_printed_by_create-token"
-
-go run cmd/admin/main.go list-users
-go run cmd/admin/main.go set-admin user@example.com true
-go run cmd/admin/main.go user-info user@example.com
-```
-
-**Only When Enabled:**
-```bash
-go run cmd/admin/main.go grant-months user@example.com 3
-```
-
-## Migration Strategy
-
-### Safe Deployment Process
-
-1. **Deploy with subscriptions disabled:**
-   ```bash
-   SUBSCRIPTION_ENABLED=false
-   ```
-
-2. **Test deployment thoroughly:**
-   - Verify unlimited feed access
-   - Check UI shows no subscription prompts
-   - Confirm admin commands work
-
-3. **Enable gradually:**
-   ```bash
-   SUBSCRIPTION_ENABLED=true
-   ```
-
-4. **Full activation:**
-   - Configure Stripe properly
-   - Test payment flows
-   - Enable in production
-
-### Rollback Plan
-
-If issues occur after enabling subscriptions:
-
-```bash
-# Immediate rollback - disable subscriptions
-SUBSCRIPTION_ENABLED=false
-
-# Restart application; users get unlimited access immediately
-```
-
-Existing subscriptions keep billing after a rollback. Cancel them in the Stripe Dashboard if users should no longer be charged.
+**Disabling after users have subscribed:** disabling the flag does not cancel existing Stripe subscriptions, which keep billing. Cancel them in the Stripe Dashboard if users should no longer be charged. Keep the Stripe credentials configured while any user has a subscription status of `active`, `past_due`, or `unpaid`. With the flag disabled, the server still loads the credentials when they are available and uses them only for account deletion, which deletes the user's Stripe customers and so cancels the subscription (see [stripe.md](stripe.md#account-deletion)). Without the credentials, deleting an account with a live subscription fails with an error and leaves the account in place, and the server logs a warning at startup.
 
 ## Environment Variables Summary
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SUBSCRIPTION_ENABLED` | No | `false` | Enable/disable subscription system |
-| `STRIPE_SECRET_KEY` | When enabled, or while any subscription is live | - | Stripe secret key for payments |
-| `STRIPE_PUBLISHABLE_KEY` | When enabled | - | Stripe public key for frontend |
-| `STRIPE_WEBHOOK_SECRET` | When enabled | - | Stripe webhook signature verification |
-| `STRIPE_PRICE_ID` | When enabled | - | Stripe price ID for Pro subscription |
+| `SUBSCRIPTION_ENABLED` | No | `false` | Enables the subscription system |
+| `STRIPE_SECRET_KEY` | When enabled, or while any subscription is live | None | Stripe secret key for API calls |
+| `STRIPE_PUBLISHABLE_KEY` | When enabled | None | Stripe publishable key for the frontend |
+| `STRIPE_WEBHOOK_SECRET` | When enabled | None | Webhook signing secret |
+| `STRIPE_PRICE_ID` | When enabled | None | Stripe price ID for the Pro subscription |
 
-## Testing Different Modes
+[deployment.md](deployment.md#environment-variables) lists every variable the server reads.
 
-### Test Subscription Disabled
+## Checking the Current Mode
 
-```bash
-# Set environment
-SUBSCRIPTION_ENABLED=false
-
-# Verify behavior
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/subscription
-# Should return: {"status": "unlimited", "feed_limit": -1, ...}
-```
-
-### Test Subscription Enabled
+The server logs `Subscription system enabled: true` or `false` at startup. To check from a signed-in session, call `GET /api/subscription` with the session cookie, which is named `session_id_local` on a local server and `session_id` in production:
 
 ```bash
-# Set environment
-SUBSCRIPTION_ENABLED=true
-STRIPE_SECRET_KEY=sk_test_...
-
-# Verify behavior
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/subscription
-# Should return trial status with limits
+curl -b "session_id_local=<session-id>" http://localhost:8080/api/subscription
 ```
+
+With subscriptions disabled, the response contains `"status":"unlimited"` and `"feed_limit":-1`. With them enabled, a new account reports `"status":"trial"` with `"feed_limit":20`.
 
 ## Troubleshooting
 
@@ -211,5 +72,5 @@ See [Troubleshooting Guide](troubleshooting.md#subscription-issues) for routing,
 ## Related Documentation
 
 - [Stripe Setup](stripe.md) - Configuring the Stripe integration this flag gates
-- [Admin Guide](admin.md) - Admin commands referenced above
+- [Admin Guide](admin.md) - The `grant-months` command
 - [Troubleshooting Guide](troubleshooting.md) - Common issues
