@@ -18,6 +18,14 @@ final class NetworkClient {
     /// every mutating request.
     private(set) var csrfToken: String?
 
+    /// The GET /auth/me in flight, shared so that the launch check and any
+    /// mutating request waiting on its CSRF token send one request between
+    /// them. `meGeneration` advances whenever the session changes, so a
+    /// check started for an earlier session cannot store its token. Both are
+    /// guarded by `prefetchLock`.
+    private var meTask: Task<MeResponse, Error>?
+    private var meGeneration = 0
+
     /// The session credential, mirrored from `sessionStore`.
     private(set) var credential: SessionCredential?
 
@@ -243,14 +251,55 @@ final class NetworkClient {
     // MARK: - Auth
 
     /// Fetches the signed-in user and stores the CSRF token for subsequent
-    /// mutating requests.
+    /// mutating requests. Concurrent callers share one request.
     @discardableResult
     func fetchMe() async throws -> MeResponse {
-        let me = try await decode(MeResponse.self, from: get("/auth/me"))
-        if let token = me.csrfToken, !token.isEmpty {
+        try await sharedMeTask().value
+    }
+
+    private func sharedMeTask() -> Task<MeResponse, Error> {
+        prefetchLock.lock()
+        defer { prefetchLock.unlock() }
+        if let meTask { return meTask }
+        let generation = meGeneration
+        let task = Task<MeResponse, Error> {
+            defer { self.finishMeTask(generation: generation) }
+            let me = try self.decode(MeResponse.self, from: await self.get("/auth/me"))
+            if let token = me.csrfToken, !token.isEmpty {
+                self.storeCSRFToken(token, generation: generation)
+            }
+            return me
+        }
+        meTask = task
+        return task
+    }
+
+    private func storeCSRFToken(_ token: String, generation: Int) {
+        prefetchLock.lock()
+        defer { prefetchLock.unlock() }
+        if generation == meGeneration {
             csrfToken = token
         }
-        return me
+    }
+
+    private func finishMeTask(generation: Int) {
+        prefetchLock.lock()
+        defer { prefetchLock.unlock() }
+        if generation == meGeneration {
+            meTask = nil
+        }
+    }
+
+    /// Forgets the CSRF token and any session check in flight; called
+    /// whenever the session changes.
+    private func resetSessionCheck() {
+        prefetchLock.lock()
+        let pending = meTask
+        meTask = nil
+        meGeneration += 1
+        csrfToken = nil
+        prefetchLock.unlock()
+        pending?.cancel()
     }
 
     /// Exchanges the one-time code from the goread2://auth callback for the
@@ -262,7 +311,7 @@ final class NetworkClient {
 
     func logout() async throws {
         _ = try await post("/auth/logout")
-        csrfToken = nil
+        resetSessionCheck()
     }
 
     // MARK: - Session credential
@@ -273,6 +322,7 @@ final class NetworkClient {
         let credential = SessionCredential(cookieName: token.cookieName, token: token.sessionToken)
         try sessionStore.save(credential)
         self.credential = credential
+        resetSessionCheck()
         discardPrefetchedData()
     }
 
@@ -280,7 +330,7 @@ final class NetworkClient {
     func clearSession() {
         sessionStore.clear()
         credential = nil
-        csrfToken = nil
+        resetSessionCheck()
         discardPrefetchedData()
     }
 
@@ -362,9 +412,21 @@ final class NetworkClient {
     /// requests are never retried, since the server may already have
     /// applied the first attempt.
     private func send(_ request: URLRequest) async throws -> Data {
+        var request = request
         if request.httpMethod != "GET" {
             // A mutation can change what the prefetched responses describe.
             discardPrefetchedData()
+            // The signed-in screens appear at launch before GET /auth/me has
+            // returned the CSRF token. A signed-in mutation built without
+            // the token waits for that check, or retries it if it failed,
+            // rather than being rejected by the server.
+            if request.value(forHTTPHeaderField: "X-CSRF-Token") == nil,
+               request.value(forHTTPHeaderField: "Cookie") != nil {
+                _ = try? await fetchMe()
+                if let csrfToken {
+                    request.setValue(csrfToken, forHTTPHeaderField: "X-CSRF-Token")
+                }
+            }
         }
         let retryDelays = request.httpMethod == "GET" ? Self.connectivityRetryDelays : []
         var attempt = 0

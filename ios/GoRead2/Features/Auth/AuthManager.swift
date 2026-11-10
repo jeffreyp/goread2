@@ -6,10 +6,10 @@ import Foundation
 @MainActor
 final class AuthManager: ObservableObject {
     enum SessionState {
-        /// Checking the persisted session on launch.
+        /// Before `bootstrap` has looked for a persisted session.
         case checking
         case signedOut
-        case signedIn(CurrentUser)
+        case signedIn
     }
 
     @Published private(set) var state: SessionState = .checking
@@ -24,21 +24,31 @@ final class AuthManager: ObservableObject {
         self.client = client
     }
 
-    /// Validates the persisted session on launch. Also fetches the CSRF
-    /// token when the session is still valid. The first screen's data loads
-    /// in parallel, since only mutating requests need the CSRF token.
+    /// Restores the persisted session on launch. A stored credential shows
+    /// the signed-in screens at once, while GET /auth/me validates it and
+    /// fetches the CSRF token in the background; the first screen's data
+    /// loads in parallel. Mutating requests wait for that token inside
+    /// `NetworkClient`.
+    ///
+    /// Only a 401 signs the user out. Any other failure, such as no
+    /// connection, leaves the session in place: the screens report their own
+    /// load errors, and the next mutating request retries the check.
     func bootstrap() async {
-        guard client.credential != nil else {
+        guard let credential = client.credential else {
             state = .signedOut
             return
         }
         client.prefetchLaunchData()
+        state = .signedIn
         do {
-            let me = try await client.fetchMe()
-            state = .signedIn(me.user)
+            try await client.fetchMe()
+        } catch NetworkError.unauthorized {
+            // Leave alone a session that replaced this one during the check.
+            if client.credential == credential {
+                clearLocalSession()
+            }
         } catch {
-            client.discardPrefetchedData()
-            state = .signedOut
+            // Not evidence that the session is invalid.
         }
     }
 
@@ -80,8 +90,8 @@ final class AuthManager: ObservableObject {
 
             let token = try await client.exchangeAuthCode(code)
             try client.storeSession(token)
-            let me = try await client.fetchMe()
-            state = .signedIn(me.user)
+            try await client.fetchMe()
+            state = .signedIn
         } catch let authError as ASWebAuthenticationSessionError where authError.code == .canceledLogin {
             // The user dismissed the sheet; not an error.
         } catch is CancellationError {

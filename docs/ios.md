@@ -98,7 +98,9 @@ The API calls behind OPML import and export live in `OPMLTransfer`, shared by th
 
 ## Data Loading
 
-At launch with a stored session, `AuthManager.bootstrap()` validates it with `GET /auth/me` and, in parallel, has `NetworkClient` prefetch the first screen's data: the feed list, the unread counts, and the unread-only first page of All Articles. The view models' first requests for those URLs take over the in-flight responses instead of sending new ones, and a 401 from any of them still signs the user out. Prefetched responses are discarded when no screen takes them within 30 seconds, when any mutating request is sent, and when the session changes.
+At launch with a stored session, `AuthManager.bootstrap()` shows the signed-in screens immediately, without waiting for the server. In the background it validates the session with `GET /auth/me`, which also returns the CSRF token, and has `NetworkClient` prefetch the first screen's data: the feed list, the unread counts, and the unread-only first page of All Articles. The view models' first requests for those URLs take over the in-flight responses instead of sending new ones.
+
+A 401 from the session check or from any other request signs the user out. Any other failure of the check, such as no connection, leaves the session in place: the feed list shows a Couldn't Load Feeds screen with a Try Again button in place of the welcome screen. A mutating request sent before the CSRF token has arrived waits for the session check inside `NetworkClient`, and starts a new check if the earlier one failed. Prefetched responses are discarded when no screen takes them within 30 seconds, when any mutating request is sent, and when the session changes.
 
 Marking an article read or unread adjusts the feed list's unread badge locally rather than refetching the counts. Changes to articles published more than 90 days ago leave the badges alone, matching the window the server counts over. The counts resync with the server whenever the app returns to the foreground, after Mark All Read, and on refresh. On iPhone, the feed list loads once and does not refetch when a pushed article list pops back to it.
 

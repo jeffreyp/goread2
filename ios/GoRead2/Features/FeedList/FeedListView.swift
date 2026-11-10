@@ -128,15 +128,32 @@ struct FeedListView: View {
         }
     }
 
+    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            EmptyStateView(systemImage: "tray",
-                           title: "Welcome to GoRead2!",
-                           message: "Get started by adding your first RSS feed. You can add feeds from your favorite blogs, news sites, and more.")
-            Button("Add Your First Feed") {
-                showingAddFeed = true
+        if viewModel.loadFailed {
+            // The signed-in screens appear at launch before the server has
+            // answered, so a failed first load lands here. Offer a retry
+            // instead of the welcome screen, which would wrongly suggest the
+            // account has no feeds.
+            VStack(spacing: 8) {
+                EmptyStateView(systemImage: "wifi.exclamationmark",
+                               title: "Couldn't Load Feeds",
+                               message: "Check the connection and try again.")
+                Button("Try Again") {
+                    Task { await viewModel.load() }
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
+        } else {
+            VStack(spacing: 8) {
+                EmptyStateView(systemImage: "tray",
+                               title: "Welcome to GoRead2!",
+                               message: "Get started by adding your first RSS feed. You can add feeds from your favorite blogs, news sites, and more.")
+                Button("Add Your First Feed") {
+                    showingAddFeed = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
         }
     }
 

@@ -9,6 +9,9 @@ final class FeedListViewModel: ObservableObject {
     /// True once the first load has completed, successfully or not; gates
     /// the empty state so it never flashes before data arrives.
     @Published private(set) var hasLoaded = false
+    /// True when the latest load failed, so an empty list is a failure to
+    /// reach the server rather than an account with no subscriptions.
+    @Published private(set) var loadFailed = false
     @Published var errorMessage: String?
 
     /// Called when the API reports 401: the session is gone server-side and
@@ -36,7 +39,9 @@ final class FeedListViewModel: ObservableObject {
             async let counts = client.getUnreadCounts()
             self.feeds = try await feeds
             self.unreadCounts = try await counts
+            loadFailed = false
         } catch {
+            loadFailed = !(error is CancellationError)
             handle(error)
         }
         hasLoaded = true
