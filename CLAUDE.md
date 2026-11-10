@@ -55,7 +55,7 @@ Before working in a feature area, read the corresponding doc for context. If you
 | `internal/services/subscription*`, Stripe webhooks, `cmd/setup-stripe/` | `docs/stripe.md` |
 | Environment variables (`internal/config/`, `internal/secrets/`, `cmd/validate-config/`) | `docs/configuration.md` |
 | `internal/cache/`, HTTP cache headers | `docs/caching.md` |
-| `internal/database/`, schema migrations | `docs/admin.md` (Database Schema section) |
+| `internal/database/`, schema migrations, `index.yaml`, how the components fit together | `docs/architecture.md` |
 | API endpoints (`internal/handlers/`) | `docs/api.md` |
 | Deployment config (`app.yaml`, `cron.yaml`, secrets), `deploy-staging.yml`, `deploy-prod.yml`, `rollback.yml`, `scripts/smoke-check.sh`, `scripts/post-promote-health-watch.sh` | `docs/deployment.md` |
 | Monitoring (`monitoring/`) | `docs/monitoring.md` |

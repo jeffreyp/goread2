@@ -192,50 +192,7 @@ The response has this shape, shown with illustrative values:
 
 ## Database Schema
 
-The SQLite definitions of the tables behind admin operations, from `internal/database/schema.go`. Datastore stores the same fields as `User`, `AdminToken`, and `AuditLog` entities.
-
-```sql
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    google_id TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    avatar TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    subscription_status TEXT DEFAULT 'trial',  -- trial, active, past_due, unpaid, cancelled, expired
-    subscription_id TEXT,                      -- Stripe subscription ID
-    trial_ends_at DATETIME,
-    last_payment_date DATETIME,
-    next_billing_date DATETIME,
-    is_admin BOOLEAN DEFAULT 0,
-    free_months_remaining INTEGER DEFAULT 0,
-    max_articles_on_feed_add INTEGER DEFAULT 100,
-    deletion_requested_at DATETIME             -- set while a requested deletion is pending
-);
-
-CREATE TABLE admin_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token_hash TEXT UNIQUE NOT NULL,           -- SHA-256 of the token
-    description TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT 1                -- 0 once revoked
-);
-
-CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    admin_user_id INTEGER,                     -- 0 for the CLI
-    admin_email TEXT NOT NULL,                 -- CLI_ADMIN for the CLI
-    operation_type TEXT NOT NULL,
-    target_user_id INTEGER,
-    target_user_email TEXT,
-    operation_details TEXT,                    -- JSON
-    ip_address TEXT,                           -- CLI for the CLI
-    result TEXT NOT NULL,                      -- success or failure
-    error_message TEXT
-);
-```
+The `users`, `admin_tokens`, and `audit_logs` tables, and their Datastore kinds, are described with the rest of the data model in [architecture.md](architecture.md#data-model).
 
 ## Troubleshooting
 

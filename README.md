@@ -51,6 +51,7 @@ Deployment is automated via GitHub Actions, not the Makefile. See
 |-------|---------|
 | [**Features Guide**](docs/features.md) | Complete feature overview and usage tips |
 | [**Setup Guide**](docs/setup.md) | Complete installation and configuration |
+| [**Architecture**](docs/architecture.md) | How the components fit together, and the data model |
 | [**Authentication Guide**](docs/authentication.md) | OAuth flow, session management, and security |
 | [**Deployment Guide**](docs/deployment.md) | Google App Engine deployment and CI/CD pipeline (includes Google Secret Manager setup) |
 | [**iOS and macOS Apps**](docs/ios.md) | Native Apple clients: local development, the macOS build, and on-device testing |
