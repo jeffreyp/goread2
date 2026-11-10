@@ -194,7 +194,7 @@ See [admin.md](admin.md) for the admin token system and CLI reference.
 | "ADMIN_TOKEN environment variable must be set" | The variable is unset | Set it to a token from `create-token` |
 | "ADMIN_TOKEN must be exactly 64 lowercase hex characters (32 bytes)" | The format is wrong | Use a token from `create-token` |
 | "Invalid ADMIN_TOKEN - token not found in database or inactive" | The token was revoked, belongs to another database, or was not created by `create-token` | Create a new token. A value from `openssl rand` is not valid, because tokens must exist in the database |
-| "No admin users found in database" | Bootstrap needs an existing admin | Sign in once, then set the account as admin. See [admin.md](admin.md#initial-setup-bootstrap) |
+| "No admin users found in database" | Bootstrap needs an existing admin | Sign in once, then set the account as admin. See [admin.md](admin.md#granting-the-first-admin) |
 | "Admin tokens already exist in the database" | A warning when creating another token | Confirm with `y` if authorized |
 
 ### User Not Found
