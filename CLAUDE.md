@@ -7,7 +7,7 @@ GoRead2 is a multi-user RSS reader written in Go with a JavaScript/CSS frontend,
 ```bash
 make build          # compile Go binary
 make build-frontend # minify JS + CSS (requires npm)
-make all            # build-frontend + build + test (default)
+make all            # build-frontend + build + test-quick (default)
 make test           # run test suite via ./test.sh
 make test-datastore # same suite against a temporary Datastore emulator (stopped on exit)
 make lint           # golangci-lint
@@ -26,7 +26,7 @@ Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md
 
 ### Writing Style
 
-All documentation, in `docs/` and at the root, must be written in a professional, plain, and precise tone. Write as if for a colleague reading a reference manual, not a friend. Do not add commentary that the content already demonstrates (for example, avoid a line like "the caching strategy is dead simple" above a section that already shows it is simple).
+All documentation in `docs/`, `README.md`, and `CONTRIBUTING.md` must be written in a professional, plain, and precise tone. Write as if for a colleague reading a reference manual, not a friend. Do not add commentary that the content already demonstrates (for example, avoid a line like "the caching strategy is dead simple" above a section that already shows it is simple).
 
 Follow these rules:
 
@@ -36,6 +36,13 @@ Follow these rules:
 - Do not address the reader as "you" or "your." Refer to features and actions generically instead: write "shows subscribed feeds," not "shows your subscribed feeds"; "on navigating away," not "when you navigate away."
 - Before editing a document, read it in full. Look for existing text to streamline or clarify, rather than only appending new material.
 - Documentation describes the current state of the product, not its history. Do not use a doc as a TODO list or a record of past decisions. Record decisions in `history/`, a commit message, or a bd issue, not in `docs/`.
+- Do not cite bd issue IDs or the dates of past events. Dates that are part of a current fact, such as a renewal date, or that appear in an example command, are fine.
+- Do not use emoji in prose.
+- Do not name real people or give personal email addresses. Refer to roles, such as "the maintainer," and use `example.com` addresses in examples. A configured value that names an account, such as a required GitHub reviewer, may be given as it is configured.
+- Refer to code by file and function or type, such as "`SignInGoogleUser` in `internal/auth/auth.go`," not by line number, which goes stale.
+- Use real values or clearly marked placeholders, such as `<session-id>` or `your-client-id`, in examples. Do not invent identifiers, output, or figures that look real.
+
+These rules govern documentation for people. This file, `CLAUDE.md`, is instructions for coding agents and addresses its reader directly.
 
 ### Feature area → doc mapping
 
@@ -45,26 +52,29 @@ Before working in a feature area, read the corresponding doc for context. If you
 |----------------|--------------|
 | `internal/auth/`, OAuth flow, sessions | `docs/authentication.md` |
 | `internal/handlers/admin*`, `cmd/admin/` | `docs/admin.md` |
-| `internal/services/subscription*`, Stripe webhooks | `docs/stripe.md` |
-| Environment variables (`internal/config/`, `internal/secrets/`) | `docs/configuration.md` |
+| `internal/services/subscription*`, Stripe webhooks, `cmd/setup-stripe/` | `docs/stripe.md` |
+| Environment variables (`internal/config/`, `internal/secrets/`, `cmd/validate-config/`) | `docs/configuration.md` |
 | `internal/cache/`, HTTP cache headers | `docs/caching.md` |
-| `internal/database/`, schema migrations | `docs/setup.md` (schema section) |
+| `internal/database/`, schema migrations | `docs/admin.md` (Database Schema section) |
 | API endpoints (`internal/handlers/`) | `docs/api.md` |
-| Deployment config (`app.yaml`, `cron.yaml`, secrets) | `docs/deployment.md` |
+| Deployment config (`app.yaml`, `cron.yaml`, secrets), `deploy-staging.yml`, `deploy-prod.yml`, `rollback.yml`, `scripts/smoke-check.sh`, `scripts/post-promote-health-watch.sh` | `docs/deployment.md` |
 | Monitoring (`monitoring/`) | `docs/monitoring.md` |
 | Performance, query optimisation | `docs/performance.md` |
 | Security controls, input validation | `docs/security.md` |
-| Test infrastructure, `test.sh` | `docs/testing.md` |
+| Account deletion, data export, retention (`internal/services/user_data_service.go`, `internal/services/retention_service.go`, `internal/handlers/account_handler.go`) | `docs/security.md` |
+| Cookies or browser storage | `docs/security.md` (cookie inventory) and `web/templates/privacy.html` |
+| Test infrastructure, `test.sh`, `test.yml`, `docs.yml`, `scripts/with-datastore-emulator.sh`, `scripts/check-benchmark-regression.sh`, `cmd/generate-test-articles/` | `docs/testing.md` |
+| Error messages and log lines that operators act on | `docs/troubleshooting.md` |
 | User-facing features (UI, keyboard shortcuts) | `docs/features.md` |
 | `ios/` (SwiftUI app, Xcode project, fastlane) | `docs/ios.md` |
 | `ios/fastlane/`, `ios-release.yml`, `macos-release.yml` | `docs/apple-releases.md` |
 
 ## Commit Conventions
 
-Every commit message must include both trailers:
+Every commit message must end with two trailers: one naming the Claude model that wrote the change, and one for the maintainer. For example, from Claude Opus 5.5:
 
 ```
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Co-Authored-By: Jeffrey Pratt <jeffrey@jeffreypratt.org>
 ```
 
