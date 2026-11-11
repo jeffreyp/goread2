@@ -132,7 +132,7 @@ On macOS the same action is also a View menu command, ⌘⏎, published through 
 
 ## Account Data and Deletion
 
-App Store Review Guideline 5.1.1(v) requires an app that creates accounts to let them be deleted from within the app. The Your Data section of Settings provides this, along with the data export, on every platform. Both actions call the same endpoints as the web account page, described in the [API reference](api.md#get-apiaccountexport).
+App Store Review Guideline 5.1.1(v) requires an app that creates accounts to let them be deleted from within the app. Settings provides it on every platform: Export All Data sits in the Your Data section, and Delete Account sits in a section of its own at the bottom of the screen, below Sign Out, so it is not next to an everyday action. Both actions call the same endpoints as the web account page, described in the [API reference](api.md#get-apiaccountexport).
 
 **Export All Data** downloads `GET /api/account/export` and offers it as `goread2-data-<date>.json`. The server streams the articles after sending the response headers, so a failure partway through leaves a truncated body; the app parses the download before offering it and reports an incomplete export as an error instead of saving it. The endpoint is rate-limited to a burst of 3 requests, refilling at 1 per minute, and a rejected request shows the server's rate-limit message.
 

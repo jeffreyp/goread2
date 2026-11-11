@@ -107,6 +107,7 @@ struct SettingsView: View {
             opmlSection
             dataSection
             signOutSection
+            deleteAccountSection
         }
     }
 
@@ -247,16 +248,10 @@ struct SettingsView: View {
                 Label("Export All Data", systemImage: "arrow.down.doc")
             }
             .disabled(viewModel.isBusy)
-            Button(role: .destructive) {
-                viewModel.deleteAccountError = nil
-                viewModel.showingDeleteAccount = true
-            } label: {
-                Label("Delete Account", systemImage: "trash")
-            }
         } header: {
             Text("Your Data")
         } footer: {
-            Text("The export is a JSON file of everything GoRead2 stores for this account: profile, subscription details, feeds, read and starred articles, and sign-in sessions. Deleting the account removes all of it permanently.")
+            Text("The export is a JSON file of everything GoRead2 stores for this account: profile, subscription details, feeds, read and starred articles, and sign-in sessions.")
         }
     }
 
@@ -267,6 +262,23 @@ struct SettingsView: View {
             Button("Sign Out", role: .destructive) {
                 Task { await authManager.signOut() }
             }
+        }
+    }
+
+    // MARK: - Delete account
+
+    /// Last on the screen, in its own section, so it is not next to Sign
+    /// Out or other everyday actions.
+    private var deleteAccountSection: some View {
+        Section {
+            Button(role: .destructive) {
+                viewModel.deleteAccountError = nil
+                viewModel.showingDeleteAccount = true
+            } label: {
+                Label("Delete Account", systemImage: "trash")
+            }
+        } footer: {
+            Text("Deleting the account permanently removes everything GoRead2 stores for it.")
         }
     }
 
