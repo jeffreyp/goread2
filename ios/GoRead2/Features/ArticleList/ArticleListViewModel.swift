@@ -15,10 +15,15 @@ final class ArticleListViewModel: ObservableObject {
     /// the empty state so it never flashes before data arrives.
     @Published private(set) var hasLoaded = false
     @Published private(set) var isLoadingMore = false
-    /// True while a move past the last loaded article waits for the next
-    /// page; the reader shows progress instead of appearing to ignore the
-    /// move.
-    @Published private(set) var isLoadingNextArticle = false
+    /// The article the end-of-list page follows: the one the reader moved
+    /// forward from to reach it. Pages loaded after that move put further
+    /// articles after it, and the reader continues into them.
+    @Published private(set) var endOfListAnchorID: Int?
+    /// True while the end-of-list page looks for further articles in the
+    /// background. An unread-only list can return several empty pages in a
+    /// row while the server scans past read articles, so the reader shows
+    /// the end-of-list page during the search instead of waiting on it.
+    @Published private(set) var isSearchingForMore = false
     /// The All Articles stream opens unread-only, since its common use is
     /// catching up; per-feed lists open showing everything.
     @Published private(set) var unreadOnly: Bool
@@ -48,6 +53,8 @@ final class ArticleListViewModel: ObservableObject {
     /// The next-page fetch in flight, shared so a second caller waits for it
     /// instead of returning early.
     private var loadMoreTask: Task<Bool, Never>?
+    /// The end-of-list page's background search, while it runs.
+    private var searchTask: Task<Void, Never>?
     /// Full-content fetches currently in flight, keyed by article ID.
     private var contentFetches: Set<Int> = []
 
@@ -66,11 +73,14 @@ final class ArticleListViewModel: ObservableObject {
         nextCursor != nil
     }
 
-    /// True when every loaded article is read and the server has no further
-    /// pages. The end-of-list page words itself as "all caught up" only
-    /// then; otherwise it reports how many articles are still unread.
-    var isCaughtUp: Bool {
-        !hasMorePages && articles.allSatisfy(\.isRead)
+    /// The first loaded article after the end-of-list page's anchor, or nil
+    /// when none has loaded. A refresh that drops the anchor also clears
+    /// this, leaving the reader on the end-of-list page.
+    var articleAfterEndOfList: Article? {
+        guard let endOfListAnchorID,
+              let index = articles.firstIndex(where: { $0.id == endOfListAnchorID }),
+              articles.indices.contains(index + 1) else { return nil }
+        return articles[index + 1]
     }
 
     /// The number of loaded articles still unread.
@@ -82,17 +92,21 @@ final class ArticleListViewModel: ObservableObject {
     /// (`offset` 1) or back (`offset` -1) from `currentID`, or nil when
     /// there is nowhere to go.
     ///
-    /// Moving forward from the last loaded article waits for the next page
-    /// when the server has one, and otherwise lands on the end-of-list page
-    /// (`endOfListID`) whatever the read state of the list. It returns nil
-    /// there only when the next page fails to load, which is reported
-    /// through `errorMessage`. From the end-of-list page, moving back
-    /// returns to the last article. With no current article, or one that is
-    /// no longer loaded, the move selects the first article.
-    func destination(from currentID: Int?, offset: Int) async -> Int? {
+    /// Moving forward from the last loaded article lands on the end-of-list
+    /// page (`endOfListID`) at once, whatever the read state of the list,
+    /// and starts a background search for further pages. From the
+    /// end-of-list page, moving back returns to the article it follows, and
+    /// moving forward continues into any article loaded since. With no
+    /// current article, or one that is no longer loaded, the move selects
+    /// the first article.
+    func destination(from currentID: Int?, offset: Int) -> Int? {
         guard !articles.isEmpty else { return nil }
         if currentID == Self.endOfListID {
-            return offset < 0 ? articles[articles.count - 1].id : nil
+            if offset > 0 { return articleAfterEndOfList?.id }
+            if let endOfListAnchorID, articles.contains(where: { $0.id == endOfListAnchorID }) {
+                return endOfListAnchorID
+            }
+            return articles[articles.count - 1].id
         }
         guard let index = articles.firstIndex(where: { $0.id == currentID }) else {
             return articles[0].id
@@ -107,24 +121,42 @@ final class ArticleListViewModel: ObservableObject {
             return articles[target].id
         }
         guard offset > 0 else { return nil }
-
-        isLoadingNextArticle = hasMorePages
-        defer { isLoadingNextArticle = false }
-        while hasMorePages {
-            let loaded = await loadMore()
-            // A refresh during the wait can drop the current article.
-            guard let index = articles.firstIndex(where: { $0.id == currentID }) else { return nil }
-            if articles.indices.contains(index + 1) {
-                return articles[index + 1].id
-            }
-            guard loaded else { return nil }
-        }
+        endOfListAnchorID = articles[index].id
+        searchForMore()
         return Self.endOfListID
+    }
+
+    /// Loads further pages in the background until one adds an article
+    /// after the end-of-list anchor, the server has no more, or a fetch
+    /// fails. No-op while a search is already running.
+    private func searchForMore() {
+        guard searchTask == nil, hasMorePages else { return }
+        isSearchingForMore = true
+        searchTask = Task {
+            while !Task.isCancelled, hasMorePages, articleAfterEndOfList == nil {
+                guard await loadMore() else { break }
+            }
+            // A cancelled search has already been cleared, and a newer one
+            // may have taken its place.
+            guard !Task.isCancelled else { return }
+            isSearchingForMore = false
+            searchTask = nil
+        }
+    }
+
+    /// Stops the end-of-list search and forgets its anchor, for a reload
+    /// that replaces the list.
+    private func resetEndOfList() {
+        searchTask?.cancel()
+        searchTask = nil
+        isSearchingForMore = false
+        endOfListAnchorID = nil
     }
 
     /// Loads the first page, discarding any previously loaded pages. Used
     /// for the initial load, pull-to-refresh, and filter changes.
     func load() async {
+        resetEndOfList()
         do {
             let page = try await client.getArticles(feedID: selection.apiFeedID,
                                                     unreadOnly: unreadOnly)

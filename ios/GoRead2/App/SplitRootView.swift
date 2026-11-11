@@ -177,20 +177,12 @@ struct SplitRootView: View {
     }
 
     /// The j and k shortcuts and the menu commands. Shares the reader's
-    /// rules: forward from the last article waits for the next page or
-    /// lands on the end-of-list page, and back from there returns to the
-    /// last article.
+    /// rules: forward from the last article lands on the end-of-list page,
+    /// and back from there returns to the article it follows.
     private func moveSelection(_ offset: Int) {
-        guard let viewModel = articleViewModel else { return }
-        let origin = selectedArticleID
-        Task {
-            // The move can wait on the next page; drop it if the selection
-            // or the feed has changed in the meantime.
-            guard let destination = await viewModel.destination(from: origin, offset: offset),
-                  selectedArticleID == origin,
-                  articleViewModel === viewModel else { return }
-            selectedArticleID = destination
-        }
+        guard let viewModel = articleViewModel,
+              let destination = viewModel.destination(from: selectedArticleID, offset: offset) else { return }
+        selectedArticleID = destination
     }
 
     private func toggleSelectedRead() {

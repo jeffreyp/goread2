@@ -5,9 +5,10 @@ import SwiftUI
 /// and share. Swiping left/right on the content also moves to the
 /// next/previous article. Opening an article (including via previous/next)
 /// marks it read. The standard edge-swipe pops back to the article list.
-/// Advancing past the last article always lands on an end-of-list page once
-/// no further pages can load, so finishing the list gets an explicit signal
-/// instead of a dead gesture.
+/// Advancing past the last loaded article always lands on an end-of-list
+/// page at once, so finishing the list gets an explicit signal instead of a
+/// dead gesture or a wait. Further pages load behind that page, and the
+/// reader moves into the first article they bring.
 ///
 /// The view shares the list's view model so star and read changes made here
 /// show up in the list rows immediately. The current article is a binding:
@@ -53,11 +54,11 @@ struct ArticleReaderView: View {
                 ContentUnavailableCompatView()
             }
         }
-        .overlay {
-            if viewModel.isLoadingNextArticle {
-                ProgressView("Loading more articles")
-                    .padding()
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .onChange(of: viewModel.articleAfterEndOfList?.id) { nextID in
+            // The end-of-list search found another article: continue into
+            // it, as moving forward would have.
+            if currentID == ArticleListViewModel.endOfListID, let nextID {
+                currentID = nextID
             }
         }
         .navigationTitle(article?.feedTitle ?? "")
@@ -129,23 +130,32 @@ struct ArticleReaderView: View {
     }
 
     /// The end-of-list page, shown one position past the last article.
-    /// It congratulates only when nothing unread remains, and otherwise
-    /// says how many loaded articles are still unread. Swiping right returns
-    /// to the last article, mirroring the reader's swipe navigation.
+    /// It congratulates when no loaded article is unread, and otherwise
+    /// says how many are. While further pages load behind it, a progress
+    /// line says so. Swiping right returns to the previous article,
+    /// mirroring the reader's swipe navigation.
     private var endOfListView: some View {
-        Group {
-            if viewModel.isCaughtUp {
+        VStack(spacing: 16) {
+            let unread = viewModel.unreadLoadedCount
+            if unread == 0 {
                 EmptyStateView(systemImage: "checkmark.circle",
                                title: "All Caught Up!",
                                message: "You've read all your articles. Great job! "
                                    + "New articles will appear here as they're published.")
             } else {
-                let unread = viewModel.unreadLoadedCount
                 EmptyStateView(systemImage: "flag.checkered",
                                title: "That's the Last Article",
                                message: unread == 1
                                    ? "1 article in this list is still unread."
                                    : "\(unread) articles in this list are still unread.")
+            }
+            if viewModel.isSearchingForMore {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Checking for older articles")
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -159,24 +169,19 @@ struct ArticleReaderView: View {
 
     private func canMove(_ offset: Int) -> Bool {
         if currentID == ArticleListViewModel.endOfListID {
-            return offset < 0 && !viewModel.articles.isEmpty
+            if offset > 0 { return viewModel.articleAfterEndOfList != nil }
+            return !viewModel.articles.isEmpty
         }
         guard let index = currentIndex else { return false }
-        // Forward always leads somewhere: the next article, the next page,
-        // or the end-of-list page.
+        // Forward always leads somewhere: the next article or the
+        // end-of-list page.
         return offset > 0 || index > 0
     }
 
     private func move(_ offset: Int) {
-        guard canMove(offset) else { return }
-        let origin = currentID
-        Task {
-            // The move can wait on the next page; drop it if the reader has
-            // moved elsewhere in the meantime.
-            guard let destination = await viewModel.destination(from: origin, offset: offset),
-                  currentID == origin else { return }
-            currentID = destination
-        }
+        guard canMove(offset),
+              let destination = viewModel.destination(from: currentID, offset: offset) else { return }
+        currentID = destination
     }
 }
 

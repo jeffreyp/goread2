@@ -117,12 +117,12 @@ The reader carries its actions in one toolbar group, placed in the bottom bar on
 | Open in Browser | `safari` | Opens the article's source URL outside the reader's `WKWebView`. Hidden when the article carries no http or https URL |
 | Share | `square.and.arrow.up` | Raises the system share sheet for the source URL |
 
-Moving forward from the last article always leads somewhere, whatever the read state of the list, so Next Article is enabled on the last article. `ArticleListViewModel.destination(from:offset:)` decides where, for the toolbar buttons, the swipe gestures, the j and k keys, and the Mac menu commands alike:
+Moving forward from the last article always leads somewhere, whatever the read state of the list, so Next Article is enabled on the last article. `ArticleListViewModel.destination(from:offset:)` decides where, for the toolbar buttons, the swipe gestures, the j and k keys, and the Mac menu commands alike. Moving forward from the last loaded article lands on the end-of-list page at once, without waiting for another page:
 
-- When the server has another page, the move waits for that page and continues into it. The reader shows a "Loading more articles" indicator during the wait. If the page fails to load, the reader stays on the current article and the list reports the error.
-- When no further page exists, the move lands on the end-of-list page. The page reads "All Caught Up!" when every loaded article is read. Otherwise it reads "That's the Last Article" and gives the number of loaded articles still unread, which updates if a pending mark-read request completes.
+- The page reads "All Caught Up!" when no loaded article is unread. Otherwise it reads "That's the Last Article" and gives the number of loaded articles still unread, which updates if a pending mark-read request completes.
+- When the server reports another page, the page shows a "Checking for older articles" line while further pages load in the background. An unread-only list can return several empty pages in a row while the server scans past read articles, so the search continues until a page brings an article, the server has no more, or a fetch fails. When an article arrives, the reader moves into it.
 
-From the end-of-list page, moving back returns to the last article and continues through earlier articles, including read ones.
+From the end-of-list page, moving back returns to the article it follows and continues through earlier articles, including read ones. A refresh of the list stops the background search.
 
 Open in Browser and links tapped inside the article content take the same path, `webPage(item:)` in `SafariView.swift`: an `SFSafariViewController` sheet on iOS and iPadOS, the default browser on macOS. Links with other schemes, such as `mailto`, go to the system handler instead.
 
