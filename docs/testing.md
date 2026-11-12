@@ -18,126 +18,41 @@ Testing guide for GoRead2's multi-user RSS reader application.
 - [Performance Testing](#performance-testing)
 - [Debugging Tests](#debugging-tests)
 - [Troubleshooting](#troubleshooting)
-- [Best Practices](#best-practices)
-- [Contributing](#contributing)
 - [Related Documentation](#related-documentation)
 
 ## Overview
 
 GoRead2's testing infrastructure includes:
-- **Package-level unit tests** across ten `internal/` packages plus `cmd/admin`, with per-package coverage ranging from ~65% to ~85% (see [Coverage Goals](#coverage-goals) below); coverage drifts often enough that the numbers there are a snapshot, not a guarantee; regenerate with `go test ./internal/... -cover` for the current figures
-- **Integration tests** for end-to-end API validation
+- **Package-level unit tests** across nine `internal/` packages plus `cmd/admin`; coverage drifts often enough that no fixed numbers are kept here, regenerate with `go test ./internal/... -cover` for the current figures (see [Coverage Goals](#coverage-goals) below)
+- **Integration tests** for end-to-end API validation (`test/integration/`)
+- **A dedicated security regression suite** (`test/security/`)
 - **Frontend tests** with Jest and jsdom (149 tests across 8 files)
 - **CI/CD integration** with GitHub Actions
 
 ## Current Test Structure
 
 ```
-internal/
+internal/           # Unit tests, one or more <name>_test.go per package
+├── assets/
 ├── auth/
-│   ├── auth_test.go          # Authentication service tests
-│   ├── client_ip_test.go     # Client IP extraction tests
-│   ├── csrf_test.go          # CSRF token generation/validation tests
-│   ├── middleware_test.go    # Authentication middleware tests
-│   ├── rate_limiter_test.go  # Rate limiter unit tests
-│   └── session_test.go       # Session management tests
-│                              # (auth package: ~70% coverage)
 ├── cache/
-│   ├── feed_list_cache_test.go  # Feed list cache tests
-│   └── unread_cache_test.go     # Unread count cache tests
-│                                 # (cache package: ~82% coverage)
 ├── config/
-│   ├── config_test.go        # Configuration management tests
-│   └── validation_test.go    # Config validation tests
-│                              # (config package: ~85% coverage)
-├── database/
-│   ├── schema_test.go               # Core schema and CRUD tests
-│   ├── schema_extended_test.go      # Pagination edge cases and ordering
-│   ├── schema_errors_test.go        # Error paths and boundary conditions
-│   ├── schema_user_article_test.go  # User-article status (read/star) tests
-│   ├── pagination_duplicate_test.go # Duplicate-cursor pagination tests
-│   ├── datastore_test.go            # DatastoreDB interface tests (emulator-gated)
-│   ├── datastore_user_article_test.go # DatastoreDB user-article tests (emulator-gated)
-│   └── schema_bench_test.go         # Benchmarks: BenchmarkGetUserArticlesPaginatedFirstPage,
-│                                    #   ...WithCursor, ...UnreadOnly, BenchmarkGetUserUnreadCounts,
-│                                    #   BenchmarkGetAccountStats + property tests for cursor encode/decode
+├── database/        # datastore_test.go and datastore_user_article_test.go are emulator-gated
 ├── handlers/
-│   ├── admin_handler_test.go    # Admin handler request/error-path tests
-│   ├── article_handler_test.go  # Article handler tests (GetArticle)
-│   ├── auth_handler_test.go     # Auth handler constructor tests
-│   ├── feed_handler_test.go     # Feed handler request/error-path tests (AddFeed, ImportOPML,
-│   │                            #   GetArticles, RefreshFeeds, etc.)
-│   └── payment_handler_test.go  # Payment handler tests incl. signed Stripe webhook payloads
-│                                # (handlers package: ~82% coverage)
 ├── middleware/
-│   ├── body_limit_test.go        # Request body size limit tests
-│   ├── cors_test.go              # CORS middleware tests
-│   ├── request_cache_test.go     # Request-scoped cache invalidation tests
-│   └── security_headers_test.go  # Security header middleware tests
-│                                  # (middleware package: ~84% coverage)
 ├── secrets/
-│   └── secrets_test.go          # Secrets manager tests (~65% coverage)
-├── services/
-│   ├── admin_token_test.go               # SQLite admin token tests (comprehensive)
-│   ├── admin_token_datastore_test.go     # Datastore admin token tests
-│   ├── audit_service_test.go             # Audit logging tests
-│   ├── cloud_tasks_test.go               # Cloud Tasks App Engine version routing tests
-│   ├── edge_cases_test.go                # Cross-cutting edge-case tests
-│   ├── feed_discovery_test.go            # Feed discovery and URL normalization tests
-│   ├── feed_fixtures_test.go             # Contract/fixture tests for RSS 2.0, Atom, RDF feeds
-│   ├── feed_scheduler_test.go            # Feed scheduler concurrency/stress tests
-│   ├── feed_service_test.go              # Feed service core logic tests
-│   ├── feed_service_coverage_test.go     # Additional feed service coverage tests
-│   ├── payment_service_test.go           # Payment service logic tests
-│   ├── payment_service_stripe_test.go    # Stripe customer deletion and subscription webhook tests
-│   │                                     #   against fakeStripe, a local Stripe API server
-│   ├── rate_limiter_test.go              # Concurrency stress tests for the rate limiter
-│   ├── retention_service_test.go         # Inactive-account retention decisions and run failures
-│   ├── subscription_service_test.go      # Subscription service logic tests
-│   ├── url_validator_test.go             # SSRF/URL validation tests
-│   ├── user_data_export_test.go          # Data export audit-log paging and streamed JSON
-│   └── user_data_service_test.go         # Account deletion ordering (Stripe, tombstone, data)
-│                                          # (services package: ~67% coverage)
+└── services/
 cmd/
-└── admin/
-    └── main_test.go      # Admin CLI command handler tests (~52% coverage):
-                           #   set-admin, grant-months, user-info, list-users,
-                           #   fix-subscription, set-subscription-id (Stripe backend
-                           #   mocked via stripe.SetBackend), create-token, list/revoke
-                           #   token, audit-logs; fatal (log.Fatal/os.Exit) error paths
-                           #   verified via subprocess re-exec
+└── admin/           # Admin CLI command tests, including fatal-path tests via subprocess re-exec
 test/
-├── integration/                          # Backend integration tests
-│   ├── account_deletion_trial_test.go    # Re-sign-in after deletion starts with the trial ended (SQLite and Datastore)
-│   ├── admin_integration_test.go         # Admin command integration tests
-│   ├── admin_security_test.go            # Admin security and bootstrap tests
-│   ├── api_test.go                       # End-to-end API testing
-│   ├── cache_test.go                     # Cache integration tests
-│   ├── critical_workflows_test.go        # Critical user-workflow regression tests
-│   ├── feature_flag_test.go              # SUBSCRIPTION_ENABLED toggle behavior tests
-│   ├── main_test.go                      # Shared integration test setup
-│   ├── subscription_integration_test.go  # Subscription lifecycle integration tests
-│   └── workflow_test.go                  # User workflow integration tests
-├── security/                       # Consolidated security regression suite (dedicated CI job, gr-rrt)
-│   ├── auth_test.go                # Every RequireAuth route rejects requests with no session cookie
-│   ├── csrf_test.go                # CSRF token enforcement on mutating endpoints (moved from test/integration/auth_csrf_test.go)
-│   ├── feed_limit_test.go          # POST /api/feeds returns 402 once a trial user hits FreeTrialFeedLimit
-│   └── ssrf_test.go                # POST /api/feeds rejects loopback/link-local/RFC1918/metadata URLs
-└── fixtures/            # Test data and sample feeds
-    └── sample_feeds.go  # Sample data for tests
-web/tests/                     # Frontend tests (149 tests across 8 files)
-├── accessibility.test.js      # ARIA/focus/keyboard accessibility assertions
-├── account-app.test.js        # Account page app tests
-├── app-core.test.js           # Core frontend functionality
-├── article-scroll.test.js     # Article list scrolling on j/k, against the real GoReadApp
-├── error-handler.test.js      # Error handling and toast notifications
-├── goread-app.test.js         # Main app class tests
-├── integration.test.js        # Frontend integration tests
-├── pagination.test.js         # Pagination and Load More functionality
-├── utils.js                   # Frontend test utilities
-├── setup.js                   # Test environment setup
-└── README.md                  # Frontend testing documentation
+├── integration/     # End-to-end API and workflow tests
+├── security/        # Consolidated security regression suite, run as a dedicated CI job
+├── helpers/         # Shared test database, server, and HTTP helpers (see Test Helpers below)
+└── fixtures/        # Sample feed data and on-disk XML fixtures
+web/tests/           # Jest/jsdom frontend tests (149 tests across 8 files)
 ```
+
+Every package's actual test files are listed next to its source under `internal/`, `cmd/admin/`, and `test/`; this doc doesn't keep its own copy of that list, since it goes stale every time a test file is added, renamed, or split.
 
 ## Running Tests
 
@@ -155,7 +70,7 @@ The test script runs:
 - Backend unit and integration tests
 - Frontend JavaScript tests
 - Coverage report generation
-- Code quality checks (linting)
+- Code quality checks (`make lint` remains a separate required gate; the script only warns on a lint failure)
 - Build verification
 - Colored output for better readability
 
@@ -173,10 +88,10 @@ make all
 go test ./internal/...
 
 # Specific package tests
-go test ./internal/config/        # Configuration tests
-go test ./internal/auth/          # Authentication tests  
-go test ./internal/services/      # Service layer tests
-go test ./internal/handlers/      # Handler constructor tests
+go test ./internal/config/
+go test ./internal/auth/
+go test ./internal/services/
+go test ./internal/handlers/
 
 # Integration tests
 go test ./test/integration/...
@@ -195,10 +110,10 @@ go test -v -race ./internal/... ./test/integration/...
 make build            # Build the Go application
 make build-frontend   # Build minified JS/CSS assets
 make validate-config  # Validate application configuration
-make clean           # Remove build artifacts
-make test-quick      # Run tests using Go cache, fast for dev iteration
-make test            # Run full test suite with coverage (CI/pre-deploy)
-make test-race       # Run Go tests with race detector (CI also runs this automatically)
+make clean            # Remove build artifacts
+make test-quick       # Run tests using Go cache, fast for dev iteration
+make test             # Run full test suite with coverage (CI/pre-deploy)
+make test-race        # Run Go tests with race detector (CI also runs this automatically)
 ```
 
 ### Frontend Tests Only
@@ -221,295 +136,22 @@ npm test -- app-core.test.js
 
 ### 1. Package-Level Unit Tests
 
-#### Config Package (`internal/config/config_test.go`)
+Each `internal/` package is tested in isolation, mostly without a database or HTTP server. A few patterns worth knowing before reading a package's test files:
 
-Tests configuration management with 85.2% coverage:
-
-```go
-func TestConfigLoad(t *testing.T) {
-    // Test configuration loading with different environment scenarios
-}
-
-func TestConfigParseBool(t *testing.T) {
-    // Test boolean parsing with various string formats
-}
-
-func TestParseEmailList(t *testing.T) {
-    // Test email list parsing and validation
-}
-```
-
-**Coverage includes:**
-- Environment variable loading and defaults
-- Boolean parsing (true/false, 1/0, yes/no, etc.)
-- Email list parsing from comma-separated strings
-- Configuration singleton behavior
-- Input validation and sanitization
-
-#### Auth Package (`internal/auth/`)
-
-Tests authentication system with 69.6% coverage:
-
-```go
-func TestNewAuthService(t *testing.T) {
-    // Test OAuth service initialization
-}
-
-func TestSessionManager(t *testing.T) {
-    // Test session creation, retrieval, and cleanup
-}
-
-func TestRequireAuth(t *testing.T) {
-    // Test authentication middleware (JSON API endpoints)
-}
-
-func TestOptionalAuth(t *testing.T) {
-    // Test optional authentication middleware
-}
-
-func TestRequireAdmin(t *testing.T) {
-    // Test admin privilege enforcement
-}
-
-func TestCSRFMiddleware(t *testing.T) {
-    // Test CSRF protection middleware
-}
-
-func TestRateLimitMiddleware(t *testing.T) {
-    // Test rate limiting middleware
-}
-
-func TestCSRFConcurrentGeneration(t *testing.T) {
-    // Test concurrent CSRF token generation
-}
-
-func TestRateLimiterConcurrentAccess(t *testing.T) {
-    // Test concurrent rate limiter access
-}
-```
-
-**Coverage includes:**
-- OAuth service configuration and validation
-- Session management (create, get, delete, expiration)
-- Cookie handling and HTTP request/response
-- Context user extraction for Gin and standard contexts
-- Admin user initialization from environment
-- Session cleanup and security
-- **Middleware error paths** (100% coverage):
-  - RequireAuth with no session (JSON error)
-  - RequireAuth with valid session
-  - OptionalAuth with and without session
-  - RequireAdmin with no session, non-admin user, and admin user
-- **CSRF protection** (100% middleware coverage):
-  - Safe methods bypass (GET, HEAD, OPTIONS)
-  - POST without session returns unauthorized
-  - POST without CSRF token returns forbidden
-  - POST with invalid CSRF token returns forbidden
-  - POST with valid CSRF token succeeds
-  - Concurrent token generation safety
-- **Rate limiting** (100% middleware coverage):
-  - Requests within limit allowed
-  - Requests exceeding limit blocked (429 status)
-  - Independent limits per IP address
-  - Concurrent access safety
-  - Cleanup mechanism verification
-
-#### Secrets Package (`internal/secrets/`)
-
-Tests secrets management system with 64.6% coverage:
-
-```go
-func TestGetOAuthCredentials_FromEnvironment(t *testing.T) {
-    // Test OAuth credential retrieval from environment variables
-}
-
-func TestGetStripeCredentials_FromEnvironment(t *testing.T) {
-    // Test Stripe credential retrieval from environment variables
-}
-
-func TestGetSecret_MissingProjectID(t *testing.T) {
-    // Test error handling when GOOGLE_CLOUD_PROJECT is missing
-}
-```
-
-**Coverage includes:**
-- **GetOAuthCredentials** (100% coverage):
-  - Retrieval from environment variables
-  - Secret reference detection (`_secret:` prefix)
-  - Empty credential handling
-  - GOOGLE_CLOUD_PROJECT validation
-  - Custom secret name support
-- **GetStripeCredentials** (100% coverage):
-  - All four Stripe credentials (secret key, publishable key, webhook secret, price ID)
-  - Placeholder value detection
-  - Fallback to Secret Manager when needed
-  - Environment variable priority
-- **GetSecret** (23.1% coverage):
-  - GOOGLE_CLOUD_PROJECT requirement validation
-  - Error handling (requires Secret Manager API mocking for full coverage)
-- **Security validation**:
-  - Missing credential detection
-  - Invalid configuration error messages
-  - Environment-based fallback logic
-
-#### Services Package (`internal/services/`)
-
-Tests service layer logic with 67.2% coverage:
-
-```go
-func TestSubscriptionService(t *testing.T) {
-    // Test feed limits, trial logic, admin privileges
-}
-
-func TestFeedDiscovery(t *testing.T) {
-    // Test URL normalization and validation
-}
-
-func TestGenerateAdminToken(t *testing.T) {
-    // Test cryptographic token generation
-}
-
-func TestValidateAdminToken(t *testing.T) {
-    // Test database-based token validation
-}
-
-func TestListAdminTokens(t *testing.T) {
-    // Test token listing and metadata
-}
-
-func TestRevokeAdminToken(t *testing.T) {
-    // Test token revocation and lifecycle
-}
-
-func TestHasAdminTokens(t *testing.T) {
-    // Test active token detection
-}
-
-func TestDatastoreAdminTokens(t *testing.T) {
-    // Test Google Datastore compatibility
-}
-```
-
-**Coverage includes:**
-- **Admin Token Security System**: Comprehensive testing of the secure admin authentication
-  - Cryptographic token generation (64-char hex, SHA-256 hashing)
-  - Database-based token validation (SQLite + Google Datastore)
-  - Token lifecycle management (create, validate, list, revoke)
-  - Bootstrap security protection requiring existing admin users
-  - Token uniqueness and format validation
-  - Last-used timestamp tracking and proper error handling
-- Feed limit enforcement for trial users
-- Subscription status validation
-- Admin privilege checking
-- URL normalization (protocol addition, validation)
-- Stripe calls, served by `fakeStripe`, an `httptest` server installed with `stripe.SetBackend` that returns canned responses keyed by method and path and records each request: customer deletion scoping by `user_id` metadata, tolerance of `resource_missing`, search query escaping, and the subscription webhook's handling of deleted users
-- Service constructors and dependencies
-
-#### Handlers Package (`internal/handlers/`)
-
-Tests handler request and error paths with 79.3% coverage, using `httptest.ResponseRecorder`
-and a mock `database.Database` per test file (`mockDBFeedHandler`, `mockDBAdminHandler`) rather
-than a full integration setup:
-
-```go
-func TestAddFeed(t *testing.T) {
-    // unauthenticated, invalid JSON, invalid/SSRF-blocked URL,
-    // CanUserAddFeed DB error, trial expired, feed limit reached
-}
-
-func TestWebhookHandler_SubscriptionCreatedOrUpdated(t *testing.T) {
-    // valid Stripe-signed payloads built with webhook.GenerateTestSignedPayload,
-    // success, service error (500), and malformed payload (400) paths
-}
-```
-
-**Coverage includes:**
-- Handler constructor functions and service dependency injection
-- Auth/validation error paths (401 unauthenticated, 400 malformed body/params)
-- Feed handlers: `AddFeed`, `ImportOPML` (missing file, oversized file, malformed XML,
-  subscription-limit errors), `GetArticles` (both the `all` and single-feed branches),
-  `RefreshFeeds` (manual and cron paths)
-- Admin handlers: `SetAdminStatus` and `GrantFreeMonths` error paths (missing param,
-  invalid body, unauthenticated, user not found, DB error), `GetAuditLogs` DB error
-- Payment handlers: Stripe webhook signature verification, all handled event types
-  (`checkout.session.completed`, `customer.subscription.created/updated/deleted`,
-  unhandled event types), and the `subscription_success`/`subscription_cancel` HTML views
-- OAuth login/callback flows (`Login`, `Callback`) remain untested at the unit level:
-  they call out to Google's real OAuth endpoints and are exercised instead by
-  `test/integration` and manual verification. The steps the Google callback shares
-  with the dev login (state consumption, session creation, and the native code
-  handoff) are covered by the `devlogin`-tagged tests in `dev_login_test.go`, which
-  `test.sh` runs with `go test -tags devlogin`
+- **Handlers** (`internal/handlers/`): request and error-path tests using `httptest.ResponseRecorder` and a per-file mock `database.Database` (for example `mockDBFeedHandler`, `mockDBAdminHandler`), not a full integration setup. `Login`/`Callback` are not unit-tested, since they call out to Google's real OAuth endpoints; they're exercised instead by `test/integration` and manual verification. The steps the Google callback shares with the dev login (state consumption, session creation, and the native code handoff) are covered by the `devlogin`-tagged tests in `dev_login_test.go`, which `test.sh` runs with `go test -tags devlogin`.
+- **Services** (`internal/services/`): Stripe calls are served by `fakeStripe`, an `httptest` server installed with `stripe.SetBackend` that returns canned responses keyed by method and path and records each request. This exercises customer deletion scoping by `user_id` metadata, tolerance of `resource_missing`, search query escaping, and the subscription webhook's handling of deleted users, without a real Stripe account. The admin token system (cryptographic generation, database-backed validation, lifecycle, and bootstrap protection) is tested against both SQLite (`admin_token_test.go`) and the Datastore emulator (`admin_token_datastore_test.go`); see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) below.
+- **Database** (`internal/database/`): `datastore_test.go` and `datastore_user_article_test.go` exercise `DatastoreDB`'s implementation of the `database.Database` interface against the CI emulator, mirroring the SQLite `schema_test.go` suite.
+- **Secrets** (`internal/secrets/`): `GetOAuthCredentials` and `GetStripeCredentials` cover environment-variable retrieval, the `_secret:` prefix for Secret Manager references, and fallback priority. `GetSecret` itself is the hardest of the three to cover fully, since the missing-credential and Secret-Manager-error paths need the Secret Manager API mocked.
 
 ### 2. Backend Integration Tests
 
 #### API Endpoints (`test/integration/api_test.go`)
 
-Tests end-to-end API functionality:
+End-to-end tests against the real HTTP handlers: authenticated feed and article operations, user data isolation between two accounts, and status codes for unauthenticated and malformed requests.
 
-```go
-func TestFeedAPIWithAuth(t *testing.T) {
-    // Test authenticated feed operations
-}
+#### User Workflow Tests (`test/integration/workflow_test.go`, `critical_workflows_test.go`)
 
-func TestUserIsolationInAPI(t *testing.T) {
-    // Verify API enforces user data isolation
-}
-```
-
-**Coverage includes:**
-- Authentication requirements
-- Feed CRUD operations
-- Article operations (read/star)
-- User isolation verification
-- Error handling and status codes
-- Full request/response cycle testing
-
-#### User Workflow Tests (`test/integration/workflow_test.go`)
-
-Tests complete end-to-end user workflows through the application:
-
-```go
-func TestUserWorkflowEndToEnd(t *testing.T) {
-    // 11-step complete user journey:
-    // 1. Create user (simulating registration)
-    // 2. Verify no feeds initially
-    // 3. Subscribe to feed
-    // 4. Verify has 1 feed
-    // 5. Add articles to feed
-    // 6. Get user's articles
-    // 7. Mark article as read
-    // 8. Star article
-    // 9. Verify article statuses updated
-    // 10. Delete feed
-    // 11. Verify feed gone
-}
-
-func TestOPMLImportWorkflow(t *testing.T) {
-    // Test OPML import endpoint validation
-}
-
-func TestOPMLExportWorkflow(t *testing.T) {
-    // Test OPML export and verification
-    // Verifies exported OPML contains correct feed URLs
-}
-
-func TestAdminWorkflow(t *testing.T) {
-    // Test admin operations:
-    // - Grant admin privileges
-    // - Verify admin status
-    // - Revoke admin privileges
-}
-```
-
-**Coverage includes:**
-- Complete user registration → feeds → articles → actions flow
-- OPML import/export functionality
-- Admin privilege management
-- Feed subscription lifecycle
-- Article status updates (read/starred)
-- Feed deletion and cleanup
-- API endpoint authentication and CSRF protection
+Complete user journeys through the application over real HTTP: sign-up through feed subscription, article read/star, OPML import and export, and admin privilege grant/verify/revoke.
 
 #### Account Deletion Trial Test (`test/integration/account_deletion_trial_test.go`)
 
@@ -543,114 +185,12 @@ The `benchmark` job in `test.yml` runs the four benchmarks above with `-benchtim
 - The baseline is the most recent successful main-branch run's benchmark output, persisted via `actions/cache` under a rolling key (`bench-baseline-<run-id>`, restored by the `bench-baseline-` prefix).
 - Every push to `main` whose benchmarks *don't* regress rolls the cache forward to that run's numbers, so the baseline tracks main over time instead of drifting stale.
 - `scripts/check-benchmark-regression.sh <baseline> <current> [threshold-pct]` (default threshold 20%) parses `benchstat -format csv` output and fails only on sec/op deltas that are both `>threshold%` *and* statistically significant per benchstat's own test; a change benchstat marks `~` is noise and is ignored regardless of the raw percentage. `B/op`/`allocs/op` deltas are printed but not gated on.
-- A regression fails the `benchmark` job, which fails the whole `test.yml` workflow, which blocks `deploy-staging.yml` (gated on `workflow_run.conclusion == 'success'`, the same mechanism as every other required job; see gr-vu1d's neighbor jobs). On a pull request, a regression additionally posts the benchstat report as a PR comment via `gh pr comment`.
+- A regression fails the `benchmark` job, which fails the whole `test.yml` workflow, which blocks `deploy-staging.yml` (gated on `workflow_run.conclusion == 'success'`, the same mechanism as every other required job). On a pull request, a regression additionally posts the benchstat report as a PR comment via `gh pr comment`.
 - If no cache is available to restore (for example, after cache eviction), the job skips the comparison and bootstraps a fresh baseline.
-
-Part of epic gr-f6v (gr-4o2f).
 
 ### 3. Frontend Tests
 
-#### Error Handling and Toast Notifications (`web/tests/error-handler.test.js`)
-
-Tests error handling system and user notifications with 18 comprehensive tests:
-
-```javascript
-describe('Error Handling and Toast Notifications', () => {
-  test('displays connection indicator for online/offline states', () => {
-    // Test connection status indicator UI
-  });
-
-  test('shows error messages with appropriate types and icons', () => {
-    // Test error display (network, auth, validation, server, unknown)
-  });
-
-  test('handles toast notifications with auto-dismiss', () => {
-    // Test toast creation and lifecycle
-  });
-});
-```
-
-**Coverage includes:**
-- **Connection Indicator UI**: Online/offline state display and transitions
-- **Error Message Display**:
-  - 5 error types with type-specific icons (📡 network, 🔒 auth, ⚠️ validation, 🔧 server, ❌ unknown)
-  - Retry and dismiss button functionality
-  - Error message replacement logic
-  - User-friendly error messages for each type
-- **Toast Notifications**:
-  - 4 toast types with icons (ℹ️ info, ✓ success, ⚠️ warning, ✕ error)
-  - Toast container management
-  - Multiple concurrent toasts support
-  - Animation classes and auto-removal
-- **Error Classification**: HTTP status code mapping (401/403 → auth, 4xx → validation, 5xx → server)
-- **Button Interactions**: Click handlers for retry and dismiss actions
-- **DOM Structure**: Proper HTML element creation and class management
-
-#### Pagination and Load More (`web/tests/pagination.test.js`)
-
-Tests cursor-based pagination and Load More button with 18 comprehensive tests:
-
-```javascript
-describe('Pagination Functionality', () => {
-  test('creates Load More button when more articles available', () => {
-    // Test Load More button creation and styling
-  });
-
-  test('handles button click and loading states', () => {
-    // Test button state transitions (normal → loading → restored)
-  });
-
-  test('manages cursor-based pagination correctly', () => {
-    // Test next_cursor handling and page requests
-  });
-});
-```
-
-**Coverage includes:**
-- **Load More Button**: Creation, removal, styling, and state management
-- **Button States**: Loading text, disabled state, error recovery
-- **Article Rendering**:
-  - Empty state placeholder
-  - Multiple article rendering
-  - Appending new articles on load more
-  - Article index assignment and preservation
-- **Pagination State**: hasMoreArticles flag tracking based on cursor
-- **Cursor Logic**: Using next_cursor for subsequent page requests
-- **Feed-Specific Behavior**: Load More only appears for 'all' feed view
-- **Error Handling**: Button state restoration on loading errors
-- **Index Management**: Sequential article indexing across multiple pages
-
-#### Core Functionality (`web/tests/app-core.test.js`)
-
-Tests frontend application logic with 28 comprehensive tests:
-
-```javascript
-describe('GoReadApp', () => {
-  test('initializes with correct state', () => {
-    // Test app initialization
-  });
-
-  test('handles authentication flow', () => {
-    // Test login/logout functionality
-  });
-
-  test('manages feeds and articles', () => {
-    // Test CRUD operations
-  });
-});
-```
-
-**Coverage includes:**
-- DOM manipulation and rendering
-- Event handling and user interactions
-- API mocking and error scenarios
-- Form validation and submission
-- UI state management
-- Utility function validation
-- Modal and dialog interactions
-- Keyboard navigation
-- Error handling and display
-
+Jest and jsdom cover the frontend across 8 files (149 tests total): `app-core.test.js` (DOM manipulation, event handling, API mocking, form validation, UI state), `error-handler.test.js` (connection indicator, error display by type, toast notifications, HTTP status classification), `pagination.test.js` (Load More button state, cursor-based pagination, article rendering and indexing across pages; Load More appears whenever the server returns a next cursor, for any feed view, not only "all"), `accessibility.test.js` (ARIA, focus, keyboard navigation), `account-app.test.js`, `article-scroll.test.js`, `goread-app.test.js`, and `integration.test.js`. `web/tests/utils.js` and `setup.js` hold shared test utilities and DOM/fetch setup rather than tests themselves.
 
 ## Test Environment
 
@@ -667,27 +207,7 @@ export SUBSCRIPTION_ENABLED=false  # Disable for most tests
 
 ### Database Setup
 
-Tests use in-memory SQLite databases for faster execution:
-
-```go
-// Tests use in-memory databases with shared cache for concurrent access
-func setupTestDB(t *testing.T) *DB {
-    // Creates in-memory database with shared cache
-    db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
-
-    // Enable foreign key constraints
-    _, err = db.Exec("PRAGMA foreign_keys = ON")
-
-    // Each test gets clean database state
-    // In-memory eliminates disk I/O overhead (2-3x faster)
-}
-```
-
-**Performance Benefits:**
-- **2-3x faster** database operations by eliminating disk I/O
-- **Shared cache mode** (`?cache=shared`) enables concurrent access
-- **Automatic cleanup** when database connection closes
-- **Consistent behavior** with production SQLite schema
+Tests use in-memory SQLite (`file::memory:` or `:memory:`) rather than a file on disk, which eliminates disk I/O and lets each test start from a clean, empty schema. `test/helpers.CreateTestDB(t)` creates one and applies the schema; package-level tests inside `internal/database` and `internal/services` open their own in most cases, since they test that package directly rather than through the shared helper.
 
 ### Datastore Emulator (`internal/services/admin_token_datastore_test.go`)
 
@@ -713,7 +233,7 @@ The wrapper listens on `localhost:8081` unless `DATASTORE_EMULATOR_PORT` is set,
 
 Do not start the emulator directly with `gcloud beta emulators datastore start ... &`. A background emulator keeps running and holds its port until it is stopped by hand.
 
-`AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered in `internal/services/admin_token_datastore_test.go`. `DatastoreDB`'s own methods implementing the `database.Database` interface (`AddFeed`, `GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, `GetAccountStats`, `CleanupOrphanedUserArticles`, sessions, audit logs, and the rest) are covered directly (through the `Database` interface, mirroring the SQLite `schema_test.go` suite) in `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, bringing `internal/database` to 80%+ coverage when run against the emulator.
+`AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered in `internal/services/admin_token_datastore_test.go`. `DatastoreDB`'s own methods implementing the `database.Database` interface (`AddFeed`, `GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, `GetAccountStats`, `CleanupOrphanedUserArticles`, sessions, audit logs, and the rest) are covered directly (through the `Database` interface, mirroring the SQLite `schema_test.go` suite) in `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`.
 
 ### Local Dev Login (`make dev-login`)
 
@@ -736,74 +256,38 @@ GOOGLE_CLOUD_PROJECT=goread2-local-test ./scripts/with-datastore-emulator.sh mak
 
 Without Cloud Tasks, `DELETE /api/account` deletes the account in-process and responds `200` instead of queueing it. The iOS and macOS apps use the dev login through their usual sign-in button when the Debug scheme points at the local server (see [apple-apps.md](apple-apps.md#schemes-and-the-api-base-url)).
 
-### HTTP Test Setup
-
-Integration tests use test servers and mock HTTP clients:
+### Test Helpers (`test/helpers/`)
 
 ```go
-// Integration tests setup full HTTP stack
-func setupTestServer(t *testing.T) *httptest.Server {
-    // Creates test server with middleware
-    // Includes authentication and session handling
-}
+// HTTP mocking
+helpers.NewMockFeedServer(t, feedXML)                    // Single feed server
+helpers.NewMockFeedServerWithStatus(t, statusCode, body) // Custom status
+helpers.NewMockMultiFeedServer(t, map[string]string)     // Multiple feeds, keyed by path
+helpers.NewMockHTTPClient(server)                        // Wraps a mock server as an HTTPClient
 
-// Mock HTTP servers for feed fetching tests
-func TestAddFeedWithMockHTTP(t *testing.T) {
-    // Create mock RSS feed server
-    mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Content-Type", "application/xml")
-        w.WriteHeader(http.StatusOK)
-        _, _ = w.Write([]byte(sampleRSS))
-    }))
-    defer mockServer.Close()
+// Database setup
+helpers.CreateTestDB(t)              // In-memory SQLite database.Database
+helpers.CreateTestDatastoreDB(t)     // Datastore database on the emulator; skips unless DATASTORE_EMULATOR_HOST is set
+helpers.CreateTestUser(t, db, ...)   // Test user creation
+helpers.CreateTestFeed(t, db, ...)   // Test feed creation
+helpers.CreateTestArticle(t, db, ...) // Test article creation
 
-    // Inject mock HTTP client into FeedService
-    fs.SetHTTPClient(&mockHTTPClient{Server: mockServer})
+// Server setup
+helpers.SetupTestServer(t)           // Router, handlers, and services over CreateTestDB
+helpers.SetupTestServerWithDB(t, db) // The same server over any database.Database
 
-    // Test feed operations without real network calls
-    feed, err := fs.AddFeed(mockServer.URL)
-}
+// Requests against a TestServer
+ts.CreateAuthenticatedRequest(t, method, url, body, user) // Session cookie + CSRF token set
+helpers.CreateUnauthenticatedRequest(t, method, url, body)
+ts.ExecuteRequest(req)                                     // Returns an httptest.ResponseRecorder
+helpers.AssertJSONResponse(t, rr, expectedStatus, expectedBody)
 ```
 
-**Mock HTTP Infrastructure:**
-- **HTTPClient interface** for dependency injection
-- **Mock feed servers** using `httptest.NewServer`
-- **5-10x faster** feed tests by eliminating network latency
-- **Deterministic testing** with controlled RSS/Atom responses
-- **No SSRF validation** when using mock clients (test-only bypass)
+A mock HTTP client replaces real network calls in feed-fetching tests (feed service's `SetHTTPClient`, injected with `helpers.NewMockHTTPClient`); production code is unaffected, since a nil client falls back to real HTTP. SSRF validation does not run against mock clients, since the mock server's URL is itself a test-only bypass of what would otherwise be blocked.
 
 ## Coverage Goals
 
-Current test coverage status and targets:
-
-### Coverage by Package
-- **Overall project**: Coverage across all packages with significant improvements
-- **Config package**: 85.2% coverage (comprehensive unit tests)
-- **Auth package**: 69.6% coverage (session, middleware, CSRF, rate limiting, OAuth service)
-  - **Middleware**: 100% coverage for RequireAuth, OptionalAuth, RequireAdmin
-  - **CSRF Manager**: 100% coverage for CSRFMiddleware, concurrent token generation
-  - **Rate Limiter**: 100% coverage for RateLimitMiddleware, concurrent access, cleanup
-- **Secrets package**: 64.6% coverage (OAuth and Stripe credential management)
-  - **GetOAuthCredentials**: 100% coverage for environment variable handling
-  - **GetStripeCredentials**: 100% coverage for all Stripe credentials
-  - **GetSecret**: 23.1% coverage (environment validation, requires Secret Manager API mocking for full coverage)
-- **Services package**: 67.2% coverage (subscription logic, feed discovery, feed scheduling, **comprehensive admin token security**)
-- **Handlers package**: 79.3% coverage (request/error-path tests for feed, admin, and payment
-  handlers; OAuth `Login`/`Callback` remain unit-untested; see Handlers Package section above)
-- **Integration tests**: Full end-to-end API validation with user isolation testing, plus admin security testing
-- **Frontend**: 149 tests across 8 files covering core functionality, error handling, accessibility, pagination, account-page behavior, and article list scrolling
-  - **Core frontend tests**: 28 tests for DOM manipulation, events, forms, utilities
-  - **Error handler tests**: 18 tests for connection monitoring, error display, toast notifications
-  - **Pagination tests**: 18 tests for Load More button, cursor-based pagination, article rendering
-- **Admin Token System**: Comprehensive test coverage for the secure authentication system
-  - 6 SQLite backend test suites with 20+ individual test cases
-  - 6 Datastore backend test suites, run for real against a Cloud Datastore emulator in CI (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above); skip locally unless `DATASTORE_EMULATOR_HOST` is set
-  - Security integration tests for bootstrap protection and token lifecycle
-  - Edge case and error handling tests
-- **Overall system**: All core tests passing successfully
-- **DatastoreDB interface coverage**: `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go` exercise `DatastoreDB`'s ~30 `database.Database` interface methods (feeds, articles, users, subscriptions/admin, sessions, audit logs) against the CI emulator, mirroring the SQLite `schema_test.go` suite; `internal/database` reaches 80%+ coverage when run with `DATASTORE_EMULATOR_HOST` set (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above)
-
-### Viewing Coverage
+Package-level coverage is not tracked as a fixed number in this doc, since it drifts with every test added or removed; a stale percentage is worse than none. Regenerate it directly:
 
 ```bash
 # Generate overall coverage report
@@ -825,6 +309,8 @@ open coverage.html                    # Backend HTML report
 open web/coverage/index.html          # Frontend coverage
 ```
 
+The Datastore-backed tests only run, and only count toward `internal/database` and `internal/services` coverage, with `DATASTORE_EMULATOR_HOST` set (see [Datastore Emulator](#datastore-emulator-internalservicesadmin_token_datastore_testgo) above); `make test-datastore` or `./scripts/with-datastore-emulator.sh go test -coverprofile=coverage.out ./internal/...` includes them.
+
 ## Test Data and Fixtures
 
 ### Sample Data (`test/fixtures/sample_feeds.go`)
@@ -844,35 +330,9 @@ var SampleFeeds = []Feed{
 }
 ```
 
-### Test Feed Examples
-
-RSS and Atom feed examples for parser testing:
-
-```xml
-<!-- RSS 2.0 Sample -->
-<rss version="2.0">
-  <channel>
-    <title>Test RSS Feed</title>
-    <item>
-      <title>Test Article</title>
-      <description>Test content</description>
-    </item>
-  </channel>
-</rss>
-
-<!-- Atom Sample -->
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <title>Test Atom Feed</title>
-  <entry>
-    <title>Test Article</title>
-    <content>Test content</content>
-  </entry>
-</feed>
-```
-
 ### Feed Format Fixtures (`test/fixtures/feeds/`)
 
-On-disk XML fixtures (as opposed to the inline string constants above) exercised by the table-driven suite in `internal/services/feed_fixtures_test.go` (`TestParseFeedFixtures`):
+On-disk XML fixtures exercised by the table-driven suite in `internal/services/feed_fixtures_test.go` (`TestParseFeedFixtures`):
 
 - `rss2_standard.xml`, `atom_standard.xml`, `rdf_standard.xml`: one representative document per supported format (RSS 2.0, Atom 1.0, RSS 1.0/RDF).
 - `rss2_relative_urls.xml`: item `<link>` values are relative/scheme-relative paths. The parser copies `<link>` verbatim into `ArticleData.Link` with no `url.Parse`/`ResolveReference` step, so this fixture documents that pass-through behavior rather than testing normalization that doesn't exist.
@@ -900,21 +360,13 @@ go run cmd/generate-test-articles/main.go 91 1 150
 - Each article has a unique URL and is timestamped 1 minute older than the previous
 
 **Limits:**
-- Minimum: 1 article
-- Maximum: 1000 articles per run
-- Only works with local SQLite database (not Datastore)
-
-**Use cases:**
-- Testing pagination with >50 articles (Load More button)
-- Testing article navigation and scrolling behavior
-- Testing unread count display and updates
-- Testing bulk mark-as-read operations
-- Verifying performance with large article lists
+- Between 1 and 1000 articles per run
+- Only works with the local SQLite database (not Datastore)
 
 **Example output:**
 ```
 Generating 150 test articles for feed 1...
-Found user: Jeffrey Pratt (jeffreyp07@gmail.com)
+Found user: Test User (user91@example.com)
 Found feed: Test Feed 1
 Created 50/150 articles...
 Created 100/150 articles...
@@ -922,148 +374,28 @@ Created 150/150 articles...
 Successfully created 150 articles
 Ensuring articles are unread for user 91...
 
-✅ Success!
-   Created: 150 test articles
-   Feed: Test Feed 1 (ID: 1)
-   User: Jeffrey Pratt (jeffreyp07@gmail.com)
-   All articles are unread and ready for testing.
+Success. Created 150 test articles for feed Test Feed 1 (ID: 1).
+All articles are unread and ready for testing.
 ```
 
 ## Security Testing
 
-Critical tests for multi-user security and admin authentication:
+`test/security/` is a consolidated regression suite, run as its own blocking CI job separate from the main test job (see [CI/CD Integration](#cicd-integration) below):
 
-### User Data Isolation
+- `auth_test.go`: every `RequireAuth` route rejects a request with no session cookie
+- `csrf_test.go`: CSRF token enforcement on every mutating endpoint
+- `feed_limit_test.go`: `POST /api/feeds` returns 402 once a trial user hits `FreeTrialFeedLimit`
+- `ssrf_test.go`: `POST /api/feeds` rejects loopback, link-local, RFC 1918, and metadata-endpoint URLs
 
-```go
-func TestUserDataIsolation(t *testing.T) {
-    // Create two users
-    user1 := createTestUser(t, "user1@example.com")
-    user2 := createTestUser(t, "user2@example.com")
-    
-    // User1 subscribes to feed
-    feed := createTestFeed(t)
-    subscribeUserToFeed(t, user1.ID, feed.ID)
-    
-    // Verify user2 cannot see user1's feed
-    user2Feeds := getUserFeeds(t, user2.ID)
-    assert.Empty(t, user2Feeds)
-    
-    // Verify user1 can see their feed
-    user1Feeds := getUserFeeds(t, user1.ID)
-    assert.Len(t, user1Feeds, 1)
-}
-```
-
-### Authentication Requirements
-
-```go
-func TestAPIRequiresAuthentication(t *testing.T) {
-    // Test all protected endpoints require authentication
-    endpoints := []string{
-        "/api/feeds",
-        "/api/feeds/1/articles",
-        "/api/articles/1/read",
-    }
-    
-    for _, endpoint := range endpoints {
-        resp := makeUnauthenticatedRequest(t, endpoint)
-        assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-    }
-}
-```
-
-### Admin Token Security Testing
-
-Critical tests for the secure admin authentication system:
-
-```go
-func TestAdminTokenGeneration(t *testing.T) {
-    // Test cryptographically secure token generation
-    service := NewSubscriptionService(db)
-    token, err := service.GenerateAdminToken("Test token")
-    
-    // Verify 64-character hex format
-    assert.Len(t, token, 64)
-    assert.Regexp(t, `^[0-9a-fA-F]{64}$`, token)
-}
-
-func TestAdminTokenValidation(t *testing.T) {
-    // Test database-based token validation
-    service := NewSubscriptionService(db)
-    token, _ := service.GenerateAdminToken("Test token")
-    
-    // Valid token should pass
-    valid, err := service.ValidateAdminToken(token)
-    assert.NoError(t, err)
-    assert.True(t, valid)
-    
-    // Invalid token should fail
-    valid, err = service.ValidateAdminToken("invalid")
-    assert.NoError(t, err)
-    assert.False(t, valid)
-}
-
-func TestBootstrapProtection(t *testing.T) {
-    // Test bootstrap security requiring existing admin users
-    cleanDB := setupEmptyTestDB(t)
-    
-    // Should fail without admin users
-    cmd := exec.Command("go", "run", "cmd/admin/main.go", "create-token", "test")
-    cmd.Env = append(os.Environ(), "ADMIN_TOKEN=bootstrap")
-    output, err := cmd.CombinedOutput()
-    
-    assert.Error(t, err)
-    assert.Contains(t, string(output), "No admin users found in database")
-}
-
-func TestTokenLifecycle(t *testing.T) {
-    // Test complete token lifecycle (create, validate, revoke)
-    service := NewSubscriptionService(db)
-    
-    // Create token
-    token, err := service.GenerateAdminToken("Lifecycle test")
-    assert.NoError(t, err)
-    
-    // Validate token works
-    valid, err := service.ValidateAdminToken(token)
-    assert.True(t, valid)
-    
-    // Get token ID and revoke
-    tokens, _ := service.ListAdminTokens()
-    tokenID := tokens[0].ID
-    err = service.RevokeAdminToken(tokenID)
-    assert.NoError(t, err)
-    
-    // Token should no longer work
-    valid, err = service.ValidateAdminToken(token)
-    assert.False(t, valid)
-}
-```
-
-**Admin Security Test Coverage:**
-- **Cryptographic Security**: 64-character hex tokens with SHA-256 hashing
-- **Bootstrap Protection**: Prevents unauthorized token creation without existing admin users  
-- **Database Validation**: All tokens validated against database, not environment variables
-- **Dual Database Support**: Tests work with both SQLite (local) and Google Datastore (GAE)
-- **Token Lifecycle**: Complete create → validate → list → revoke → invalidate cycle
-- **Edge Cases**: Invalid formats, non-existent tokens, already-revoked tokens
-- **Security Warnings**: Prompts when creating additional tokens
+The admin token system has its own, more detailed coverage in `internal/services/admin_token_test.go` and `admin_token_datastore_test.go`: cryptographically secure generation (64-character hex, SHA-256 hashing), database-backed validation against both SQLite and Datastore, the full create/validate/list/revoke lifecycle, and bootstrap protection that refuses to create a token when no admin user exists yet.
 
 ## CI/CD Integration
 
 ### GitHub Actions (`.github/workflows/test.yml`)
 
-The CI pipeline takes its Go release from `go.mod`: every `actions/setup-go` step uses `go-version-file: go.mod`, which reads the `toolchain` directive (for example `go1.26.9`). The pipeline runs six jobs:
+The CI pipeline takes its Go release from `go.mod`: every `actions/setup-go` step uses `go-version-file: go.mod`, which reads the `toolchain` directive (for example `go1.26.9`). It runs on every push to `main` and every pull request targeting `main`, with six jobs:
 
 ```yaml
-name: Tests
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
 jobs:
   test:            # unit, devlogin-tagged, and integration tests, coverage upload to Codecov
   lint:            # golangci-lint, default and devlogin build tags
@@ -1081,88 +413,37 @@ jobs:
 - Coverage reporting to Codecov, authenticated by the `CODECOV_TOKEN` repository secret. The upload is non-blocking (`fail_ci_if_error: false`), so a missing or invalid token leaves CI green and must be diagnosed from the step's log
 - Linting with golangci-lint, run a second time with `--build-tags devlogin` over `internal/handlers/`. The gofmt formatter is enabled in `.golangci.yml`, so a file that `gofmt -l` reports fails the lint step
 - ESLint static analysis (`npm run lint:js`, flat config in `eslint.config.js`) against `web/static/js/*.js` (excluding `*.min.js`), catching undefined variables (`no-undef`) and unreachable code (`no-unreachable`) before the Jest step runs; browser/library globals (`window`, `DOMPurify`, `marked`, etc.) are declared explicitly since there's no `eslint-plugin-browser` env package installed
-- Frontend tests (`npm run test:ci`, the same 144 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build fails CI
+- Frontend tests (`npm run test:ci`, the same 149 Jest tests `make test` runs locally) followed by frontend build verification (`make build-frontend`); a broken Jest suite or broken JS/CSS build fails CI
 - Benchmark regression gate (`benchmark` job): see [CI Benchmark Regression Gate](#ci-benchmark-regression-gate-scriptscheck-benchmark-regressionsh) above
-- Security regression suite (`./test/security/...`): blocking gate covering CSRF enforcement, auth-bypass (every `RequireAuth` route rejects a request with no session cookie), SSRF protection on `POST /api/feeds`, and `FreeTrialFeedLimit` enforcement, all exercised through the real HTTP handlers
+- Security regression suite (`./test/security/...`): blocking gate covering CSRF enforcement, auth-bypass, SSRF protection on `POST /api/feeds`, and `FreeTrialFeedLimit` enforcement, all exercised through the real HTTP handlers
 - `govulncheck` as a non-blocking reporting job, run in the same `security` job after the regression suite
 - Single-platform build artifact (`goread2` binary): does not include darwin/windows builds, since deployment is GAE-only
 - All actions are pinned to commit SHA (not floating tags like `@v4`) for supply-chain hardening, matching the deploy workflows; see the workflow file's inline `# vX` comments for the corresponding version
 
-### Post-Deploy Smoke Check (`scripts/smoke-check.sh`)
-
-`scripts/smoke-check.sh <base-url>` runs unauthenticated HTTP assertions against a live, already-deployed App Engine version, separate from the `test.yml` CI pipeline above. It verifies the deploy itself (app started, static assets built, OAuth config loaded, security headers present, no backdoor auth endpoint), not application logic. Called by both `deploy-staging.yml` (against the new `staging-<sha>` URL) and `deploy-prod.yml` (against `https://goreadapp.com` after promotion); see [deployment.md](deployment.md#post-deploy-smoke-check-scriptssmoke-checksh) for the full assertion list.
-
 ## Writing New Tests
 
-### Package-Level Unit Test Example
+A package-level unit test typically only needs the package's own types; an HTTP-level test typically needs `test/helpers` (see [Test Helpers](#test-helpers-testhelpers) above). This example shows the latter: a handler test that creates a user, signs them in, and asserts on the response.
 
 ```go
-func TestNewConfigFeature(t *testing.T) {
-    // Setup - create test environment
-    os.Setenv("TEST_VAR", "test_value")
-    defer os.Unsetenv("TEST_VAR")
-    
-    // Test
-    config := LoadConfig()
-    result := config.GetTestValue()
-    
-    // Assert
-    if result != "test_value" {
-        t.Errorf("expected 'test_value', got %s", result)
+func TestGetFeeds_ReturnsSubscribedFeeds(t *testing.T) {
+    db := helpers.CreateTestDB(t)
+    user := helpers.CreateTestUser(t, db, "google-id-1", "user1@example.com", "Test User")
+    feed := helpers.CreateTestFeed(t, db, "Test Feed", "https://example.com/feed.xml", "")
+    if err := db.SubscribeUserToFeed(user.ID, feed.ID); err != nil {
+        t.Fatalf("failed to subscribe: %v", err)
+    }
+
+    ts := helpers.SetupTestServerWithDB(t, db)
+    req := ts.CreateAuthenticatedRequest(t, "GET", "/api/feeds", nil, user)
+    rr := ts.ExecuteRequest(req)
+
+    if rr.Code != http.StatusOK {
+        t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
     }
 }
 ```
 
-### Frontend Test Example
-
-```javascript
-describe('New Feature', () => {
-  beforeEach(() => {
-    // Setup DOM and mocks
-    document.body.innerHTML = '<div id="app"></div>';
-    global.fetch = jest.fn();
-  });
-
-  test('handles user interaction', async () => {
-    // Setup
-    const app = new GoReadApp();
-    
-    // Simulate user action
-    const button = document.querySelector('#test-button');
-    button.click();
-    
-    // Assert
-    expect(fetch).toHaveBeenCalledWith('/api/test');
-  });
-});
-```
-
-### Integration Test Example
-
-```go
-func TestAPIIntegration(t *testing.T) {
-    // Setup test server and database
-    db := setupTestDB(t)
-    server := setupTestServer(t, db)
-    defer server.Close()
-    
-    // Create test user and session
-    user := createTestUser(t, db, "test@example.com")
-    session := createAuthenticatedSession(t, user)
-    
-    // Make authenticated API request
-    resp := makeAuthenticatedRequest(t, server, session, "GET", "/api/feeds")
-    
-    // Assert response
-    if resp.StatusCode != http.StatusOK {
-        t.Errorf("expected status 200, got %d", resp.StatusCode)
-    }
-    
-    var feeds []Feed
-    json.NewDecoder(resp.Body).Decode(&feeds)
-    // Verify feed data structure
-}
-```
+Frontend tests follow the existing files in `web/tests/`: set up `document.body.innerHTML` and any needed globals (`global.fetch = jest.fn()`, etc.) in `beforeEach`, then assert on DOM state or mock calls after driving the app through its public methods.
 
 ## Test Performance
 
@@ -1176,39 +457,7 @@ This eliminates disk I/O and temporary file creation/deletion, and supports conc
 
 ### Mock HTTP Clients
 
-Feed fetching tests inject a mock HTTP client instead of making real network calls:
-```go
-// Define HTTP client interface
-type HTTPClient interface {
-    Do(req *http.Request) (*http.Response, error)
-}
-
-// Inject mock client in tests
-mockServer := httptest.NewServer(...)
-fs.SetHTTPClient(&mockHTTPClient{Server: mockServer})
-```
-This eliminates network latency and gives deterministic, controlled responses. Production code is unaffected: a nil client falls back to real HTTP.
-
-### Test Helpers
-
-Test helpers in `test/helpers/`:
-```go
-// HTTP mocking
-NewMockFeedServer(t, feedXML)                    // Single feed server
-NewMockFeedServerWithStatus(t, statusCode, body) // Custom status
-NewMockMultiFeedServer(t, map[string]string)     // Multiple feeds
-NewMockHTTPClient(server)                        // HTTP client wrapper
-
-// Database setup
-CreateTestDB(t)              // In-memory SQLite database
-CreateTestDatastoreDB(t)     // Datastore database on the emulator; skips unless DATASTORE_EMULATOR_HOST is set
-CreateTestUser(t, db, ...)   // Test user creation
-CreateTestFeed(t, db, ...)   // Test feed creation
-
-// Server setup
-SetupTestServer(t)           // Router, handlers, and services over CreateTestDB
-SetupTestServerWithDB(t, db) // The same server over any database.Database
-```
+Feed fetching tests inject a mock HTTP client instead of making real network calls (see [Test Helpers](#test-helpers-testhelpers) above for `NewMockFeedServer`/`NewMockHTTPClient`). This eliminates network latency and gives deterministic, controlled responses; production code is unaffected, since a nil client falls back to real HTTP.
 
 ## Performance Testing
 
@@ -1243,15 +492,7 @@ The same file contains property-based tests (`TestCursorRoundTrip`) that verify 
 cursor encode/decode round-trip holds for 1,000 randomly generated inputs via
 `testing/quick`, and `TestDecodeCursorInvalidInputs` for malformed cursor rejection.
 
-### Load Testing
-
-```bash
-# Install artillery for load testing
-npm install -g artillery
-
-# Run load test
-artillery quick --count 10 --num 50 http://localhost:8080
-```
+See [Performance Benchmarks](#performance-benchmarks-testintegrationperformance_testgo) above for the separate, timing-focused benchmarks in `test/integration/` and the CI regression gate that watches them.
 
 ## Debugging Tests
 
@@ -1265,20 +506,26 @@ go test -v ./test/...
 npm test -- --verbose
 
 # Specific test with debugging
-go test -v -run TestSpecificFunction ./test/unit/
+go test -v -run TestSpecificFunction ./test/integration/
 ```
 
-### Test Debugging Tools
+### Debug Commands
 
-```go
-// Add debugging to tests
-func TestWithDebugging(t *testing.T) {
-    if testing.Verbose() {
-        log.SetOutput(os.Stdout)
-    }
-    
-    // Test code with log.Printf() statements
-}
+```bash
+# Run specific package tests with verbose output
+go test -v ./internal/config/
+go test -v ./test/integration/
+
+# Run tests with race detection (or use: make test-race)
+go test -race ./internal/... ./test/integration/...
+
+# Frontend tests with coverage and debugging
+npm test -- --coverage --verbose
+
+# Check dependencies
+go mod verify
+go mod tidy
+npm audit
 ```
 
 ## Troubleshooting
@@ -1301,83 +548,11 @@ func TestWithDebugging(t *testing.T) {
 - Check DOM setup in test files
 - Ensure fetch mocking is configured properly
 
-**Interface Mismatch Issues:**
-- Cannot add unit tests for packages with interface inconsistencies
-- Need to reconcile pointer vs value type mismatches
-- Method signatures must match between interface and implementations
-
-### Debug Commands
-
-```bash
-# Run specific package tests with verbose output
-go test -v ./internal/config/
-go test -v ./test/integration/
-
-# Run tests with race detection (or use: make test-race)
-go test -race ./internal/... ./test/integration/...
-
-# Frontend tests with coverage and debugging
-npm test -- --coverage --verbose
-
-# Check dependencies
-go mod verify
-go mod tidy
-npm audit
-```
-
-## Best Practices
-
-### Test Organization
-
-- **Arrange-Act-Assert**: Structure tests clearly
-- **Single responsibility**: One test per function/behavior
-- **Descriptive names**: Test names should explain what they verify
-- **Independent tests**: Tests shouldn't depend on each other
-
-### Test Data
-
-- **Use fixtures**: Consistent test data across tests
-- **Clean slate**: Each test starts with fresh data
-- **Realistic data**: Test data should mirror production scenarios
-- **Edge cases**: Test boundary conditions and error states
-
-### Security Testing
-
-- **User isolation**: Always test multi-user scenarios
-- **Authentication**: Verify all protected endpoints
-- **Input validation**: Test malformed inputs
-- **Session security**: Test session creation and expiration
-
-### Performance
-
-- **Fast tests**: Keep unit tests under 100ms
-- **Parallel execution**: Use `t.Parallel()` where safe
-- **Minimal setup**: Only create what's needed for each test
-- **Proper cleanup**: Always clean up resources
-
-## Contributing
-
-When adding new features:
-
-1. **Write package-level tests** for new functionality
-2. **Add integration tests** for new API endpoints  
-3. **Ensure interface consistency** before adding unit tests
-4. **Maintain current coverage** (don't decrease existing coverage)
-5. **Follow Go testing conventions** (tests in same package as code)
-
-### Pull Request Requirements
-
-- All tests must pass: `make test` (full coverage run) or `./test.sh`
-- Use `make test-quick` during development for fast cached feedback
-- Package-level coverage should not decrease
-- Include integration tests for API changes
-- Update documentation for user-facing changes
-- Follow existing test patterns and conventions
+See the [Troubleshooting Guide](troubleshooting.md) for build and deploy failures outside the test suite itself.
 
 ## Related Documentation
 
 - [Security Guidelines](security.md) - Regression suite covered by the `security` CI job
 - [Performance & Cost Optimization](performance.md) - Benchmark regression gate
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - Pull request requirements and test conventions
 - [Troubleshooting Guide](troubleshooting.md) - Build and test failures
-
-The testing infrastructure follows Go conventions with package-level tests co-located with source code, comprehensive integration testing, and frontend validation to ensure GoRead2 maintains quality and reliability.
