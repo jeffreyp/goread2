@@ -2,6 +2,9 @@
   "name": "goread2-frontend",
   "version": "1.0.0",
   "description": "GoRead2 Frontend Testing",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",

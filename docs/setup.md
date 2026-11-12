@@ -6,32 +6,31 @@ Installation and configuration guide for running GoRead2 locally.
 
 - [Prerequisites](#prerequisites)
 - [Google OAuth Setup](#google-oauth-setup)
-- [Stripe Setup (Optional)](#stripe-setup-optional)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Subscriptions](#subscriptions)
 - [First Run](#first-run)
 - [Troubleshooting](#troubleshooting)
-- [Development Setup](#development-setup)
 - [Related Documentation](#related-documentation)
 
 ## Prerequisites
 
-- **Go 1.25 or later**
-- **Google Cloud Project** (for OAuth authentication)
-- **SQLite3** (automatically included with go-sqlite3)
-- **Node.js 16+** (required to build minified frontend assets; these are not checked into the repo)
-- **Stripe Account** (optional, for subscription features)
+- **Go**, the version `go.mod`'s `go` directive names
+- **Node.js**, the version `package.json`'s `engines` field names (needed to build minified frontend assets; these are not checked into the repo)
+- **Google Cloud Project**, for OAuth authentication; not needed for `make dev-login` (see [First Run](#first-run) below)
+- **SQLite3**, automatically included with `go-sqlite3`
+- **Stripe account**, optional, for subscription features (see [stripe.md](stripe.md))
 
 ## Google OAuth Setup
 
-### 1. Create Google Cloud Project
+Skip this section entirely to use `make dev-login` instead (see [First Run](#first-run)); it needs no Google credentials.
+
+### 1. Create a Google Cloud Project
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Enable the Google+ API (for user profile information)
+2. Create a new project or select an existing one
 
-### 2. Configure OAuth Consent Screen
+### 2. Configure the OAuth Consent Screen
 
 1. Navigate to APIs & Services → OAuth consent screen
 2. Configure the consent screen with the application's details
@@ -46,39 +45,7 @@ Installation and configuration guide for running GoRead2 locally.
    - Development: `http://localhost:8080/auth/callback`
    - Production: `https://your-domain.com/auth/callback`
 
-### 4. Set Environment Variables
-
-```bash
-export GOOGLE_CLIENT_ID="your-client-id"
-export GOOGLE_CLIENT_SECRET="your-client-secret"
-export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
-```
-
-## Stripe Setup (Optional)
-
-Configure Stripe to enable subscription features:
-
-### 1. Create Stripe Account
-
-1. Go to [stripe.com](https://stripe.com) and create an account
-2. Get API keys from the Stripe Dashboard
-
-### 2. Set Stripe Environment Variables
-
-```bash
-export STRIPE_SECRET_KEY="sk_test_your-secret-key"
-export STRIPE_PUBLISHABLE_KEY="pk_test_your-publishable-key"
-export STRIPE_WEBHOOK_SECRET="whsec_your-webhook-secret"
-export STRIPE_PRICE_ID="price_your-price-id"
-```
-
-### 3. Create Product and Price
-
-```bash
-go run cmd/setup-stripe/main.go create-product
-```
-
-For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
+The resulting client ID and secret go into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in [Installation](#installation) below.
 
 ## Installation
 
@@ -104,7 +71,7 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
    export GOOGLE_CLIENT_SECRET="your-client-secret"
    export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
 
-   # Optional: for subscription features
+   # Optional: for subscription features, see stripe.md
    export STRIPE_SECRET_KEY="sk_test_your-secret-key"
    export STRIPE_PUBLISHABLE_KEY="pk_test_your-publishable-key"
    export STRIPE_WEBHOOK_SECRET="whsec_your-webhook-secret"
@@ -132,14 +99,16 @@ For detailed Stripe setup, see [Stripe Setup Guide](stripe.md).
    ./goread2
    ```
 
+   Or skip Google OAuth entirely with `make dev-login` (see [First Run](#first-run) below).
+
 6. **Access the application:**
-   Navigate to `http://localhost:8080` and sign in with Google
+   Navigate to `http://localhost:8080` and sign in.
 
 ## Configuration
 
 ### Environment Variables
 
-A local server needs only `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URL`, exported as in step 3 above. [configuration.md](configuration.md) lists every variable, with defaults and the values production requires.
+A local server needs only `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URL`, exported as in step 3 above (or none at all, with `make dev-login`). [configuration.md](configuration.md) lists every variable, with defaults and the values production requires.
 
 ### Database Configuration
 
@@ -149,7 +118,7 @@ A local server needs only `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGL
 ### Session Configuration
 
 - **Security**: HTTP-only cookies with secure flags in production
-- **Expiration**: 24-hour session lifetime
+- **Expiration**: 7 days, extended on each request (a sliding window), not a fixed 24-hour lifetime
 - **Cleanup**: Automatic cleanup of expired sessions
 
 ## Subscriptions
@@ -160,54 +129,32 @@ The subscription system is off unless `SUBSCRIPTION_ENABLED=true`, so every loca
 
 ### 1. Authentication
 
+The simplest way to sign in locally is `make dev-login`, which needs no Google credentials and opens a local sign-in form instead of Google's consent screen; see [testing.md](testing.md#local-dev-login-make-dev-login) for how it works. With real Google OAuth configured instead:
+
 1. Navigate to the application URL
-2. Click "Login with Google" to authenticate
-3. Grant necessary permissions
+2. Click "Sign in with Google" to authenticate
+3. Grant the requested permissions
 4. The login redirects to the user's personal dashboard
 
 ### 2. Managing Feeds
 
-1. **Adding feeds**: Click "Add Feed" and enter RSS/Atom URL
+1. **Adding feeds**: Click "Add Feed" and enter an RSS/Atom URL
 2. **OPML import**: Click "Import OPML" to import feeds from other RSS readers
 3. **Feed discovery**: Supports both RSS and Atom formats
 
 ### 3. Admin Setup (Optional)
 
-Grant admin access to a user account:
-
-```bash
-# Replace with your email
-./admin.sh admin your-email@gmail.com on
-```
-
-See [Admin Guide](admin.md) for complete user management.
+Granting the first admin account needs `ADMIN_TOKEN` or `INITIAL_ADMIN_EMAILS` to be set up first; see [Granting the First Admin](admin.md#granting-the-first-admin) for the commands.
 
 ## Troubleshooting
 
 See [Troubleshooting Guide](troubleshooting.md) for authentication, feed, database, and performance issues.
-
-## Development Setup
-
-### Adding New Features
-
-1. **Database changes**: Update multi-user schema in `internal/database/schema.go`
-2. **Authentication**: Modify middleware in `internal/auth/`
-3. **API endpoints**: Add user-aware handlers in `internal/handlers/`
-4. **Business logic**: Extend multi-user services in `internal/services/`
-5. **Frontend**: Update authentication flow in `web/static/js/app.js`
-6. **Tests**: Add comprehensive tests for new functionality
-
-### Code Quality
-
-- **Linting**: Use `golangci-lint` for code quality
-- **Testing**: Maintain 90%+ test coverage
-- **Documentation**: Update README and code comments
-- **Security**: Follow security best practices
 
 ## Related Documentation
 
 - [Deployment Guide](deployment.md) - Production deployment
 - [Stripe Setup](stripe.md) - Configuring subscription payments
 - [Admin Guide](admin.md) - User management
+- [Testing Guide](testing.md) - Running the server with `make dev-login`
 - [API Reference](api.md) - Integration reference
 - [Troubleshooting Guide](troubleshooting.md) - Common issues

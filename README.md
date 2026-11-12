@@ -4,14 +4,14 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/jeffreyp/goread2)](https://go.dev/)
 [![License](https://img.shields.io/github/license/jeffreyp/goread2)](LICENSE)
 
-A modern, multi-user RSS reader inspired by Google Reader and [GoRead](https://github.com/madelynnblue/goread).
+GoRead2 is a multi-user RSS reader inspired by Google Reader and [GoRead](https://github.com/madelynnblue/goread).
 
 ## Quick Start
 
 ### Prerequisites
-- Go 1.25+
-- Google Cloud Project (for OAuth)
-- Node.js 16+ (required to build minified frontend assets; these are not checked into the repo)
+- Go, the version `go.mod`'s `go` directive names
+- Google Cloud Project (for OAuth; not needed with `make dev-login`, see [Setup Guide](docs/setup.md#first-run))
+- Node.js, the version `package.json`'s `engines` field names (required to build minified frontend assets; these are not checked into the repo)
 - Stripe Account (optional, for subscriptions)
 
 ### Setup
