@@ -11,7 +11,7 @@ make all            # build-frontend + build + test-quick (default)
 make test           # run test suite via ./test.sh
 make test-datastore # same suite against a temporary Datastore emulator (stopped on exit)
 make lint           # golangci-lint
-make docs           # check markdown files for broken relative links and anchors (requires npm)
+make docs           # check markdown files for broken links/anchors, writing-style violations, and stale doc-to-code references (requires npm)
 make dev            # start local dev server (validates config first)
 make dev-login      # dev server with a local sign-in instead of Google OAuth (see docs/testing.md)
 ```

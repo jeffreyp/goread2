@@ -125,7 +125,7 @@ GoRead2 sells its subscription through Stripe, and the macOS Settings window lin
 
 Direct distribution has these consequences:
 
-- **Updates are manual.** A new release means downloading a new DMG. An in-app updater is tracked as issue gr-i0zo.
+- **Updates are manual.** A new release means downloading a new DMG; there is no in-app updater.
 - **No universal purchase.** The Mac app is not bundled with the iOS app on the App Store.
 - **Distribution is self-hosted.** The DMG lives on the repository's GitHub releases page.
 

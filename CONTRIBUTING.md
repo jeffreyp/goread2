@@ -64,7 +64,7 @@ This guide explains how to contribute to GoRead2.
 5. **Commit with a clear message**, ending with a bd issue ID if one exists:
    ```bash
    git add .
-   git commit -m "Add RSS feed auto-discovery from <link rel='alternate'> tags (gr-123)"
+   git commit -m "Add RSS feed auto-discovery from <link rel='alternate'> tags (<bd-id>)"
    ```
 
 ### Pull Request Process
@@ -172,13 +172,13 @@ bd ready
 bd create --title="Description" --type=bug|feature|task --priority=2
 
 # Show issue details
-bd show gr-42
+bd show <id>
 
 # Claim and start working
-bd update gr-42 --claim
+bd update <id> --claim
 
 # Close when done
-bd close gr-42
+bd close <id>
 
 # Search
 bd search "keyword"

@@ -8,6 +8,8 @@ on:
       - '.markdown-link-check.json'
       - 'package.json'
       - 'package-lock.json'
+      - 'scripts/check-docs-style.js'
+      - 'Makefile'
   pull_request:
     branches: [ main ]
     paths:
@@ -15,6 +17,8 @@ on:
       - '.markdown-link-check.json'
       - 'package.json'
       - 'package-lock.json'
+      - 'scripts/check-docs-style.js'
+      - 'Makefile'
 
 jobs:
   docs:

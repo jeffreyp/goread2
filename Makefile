@@ -85,9 +85,11 @@ build-frontend: build-js build-css
 docs: node_modules
 	@echo "📚 Checking documentation links and anchors..."
 	@command -v npm >/dev/null 2>&1 || (echo "❌ npm not found. Please install Node.js" && exit 1)
-	@for f in README.md CONTRIBUTING.md docs/*.md; do \
+	@for f in README.md CONTRIBUTING.md monitoring/README.md docs/*.md; do \
 		npx markdown-link-check --config .markdown-link-check.json "$$f" || exit 1; \
 	done
+	@echo "📝 Checking documentation style and doc-to-code references..."
+	@node scripts/check-docs-style.js
 	@echo "✅ Documentation check completed"
 
 # Run tests
