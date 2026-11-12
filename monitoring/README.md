@@ -1,72 +1,18 @@
 # Cloud Monitoring Configuration
 
-This directory contains Cloud Monitoring dashboards and alerting policies for GoRead2.
-
-**Important Limitations**:
-- App Engine Standard environment exposes very limited metrics through Cloud Monitoring
-- Most HTTP and Datastore metrics are NOT available
-- For actual billing costs, use the [GCP Billing Reports page](https://console.cloud.google.com/billing/reports)
-- For Datastore usage, use [Datastore Stats](https://console.cloud.google.com/datastore/stats)
+This directory holds the Cloud Monitoring dashboards and alerting policies for GoRead2. See [docs/monitoring.md](../docs/monitoring.md) for what each one tracks, the alert thresholds, and how to deploy or update them.
 
 ## Files
 
-- `dashboard-cost-tracking.json` - Minimal dashboard with only 3 working metrics (instance count, bandwidth, latency)
+- `dashboard-cost-tracking.json` - Dashboard with the 3 metrics App Engine Standard exposes: instance count, network egress, and p95 latency
 - `dashboard-usage.json` - Usage dashboard charting the `custom.googleapis.com/goread2/` metrics recorded daily by `/cron/record-usage-metrics` (see [docs/monitoring.md](../docs/monitoring.md#usage-metrics))
-- `alert-policies.yaml` - Alerting policy definitions (most won't work due to missing metrics)
-- `cost-dashboard.json` - (Legacy) Original dashboard configuration
-- `alerting-policies.json` - (Legacy) Original alerting policies
-- `deploy-dashboard.sh` - Script to deploy a dashboard to Cloud Monitoring; takes the dashboard file as an optional argument, defaulting to the cost tracking dashboard
-- `dashboard-appengine-simple.json` - (Legacy) Simplified App Engine metrics dashboard
-
-## Quick Start
+- `alert-policies.yaml` - The eight alerting policy definitions (see [docs/monitoring.md](../docs/monitoring.md#alerting-policies))
+- `deploy-dashboard.sh` - Deploys a dashboard; takes the dashboard file as an optional argument, defaulting to `dashboard-cost-tracking.json`
+- `deploy-alerts.sh` - Deploys every policy in `alert-policies.yaml`, splitting it into one `gcloud` call per policy
 
 ```bash
-# Deploy everything
-make deploy-monitoring
-
-# Or deploy individually
+make deploy-monitoring             # everything below
 make deploy-monitoring-dashboard
+make deploy-monitoring-usage-dashboard
 make deploy-monitoring-alerts
 ```
-
-## Manual Deployment
-
-### Using gcloud CLI (Recommended)
-
-```bash
-# Set your GCP project
-gcloud config set project YOUR_PROJECT_ID
-
-# Deploy dashboard
-gcloud monitoring dashboards create --config-from-file=monitoring/dashboard-cost-tracking.json
-
-# Deploy alerts (after setting up notification channels)
-# Note: YAML file contains multiple policies separated by ---
-# You may need to deploy each policy separately
-gcloud alpha monitoring policies create --policy-from-file=monitoring/alert-policies.yaml
-```
-
-### Using deployment scripts (if available)
-
-```bash
-# Deploy dashboard
-./monitoring/deploy-dashboard.sh
-
-# Deploy alerts
-./monitoring/deploy-alerts.sh
-```
-
-## Prerequisites
-
-- `gcloud` CLI installed and authenticated
-- Appropriate IAM permissions:
-  - `roles/monitoring.dashboardEditor`
-  - `roles/monitoring.alertPolicyEditor`
-
-## Documentation
-
-See [docs/monitoring.md](../docs/monitoring.md) for complete documentation including:
-- Dashboard metrics explanation
-- Alert threshold details
-- Updating and maintaining monitoring resources
-- Cost information (spoiler: it's free!)
