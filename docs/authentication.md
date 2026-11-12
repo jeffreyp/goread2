@@ -15,15 +15,7 @@ This document describes the authentication architecture and implementation detai
 
 ## Overview
 
-GoRead2 uses Google OAuth 2.0 for user authentication, providing a secure, password-less login experience. The system implements session-based authentication with HTTP-only cookies and CSRF protection.
-
-### Key Features
-
-- **Google OAuth 2.0** - Leverages Google's authentication infrastructure
-- **Session-based authentication** - Secure session management with database-backed storage
-- **Environment isolation** - Separate authentication states for local and production deployments
-- **CSRF protection** - Token-based protection for state-changing operations
-- **Automatic session cleanup** - Expired sessions are automatically removed
+GoRead2 uses Google OAuth 2.0 for user authentication. The system implements session-based authentication with HTTP-only cookies and CSRF protection.
 
 ## Authentication Flow
 
@@ -113,41 +105,13 @@ The server refuses to register the dev login on App Engine, with `ENVIRONMENT=pr
 
 ## Session Management
 
-### Session Creation
+### Session Creation and Storage
 
-Sessions are created after successful OAuth authentication:
-
-```go
-session, err := sessionManager.CreateSession(user)
-// Session includes:
-// - Unique session ID (base64-encoded 32 random bytes)
-// - User ID
-// - Creation timestamp
-// - Expiration timestamp (7 days from creation)
-```
-
-### Session Storage
-
-Sessions are stored in the database with the following schema:
-
-```go
-type Session struct {
-    ID        string    // Session identifier (used in cookie)
-    UserID    int       // Associated user
-    CreatedAt time.Time // When session was created
-    ExpiresAt time.Time // When session expires
-}
-```
+`SessionManager.CreateSession` (`internal/auth/session.go`) creates a session after successful OAuth authentication and stores it in the database: a unique session ID (base64-encoded 32 random bytes), the user ID, a creation timestamp, and an expiration timestamp 7 days out.
 
 ### Session Validation
 
-On each authenticated request:
-
-1. Extract session ID from cookie
-2. Look up session in database
-3. Check if session has expired
-4. Load associated user
-5. Inject user into request context
+On each authenticated request, the middleware extracts the session ID from the cookie, looks up the session, checks whether it has expired, loads the associated user, and injects the user into the request context. A valid session's expiration is then extended by another 7 days (`SessionManager.RefreshSession`), so an active user's session never hits the original deadline; only a session with no activity for 7 days actually expires.
 
 ### Session Cleanup
 
@@ -166,35 +130,14 @@ GoRead2 implements environment-specific cookie names to prevent authentication s
 
 ### Environment Detection
 
-The environment is determined by checking environment variables:
+`SessionManager.getCookieName()` picks the session cookie name above based on the same environment check used throughout the server:
 
 ```go
 isProduction := os.Getenv("GAE_ENV") == "standard" ||
                 os.Getenv("ENVIRONMENT") == "production"
 ```
 
-### Benefits
-
-- **No cross-environment interference** - Local and production sessions are completely isolated
-- **Simultaneous testing** - Developers can be logged into both environments at once
-- **Reduced confusion** - No unexpected logouts when switching between environments
-
-### Implementation
-
-The `SessionManager` uses the `getCookieName()` helper method to return the appropriate cookie name:
-
-```go
-func (sm *SessionManager) getCookieName() string {
-    isProduction := os.Getenv("GAE_ENV") == "standard" ||
-                    os.Getenv("ENVIRONMENT") == "production"
-    if isProduction {
-        return "session_id"
-    }
-    return "session_id_local"
-}
-```
-
-Similarly, the auth handler uses `getOAuthStateCookieName()` for OAuth state cookies.
+The auth handler's `getOAuthStateCookieName()` applies the same check to the OAuth state cookie.
 
 ## Security Considerations
 
@@ -216,22 +159,16 @@ cookie := &http.Cookie{
 
 ### Key Security Features
 
-- **HTTP-Only cookies** - Cannot be accessed via JavaScript, preventing XSS attacks
+- **HTTP-Only cookies** - Not accessible to JavaScript, so a successful XSS attack still can't read the session cookie and steal the session
 - **Secure flag in production** - Cookies only transmitted over HTTPS in production
 - **SameSite Lax** - Protects against CSRF attacks by default
-- **Session expiration** - Sessions automatically expire after 7 days
+- **Session expiration** - Sessions expire after 7 days of inactivity (see [Session Validation](#session-validation) above)
 - **Automatic cleanup** - Expired sessions removed from database
 - **Session fixation protection** - Any existing session is invalidated before creating a new one on login
 
 ### CSRF Protection
 
-State-changing operations (POST, PUT, DELETE, PATCH) require CSRF tokens:
-
-1. CSRF token generated when user loads authenticated page
-2. Token included in request headers: `X-CSRF-Token`
-3. Middleware validates token before processing request
-
-See [security.md](security.md) for more details on security implementation.
+`GET /auth/me` returns an HMAC-derived CSRF token alongside the user's profile; every state-changing request (`POST`, `PUT`, `DELETE`, `PATCH`) must carry it in the `X-CSRF-Token` header. See [security.md](security.md#csrf-protection) for how the token is generated and verified, and a client-side example.
 
 ## Implementation Details
 
@@ -253,35 +190,13 @@ Google OAuth requires the `redirect_uri` used in both the auth request and the t
 
 `deploy-staging.yml` also deploys the same build to a second, fixed-name `staging` version whose hostname never changes, so a human reviewer can log in on staging before approving a production promotion (see [deployment.md](deployment.md#automated-staging-deploys-githubworkflowsdeploy-stagingyml)). `internal/auth/auth.go` picks the redirect URL per-request by matching the incoming request's `Host` header against an allowlist built from `GOOGLE_REDIRECT_URL`, the production URL, and `STAGING_REDIRECT_URL`, the staging URL; both are added as registered redirect URIs on the *same* Google OAuth client (no second client needed).
 
-A `Host` header that doesn't match either one (e.g. a per-SHA staging URL, or an attacker-supplied value) simply falls back to the production redirect URL, because the allowlist only ever contains these two configured URLs. It can never select an arbitrary URL, so there's no host-header-spoofing risk.
+A `Host` header that doesn't match either one (e.g. a per-SHA staging URL, or an attacker-supplied value) falls back to the production redirect URL, because the allowlist only ever contains these two configured URLs. It can never select an arbitrary URL, so there's no host-header-spoofing risk.
 
 **Caveat**: staging shares the production Datastore and live Stripe keys. Do not exercise Stripe subscription flows on staging, since webhooks point at the production domain only.
 
 **Local dev**: `STAGING_REDIRECT_URL` is unset locally, so the allowlist only contains whatever host `GOOGLE_REDIRECT_URL` resolves to (typically `localhost:8080`).
 
-### Testing
-
-Authentication tests use environment-specific cookie names automatically:
-
-```go
-// Tests automatically use local cookie names
-req.AddCookie(&http.Cookie{
-    Name:  "session_id_local",  // Local mode in tests
-    Value: session.ID,
-})
-```
-
-### API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/auth/login` | GET | Initiate OAuth flow (`?client=ios` or `?client=macos` for the native app handoff) |
-| `/auth/callback` | GET | OAuth callback handler |
-| `/auth/token` | POST | Exchange a native app one-time code for the session token |
-| `/auth/logout` | POST | End session |
-| `/auth/me` | GET | Get current user info |
-| `/auth/dev-login` | GET | Dev login form, in `devlogin` builds only |
-| `/auth/dev-login/callback` | GET | Dev login submission, in `devlogin` builds only |
+See [api.md](api.md#authentication-endpoints) for the auth endpoints and example requests, and [testing.md](testing.md) for the test helpers that set up an authenticated request, including the local cookie name tests use.
 
 ### Middleware Usage
 
