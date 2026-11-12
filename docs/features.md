@@ -10,12 +10,11 @@ Guide to GoRead2's features and how to use them, for end users of the applicatio
 - [Article Management](#article-management)
 - [User Interface Features](#user-interface-features)
 - [Subscription Features](#subscription-features)
-- [Tips for Best Experience](#tips-for-best-experience)
 - [Related Documentation](#related-documentation)
 
 ## Reading Experience
 
-GoRead2 uses Inter, a clean, sans-serif font optimized for screen reading with excellent legibility. The font setting only applies to article content, while the interface maintains consistent UI typography.
+GoRead2 uses Inter, a clean, sans-serif font optimized for screen reading, throughout the interface and article content.
 
 ## Navigation
 
@@ -47,13 +46,13 @@ Press `?` at any time to open the help modal, which lists every keyboard shortcu
 
 #### Phone (Portrait Mode)
 On mobile devices, use the bottom navigation bar to switch between panes:
-- 📑 **Feeds**: View feed subscriptions
-- 📄 **Articles**: Browse articles from selected feed
-- 📖 **Content**: Read the selected article
+- **Feeds**: View feed subscriptions
+- **Articles**: Browse articles from the selected feed
+- **Content**: Read the selected article
 
 #### Tablet (Portrait Mode)
 On tablets in portrait orientation, GoRead2 provides a reading-optimized layout:
-- **Content pane** takes the full screen width for comfortable reading
+- **Content pane** takes the full screen width
 - **"☰ Feeds" button** in the header opens the sidebar with feeds and articles
 - Sidebar automatically hides when an article is selected, to maximize reading space
 - Tap the dimmed area outside the sidebar to close it, or swipe the sidebar toward the left edge
@@ -73,7 +72,7 @@ When the device is rotated (or the window is resized across a layout breakpoint)
 4. The new feed appears in the feed list with recent articles
 
 ### Article Import Limits
-When subscribing to a new feed, GoRead2 intelligently limits the number of articles imported to improve performance:
+When subscribing to a new feed, GoRead2 limits the number of articles imported:
 
 - **Default**: 100 most recent articles are imported as unread
 - **Configurable**: Change this limit in Account Settings (0-10,000 articles)
@@ -105,9 +104,7 @@ Import feeds from other RSS readers:
 - Filter articles by "Unread" or "All" in the article pane header
 
 ### Starring Articles
-- Star important articles with `s` key or the star button (★)
-- Starred articles are highlighted and easily accessible
-- Use stars to bookmark articles for later reference
+- Star an article with the `s` key or the star button (★) to bookmark it for later
 
 ### Article Filtering
 Use the radio buttons in the article pane header:
@@ -121,11 +118,6 @@ Use the radio buttons in the article pane header:
 - Manual refresh with the "Refresh" button or `r` key
 - Background polling keeps feed unread counts current
 - When background polling detects new unread articles for the feed or view currently open, a "N new articles available" banner appears above the article list; clicking "Refresh" on the banner reloads the article list. The article list and reading pane are otherwise left untouched by background polling, so an open article is never replaced out from under the reader
-
-### Responsive Design
-- Optimized for desktop, tablet, and mobile devices
-- Touch-friendly interface on mobile devices
-- Adaptive layout that works across screen sizes
 
 ### Privacy & Security
 - All feed subscriptions and article status are private to the account
@@ -154,26 +146,8 @@ Use the radio buttons in the article pane header:
 - Manage billing and subscription at `/account`
 - Cancel or upgrade subscription at any time
 
-## Tips for Best Experience
-
-### Feed Organization
-- Use descriptive feed names when adding feeds
-- Regularly review and remove inactive feeds
-- Take advantage of keyboard shortcuts for faster navigation
-
-### Reading Workflow
-1. Check "All Articles" for a quick overview
-2. Use `j/k` keys to quickly scan headlines
-3. Press `Enter` to open interesting articles in new tabs
-4. Star articles to reference later
-
-### Performance
-- GoRead2 automatically optimizes for performance
-- Articles load progressively for faster browsing
-- Unread counts sync in the background
-
 ## Related Documentation
 
-- [Stripe Setup](stripe.md) - GoRead2 Pro billing details
-- [Admin Guide](admin.md) - Granting unlimited access outside a paid subscription
+- [Privacy and Personal Data](privacy.md) - Stored data, export, deletion, and retention
+- [Apple Apps](apple-apps.md) - The iOS, iPadOS, and macOS apps
 - [Troubleshooting Guide](troubleshooting.md) - Common issues
