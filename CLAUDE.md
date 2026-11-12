@@ -22,54 +22,7 @@ Without an emulator, the Datastore-backed tests skip. To run them, use `make tes
 
 ## Documentation Conventions
 
-Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`); this is the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `apple-releases.md`).
-
-`docs/README.md` indexes the guides by audience; add a new guide there and to the map below. Each guide opens with a summary and a table of contents and ends with Related Documentation. Give a guide a Troubleshooting section only when it has troubleshooting content of its own or `docs/troubleshooting.md` has a section on its topic.
-
-### Writing Style
-
-All documentation in `docs/`, `README.md`, and `CONTRIBUTING.md` must be written in a professional, plain, and precise tone. Write as if for a colleague reading a reference manual, not a friend. Do not add commentary that the content already demonstrates (for example, avoid a line like "the caching strategy is dead simple" above a section that already shows it is simple).
-
-Follow these rules:
-
-- Avoid em dashes unless there is no other clear way to write the sentence. Use a period, comma, or a "which"/"that" clause instead.
-- Put the main point of a sentence first, not after a leading clause. Write "This is good for both the goose and the gander," not "This is not only good for the goose, it is good for the gander."
-- Name the specific thing first, then describe it in an appositive, rather than burying the name in a parenthetical. Write "GoRead2 uses Inter, a clean, sans-serif font," not "GoRead2 uses a clean, sans-serif font (Inter)."
-- Do not address the reader as "you" or "your." Refer to features and actions generically instead: write "shows subscribed feeds," not "shows your subscribed feeds"; "on navigating away," not "when you navigate away."
-- Before editing a document, read it in full. Look for existing text to streamline or clarify, rather than only appending new material.
-- Documentation describes the current state of the product, not its history. Do not use a doc as a TODO list or a record of past decisions. Record decisions in `history/`, a commit message, or a bd issue, not in `docs/`.
-- Do not cite bd issue IDs or the dates of past events. Dates that are part of a current fact, such as a renewal date, or that appear in an example command, are fine.
-- Do not use emoji in prose.
-- Do not name real people or give personal email addresses. Refer to roles, such as "the maintainer," and use `example.com` addresses in examples. A configured value that names an account, such as a required GitHub reviewer, may be given as it is configured.
-- Refer to code by file and function or type, such as "`SignInGoogleUser` in `internal/auth/auth.go`," not by line number, which goes stale.
-- Use real values or clearly marked placeholders, such as `<session-id>` or `your-client-id`, in examples. Do not invent identifiers, output, or figures that look real.
-
-These rules govern documentation for people. This file, `CLAUDE.md`, is instructions for coding agents and addresses its reader directly.
-
-### Feature area → doc mapping
-
-Before working in a feature area, read the corresponding doc for context. If your change alters behaviour, configuration, or APIs, update the doc in the same commit.
-
-| When touching… | Read/update… |
-|----------------|--------------|
-| `internal/auth/`, OAuth flow, sessions | `docs/authentication.md` |
-| `internal/handlers/admin*`, `cmd/admin/` | `docs/admin.md` |
-| `internal/services/subscription*`, Stripe webhooks, `cmd/setup-stripe/` | `docs/stripe.md` |
-| Environment variables (`internal/config/`, `internal/secrets/`, `cmd/validate-config/`) | `docs/configuration.md` |
-| `internal/cache/`, HTTP cache headers | `docs/performance.md` |
-| `internal/database/`, schema migrations, `index.yaml`, how the components fit together | `docs/architecture.md` |
-| API endpoints (`internal/handlers/`) | `docs/api.md` |
-| Deployment config (`app.yaml`, `cron.yaml`, secrets), `deploy-staging.yml`, `deploy-prod.yml`, `rollback.yml`, `scripts/smoke-check.sh`, `scripts/post-promote-health-watch.sh` | `docs/deployment.md` |
-| Monitoring (`monitoring/`) | `docs/monitoring.md` |
-| Performance, query optimisation | `docs/performance.md` |
-| Security controls, input validation | `docs/security.md` |
-| Personal data stored, account deletion, data export, retention (`internal/services/user_data_service.go`, `internal/services/retention_service.go`, `internal/handlers/account_handler.go`) | `docs/privacy.md` and `web/templates/privacy.html` |
-| Cookies, browser storage, or third-party requests from the web app | `docs/privacy.md` (cookie inventory) and `web/templates/privacy.html` |
-| Test infrastructure, `test.sh`, `test.yml`, `docs.yml`, `scripts/with-datastore-emulator.sh`, `scripts/check-benchmark-regression.sh`, `cmd/generate-test-articles/` | `docs/testing.md` |
-| Error messages and log lines that operators act on | `docs/troubleshooting.md` |
-| User-facing features (UI, keyboard shortcuts) | `docs/features.md` |
-| `ios/` (SwiftUI app, Xcode project, fastlane) | `docs/apple-apps.md` |
-| `ios/fastlane/`, `ios-release.yml`, `macos-release.yml` | `docs/apple-releases.md` |
+[CONTRIBUTING.md](CONTRIBUTING.md#documentation) has the writing style rules, where docs live, and the feature area → doc mapping. Before working in a feature area, read the mapped doc for context; if your change alters behaviour, configuration, or APIs, update that doc in the same commit. Those rules govern documentation written for people; this file is instructions for coding agents and addresses its reader directly, so it does not follow them itself.
 
 ## Commit Conventions
 

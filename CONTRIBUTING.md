@@ -4,13 +4,6 @@ This guide explains how to contribute to GoRead2.
 
 ## Getting Started
 
-### Prerequisites
-
-- **Go 1.25+** for backend development
-- **Node.js 16+** for frontend testing and rebuilding minified assets
-- **Git** for version control
-- **Google Cloud Project** for OAuth setup (development)
-
 ### Development Setup
 
 1. **Fork and clone**:
@@ -22,31 +15,18 @@ This guide explains how to contribute to GoRead2.
    cd goread2
    ```
 
-2. **Install dependencies**:
-   ```bash
-   go mod tidy
-   npm install  # For frontend testing
-   ```
+2. **Install dependencies and set up the environment**: see [docs/setup.md](docs/setup.md) for prerequisites, environment variables, and the local OAuth setup.
 
-3. **Set up environment**:
-
-   `.env.example` describes the configuration variables, as a reference only. The application does not load `.env` files, so export the needed values in the shell. [docs/configuration.md](docs/configuration.md) lists every variable.
-
-   ```bash
-   export GOOGLE_CLIENT_ID="your-client-id"
-   export GOOGLE_CLIENT_SECRET="your-client-secret"
-   export GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback"
-   ```
-
-4. **Run tests**:
+3. **Run tests**:
    ```bash
    make test
    ```
 
-5. **Start development server**:
+4. **Start the development server**:
    ```bash
    make dev
    ```
+   or `make dev-login` to sign in locally without Google OAuth (see [docs/testing.md](docs/testing.md#local-dev-login-make-dev-login)).
 
 ## Development Workflow
 
@@ -57,16 +37,17 @@ This guide explains how to contribute to GoRead2.
    git checkout -b feature/your-feature-name
    ```
 
-2. **Make changes** following the coding standards below
+2. **Make changes**, following the patterns already in the surrounding code rather than inventing new ones.
 
 3. **Write tests** for new functionality:
    ```bash
    # Unit tests (co-located with the code they test)
    touch internal/<package>/your_feature_test.go
-   
+
    # Integration tests
    touch test/integration/your_feature_integration_test.go
    ```
+   See [docs/testing.md](docs/testing.md) for the test helpers available in `test/helpers/` and real examples to follow.
 
 4. **Run tests frequently**:
    ```bash
@@ -80,16 +61,10 @@ This guide explains how to contribute to GoRead2.
    ./test.sh
    ```
 
-5. **Commit with clear messages**:
+5. **Commit with a clear message**, ending with a bd issue ID if one exists:
    ```bash
    git add .
-   git commit -m "feat: add RSS feed auto-discovery
-   
-   - Implement feed URL detection from HTML pages
-   - Add support for <link rel='alternate'> discovery
-   - Include tests for common blog platforms
-   
-   Closes #123"
+   git commit -m "Add RSS feed auto-discovery from <link rel='alternate'> tags (gr-123)"
    ```
 
 ### Pull Request Process
@@ -99,406 +74,93 @@ This guide explains how to contribute to GoRead2.
    git push origin feature/your-feature-name
    ```
 
-2. **Create pull request** on GitHub with:
-   - Clear title and description
-   - Reference to any related issues
-   - Screenshot/demo if UI changes
-   - Test results
+2. **Create a pull request** on GitHub with a clear title and description, a reference to any related issue, and a screenshot or demo for UI changes.
 
-3. **Address review feedback**:
-   - Make requested changes
-   - Push updates to the same branch
-   - Respond to comments
+3. **Address review feedback**: push updates to the same branch and respond to comments.
 
-4. **Merge requirements**:
-   - All CI checks pass
-   - Code review approval
-   - No merge conflicts
-   - Documentation updated if needed
-
-## Coding Standards
-
-### Go Code Style
-
-Follow standard Go conventions:
-
-```go
-// Good: Clear function documentation
-// GetUserFeeds retrieves all feeds subscribed by the specified user.
-// Returns empty slice if user has no subscriptions.
-func (db *DB) GetUserFeeds(userID int) ([]Feed, error) {
-    // Always include user filtering for security
-    query := `SELECT * FROM feeds f 
-              JOIN user_feeds uf ON f.id = uf.feed_id 
-              WHERE uf.user_id = ?`
-    
-    // Handle errors explicitly
-    rows, err := db.Query(query, userID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to query user feeds: %w", err)
-    }
-    defer rows.Close()
-    
-    // ... rest of implementation
-}
-```
-
-**Key principles**:
-- **User isolation**: Always filter by user ID in database queries
-- **Error handling**: Wrap errors with context using `fmt.Errorf`
-- **Security**: Validate all inputs, escape SQL parameters
-- **Documentation**: Document public functions and complex logic
-- **Testing**: Include both unit and integration tests
-
-### Database Operations
-
-Always consider multi-user isolation:
-
-```go
-// Good: User-specific query
-func (db *DB) GetUserArticles(userID int) ([]Article, error) {
-    query := `SELECT a.* FROM articles a
-              JOIN user_feeds uf ON a.feed_id = uf.feed_id
-              WHERE uf.user_id = ?`
-    // ...
-}
-
-// Bad: No user filtering (security risk)
-func (db *DB) GetAllArticles() ([]Article, error) {
-    query := `SELECT * FROM articles`  // Exposes all user data!
-    // ...
-}
-```
-
-### API Handlers
-
-Require authentication and include proper error handling:
-
-```go
-func (h *FeedHandler) AddFeed(c *gin.Context) {
-    // Always get authenticated user
-    user, exists := auth.GetUserFromContext(c)
-    if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
-        return
-    }
-
-    // Validate input
-    var req struct {
-        URL string `json:"url" binding:"required,url"`
-    }
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-
-    // Check permissions (subscription limits, etc.)
-    if err := h.subscriptionService.CanUserAddFeed(user.ID); err != nil {
-        c.JSON(http.StatusPaymentRequired, gin.H{"error": err.Error()})
-        return
-    }
-
-    // Perform operation with user context
-    feed, err := h.feedService.AddFeedForUser(user.ID, req.URL)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
-
-    c.JSON(http.StatusCreated, feed)
-}
-```
-
-### Frontend Code
-
-Keep JavaScript clean and well-structured:
-
-```javascript
-class GoReadApp {
-    async addFeed(url) {
-        try {
-            // Validate input
-            if (!url || !this.isValidURL(url)) {
-                throw new Error('Please enter a valid RSS feed URL');
-            }
-
-            // Show loading state
-            this.showLoading('Adding feed...');
-
-            // Make API call
-            const response = await fetch('/api/feeds', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ url })
-            });
-
-            // Handle response
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to add feed');
-            }
-
-            const feed = await response.json();
-
-            // Update UI
-            this.addFeedToUI(feed);
-            this.hideLoading();
-            this.showSuccess(`Added feed: ${feed.title}`);
-
-        } catch (error) {
-            this.hideLoading();
-            this.showError(error.message);
-        }
-    }
-}
-```
-
-### Frontend Architecture
-
-GoRead2 uses **bundle splitting with lazy loading** to optimize performance:
-
-#### Bundle Structure
-
-- **`app.js`** (40KB minified): Core application bundle with feed management, article viewing, and navigation
-- **`modals.js`** (2.5KB minified): Modal interactions lazy-loaded on first use
-- **`account.js`** (15KB minified): Account page functionality
-
-#### Lazy Loading
-
-Modal code is lazy-loaded using native ES6 dynamic imports. `index.html` passes the versioned `modals.min.js` URL to `app.js` in a `data-modals-src` attribute, so the module is cached like every other asset (see [performance.md](docs/performance.md#versioned-css-and-js)):
-
-```javascript
-// In app.js - falls back to the source file when the attribute is absent, as in tests
-const MODALS_SRC = document.currentScript?.dataset.modalsSrc || './modals.js';
-
-// In app.js - modal methods delegate to lazy-loaded module
-async showAddFeedModal() {
-    const manager = await this.loadModalManager();
-    manager.showAddFeedModal();
-}
-
-// Lazy load helper (in app.js)
-async loadModalManager() {
-    if (this.modalManager) return this.modalManager;
-
-    console.log('Loading modal module...');
-    const module = await import(MODALS_SRC);
-    this.modalManager = new module.ModalManager(this);
-    this.modalManager.init();
-    console.log('Modal module loaded');
-
-    return this.modalManager;
-}
-```
-
-#### Performance Benefits
-
-- **Initial bundle**: 40KB → ~14KB gzipped (~33% reduction)
-- **Time to Interactive**: ~200ms faster on 3G
-- **Parse time**: ~35% reduction on mobile
-- **First modal open**: +100-150ms one-time delay (acceptable)
-- **Browser support**: Chrome 63+, Firefox 67+, Safari 11.1+, Edge 79+ (95%+ coverage)
-
-#### Adding Lazy-Loaded Modules
-
-When adding features that aren't needed immediately:
-
-1. Create a new module file (e.g., `feature.js`)
-2. Export a class or functions from the module
-3. Add lazy load helper to `app.js`
-4. Pass the module's versioned URL from `index.html` in a `data-` attribute on the `app.min.js` script tag, as `data-modals-src` does
-5. Update `package.json` and `Makefile` build scripts
-6. Update this documentation
-
-Example:
-```javascript
-// feature.js
-export class FeatureManager {
-    constructor(app) {
-        this.app = app;
-    }
-    // ... feature methods
-}
-
-// app.js
-async loadFeatureManager() {
-    if (this.featureManager) return this.featureManager;
-    const module = await import('./feature.js');
-    this.featureManager = new module.FeatureManager(this);
-    return this.featureManager;
-}
-```
-
-### Testing Requirements
-
-#### Backend Tests
-
-Write comprehensive tests for all new functionality:
-
-```go
-func TestAddFeedForUser(t *testing.T) {
-    // Setup
-    db := helpers.SetupTestDB(t)
-    defer db.Close()
-    
-    user := helpers.CreateTestUser(t, db, "test@example.com")
-    
-    tests := []struct {
-        name        string
-        url         string
-        expectError bool
-    }{
-        {"valid RSS feed", "https://example.com/feed.xml", false},
-        {"invalid URL", "not-a-url", true},
-        {"duplicate feed", "https://example.com/feed.xml", true},
-    }
-    
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            _, err := addFeedForUser(db, user.ID, tt.url)
-            
-            if tt.expectError {
-                assert.Error(t, err)
-            } else {
-                assert.NoError(t, err)
-                
-                // Verify user can access the feed
-                feeds, err := db.GetUserFeeds(user.ID)
-                assert.NoError(t, err)
-                assert.Len(t, feeds, 1)
-            }
-        })
-    }
-}
-```
-
-#### Integration Tests
-
-Test complete workflows:
-
-```go
-func TestFeedAPIWorkflow(t *testing.T) {
-    server := helpers.SetupTestServer(t)
-    defer server.Close()
-    
-    // Create authenticated session
-    session := helpers.CreateAuthenticatedSession(t, "test@example.com")
-    
-    // Add feed
-    resp := helpers.MakeAuthenticatedRequest(t, server, session, 
-        "POST", "/api/feeds", `{"url": "https://example.com/feed.xml"}`)
-    assert.Equal(t, http.StatusCreated, resp.StatusCode)
-    
-    // Verify feed appears in user's list
-    resp = helpers.MakeAuthenticatedRequest(t, server, session, 
-        "GET", "/api/feeds", "")
-    assert.Equal(t, http.StatusOK, resp.StatusCode)
-    
-    var feeds []Feed
-    json.NewDecoder(resp.Body).Decode(&feeds)
-    assert.Len(t, feeds, 1)
-    assert.Equal(t, "https://example.com/feed.xml", feeds[0].URL)
-}
-```
-
-#### Frontend Tests
-
-Test UI interactions and API integration:
-
-```javascript
-describe('Feed Management', () => {
-    beforeEach(() => {
-        document.body.innerHTML = '<div id="app"></div>';
-        global.fetch = jest.fn();
-    });
-
-    test('adds feed successfully', async () => {
-        // Setup
-        const app = new GoReadApp();
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: () => Promise.resolve({
-                id: 1,
-                title: 'Test Feed',
-                url: 'https://example.com/feed.xml'
-            })
-        });
-
-        // Execute
-        await app.addFeed('https://example.com/feed.xml');
-
-        // Verify
-        expect(fetch).toHaveBeenCalledWith('/api/feeds', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ url: 'https://example.com/feed.xml' })
-        });
-    });
-});
-```
-
-## Security Guidelines
-
-### User Data Protection
-
-- **Always filter by user ID** in database queries
-- **Validate all inputs** to prevent injection attacks
-- **Use parameterized queries** for SQL operations
-- **Escape HTML output** to prevent XSS
-
-### Authentication
-
-- **Require authentication** for all user-specific operations
-- **Validate session tokens** on every request
-- **Use HTTPS** in production for secure cookie transmission
-- **Implement proper session cleanup**
-
-### Input Validation
-
-```go
-// Good: Comprehensive input validation
-func validateFeedURL(url string) error {
-    if url == "" {
-        return errors.New("URL cannot be empty")
-    }
-    
-    parsed, err := url.Parse(url)
-    if err != nil {
-        return fmt.Errorf("invalid URL format: %w", err)
-    }
-    
-    if parsed.Scheme != "http" && parsed.Scheme != "https" {
-        return errors.New("URL must use HTTP or HTTPS")
-    }
-    
-    // Additional validation...
-    return nil
-}
-```
+4. **Merge requirements**: CI checks pass, review approval, no merge conflicts, and the relevant doc updated if the change touches behavior, configuration, or an API (see [Documentation](#documentation) below).
 
 ## Documentation
 
-### Code Documentation
+### Writing Style
 
-- **Document public APIs** with clear descriptions
-- **Include examples** for complex functions
-- **Document security considerations** for user-facing code
-- **Keep comments up-to-date** with code changes
+All documentation in `docs/`, `README.md`, and this file must be written in a professional, plain, and precise tone. Write as if for a colleague reading a reference manual, not a friend. Do not add commentary that the content already demonstrates (for example, avoid a line like "the caching strategy is dead simple" above a section that already shows it is simple).
 
-### User Documentation
+Follow these rules:
 
-When adding user-facing features:
+- Avoid em dashes unless there is no other clear way to write the sentence. Use a period, comma, or a "which"/"that" clause instead.
+- Put the main point of a sentence first, not after a leading clause. Write "This is good for both the goose and the gander," not "This is not only good for the goose, it is good for the gander."
+- Name the specific thing first, then describe it in an appositive, rather than burying the name in a parenthetical. Write "GoRead2 uses Inter, a clean, sans-serif font," not "GoRead2 uses a clean, sans-serif font (Inter)."
+- Do not address the reader as "you" or "your." Refer to features and actions generically instead: write "shows subscribed feeds," not "shows your subscribed feeds"; "on navigating away," not "when you navigate away."
+- Before editing a document, read it in full. Look for existing text to streamline or clarify, rather than only appending new material.
+- Documentation describes the current state of the product, not its history. Do not use a doc as a TODO list or a record of past decisions. Record decisions in a commit message or a bd issue, not in `docs/`.
+- Do not cite bd issue IDs or the dates of past events. Dates that are part of a current fact, such as a renewal date, or that appear in an example command, are fine.
+- Do not use emoji in prose.
+- Do not name real people or give personal email addresses. Refer to roles, such as "the maintainer," and use `example.com` addresses in examples. A configured value that names an account, such as a required GitHub reviewer, may be given as it is configured.
+- Refer to code by file and function or type, such as "`SignInGoogleUser` in `internal/auth/auth.go`," not by line number, which goes stale.
+- Use real values or clearly marked placeholders, such as `<session-id>` or `your-client-id`, in examples. Do not invent identifiers, output, or figures that look real.
 
-- **Update README.md** with new capabilities
-- **Add API documentation** to `docs/api.md`
-- **Include troubleshooting** in `docs/troubleshooting.md`
-- **Provide examples** and use cases
+### Where docs live
+
+Root-level files use uppercase names (`README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`), the standard open-source convention that GitHub and tooling give special prominence. Files inside `docs/` use lowercase with hyphens (`setup.md`, `apple-releases.md`).
+
+[docs/README.md](docs/README.md) indexes the guides by audience; add a new guide there and to the map below. Each guide opens with a summary and a table of contents and ends with Related Documentation. Give a guide a Troubleshooting section only when it has troubleshooting content of its own or [docs/troubleshooting.md](docs/troubleshooting.md) has a section on its topic.
+
+### Doc map
+
+Before working in a feature area, read the corresponding doc for context. If a change alters behavior, configuration, or an API, update the doc in the same commit.
+
+| When touching… | Read/update… |
+|----------------|--------------|
+| `internal/auth/`, OAuth flow, sessions | `docs/authentication.md` |
+| `internal/handlers/admin*`, `cmd/admin/` | `docs/admin.md` |
+| `internal/services/subscription*`, Stripe webhooks, `cmd/setup-stripe/` | `docs/stripe.md` |
+| Environment variables (`internal/config/`, `internal/secrets/`, `cmd/validate-config/`) | `docs/configuration.md` |
+| `internal/cache/`, HTTP cache headers | `docs/performance.md` |
+| `internal/database/`, schema migrations, `index.yaml`, how the components fit together | `docs/architecture.md` |
+| API endpoints (`internal/handlers/`) | `docs/api.md` |
+| Deployment config (`app.yaml`, `cron.yaml`, secrets), `deploy-staging.yml`, `deploy-prod.yml`, `rollback.yml`, `scripts/smoke-check.sh`, `scripts/post-promote-health-watch.sh` | `docs/deployment.md` |
+| Monitoring (`monitoring/`) | `docs/monitoring.md` |
+| Performance, query optimization | `docs/performance.md` |
+| Security controls, input validation | `docs/security.md` |
+| Personal data stored, account deletion, data export, retention (`internal/services/user_data_service.go`, `internal/services/retention_service.go`, `internal/handlers/account_handler.go`) | `docs/privacy.md` and `web/templates/privacy.html` |
+| Cookies, browser storage, or third-party requests from the web app | `docs/privacy.md` (cookie inventory) and `web/templates/privacy.html` |
+| Test infrastructure, `test.sh`, `test.yml`, `docs.yml`, `scripts/with-datastore-emulator.sh`, `scripts/check-benchmark-regression.sh`, `cmd/generate-test-articles/` | `docs/testing.md` |
+| Error messages and log lines that operators act on | `docs/troubleshooting.md` |
+| User-facing features (UI, keyboard shortcuts) | `docs/features.md` |
+| `ios/` (SwiftUI app, Xcode project, fastlane) | `docs/apple-apps.md` |
+| `ios/fastlane/`, `ios-release.yml`, `macos-release.yml` | `docs/apple-releases.md` |
+
+## Frontend Architecture
+
+GoRead2 splits its frontend into a core bundle plus several smaller bundles loaded on demand with native ES6 dynamic imports, rather than one large script: `modals.js` (modal interactions), `account.js` (the account page), and `animations.js`/`animations-integration.js`. Check current sizes with `ls -la web/static/js/*.min.js` after `make build-frontend`; this doc doesn't keep its own copy of them, since they change with every edit to the bundles.
+
+`index.html` passes each lazily-loaded bundle's versioned URL to `app.js` in a `data-*-src` attribute (for example `data-modals-src`), so the module is cached like every other asset (see [performance.md](docs/performance.md#versioned-css-and-js)) and `app.js` falls back to the unversioned source file when the attribute is absent, as in tests.
+
+To add a new lazy-loaded module:
+
+1. Create a new module file (e.g., `feature.js`) exporting a class or functions.
+2. Add a lazy-load helper to `app.js` that `import()`s it and caches the result, following `loadModalManager` as a model.
+3. Pass the module's versioned URL from `index.html` in a `data-` attribute on the `app.min.js` script tag, as `data-modals-src` does.
+4. Add the new file to the frontend build in `package.json` and the `Makefile`.
+5. Update this section if the loading pattern itself changes.
+
+## Testing Requirements
+
+New functionality needs a unit test co-located with the code (`internal/<package>/*_test.go`) and, for a new or changed API endpoint, an integration test in `test/integration/`. A UI change needs a Jest test in `web/tests/`. [docs/testing.md](docs/testing.md) covers the test helpers in `test/helpers/` (in-memory SQLite, a test HTTP server, mock feed servers) and has real examples to copy from; `internal/handlers/feed_handler_test.go` and `test/integration/api_test.go` are reasonable starting points for a handler and an integration test respectively.
+
+## Security Guidelines
+
+- Filter every database query by the authenticated user's ID; there is no other isolation between accounts.
+- Validate and sanitize all input, especially feed URLs (SSRF) and anything rendered as HTML.
+- Every state-changing request needs a valid session and CSRF token.
+- New protected endpoints must go through `RequireAuth` (or `RequireAdmin` for admin-only ones).
+
+See [docs/security.md](docs/security.md) for how each control is implemented, and `test/security/` for the regression suite that enforces them in CI.
 
 ## Issue Tracking with Beads
 
-GoRead2 uses **bd (beads)** for all issue tracking. Beads is a lightweight, Git-backed issue tracker; issues live in `.beads/issues.jsonl` alongside the code.
+GoRead2 uses **bd (beads)** for all issue tracking. Issues live in a local Dolt database, synced via `refs/dolt/data` on the git remote; `.beads/issues.jsonl` is a passive export of that data, committed to git for visibility.
 
 ### Common Commands
 
@@ -542,111 +204,33 @@ bd search "keyword"
 | `3` / P3 | Low |
 | `4` / P4 | Backlog |
 
-### Directory Structure
-
-Issues live in a local Dolt database and sync via `refs/dolt/data` on the git remote. `.beads/issues.jsonl` is a passive export of that data, committed to git for visibility; the rest of `.beads/` (the Dolt database, locks, logs) is local state and gitignored.
-
 ## Issue Reporting
 
-For external users who may not have Beads installed:
+For external users who may not have Beads installed, open a GitHub issue instead.
 
 ### Bug Reports
 
 Include these details:
 
-- **Environment**: Local, Docker, App Engine, etc.
+- **Environment**: Local or App Engine
 - **Steps to reproduce**: Exact sequence of actions
 - **Expected behavior**: What should happen
 - **Actual behavior**: What actually happens
-- **Logs**: Relevant error messages and stack traces
-- **Configuration**: Environment variables (redact secrets)
+- **Logs**: Relevant error messages and stack traces (redact secrets)
 
 ### Feature Requests
 
-Describe:
-
-- **Use case**: Why is this feature needed?
-- **Proposed solution**: How should it work?
-- **Alternatives**: Other ways to solve the problem
-- **Impact**: Who would benefit from this feature?
-
-## Code Review Process
-
-### For Contributors
-
-- **Self-review** code before submitting
-- **Write clear commit messages** explaining the changes
-- **Include tests** for all new functionality
-- **Update documentation** for user-facing changes
-- **Be responsive** to review feedback
-
-### For Reviewers
-
-Focus on:
-
-- **Security**: User data isolation, input validation
-- **Performance**: Database query efficiency, memory usage
-- **Maintainability**: Code clarity, documentation
-- **Testing**: Adequate test coverage
-- **User experience**: API design, error handling
+Describe the use case, a proposed solution, and any alternatives considered.
 
 ## Release Process
 
-### Version Numbering
-
-Using Semantic Versioning (SemVer):
-
-- **Major (X.0.0)**: Breaking changes, major new features
-- **Minor (0.X.0)**: New features, backwards compatible
-- **Patch (0.0.X)**: Bug fixes, security updates
-
-### Release Checklist
-
-Before releasing:
-
-- [ ] All tests pass (`./test.sh`)
-- [ ] Documentation updated
-- [ ] Security review completed
-- [ ] Performance testing (if significant changes)
-- [ ] Database migration tested (if schema changes)
-- [ ] Deployment tested in staging environment
-
-## Community
-
-### Communication
-
-- **GitHub Issues**: Bug reports, feature requests, and general questions
-- **Pull Requests**: Code review and collaboration
-
-### Code of Conduct
-
-- **Be respectful**: Treat all contributors with respect
-- **Be inclusive**: Welcome contributors of all backgrounds
-- **Be constructive**: Provide helpful feedback and suggestions
-- **Be patient**: Help newcomers learn the codebase
-
-### Recognition
-
-Contributors are recognized through:
-
-- **Git commit attribution**: Commit history documents individual contributions
-- **Release notes**: Significant contributions mentioned
+There is no versioned release for the web app: every commit to `main` that passes CI deploys automatically to a zero-traffic staging version, and a maintainer promotes it to production after a manual approval and a smoke check. See [docs/deployment.md](docs/deployment.md) for the full pipeline. The native Apple apps do use versioned releases through TestFlight and a notarized DMG; see [docs/apple-releases.md](docs/apple-releases.md).
 
 ## Getting Help
 
-### Resources
+- [Setup Guide](docs/setup.md) - Local installation
+- [Testing Guide](docs/testing.md) - Running and writing tests
+- [API Reference](docs/api.md) - Every endpoint
+- [Troubleshooting Guide](docs/troubleshooting.md) - Common issues
 
-- **Documentation**: Start with [Setup Guide](docs/setup.md)
-- **API Reference**: Complete API documentation in [API Guide](docs/api.md)
-- **Testing**: How to run and write tests in [Testing Guide](docs/testing.md)
-- **Troubleshooting**: Common issues in [Troubleshooting Guide](docs/troubleshooting.md)
-
-### Ask for Help
-
-Questions can be directed to:
-
-- **GitHub Issues**: For questions about contributing
-- **Issue comments**: For clarification on specific issues
-- **Pull request reviews**: For feedback on code
-
-Contributions to GoRead2 are welcome and help improve the project for all users.
+Questions about contributing, or feedback on a pull request, belong as comments on the relevant GitHub issue or pull request.

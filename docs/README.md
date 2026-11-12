@@ -47,4 +47,4 @@ The guides in this directory, grouped by who they are written for. Each guide de
 
 ## Conventions
 
-Each guide opens with a one-paragraph summary and a table of contents, and ends with Related Documentation. A guide has a Troubleshooting section only when it has troubleshooting content of its own, or when [troubleshooting.md](troubleshooting.md) has a section on its topic. `CLAUDE.md`, at the repository root, gives the writing rules and maps each area of the code to the guide that describes it.
+Each guide opens with a one-paragraph summary and a table of contents, and ends with Related Documentation. A guide has a Troubleshooting section only when it has troubleshooting content of its own, or when [troubleshooting.md](troubleshooting.md) has a section on its topic. [CONTRIBUTING.md](../CONTRIBUTING.md#documentation), at the repository root, gives the writing rules and maps each area of the code to the guide that describes it.
