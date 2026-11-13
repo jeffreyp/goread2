@@ -62,7 +62,6 @@ func main() {
 		fmt.Println("  audit-logs [--limit N] [--operation TYPE] - View audit logs")
 		fmt.Println("  stats                         - Show signups, active users, subscriptions, and feeds")
 		fmt.Println("  fix-subscription <email>      - Fix subscription status from Stripe")
-		fmt.Println("  debug-users                   - Debug user lookup issues")
 		fmt.Println("")
 		fmt.Println("SECURITY NOTES:")
 		fmt.Println("  - Admin tokens are securely stored in the database as hashes")
@@ -127,7 +126,7 @@ func main() {
 		revokeAdminToken(subscriptionService, tokenID)
 
 	case "list-users":
-		listUsers(db, subscriptionService)
+		listUsers(db)
 
 	case "set-admin":
 		if len(os.Args) != 4 {
@@ -200,7 +199,7 @@ func main() {
 	}
 }
 
-func listUsers(db database.Database, subscriptionService *services.SubscriptionService) {
+func listUsers(db database.Database) {
 	// For SQLite implementation, we can access the underlying DB
 	if sqliteDB, ok := db.(*database.DB); ok {
 		// Simple query to list all users
@@ -250,20 +249,7 @@ func listUsers(db database.Database, subscriptionService *services.SubscriptionS
 		var users []*database.UserEntity
 		keys, err := datastoreDB.GetClient().GetAll(ctx, query, &users)
 		if err != nil {
-			fmt.Printf("Error querying users from datastore: %v\n", err)
-			fmt.Println("Trying to get specific user by email instead...")
-
-			// Fallback: try to get the specific user we know exists
-			user, err := subscriptionService.GetUserByEmail("jeffrey@jeffreypratt.org")
-			if err != nil {
-				fmt.Printf("Cannot find jeffrey@jeffreypratt.org either: %v\n", err)
-				log.Fatal("Failed to query users and fallback failed")
-			}
-
-			fmt.Printf("\nFound user via direct lookup:\n")
-			fmt.Printf("ID: %d, Email: %s, Name: %s, Status: %s\n",
-				user.ID, user.Email, user.Name, user.SubscriptionStatus)
-			return
+			log.Fatal("Failed to query users from datastore:", err)
 		}
 
 		fmt.Printf("Found %d users in datastore\n", len(users))

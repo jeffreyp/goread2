@@ -183,10 +183,9 @@ func TestIsValidAdminTokenFormat(t *testing.T) {
 func TestListUsers_SQLite(t *testing.T) {
 	db := setupTestDB(t)
 	defer func() { _ = db.Close() }()
-	subscriptionService := services.NewSubscriptionService(db)
 
 	t.Run("no users", func(t *testing.T) {
-		output := captureStdout(t, func() { listUsers(db, subscriptionService) })
+		output := captureStdout(t, func() { listUsers(db) })
 		if !bytes.Contains([]byte(output), []byte("Email")) {
 			t.Errorf("expected header row in output, got: %s", output)
 		}
@@ -196,7 +195,7 @@ func TestListUsers_SQLite(t *testing.T) {
 		seedUser(t, db, "alice@example.com", true, 2)
 		seedUser(t, db, "bob@example.com", false, 0)
 
-		output := captureStdout(t, func() { listUsers(db, subscriptionService) })
+		output := captureStdout(t, func() { listUsers(db) })
 		if !bytes.Contains([]byte(output), []byte("alice@example.com")) {
 			t.Errorf("expected alice in output, got: %s", output)
 		}
@@ -208,7 +207,7 @@ func TestListUsers_SQLite(t *testing.T) {
 
 func TestListUsers_UnsupportedDB(t *testing.T) {
 	if isFatalSubprocess() {
-		listUsers(nil, services.NewSubscriptionService(setupTestDB(t)))
+		listUsers(nil)
 		return
 	}
 	exited, output := runFatalSubprocess(t, "TestListUsers_UnsupportedDB")
