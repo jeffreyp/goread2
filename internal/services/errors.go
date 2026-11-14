@@ -113,7 +113,7 @@ func GetErrorDetails(err error) ErrorDetails {
 	case errors.Is(err, ErrTrialExpired):
 		return ErrorDetails{
 			ErrorCode: ErrorCodeTrialExpired,
-			Message:   "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
+			Message:   "Your 30-day free trial has expired. Subscribe to add more feeds.",
 			Details:   err.Error(),
 		}
 	default:

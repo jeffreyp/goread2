@@ -364,7 +364,7 @@ class AccountApp {
                 statusText = 'Trial Expired';
                 detailsHTML = `
                     <p class="subscription-details-text">
-                        Your free trial has expired. Subscribe to GoRead2 Pro to continue using the service.
+                        Your free trial has expired. Subscribe to GoRead2 Pro to add feeds or import OPML. Feeds already subscribed stay readable.
                     </p>
                     <p class="subscription-details-text">
                         <strong>Trial ended:</strong> ${this.formatDate(info.trial_ends_at)}

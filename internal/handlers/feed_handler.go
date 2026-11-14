@@ -90,7 +90,7 @@ func (fh *FeedHandler) AddFeed(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrTrialExpired) {
 			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error":         "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
+				"error":         "Your 30-day free trial has expired. Subscribe to add more feeds.",
 				"trial_expired": true,
 			})
 			return
@@ -516,7 +516,7 @@ func (fh *FeedHandler) ImportOPML(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrTrialExpired) {
 			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error":         "Your 30-day free trial has expired. Subscribe to continue using GoRead2.",
+				"error":         "Your 30-day free trial has expired. Subscribe to add more feeds.",
 				"trial_expired": true,
 			})
 			return

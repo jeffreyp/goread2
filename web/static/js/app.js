@@ -2905,11 +2905,7 @@ class GoReadApp {
                 <button class="close" aria-label="Close">&times;</button>
                 <h2 id="trial-expired-heading">Free Trial Expired</h2>
                 <p>Your 30-day free trial has ended.</p>
-                <p>Subscribe to <strong>GoRead2 Pro</strong> to continue using the service with:</p>
-                <ul>
-                    <li>Unlimited RSS feeds</li>
-                    <li>Continued access to all articles</li>
-                </ul>
+                <p>Subscribe to <strong>GoRead2 Pro</strong> to add more feeds, with no feed limit. Feeds already subscribed stay readable.</p>
                 <p style="font-size: 18px; font-weight: 600; margin: 20px 0;">Only $9.99/month</p>
                 <div class="form-actions">
                     <button id="subscribe-btn" class="btn btn-primary">Subscribe Now</button>
