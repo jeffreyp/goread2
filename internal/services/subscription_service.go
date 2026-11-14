@@ -137,7 +137,9 @@ func (ss *SubscriptionService) GetUserSubscriptionInfo(userID int) (*Subscriptio
 		info.FeedLimit = -1 // Unlimited
 		info.CanAddFeeds = true
 	} else if user.SubscriptionStatus == "active" || user.FreeMonthsRemaining > 0 {
-		if user.FreeMonthsRemaining > 0 {
+		// A paid subscription takes precedence over granted free months,
+		// so that a subscriber keeps the subscription management actions.
+		if user.SubscriptionStatus != "active" {
 			info.Status = "free_months"
 		}
 		info.FeedLimit = -1 // Unlimited

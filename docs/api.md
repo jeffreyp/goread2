@@ -606,7 +606,7 @@ Get the user's subscription information and limits.
 - `past_due`, `unpaid` - Stripe could not collect a payment
 - `cancelled` - Cancelled subscription
 - `expired` - Expired subscription
-- `free_months` - Granted free months
+- `free_months` - Granted free months, without an active paid subscription
 - `admin` - Admin with an active subscription
 - `admin_trial` - Admin without an active subscription
 - `unlimited` - `SUBSCRIPTION_ENABLED` is off; `feed_limit` is `-1` and `can_add_feeds` is `true` for every user

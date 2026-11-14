@@ -341,6 +341,16 @@ func TestGetUserSubscriptionInfo(t *testing.T) {
 			expectedCanAdd:      true,
 		},
 		{
+			name:                "active subscriber with free months",
+			subscriptionEnabled: true,
+			user:                &database.User{ID: 1, SubscriptionStatus: "active", FreeMonthsRemaining: 3},
+			feedCount:           10,
+			isActive:            true,
+			expectedStatus:      "active",
+			expectedFeedLimit:   -1,
+			expectedCanAdd:      true,
+		},
+		{
 			name:                "trial user under limit",
 			subscriptionEnabled: true,
 			user:                &database.User{ID: 1, SubscriptionStatus: "trial", TrialEndsAt: time.Now().Add(5 * 24 * time.Hour)},

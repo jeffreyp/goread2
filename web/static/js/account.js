@@ -344,8 +344,8 @@ class AccountApp {
                 </button>
             `;
         } else if (info.status === 'free_months') {
-            // Free months granted by an admin; these take precedence over
-            // a paid subscription in the reported status.
+            // Free months granted by an admin, without an active paid
+            // subscription (which is reported as 'active' instead).
             statusClass = 'free';
             statusText = 'Free Months';
             detailsHTML = `
