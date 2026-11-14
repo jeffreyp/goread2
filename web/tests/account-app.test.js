@@ -554,3 +554,44 @@ describe('AccountApp data export', () => {
         expect(app.downloadExport).toHaveBeenCalledWith(link);
     });
 });
+
+describe('AccountApp subscription status', () => {
+    const loadAccountApp = () => {
+        const fs = require('fs');
+        const path = require('path');
+        const source = fs.readFileSync(path.join(__dirname, '../static/js/account.js'), 'utf8');
+        return new Function(`${source}\nreturn AccountApp;`)();
+    };
+
+    const render = (info) => {
+        document.body.innerHTML = '<div id="subscription-details"></div>';
+        // Skip the constructor so init() does not run auth and data loads.
+        const app = Object.create(loadAccountApp().prototype);
+        app.subscriptionInfo = info;
+        app.renderSubscriptionInfo();
+        return document.getElementById('subscription-details');
+    };
+
+    test('labels granted free months instead of showing the raw status', () => {
+        const element = render({
+            status: 'free_months',
+            current_feeds: 25,
+            feed_limit: -1,
+            can_add_feeds: true
+        });
+
+        expect(element.querySelector('.subscription-info').classList.contains('free')).toBe(true);
+        expect(element.querySelector('.status-badge-large').textContent).toBe('Free Months');
+        expect(element.querySelector('.status-text').textContent.trim()).toBe('Unlimited feeds');
+        expect(element.textContent).toContain('25 feeds (unlimited)');
+        expect(element.textContent).not.toContain('free_months');
+        expect(element.textContent).not.toContain('Subscribe');
+        expect(element.querySelectorAll('[data-action]')).toHaveLength(0);
+    });
+
+    test('still shows the raw value for a status it does not recognise', () => {
+        const element = render({ status: 'past_due', current_feeds: 3, feed_limit: 20 });
+
+        expect(element.querySelector('.status-badge-large').textContent).toBe('Status: past_due');
+    });
+});

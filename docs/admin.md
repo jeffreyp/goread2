@@ -98,7 +98,7 @@ Whether a user can add feeds depends on these checks, in order. The first that a
 | Subscriptions disabled | `SUBSCRIPTION_ENABLED=false` | None | Never | Unlimited Access | Unlimited Access |
 | Admin | `is_admin` | None | When revoked | Admin Access | Admin + GoRead2 Pro with a subscription, otherwise Admin (Unlimited) |
 | Pro | An active Stripe subscription | None | When Stripe reports the subscription ended | GoRead2 Pro | GoRead2 Pro |
-| Free months | `free_months_remaining` above 0 | None | Never | Free Months | Status: free_months |
+| Free months | `free_months_remaining` above 0 | None | Never | Free Months | Free Months |
 | Trial | New account | 20 | 30 days after sign-up | Free Trial | Free Trial |
 | Trial expired | Trial end date passed | No new feeds | When the user subscribes | Trial Expired | Trial Expired |
 

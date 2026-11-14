@@ -92,6 +92,11 @@
     color: white;
 }
 
+.subscription-info.free .status-badge-large {
+    background-color: #1a73e8;
+    color: white;
+}
+
 .subscription-info.trial .status-badge-large {
     background-color: #fbbc04;
     color: #202124;

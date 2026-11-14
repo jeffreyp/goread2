@@ -343,6 +343,20 @@ class AccountApp {
                     View Billing History
                 </button>
             `;
+        } else if (info.status === 'free_months') {
+            // Free months granted by an admin; these take precedence over
+            // a paid subscription in the reported status.
+            statusClass = 'free';
+            statusText = 'Free Months';
+            detailsHTML = `
+                <p class="subscription-details-text">
+                    You have been granted free months with unlimited feeds.
+                </p>
+                <p class="subscription-details-text">
+                    <strong>Current feeds:</strong> ${info.current_feeds} feeds (unlimited)
+                </p>
+            `;
+            actionsHTML = '';
         } else if (info.status === 'trial') {
             // Check if trial is expired
             if (new Date(info.trial_ends_at) < new Date()) {
@@ -409,7 +423,7 @@ class AccountApp {
                     <div class="subscription-meta">
                         <div class="status-text">
                             ${info.status === 'active' || info.status === 'admin' || info.status === 'admin_trial' ? 'Unlimited feeds' : 
-                              info.status === 'unlimited' ? 'Unlimited feeds' :
+                              info.status === 'unlimited' || info.status === 'free_months' ? 'Unlimited feeds' :
                               info.status === 'trial' ? `${info.current_feeds}/${info.feed_limit} feeds` : 
                               'Subscribe to continue'}
                         </div>
