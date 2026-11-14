@@ -57,8 +57,6 @@ At startup, the server and `make validate-config` print a warning for each envir
 | `GOOGLE_CLOUD_PROJECT` | Unset | On App Engine | None | Google Cloud project ID. When set, the server uses Datastore; when unset, it uses the local SQLite file `goread2.db`. Also required to read Secret Manager, Cloud Tasks, and Cloud Monitoring. |
 | `DATASTORE_EMULATOR_HOST` | Unset | No | None | Address of a Datastore emulator. Set by `scripts/with-datastore-emulator.sh` (see [testing.md](testing.md)). |
 
-`internal/config/config.go` also reads `DATABASE_PATH`, but the database layer always opens `./goread2.db`, so the variable has no effect.
-
 ## Subscriptions and Stripe
 
 | Variable | Default | Required | Secret Manager name | Purpose |
@@ -102,7 +100,6 @@ These control the per-domain rate limit on outgoing feed fetches and the schedul
 | `SCHEDULER_UPDATE_WINDOW` | `15m` | Window across which a refresh spreads its fetches, as a Go duration |
 | `SCHEDULER_MIN_INTERVAL` | `5m` | Minimum time between two fetches of the same feed. It must not exceed `SCHEDULER_UPDATE_WINDOW`. |
 | `SCHEDULER_MAX_CONCURRENT` | `10` | Maximum concurrent fetches during a refresh |
-| `SCHEDULER_CLEANUP_INTERVAL` | `1h` | Interval of the scheduler's background cleanup loop. The server does not start that loop, so the value has no effect. |
 
 None of these is a secret or required.
 

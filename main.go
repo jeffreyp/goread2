@@ -87,10 +87,9 @@ func main() {
 
 	// Initialize feed scheduler for staggered updates
 	feedScheduler := services.NewFeedScheduler(feedService, rateLimiter, services.SchedulerConfig{
-		UpdateWindow:    cfg.SchedulerUpdateWindow,
-		MinInterval:     cfg.SchedulerMinInterval,
-		MaxConcurrent:   cfg.SchedulerMaxConcurrent,
-		CleanupInterval: cfg.SchedulerCleanupInterval,
+		UpdateWindow:  cfg.SchedulerUpdateWindow,
+		MinInterval:   cfg.SchedulerMinInterval,
+		MaxConcurrent: cfg.SchedulerMaxConcurrent,
 	})
 
 	// DISABLED: Always-on scheduler loop to reduce costs

@@ -176,13 +176,11 @@ func WarnAboutUnhandledEnvVars() {
 		"BUILD_VERSION":                  true,
 		"VALIDATE_STRICT":                true,
 		"DATASTORE_EMULATOR_HOST":        true,
-		"DATABASE_PATH":                  true,
 		"RATE_LIMIT_REQUESTS_PER_MINUTE": true,
 		"RATE_LIMIT_BURST_SIZE":          true,
 		"SCHEDULER_UPDATE_WINDOW":        true,
 		"SCHEDULER_MIN_INTERVAL":         true,
 		"SCHEDULER_MAX_CONCURRENT":       true,
-		"SCHEDULER_CLEANUP_INTERVAL":     true,
 	}
 
 	// Check all environment variables

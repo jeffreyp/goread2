@@ -20,9 +20,6 @@ type Config struct {
 	// Feature flags
 	SubscriptionEnabled bool
 
-	// Database
-	DatabasePath string
-
 	// OAuth
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -45,7 +42,6 @@ type Config struct {
 	SchedulerUpdateWindow      time.Duration // Time window to spread updates across
 	SchedulerMinInterval       time.Duration // Minimum time between updates for same feed
 	SchedulerMaxConcurrent     int           // Maximum concurrent feed updates
-	SchedulerCleanupInterval   time.Duration // How often to cleanup old rate limiters
 }
 
 var globalConfig *Config
@@ -71,9 +67,6 @@ func Load() *Config {
 		// Feature flags - default to disabled for safety
 		SubscriptionEnabled: parseBool(os.Getenv("SUBSCRIPTION_ENABLED"), false),
 
-		// Database
-		DatabasePath: getEnvOrDefault("DATABASE_PATH", "./goread2.db"),
-
 		// OAuth
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
@@ -96,7 +89,6 @@ func Load() *Config {
 		SchedulerUpdateWindow:      parseDuration(os.Getenv("SCHEDULER_UPDATE_WINDOW"), 15*time.Minute),
 		SchedulerMinInterval:       parseDuration(os.Getenv("SCHEDULER_MIN_INTERVAL"), 5*time.Minute),
 		SchedulerMaxConcurrent:     parseInt(os.Getenv("SCHEDULER_MAX_CONCURRENT"), 10),
-		SchedulerCleanupInterval:   parseDuration(os.Getenv("SCHEDULER_CLEANUP_INTERVAL"), 1*time.Hour),
 	}
 
 	if err := validateConfig(globalConfig); err != nil {
@@ -125,9 +117,6 @@ func validateConfig(cfg *Config) error {
 	}
 	if cfg.SchedulerMaxConcurrent <= 0 {
 		return fmt.Errorf("SCHEDULER_MAX_CONCURRENT must be positive, got %d", cfg.SchedulerMaxConcurrent)
-	}
-	if cfg.SchedulerCleanupInterval <= 0 {
-		return fmt.Errorf("SCHEDULER_CLEANUP_INTERVAL must be positive, got %v", cfg.SchedulerCleanupInterval)
 	}
 	if cfg.SchedulerMinInterval > cfg.SchedulerUpdateWindow {
 		return fmt.Errorf("SCHEDULER_MIN_INTERVAL (%v) must be less than SCHEDULER_UPDATE_WINDOW (%v)",
