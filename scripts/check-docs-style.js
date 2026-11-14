@@ -201,7 +201,7 @@ function perFileChecks(relPath) {
 
 function checkTestNames() {
   const goFuncNames = new Set(
-    execSync("grep -rhoP '^func (?:\\([^)]*\\)\\s*)?(Test|Benchmark)[A-Za-z0-9_]*' --include='*.go' .", {
+    execSync("grep -rhoE '^func (\\([^)]*\\)[[:space:]]*)?(Test|Benchmark)[A-Za-z0-9_]*' --include='*.go' .", {
       cwd: ROOT,
       encoding: 'utf8',
     })
@@ -238,11 +238,11 @@ function checkEnvVars() {
 
   // Variables read outside _test.go files: the real runtime surface.
   const nonTestHits = execSync(
-    "grep -rhoP '(?:os\\.Getenv|getEnvOrDefault)\\(\"[A-Z_][A-Z0-9_]*\"' internal/ cmd/ main.go --include='*.go' --exclude='*_test.go' 2>/dev/null || true",
+    "grep -rhoE '(os\\.Getenv|getEnvOrDefault)\\(\"[A-Z_][A-Z0-9_]*\"' internal/ cmd/ main.go --include='*.go' --exclude='*_test.go' 2>/dev/null || true",
     { cwd: ROOT, encoding: 'utf8' }
   );
   const validationHits = execSync(
-    "grep -oP '\"[A-Z_][A-Z0-9_]*\":\\s*true' internal/config/validation.go",
+    "grep -oE '\"[A-Z_][A-Z0-9_]*\":[[:space:]]*true' internal/config/validation.go",
     { cwd: ROOT, encoding: 'utf8' }
   );
   const codeVars = new Set(
