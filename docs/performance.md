@@ -20,7 +20,7 @@ App Engine Cron starts a refresh of every subscribed feed every 2 hours, through
 - **Only due feeds are fetched.** `FeedService.shouldCheckFeed` skips a feed checked too recently. A feed with a known update frequency is due once half its average interval has passed since the last check. Otherwise the interval depends on when the feed last had new content: 30 minutes within the last week, 1 hour within the last month, and 6 hours after that. A feed that has never had new content is checked hourly. Because cron runs every 2 hours, every interval shorter than that means "on every run".
 - **Update frequency adapts.** Each fetch that finds new content updates the feed's average update interval as a weighted average, 70% the previous value and 30% the latest interval.
 - **Unchanged feeds cost little.** Each fetch sends the `ETag` and `Last-Modified` values from the feed's previous response as `If-None-Match` and `If-Modified-Since`. A `304 Not Modified` response skips downloading and parsing the feed.
-- **Fetches are spread and bounded.** The scheduler spreads fetches across `SCHEDULER_UPDATE_WINDOW`, runs at most `SCHEDULER_MAX_CONCURRENT` at once, and limits the requests sent to each feed domain (see [configuration.md](configuration.md#feed-fetching)).
+- **Fetches are spread and bounded.** The scheduler gives each feed a fixed position in `SCHEDULER_UPDATE_WINDOW` (5 minutes by default), so a refresh takes about that long. It runs at most `SCHEDULER_MAX_CONCURRENT` fetches at once and limits the requests sent to each feed domain (see [configuration.md](configuration.md#feed-fetching)).
 
 At the end, the scheduler logs `Feed refresh complete: checked=<n>, skipped=<n>, had_new_content=<n>`.
 

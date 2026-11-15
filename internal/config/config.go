@@ -86,9 +86,17 @@ func Load() *Config {
 		// Feed Rate Limiting
 		RateLimitRequestsPerMinute: parseInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 120),
 		RateLimitBurstSize:         parseInt(os.Getenv("RATE_LIMIT_BURST_SIZE"), 30),
-		SchedulerUpdateWindow:      parseDuration(os.Getenv("SCHEDULER_UPDATE_WINDOW"), 15*time.Minute),
+		SchedulerUpdateWindow:      parseDuration(os.Getenv("SCHEDULER_UPDATE_WINDOW"), 5*time.Minute),
 		SchedulerMinInterval:       parseDuration(os.Getenv("SCHEDULER_MIN_INTERVAL"), 5*time.Minute),
 		SchedulerMaxConcurrent:     parseInt(os.Getenv("SCHEDULER_MAX_CONCURRENT"), 10),
+	}
+
+	// Validation below only warns, and a window past the request deadline
+	// would leave feeds unfetched, so this limit is enforced.
+	if globalConfig.SchedulerUpdateWindow > MaxSchedulerUpdateWindow {
+		log.Printf("WARNING: SCHEDULER_UPDATE_WINDOW %v exceeds the maximum, using %v",
+			globalConfig.SchedulerUpdateWindow, MaxSchedulerUpdateWindow)
+		globalConfig.SchedulerUpdateWindow = MaxSchedulerUpdateWindow
 	}
 
 	if err := validateConfig(globalConfig); err != nil {
@@ -97,6 +105,13 @@ func Load() *Config {
 
 	return globalConfig
 }
+
+// MaxSchedulerUpdateWindow is the longest SCHEDULER_UPDATE_WINDOW allowed. A
+// feed refresh waits out the window inside one request, and App Engine
+// standard with automatic scaling ends a request after 10 minutes, as does
+// Cloud Tasks' dispatch to App Engine. The margin covers the fetches that
+// start at the end of the window.
+const MaxSchedulerUpdateWindow = 8 * time.Minute
 
 // validateConfig checks that configuration values are within acceptable ranges.
 func validateConfig(cfg *Config) error {

@@ -111,10 +111,42 @@ func TestFeedScheduler_CalculateStaggeredDelay(t *testing.T) {
 
 		delay := scheduler.calculateStaggeredDelay(1, recentFetch)
 
-		// Should include additional delay for min interval
-		expectedMinDelay := 30*time.Minute - 10*time.Minute // 20 minutes additional
+		// The feed was fetched 10 minutes ago, so 20 minutes of the minimum
+		// interval remain, less the moment the call itself takes.
+		expectedMinDelay := 30*time.Minute - 10*time.Minute - time.Second
 		if delay < expectedMinDelay {
 			t.Errorf("delay %v should be at least %v to respect min interval", delay, expectedMinDelay)
+		}
+	})
+
+	t.Run("delays spread across the whole window", func(t *testing.T) {
+		lastFetch := time.Now().Add(-2 * time.Hour)
+
+		var quarters [4]int
+		for id := 1; id <= 400; id++ {
+			delay := scheduler.calculateStaggeredDelay(id, lastFetch)
+			if delay < 0 || delay >= 1*time.Hour {
+				t.Fatalf("delay %v for feed %d is outside the update window", delay, id)
+			}
+			quarters[delay/(15*time.Minute)]++
+		}
+		for i, n := range quarters {
+			if n < 50 {
+				t.Errorf("quarter %d of the window got %d of 400 feeds, want at least 50", i, n)
+			}
+		}
+	})
+
+	t.Run("never exceeds the update window", func(t *testing.T) {
+		short := &FeedScheduler{
+			updateWindow: 5 * time.Minute,
+			minInterval:  30 * time.Minute,
+		}
+
+		for id := 1; id <= 50; id++ {
+			if delay := short.calculateStaggeredDelay(id, time.Now()); delay > 5*time.Minute {
+				t.Errorf("delay %v for feed %d exceeds the update window", delay, id)
+			}
 		}
 	})
 

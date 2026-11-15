@@ -417,8 +417,8 @@ func TestParseDurationMalformed(t *testing.T) {
 		expected time.Duration
 		desc     string
 	}{
-		{"SCHEDULER_UPDATE_WINDOW", "not-a-duration", 15 * time.Minute, "bad duration falls back to default"},
-		{"SCHEDULER_UPDATE_WINDOW", "abc123", 15 * time.Minute, "alphanumeric falls back to default"},
+		{"SCHEDULER_UPDATE_WINDOW", "not-a-duration", 5 * time.Minute, "bad duration falls back to default"},
+		{"SCHEDULER_UPDATE_WINDOW", "abc123", 5 * time.Minute, "alphanumeric falls back to default"},
 		{"SCHEDULER_MIN_INTERVAL", "???", 5 * time.Minute, "symbol string falls back to default"},
 	}
 
@@ -446,6 +446,22 @@ func TestParseDurationMalformed(t *testing.T) {
 				t.Errorf("%s=%q: got %v, want %v", tt.envVar, tt.value, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestSchedulerUpdateWindowIsCapped(t *testing.T) {
+	clearConfigEnvVars()
+	_ = os.Setenv("SCHEDULER_UPDATE_WINDOW", "15m")
+	defer func() {
+		_ = os.Unsetenv("SCHEDULER_UPDATE_WINDOW")
+		clearConfigEnvVars()
+	}()
+
+	ResetForTesting()
+	Load()
+
+	if got := Get().SchedulerUpdateWindow; got != MaxSchedulerUpdateWindow {
+		t.Errorf("SCHEDULER_UPDATE_WINDOW=15m: got %v, want %v", got, MaxSchedulerUpdateWindow)
 	}
 }
 

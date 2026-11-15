@@ -228,21 +228,24 @@ func (fs *FeedScheduler) createStaggeredSchedule(feeds []database.Feed) []Schedu
 	return scheduledFeeds
 }
 
-// calculateStaggeredDelay calculates when a feed should be updated
+// calculateStaggeredDelay returns how long to wait before fetching a feed.
+// The delay is stable for a feed ID and never exceeds the update window, so
+// the window bounds how long a whole refresh spends waiting.
 func (fs *FeedScheduler) calculateStaggeredDelay(feedID int, lastFetch time.Time) time.Duration {
-	// Use feed ID hash to distribute evenly across update window
 	hash := fnv.New32a()
 	_, _ = fmt.Fprintf(hash, "%d", feedID)
 
-	// Spread across the update window
-	hashValue := hash.Sum32()
-	delay := time.Duration(hashValue) % fs.updateWindow
+	// Scale the 32-bit hash onto [0, updateWindow). Taking the hash modulo
+	// the window would read it as nanoseconds, a spread of about 4 seconds.
+	fraction := float64(hash.Sum32()) / (1 << 32)
+	delay := time.Duration(fraction * float64(fs.updateWindow))
 
-	// Respect minimum intervals (don't hammer recently updated feeds)
-	timeSinceUpdate := time.Since(lastFetch)
-	if timeSinceUpdate < fs.minInterval {
-		additionalDelay := fs.minInterval - timeSinceUpdate
-		delay += additionalDelay
+	// Don't refetch a feed sooner than minInterval after its last fetch.
+	if remaining := fs.minInterval - time.Since(lastFetch); remaining > delay {
+		delay = remaining
+	}
+	if delay > fs.updateWindow {
+		delay = fs.updateWindow
 	}
 
 	return delay

@@ -97,7 +97,7 @@ These control the per-domain rate limit on outgoing feed fetches and the schedul
 |----------|---------|---------|
 | `RATE_LIMIT_REQUESTS_PER_MINUTE` | `120` | Maximum feed fetches per minute sent to one feed domain |
 | `RATE_LIMIT_BURST_SIZE` | `30` | Fetches to one domain allowed in a burst above the per-minute rate |
-| `SCHEDULER_UPDATE_WINDOW` | `15m` | Window across which a refresh spreads its fetches, as a Go duration |
+| `SCHEDULER_UPDATE_WINDOW` | `5m` | Window across which a refresh spreads its fetches, as a Go duration. The refresh runs inside one request, which App Engine ends after 10 minutes, so the server reduces a longer value to `8m` and logs a warning. |
 | `SCHEDULER_MIN_INTERVAL` | `5m` | Minimum time between two fetches of the same feed. It must not exceed `SCHEDULER_UPDATE_WINDOW`. |
 | `SCHEDULER_MAX_CONCURRENT` | `10` | Maximum concurrent fetches during a refresh |
 
