@@ -120,6 +120,10 @@ jobs:
 
       - name: Output staging URL
         run: |
+          # Annotations as well as the job summary: they appear on the run page
+          # and in `gh run view`, which doesn't print job summaries.
+          echo "::notice title=Staging URL::https://${{ steps.version.outputs.name }}-dot-goread-467200.uc.r.appspot.com"
+          echo "::notice title=Login testing URL::https://staging-dot-goread-467200.uc.r.appspot.com"
           {
             echo "### 🚀 Staged for review"
             echo ""
