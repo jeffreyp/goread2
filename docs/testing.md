@@ -26,7 +26,7 @@ GoRead2's testing infrastructure includes:
 - **Package-level unit tests** across nine `internal/` packages plus `cmd/admin`; coverage drifts often enough that no fixed numbers are kept here, regenerate with `go test ./internal/... -cover` for the current figures (see [Coverage Goals](#coverage-goals) below)
 - **Integration tests** for end-to-end API validation (`test/integration/`)
 - **A dedicated security regression suite** (`test/security/`)
-- **Frontend tests** with Jest and jsdom (149 tests across 8 files)
+- **Frontend tests** with Jest and jsdom (161 tests across 9 files)
 - **CI/CD integration** with GitHub Actions
 
 ## Current Test Structure
@@ -49,7 +49,7 @@ test/
 ├── security/        # Consolidated security regression suite, run as a dedicated CI job
 ├── helpers/         # Shared test database, server, and HTTP helpers (see Test Helpers below)
 └── fixtures/        # Sample feed data and on-disk XML fixtures
-web/tests/           # Jest/jsdom frontend tests (149 tests across 8 files)
+web/tests/           # Jest/jsdom frontend tests (161 tests across 9 files)
 ```
 
 Every package's actual test files are listed next to its source under `internal/`, `cmd/admin/`, and `test/`; this doc doesn't keep its own copy of that list, since it goes stale every time a test file is added, renamed, or split.
@@ -190,7 +190,7 @@ The `benchmark` job in `test.yml` runs the four benchmarks above with `-benchtim
 
 ### 3. Frontend Tests
 
-Jest and jsdom cover the frontend across 8 files (149 tests total): `app-core.test.js` (DOM manipulation, event handling, API mocking, form validation, UI state), `error-handler.test.js` (connection indicator, error display by type, toast notifications, HTTP status classification), `pagination.test.js` (Load More button state, cursor-based pagination, article rendering and indexing across pages; Load More appears whenever the server returns a next cursor, for any feed view, not only "all"), `accessibility.test.js` (ARIA, focus, keyboard navigation), `account-app.test.js`, `article-scroll.test.js`, `goread-app.test.js`, and `integration.test.js`. `web/tests/utils.js` holds shared test utilities rather than tests themselves: `waitFor`/`waitForElement` for async assertions, `fireEvent` for simulating user interaction, `createMockResponse`/`createTestArticles`/`createTestFeeds` for fixture data, and `expectElementToHaveClass` and similar DOM assertion helpers. `setup.js` configures global fetch mocking and the jsdom environment every test file shares.
+Jest and jsdom cover the frontend across 9 files (161 tests total): `app-core.test.js` (DOM manipulation, event handling, API mocking, form validation, UI state), `error-handler.test.js` (connection indicator, error display by type, toast notifications, HTTP status classification), `pagination.test.js` (Load More button state, cursor-based pagination, article rendering and indexing across pages; Load More appears whenever the server returns a next cursor, for any feed view, not only "all"), `load-more.test.js` (when the unread view offers Load More, run against the real `GoReadApp` methods: the button is withheld once every counted unread article is loaded, re-decided when unread counts arrive after the article list, and withdrawn when a click finds nothing), `accessibility.test.js` (ARIA, focus, keyboard navigation), `account-app.test.js`, `article-scroll.test.js`, `goread-app.test.js`, and `integration.test.js`. `web/tests/utils.js` holds shared test utilities rather than tests themselves: `waitFor`/`waitForElement` for async assertions, `fireEvent` for simulating user interaction, `createMockResponse`/`createTestArticles`/`createTestFeeds` for fixture data, and `expectElementToHaveClass` and similar DOM assertion helpers. `setup.js` configures global fetch mocking and the jsdom environment every test file shares.
 
 ## Test Environment
 

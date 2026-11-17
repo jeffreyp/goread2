@@ -308,6 +308,12 @@ class ErrorHandler {
 }
 
 class GoReadApp {
+    // How many consecutive empty pages one Load More click follows before
+    // concluding there is nothing more to show.
+    static get maxEmptyLoadMoreRounds() {
+        return 5;
+    }
+
     constructor() {
         this.currentFeed = null;
         this.currentArticle = null;
@@ -1136,6 +1142,7 @@ class GoReadApp {
                     // new-articles banner compares against the right baseline.
                     if (this.currentFeed === 'all') {
                         this.newArticlesBaselineCount = this.getCurrentViewUnreadCount('all');
+                        this.refreshLoadMoreButton();
                     }
                 }
             } else {
@@ -1337,8 +1344,8 @@ class GoReadApp {
                 this.nextCursor = nextCursor;
             }
 
-            this.hasMoreArticles = nextCursor !== '' &&
-                !this.unreadScanExhausted(newArticles.length, limit);
+            this.lastPageWasShort = newArticles.length < limit;
+            this.hasMoreArticles = this.moreArticlesExpected();
 
             this.renderArticlesOptimized(append);
 
@@ -1357,6 +1364,7 @@ class GoReadApp {
                     this.autoSelectFirstUnreadFromNewBatch(0);
                 }
             }
+            return true;
         } catch (error) {
             console.error('Failed to load articles:', error);
             const errorType = this.errorHandler.detectErrorType(error);
@@ -1365,6 +1373,7 @@ class GoReadApp {
                 retry: () => this.loadArticles(feedId, append),
                 context: 'loading articles'
             });
+            return false;
         }
     }
 
@@ -1391,15 +1400,27 @@ class GoReadApp {
         }
     }
 
-    // In unread mode the server returns a short page with a cursor when it runs
-    // out of per-request scan budget while skipping read articles, which does not
-    // mean any unread articles remain. After a short page, trust the cursor only
-    // while the view's unread count (as of the list load) exceeds what's loaded.
-    unreadScanExhausted(pageSize, limit) {
-        if (this.articleFilter !== 'unread' || pageSize >= limit || !this.unreadCountsLoaded) {
+    // Whether to offer Load More. In unread mode the server returns a short
+    // page with a cursor when it runs out of per-request scan budget while
+    // skipping read articles, which does not mean any unread articles remain.
+    // After a short page, trust the cursor only while the view's unread count
+    // (as of the list load) exceeds what's loaded.
+    moreArticlesExpected() {
+        if (!this.nextCursor) {
             return false;
         }
-        return this.articles.length >= this.newArticlesBaselineCount;
+        if (this.articleFilter !== 'unread' || !this.lastPageWasShort || !this.unreadCountsLoaded) {
+            return true;
+        }
+        return this.articles.length < this.newArticlesBaselineCount;
+    }
+
+    // Re-decides Load More after the unread counts change. At startup the
+    // article list usually arrives before the counts, so the first decision
+    // is made without them.
+    refreshLoadMoreButton() {
+        this.hasMoreArticles = this.moreArticlesExpected();
+        this.addLoadMoreButton();
     }
 
     addLoadMoreButton() {
@@ -1426,20 +1447,40 @@ class GoReadApp {
         }
     }
 
+    // One click keeps following the cursor while pages come back empty, up to
+    // maxEmptyLoadMoreRounds requests. If none of them finds an article, the
+    // button is withdrawn so it is not offered again with nothing behind it.
     async loadMoreArticles() {
-        if (this.hasMoreArticles) {
-            const button = document.querySelector('.load-more-button button');
-            if (button) {
-                button.textContent = 'Loading...';
-                button.disabled = true;
-            }
+        if (!this.hasMoreArticles) {
+            return;
+        }
 
-            await this.loadArticles(this.currentFeed, true);
+        const button = document.querySelector('.load-more-button button');
+        if (button) {
+            button.textContent = 'Loading...';
+            button.disabled = true;
+        }
 
-            if (button) {
-                button.textContent = 'Load More Articles';
-                button.disabled = false;
+        const feedId = this.currentFeed;
+        const loadedBefore = this.articles.length;
+        let loaded = true;
+        for (let round = 0; round < GoReadApp.maxEmptyLoadMoreRounds; round++) {
+            loaded = await this.loadArticles(feedId, true);
+            const foundArticles = this.articles.length > loadedBefore;
+            if (!loaded || foundArticles || !this.hasMoreArticles || this.currentFeed !== feedId) {
+                break;
             }
+        }
+
+        if (loaded && this.currentFeed === feedId &&
+            this.articles.length === loadedBefore && this.hasMoreArticles) {
+            this.hasMoreArticles = false;
+            this.addLoadMoreButton();
+        }
+
+        if (button) {
+            button.textContent = 'Load More Articles';
+            button.disabled = false;
         }
     }
 
