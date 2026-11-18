@@ -126,6 +126,7 @@ Each SQLite table has a Datastore kind with the same fields. Datastore needs no 
 | `UserFeed` | `user_feeds` | `<user_id>_<feed_id>` | A user's subscription to a feed |
 | `UserArticle` | `user_articles` | `<user_id>_<article_id>` | A user's read and starred state for an article. A missing record means unread and unstarred. |
 | `Session` | `sessions` | The session ID | A signed-in session and its expiry |
+| `GoogleIDIndex` | None; the `UNIQUE` constraint on `users.google_id` does this job | The Google ID | The ID of the user that owns a Google ID, so two concurrent first sign-ins cannot both create an account. Accounts created before it was added have none. |
 | `UserActivity` | `user_activity` | The user's ID | When the account was last used, for the retention policy |
 | `AccountTombstone` | `account_tombstones` | HMAC of a deleted account's Google ID | A deleted account's trial history (see [privacy.md](privacy.md#account-deletion)) |
 | `AdminToken` | `admin_tokens` | Numeric ID | The hash of an admin CLI token (see [admin.md](admin.md#admin-token-system)) |

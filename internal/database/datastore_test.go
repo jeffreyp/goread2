@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -48,7 +49,7 @@ func cleanupDatastoreEntities(t *testing.T, db *DatastoreDB) {
 	ctx := context.Background()
 	client := db.GetClient()
 
-	kinds := []string{"User", "Feed", "Article", "UserFeed", "UserArticle", "Session", "AuditLog", "AdminToken"}
+	kinds := []string{"User", "GoogleIDIndex", "Feed", "Article", "UserFeed", "UserArticle", "Session", "AuditLog", "AdminToken"}
 	for _, kind := range kinds {
 		query := datastore.NewQuery(kind).KeysOnly()
 		keys, err := client.GetAll(ctx, query, nil)
@@ -1225,5 +1226,84 @@ func TestDatastoreUnreadOnlyPaginationStopsWhenExhausted(t *testing.T) {
 	if result.NextCursor != "" {
 		t.Errorf("NextCursor = %q, want empty: no unread articles remain, so the client's "+
 			"\"Load More\" button should not appear", result.NextCursor)
+	}
+}
+
+func TestDatastoreCreateUserRejectsConcurrentDuplicateGoogleID(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+	googleID := fmt.Sprintf("race_google_id_%d", time.Now().UnixNano())
+
+	const attempts = 4
+	errs := make([]error, attempts)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range attempts {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			errs[i] = db.CreateUser(&User{
+				GoogleID:  googleID,
+				Email:     fmt.Sprintf("race%d@example.com", i),
+				Name:      "Race",
+				CreatedAt: time.Now(),
+			})
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	created := 0
+	for i, err := range errs {
+		switch {
+		case err == nil:
+			created++
+		case !errors.Is(err, ErrGoogleIDTaken):
+			t.Errorf("CreateUser %d: error = %v, want nil or ErrGoogleIDTaken", i, err)
+		}
+	}
+	if created != 1 {
+		t.Errorf("%d of %d concurrent CreateUser calls succeeded, want exactly 1", created, attempts)
+	}
+
+	keys, err := db.GetClient().GetAll(context.Background(),
+		datastore.NewQuery("User").FilterField("google_id", "=", googleID).KeysOnly(), nil)
+	if err != nil {
+		t.Fatalf("querying users: %v", err)
+	}
+	if len(keys) != 1 {
+		t.Errorf("found %d users with Google ID %q, want 1", len(keys), googleID)
+	}
+}
+
+func TestDatastoreDeleteUserAccountReleasesGoogleID(t *testing.T) {
+	db := setupTestDatastoreDB(t)
+	user := createDatastoreTestUser(t, db)
+
+	if err := db.DeleteUserAccount(user.ID); err != nil {
+		t.Fatalf("DeleteUserAccount failed: %v", err)
+	}
+
+	var index GoogleIDIndexEntity
+	err := db.GetClient().Get(context.Background(), googleIDIndexKey(user.GoogleID), &index)
+	if !errors.Is(err, datastore.ErrNoSuchEntity) {
+		t.Errorf("GoogleIDIndex entity after deletion: error = %v, want ErrNoSuchEntity", err)
+	}
+
+	again := &User{GoogleID: user.GoogleID, Email: user.Email, Name: user.Name, CreatedAt: time.Now()}
+	if err := db.CreateUser(again); err != nil {
+		t.Fatalf("CreateUser after deletion: %v", err)
+	}
+	if again.ID == user.ID {
+		t.Errorf("re-created account reused ID %d", user.ID)
+	}
+
+	// The deletion pass runs twice; a second run on the deleted account must
+	// not remove the new account's index entity.
+	if err := db.DeleteUserAccount(user.ID); err != nil {
+		t.Fatalf("second DeleteUserAccount failed: %v", err)
+	}
+	if err := db.GetClient().Get(context.Background(), googleIDIndexKey(user.GoogleID), &index); err != nil {
+		t.Errorf("new account's GoogleIDIndex entity after a repeated deletion: %v", err)
 	}
 }

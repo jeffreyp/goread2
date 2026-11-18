@@ -196,13 +196,22 @@ func (a *AuthService) SignInGoogleUser(ctx context.Context, googleUser GoogleUse
 			user.TrialEndsAt = user.CreatedAt
 		}
 
-		if err := a.db.CreateUser(user); err != nil {
+		err := a.db.CreateUser(user)
+		if errors.Is(err, database.ErrGoogleIDTaken) {
+			// A concurrent sign-in for the same Google account created it
+			// first, for example from a second tab. Use that account.
+			user, err = a.db.GetUserByGoogleID(googleUser.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to look up user created by a concurrent sign-in: %w", err)
+			}
+		} else if err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
+		} else {
+			if googleUser.VerifiedEmail {
+				a.grantInitialAdmin(user)
+			}
+			return user, nil
 		}
-		if googleUser.VerifiedEmail {
-			a.grantInitialAdmin(user)
-		}
-		return user, nil
 	}
 
 	if !user.DeletionRequestedAt.IsZero() {

@@ -620,14 +620,55 @@ func (db *DatastoreDB) CreateUser(user *User) error {
 		DeletionRequestedAt:  user.DeletionRequestedAt,
 	}
 
-	key := datastore.IncompleteKey("User", nil)
-	key, err := db.client.Put(ctx, key, entity)
+	// Allocate the ID outside the transaction, so a retried transaction
+	// writes the same key.
+	keys, err := db.client.AllocateIDs(ctx, []*datastore.Key{datastore.IncompleteKey("User", nil)})
+	if err != nil {
+		return fmt.Errorf("failed to allocate user ID: %w", err)
+	}
+	key := keys[0]
+
+	// Datastore has no unique constraint, so the GoogleIDIndex entity, keyed by
+	// the Google ID, stands in for one. Of two concurrent first sign-ins, the
+	// transaction that commits second is aborted and retried, and its retry
+	// finds the index entity.
+	indexKey := googleIDIndexKey(user.GoogleID)
+	_, err = db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		var existing GoogleIDIndexEntity
+		err := tx.Get(indexKey, &existing)
+		if err == nil {
+			return ErrGoogleIDTaken
+		}
+		if err != datastore.ErrNoSuchEntity {
+			return fmt.Errorf("failed to check Google ID: %w", err)
+		}
+		_, err = tx.PutMulti(
+			[]*datastore.Key{indexKey, key},
+			[]interface{}{&GoogleIDIndexEntity{UserID: key.ID}, entity},
+		)
+		return err
+	})
+	if errors.Is(err, ErrGoogleIDTaken) {
+		return ErrGoogleIDTaken
+	}
 	if err != nil {
 		return fmt.Errorf("failed to save user: %w", err)
 	}
 
 	user.ID = int(key.ID)
 	return nil
+}
+
+// GoogleIDIndexEntity records which user owns a Google ID. Its key name is
+// the Google ID. CreateUser writes it and DeleteUserAccount removes it.
+// Accounts created before it existed have none, which is safe: sign-in finds
+// them by their google_id property and never calls CreateUser for them.
+type GoogleIDIndexEntity struct {
+	UserID int64 `datastore:"user_id,noindex"`
+}
+
+func googleIDIndexKey(googleID string) *datastore.Key {
+	return datastore.NameKey("GoogleIDIndex", googleID, nil)
 }
 
 func (db *DatastoreDB) GetUserByGoogleID(googleID string) (*User, error) {
@@ -2689,9 +2730,35 @@ func (db *DatastoreDB) DeleteUserAccount(userID int) error {
 		return err
 	}
 
+	// The index entity holds the raw Google ID, so it goes with the user, in
+	// one transaction so a failure cannot leave it behind once the user, and
+	// with it the Google ID needed to find it, is gone.
 	ctx, cancel := newDatastoreContext()
 	defer cancel()
-	if err := db.client.Delete(ctx, datastore.IDKey("User", uid, nil)); err != nil {
+	userKey := datastore.IDKey("User", uid, nil)
+	_, err = db.client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		var user UserEntity
+		err := tx.Get(userKey, &user)
+		if err == datastore.ErrNoSuchEntity {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		keys := []*datastore.Key{userKey}
+		if user.GoogleID != "" {
+			indexKey := googleIDIndexKey(user.GoogleID)
+			var index GoogleIDIndexEntity
+			switch err := tx.Get(indexKey, &index); {
+			case err == nil && index.UserID == uid:
+				keys = append(keys, indexKey)
+			case err != nil && err != datastore.ErrNoSuchEntity:
+				return err
+			}
+		}
+		return tx.DeleteMulti(keys)
+	})
+	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
 	return nil

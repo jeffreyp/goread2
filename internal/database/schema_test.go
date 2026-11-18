@@ -292,8 +292,8 @@ func TestCreateUserDuplicateGoogleID(t *testing.T) {
 	}
 
 	err = db.CreateUser(user2)
-	if err == nil {
-		t.Error("Expected error when creating user with duplicate GoogleID, got nil")
+	if !errors.Is(err, ErrGoogleIDTaken) {
+		t.Errorf("CreateUser with duplicate GoogleID: error = %v, want ErrGoogleIDTaken", err)
 	}
 }
 

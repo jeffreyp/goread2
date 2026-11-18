@@ -23,6 +23,10 @@ type mockDBForAuth struct {
 	shouldFailGetByGoogle bool
 	shouldFailGetByEmail  bool
 	shouldFailSetAdmin    bool
+	// createdConcurrently, when set, is stored by the next CreateUser call in
+	// place of the user passed in, which then fails with ErrGoogleIDTaken, as
+	// if another sign-in had created the account first.
+	createdConcurrently *database.User
 }
 
 func newMockDBForAuth() *mockDBForAuth {
@@ -36,6 +40,11 @@ func newMockDBForAuth() *mockDBForAuth {
 func (m *mockDBForAuth) CreateUser(user *database.User) error {
 	if m.shouldFailCreate {
 		return errors.New("failed to create user")
+	}
+	if other := m.createdConcurrently; other != nil {
+		m.createdConcurrently = nil
+		m.users[other.GoogleID] = other
+		return database.ErrGoogleIDTaken
 	}
 	user.ID = len(m.users) + 1
 	m.users[user.GoogleID] = user
@@ -455,6 +464,19 @@ func TestSignInGoogleUserCreatesAccountOnlyWhenNotFound(t *testing.T) {
 		}
 		if user != existing || len(db.usersByID) != 0 {
 			t.Errorf("expected the existing account and no CreateUser call, got user %+v and %d created", user, len(db.usersByID))
+		}
+	})
+
+	t.Run("a concurrent first sign-in returns the account it created", func(t *testing.T) {
+		db := newMockDBForAuth()
+		winner := &database.User{ID: 9, GoogleID: identity.ID, Email: identity.Email}
+		db.createdConcurrently = winner
+		user, err := NewAuthService(db).SignInGoogleUser(context.Background(), identity)
+		if err != nil {
+			t.Fatalf("SignInGoogleUser() error = %v", err)
+		}
+		if user != winner {
+			t.Errorf("SignInGoogleUser() = %+v, want the account the concurrent sign-in created", user)
 		}
 	})
 

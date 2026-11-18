@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
 var ErrSelfDemotion = errors.New("cannot remove your own admin privileges")
@@ -24,6 +24,11 @@ var ErrArticleAccessDenied = errors.New("not subscribed to this article's feed")
 // matches. Callers that create a user on a miss must check for it with
 // errors.Is rather than treating every lookup error as a miss.
 var ErrUserNotFound = errors.New("user not found")
+
+// ErrGoogleIDTaken is returned by CreateUser when an account already exists
+// for the Google ID, which happens when two first sign-ins for the same
+// Google account race. The caller should look the account up instead.
+var ErrGoogleIDTaken = errors.New("an account already exists for this Google ID")
 
 // paginationOverfetch is added to the requested limit to detect whether more results exist.
 // If len(results) > requested limit, there is a next page; results are then trimmed to limit.
@@ -767,6 +772,10 @@ func (db *DB) CreateUser(user *User) error {
 	result, err := db.Exec(query, user.GoogleID, user.Email, user.Name, user.Avatar, user.CreatedAt,
 		user.SubscriptionStatus, user.SubscriptionID, user.TrialEndsAt, user.LastPaymentDate, user.NextBillingDate, user.MaxArticlesOnFeedAdd)
 	if err != nil {
+		var sqliteErr sqlite3.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return fmt.Errorf("%w: %w", ErrGoogleIDTaken, err)
+		}
 		return err
 	}
 

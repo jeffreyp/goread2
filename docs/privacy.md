@@ -21,6 +21,7 @@ In the database, Datastore in production and SQLite locally:
 | Record | Personal data | Purpose |
 |--------|---------------|---------|
 | `User` | Google ID, email, name, profile picture URL, creation date, subscription status and dates, Stripe subscription ID, admin flag, free months, reader settings, and the time a deletion was requested | The account |
+| `GoogleIDIndex` | The Google ID, with the ID of the account that owns it | Preventing two accounts for one Google ID (Datastore only) |
 | `UserFeed` | The feeds the user subscribes to | Subscriptions |
 | `UserArticle` | The articles the user has read or starred | Reading state |
 | `Session` | A random session ID with its creation and expiry times | Sign-in |
@@ -70,7 +71,7 @@ In production, once the deletion is queued, the handler also records a `deletion
 2. Write the account tombstone
 3. Delete `UserArticle`, `UserFeed`, and `Session` records in batches of 500, then the `UserActivity` record that tracks the account's last activity for retention
 4. Pseudonymize audit log entries: the user's email becomes `deleted-user-<id>`, and the IP address of actions the user performed as an admin is cleared. Entries are kept for the admin trail.
-5. Delete the `User` record last, so a partial failure leaves an account that a retry can find and finish
+5. Delete the `User` record last, together with its `GoogleIDIndex` record in one transaction, so a partial failure leaves an account that a retry can find and finish
 
 Shared `Feed` and `Article` records are not touched. Other App Engine instances can keep serving a deleted user from their in-memory session cache for up to its 10-minute TTL, so a second pass runs 15 minutes later to remove anything those requests recreated, including Stripe customers, which it finds by their `user_id` metadata (see [deployment.md](deployment.md#async-task-processing-cloud-tasks)).
 
