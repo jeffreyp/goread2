@@ -22,9 +22,8 @@ const defaultUserFeedsCacheMaxUsers = 10000
 // here spares a UserFeed query plus a Feed GetMulti on every page load.
 //
 // This lives in the database package, rather than reusing internal/cache's
-// FeedListCache/UnreadCache pattern, because internal/cache imports
-// internal/database for the Feed type; a database-layer cache can't import
-// it back without a cycle.
+// UnreadCache pattern, because internal/cache imports internal/database for
+// its types; a database-layer cache can't import it back without a cycle.
 type userFeedsCache struct {
 	mu        sync.RWMutex
 	feeds     map[int][]Feed

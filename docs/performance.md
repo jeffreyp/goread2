@@ -88,18 +88,16 @@ Each App Engine instance keeps its own caches; instances share nothing but the d
 |-------|----------|----------|------------|----------------|
 | Sessions | `SessionManager` in `internal/auth/session.go` | 10 minutes, set by `SESSION_CACHE_TTL` | None | Sign-out and session revocation on the same instance |
 | Unread counts | `internal/cache/unread_cache.go` | 15 minutes | 10,000 users | Read-state changes, which update counts in place, and subscribing or unsubscribing |
-| Feed list | `internal/cache/feed_list_cache.go` | 20 minutes | 50,000 feeds | Subscribing or unsubscribing |
 | Each user's feeds, Datastore only | `internal/database/user_feeds_cache.go` | 5 minutes | 10,000 users | `SubscribeUserToFeed` and `UnsubscribeUserFromFeed` |
 | Per request | `internal/middleware/request_cache.go` | One API request | None | Feed mutations within the request |
 | Usage statistics | `StatsService` | 15 minutes | One entry | Expiry only |
 
 - **Sessions.** A revoked session can stay valid on another instance until its cache entry expires, which is why account deletion runs a second pass after 15 minutes (see [privacy.md](privacy.md#account-deletion)).
 - **Unread counts.** The lifetime is longer than the web client's 5-minute unread-count poll, so polls are served from the cache. A miss on Datastore costs one read per recent article and one per matching `UserArticle`. Counts for newly fetched articles can lag by up to the lifetime. When the cache is full, the entry closest to expiry is evicted.
-- **Feed list.** Holds every feed with at least one subscriber, for `FeedService.RefreshFeeds`. The cron refresh goes through `FeedScheduler`, which reads the feed list directly, so in production this cache is not read. If the list exceeds the size limit, the cache is bypassed.
 - **Each user's feeds.** `GetUserArticlesPaginated` reads the user's feed list on every page, and this cache removes a `UserFeed` query and a `Feed` read from each. It lives in `internal/database` rather than `internal/cache`, because `internal/cache` imports `internal/database`. The 5-minute lifetime bounds drift between instances. The SQLite implementation has no such cache.
 - **Per request.** Holds the signed-in user's feeds for the length of one API request, so handlers that need them more than once read them once.
 
-The unread count and feed list caches start background sweeps of expired entries from `FeedService.Start`, which stop when the server shuts down. `go test ./internal/cache/...` covers expiry, concurrency, invalidation, copying, and eviction.
+The unread count cache starts a background sweep of expired entries from `FeedService.Start`, which stops when the server shuts down. `go test ./internal/cache/...` covers expiry, concurrency, invalidation, copying, and eviction.
 
 ## Testing Performance
 

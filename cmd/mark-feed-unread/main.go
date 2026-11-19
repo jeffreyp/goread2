@@ -14,8 +14,8 @@ import (
 
 func main() {
 	if len(os.Args) != 3 {
-		fmt.Println("Usage: go run mark_feed_unread.go <user_id> <feed_id>")
-		fmt.Println("Example: go run mark_feed_unread.go 1 5")
+		fmt.Println("Usage: go run ./cmd/mark-feed-unread <user_id> <feed_id>")
+		fmt.Println("Example: go run ./cmd/mark-feed-unread 1 5")
 		os.Exit(1)
 	}
 

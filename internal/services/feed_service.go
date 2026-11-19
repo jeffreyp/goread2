@@ -44,13 +44,12 @@ type HTTPClient interface {
 }
 
 type FeedService struct {
-	db            database.Database
-	rateLimiter   *DomainRateLimiter
-	urlValidator  *URLValidator
-	unreadCache   *cache.UnreadCache
-	feedListCache *cache.FeedListCache
-	httpClient    HTTPClient // Optional: if nil, creates client using urlValidator
-	htmlPolicy    *bluemonday.Policy
+	db           database.Database
+	rateLimiter  *DomainRateLimiter
+	urlValidator *URLValidator
+	unreadCache  *cache.UnreadCache
+	httpClient   HTTPClient // Optional: if nil, creates client using urlValidator
+	htmlPolicy   *bluemonday.Policy
 }
 
 type RSS struct {
@@ -177,23 +176,18 @@ func NewFeedService(db database.Database, rateLimiter *DomainRateLimiter) *FeedS
 	uc := cache.NewUnreadCache(15 * time.Minute)
 	uc.SetMaxUsers(10000)
 
-	flc := cache.NewFeedListCache(20 * time.Minute) // 20 minute TTL
-	flc.SetMaxFeeds(50000)
-
 	return &FeedService{
-		db:            db,
-		rateLimiter:   rateLimiter,
-		urlValidator:  NewURLValidator(),
-		unreadCache:   uc,
-		feedListCache: flc,
-		htmlPolicy:    bluemonday.UGCPolicy(),
+		db:           db,
+		rateLimiter:  rateLimiter,
+		urlValidator: NewURLValidator(),
+		unreadCache:  uc,
+		htmlPolicy:   bluemonday.UGCPolicy(),
 	}
 }
 
 // Start begins the background cache cleanup goroutines. The goroutines exit when ctx is cancelled.
 func (fs *FeedService) Start(ctx context.Context) {
 	fs.unreadCache.Start(ctx)
-	fs.feedListCache.Start(ctx)
 }
 
 // SetHTTPClient sets a custom HTTP client for testing purposes
@@ -334,7 +328,6 @@ func (fs *FeedService) addFeedForUserInternal(ctx context.Context, userID int, i
 
 	// Invalidate caches since subscription changed
 	fs.unreadCache.Invalidate(userID)
-	fs.feedListCache.Invalidate() // Feed list changed - user subscribed to new feed
 
 	return existingFeed, nil
 }
@@ -351,7 +344,6 @@ func (fs *FeedService) UnsubscribeUserFromFeed(userID, feedID int) error {
 
 	// Invalidate caches since subscription changed
 	fs.unreadCache.Invalidate(userID)
-	fs.feedListCache.Invalidate() // Feed list may have changed - user unsubscribed
 
 	return nil
 }
@@ -854,18 +846,9 @@ func (fs *FeedService) RefreshFeeds() error {
 	}
 
 	// Also get all user feeds to ensure we refresh feeds that users are subscribed to
-	// Use cache to reduce expensive database queries (runs every hour via cron)
-	allUserFeeds, cached := fs.feedListCache.Get()
-	if !cached {
-		// Cache miss - fetch from database
-		var err error
-		allUserFeeds, err = fs.db.GetAllUserFeeds()
-		if err != nil {
-			allUserFeeds = []database.Feed{}
-		} else {
-			// Populate cache for next request
-			fs.feedListCache.Set(allUserFeeds)
-		}
+	allUserFeeds, err := fs.db.GetAllUserFeeds()
+	if err != nil {
+		allUserFeeds = []database.Feed{}
 	}
 
 	// Combine and deduplicate feeds by URL
@@ -1530,9 +1513,9 @@ func (fs *FeedService) preprocessXMLForMediaConflicts(body []byte) []byte {
 	return []byte(content)
 }
 
-// GetCacheStats returns statistics from both the unread and feed list caches.
-func (fs *FeedService) GetCacheStats() (unread cache.CacheStats, feedList cache.FeedListCacheStats) {
-	return fs.unreadCache.GetStats(), fs.feedListCache.GetStats()
+// GetCacheStats returns statistics from the unread count cache.
+func (fs *FeedService) GetCacheStats() cache.CacheStats {
+	return fs.unreadCache.GetStats()
 }
 
 func (fs *FeedService) convertToUTF8(body []byte) ([]byte, error) {

@@ -1547,14 +1547,11 @@ func TestGetCacheStats(t *testing.T) {
 
 	fs := NewFeedService(db, nil)
 
-	unread, feedList := fs.GetCacheStats()
+	unread := fs.GetCacheStats()
 
-	// Fresh caches should have zero hits and misses
+	// A fresh cache should have zero hits and misses
 	if unread.Hits != 0 || unread.Misses != 0 {
 		t.Errorf("Expected zero unread stats, got hits=%d misses=%d", unread.Hits, unread.Misses)
-	}
-	if feedList.Hits != 0 || feedList.Misses != 0 {
-		t.Errorf("Expected zero feedList stats, got hits=%d misses=%d", feedList.Hits, feedList.Misses)
 	}
 
 	// Create a test user so GetUserUnreadCounts can work
@@ -1566,7 +1563,7 @@ func TestGetCacheStats(t *testing.T) {
 	// Trigger a cache miss on unread cache
 	_, _ = fs.GetUserUnreadCounts(user.ID, []database.Feed{})
 
-	unread, _ = fs.GetCacheStats()
+	unread = fs.GetCacheStats()
 	if unread.Misses != 1 {
 		t.Errorf("Expected 1 unread miss after first lookup, got %d", unread.Misses)
 	}
@@ -1574,7 +1571,7 @@ func TestGetCacheStats(t *testing.T) {
 	// Second call should be a cache hit
 	_, _ = fs.GetUserUnreadCounts(user.ID, []database.Feed{})
 
-	unread, _ = fs.GetCacheStats()
+	unread = fs.GetCacheStats()
 	if unread.Hits != 1 {
 		t.Errorf("Expected 1 unread hit after second lookup, got %d", unread.Hits)
 	}

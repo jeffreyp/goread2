@@ -89,6 +89,14 @@ GOOGLE_CLOUD_PROJECT=goread-467200 ./admin.sh list
 | None | `audit-logs` | Shows the audit log (see [Audit Logging](#audit-logging)) |
 | None | `stats` | Prints usage statistics (see [Usage Statistics](#usage-statistics)) |
 
+### Marking a Feed Unread
+
+`cmd/mark-feed-unread` marks every stored article in one feed as unread and unstarred for one user, for example to reproduce a bug with a full unread list. It always uses the Datastore of the project in `GOOGLE_CLOUD_PROJECT`, never SQLite, and needs no admin token and writes no audit log entry. Staging shares the production Datastore, so pointing it at `goread-467200` changes a real user's read state:
+
+```bash
+GOOGLE_CLOUD_PROJECT=goread-467200 go run ./cmd/mark-feed-unread <user_id> <feed_id>
+```
+
 ## Access Levels
 
 Whether a user can add feeds depends on these checks, in order. The first that applies decides. The subscription system gates only adding feeds and importing OPML; every user can read the feeds already subscribed.

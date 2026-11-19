@@ -113,7 +113,7 @@ Before working in a feature area, read the corresponding doc for context. If a c
 | When touching… | Read/update… |
 |----------------|--------------|
 | `internal/auth/`, OAuth flow, sessions | `docs/authentication.md` |
-| `internal/handlers/admin*`, `cmd/admin/` | `docs/admin.md` |
+| `internal/handlers/admin*`, `cmd/admin/`, `cmd/mark-feed-unread/` | `docs/admin.md` |
 | `internal/services/subscription*`, Stripe webhooks, `cmd/setup-stripe/` | `docs/stripe.md` |
 | Environment variables (`internal/config/`, `internal/secrets/`, `cmd/validate-config/`) | `docs/configuration.md` |
 | `internal/cache/`, HTTP cache headers | `docs/performance.md` |
@@ -130,6 +130,15 @@ Before working in a feature area, read the corresponding doc for context. If a c
 | User-facing features (UI, keyboard shortcuts) | `docs/features.md` |
 | `ios/` (SwiftUI app, Xcode project, fastlane) | `docs/apple-apps.md` |
 | `ios/fastlane/`, `ios-release.yml`, `macos-release.yml` | `docs/apple-releases.md` |
+| `scripts/audit_text.py` | [Auditing user-facing text](#auditing-user-facing-text) below |
+
+### Auditing user-facing text
+
+`scripts/audit_text.py` collects the user-visible strings in the HTML templates, the unminified JavaScript, and the Go handlers and services into one Markdown report, grouped by file, with line numbers. Use it to check the wording and tone of messages across the app, or to list strings before translating them. It needs only Python 3 and prints the report unless given a file with `--output`:
+
+```bash
+python3 scripts/audit_text.py --output /tmp/text-audit.md
+```
 
 ## Frontend Architecture
 
