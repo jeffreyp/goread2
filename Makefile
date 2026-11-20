@@ -119,10 +119,10 @@ test-race:
 	GOOGLE_REDIRECT_URL="http://localhost:8080/auth/callback" \
 	go test -race ./...
 
-# Run the full test suite against a Datastore emulator that is started for the
-# run and always shut down afterwards, so the Datastore-gated tests run instead
-# of skipping. Requires gcloud with the beta and cloud-datastore-emulator
-# components and a Java 21+ JRE. Set DATASTORE_EMULATOR_PORT to change the port.
+# Run the full test suite against a Firestore emulator in Datastore mode that is
+# started for the run and always shut down afterwards, so the Datastore-gated
+# tests run instead of skipping. Requires gcloud with the
+# cloud-firestore-emulator component and a Java 21+ JRE. Set DATASTORE_EMULATOR_PORT to change the port.
 test-datastore:
 	@echo "🧪 Running tests against a Datastore emulator..."
 	./scripts/with-datastore-emulator.sh ./test.sh

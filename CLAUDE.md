@@ -18,7 +18,7 @@ make dev-login      # dev server with a local sign-in instead of Google OAuth (s
 
 Run `make test` and `make lint` after any Go changes before committing.
 
-Without an emulator, the Datastore-backed tests skip. To run them, use `make test-datastore`, or `./scripts/with-datastore-emulator.sh <command>` for a narrower command or for `make dev-login` against Datastore. Never start the emulator directly with `gcloud beta emulators datastore start`, in the background or in a terminal pane: it keeps running after the session ends. The wrapper shuts it down when the command exits, fails, or is interrupted. Run `make docs` after any changes to root-level or `docs/` markdown files.
+Without an emulator, the Datastore-backed tests skip. To run them, use `make test-datastore`, or `./scripts/with-datastore-emulator.sh <command>` for a narrower command or for `make dev-login` against Datastore. Never start the emulator directly with `gcloud emulators firestore start`, in the background or in a terminal pane: it keeps running after the session ends. The wrapper shuts it down when the command exits, fails, or is interrupted. Run `make docs` after any changes to root-level or `docs/` markdown files.
 
 ## Documentation Conventions
 

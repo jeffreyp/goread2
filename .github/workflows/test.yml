@@ -20,10 +20,10 @@ jobs:
       with:
         go-version-file: go.mod
 
-    # The Datastore emulator (started below) is a Java process and requires
+    # The Firestore emulator (started below) is a Java process and requires
     # a 21+ JRE. Installed explicitly rather than relying on whatever `java`
     # happens to be default on the runner image.
-    - name: Set up Java (for Datastore emulator)
+    - name: Set up Java (for Firestore emulator)
       uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
       with:
         distribution: temurin
@@ -39,33 +39,33 @@ jobs:
     # `gcloud components install`, so setup-gcloud provisions a standalone
     # SDK just for this step. No GCP auth/credentials needed — the emulator
     # runs entirely locally.
-    - name: Set up gcloud (for Datastore emulator)
+    - name: Set up gcloud (for Firestore emulator)
       uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
       with:
-        install_components: 'beta,cloud-datastore-emulator'
+        install_components: 'cloud-firestore-emulator'
 
-    - name: Start Cloud Datastore emulator
+    - name: Start Firestore emulator in Datastore mode
       run: |
-        # --consistency=1.0 disables the emulator's default eventual-consistency
-        # simulation (default ~0.9): with it enabled, GetAll queries can miss
-        # entities written moments earlier, which is exactly what happened when
-        # this was first tried against internal/services/admin_token_datastore_test.go
-        # (flaky failures in ListAdminTokens/AdminTokenCompatibility that
-        # disappeared once consistency was pinned to 1.0).
-        # --project is required even though it's fake/local-only — the emulator
-        # start command fails with "required property [project] is not set" on
-        # a runner with no gcloud config (unlike a dev machine with one already set).
-        nohup gcloud beta emulators datastore start \
-          --project=goread2-ci-test --host-port=localhost:8081 --no-store-on-disk --consistency=1.0 \
+        # The Firestore emulator in Datastore mode replaces the legacy Cloud
+        # Datastore emulator: it implements aggregation (count) queries and
+        # locks entities in transactions like production, which runs
+        # Firestore in Datastore mode with pessimistic concurrency. It keeps
+        # data in memory only and is strongly consistent, so it takes neither
+        # of the old --no-store-on-disk and --consistency=1.0 flags.
+        # --project is required even though it's fake/local-only — the start
+        # command fails with "required property [project] is not set" on a
+        # runner with no gcloud config.
+        nohup gcloud emulators firestore start \
+          --project=goread2-ci-test --database-mode=datastore-mode --host-port=localhost:8081 \
           > /tmp/datastore-emulator.log 2>&1 &
-        for i in $(seq 1 30); do
-          if curl -s -o /dev/null http://localhost:8081/; then
-            echo "Datastore emulator is up"
+        for i in $(seq 1 60); do
+          if [ "$(curl -s http://localhost:8081/)" = "Ok" ]; then
+            echo "Firestore emulator is up"
             exit 0
           fi
           sleep 1
         done
-        echo "::error::Datastore emulator failed to start"
+        echo "::error::Firestore emulator failed to start"
         cat /tmp/datastore-emulator.log
         exit 1
 

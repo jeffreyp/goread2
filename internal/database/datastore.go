@@ -12,8 +12,6 @@ import (
 	"cloud.google.com/go/datastore/apiv1/datastorepb"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -69,7 +67,7 @@ type DatastoreDB struct {
 	userFeeds *userFeedsCache
 
 	// beforeUserPut, if set, runs in updateUser between reading and writing
-	// the User entity. Tests use it to delete the user mid-update.
+	// the User entity. Tests use it to start a delete mid-update.
 	beforeUserPut func()
 }
 
@@ -1848,16 +1846,10 @@ func (db *DatastoreDB) GetUserUnreadCounts(userID int) (map[int]int, error) {
 }
 
 // countFeedArticles counts a feed's articles with a Datastore aggregation
-// query, which returns only the count rather than every article key. The
-// legacy Cloud Datastore emulator does not implement aggregation queries, so
-// an Unimplemented error falls back to counting keys.
+// query, which returns only the count rather than every article key.
 func (db *DatastoreDB) countFeedArticles(ctx context.Context, feedID int) (int, error) {
 	q := datastore.NewQuery("Article").FilterField("feed_id", "=", int64(feedID))
 	result, err := db.client.RunAggregationQuery(ctx, q.NewAggregationQuery().WithCount("count"))
-	if status.Code(err) == codes.Unimplemented {
-		keys, err := db.client.GetAll(ctx, q.KeysOnly(), nil)
-		return len(keys), err
-	}
 	if err != nil {
 		return 0, err
 	}
@@ -2353,8 +2345,9 @@ func (db *DatastoreDB) GetAllUserFeeds() ([]Feed, error) {
 
 // updateUser applies mutate to the User entity with the given ID in a
 // transaction. A plain Get then Put would recreate a user that
-// DeleteUserAccount removed between the two calls; inside a transaction the
-// concurrent delete forces a retry, whose Get then fails. It returns an error
+// DeleteUserAccount removed between the two calls. Inside a transaction the
+// read locks the user, so a concurrent delete either waits for this write to
+// commit or, if it committed first, makes the Get fail. It returns an error
 // wrapping ErrUserNotFound if the user does not exist.
 func (db *DatastoreDB) updateUser(userID int, mutate func(*UserEntity) error) error {
 	ctx, cancel := newDatastoreContext()

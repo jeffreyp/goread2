@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Runs a command against a local Cloud Datastore emulator and always shuts the
-# emulator down afterwards, whether the command passes, fails, or is
+# Runs a command against a local Firestore emulator in Datastore mode and always
+# shuts the emulator down afterwards, whether the command passes, fails, or is
 # interrupted.
 #
 # Usage: scripts/with-datastore-emulator.sh COMMAND [ARGS...]
@@ -9,8 +9,9 @@
 #        scripts/with-datastore-emulator.sh go test ./internal/database/ -run TestDatastore
 #   env: DATASTORE_EMULATOR_PORT (default 8081)
 #
-# The emulator runs with --no-store-on-disk and --consistency=1.0, the same
-# flags CI uses. The command's exit status is passed through.
+# The Firestore emulator, unlike the legacy Cloud Datastore emulator, implements
+# aggregation queries, keeps data in memory only, and is strongly consistent.
+# CI starts it through this script. The command's exit status is passed through.
 
 set -u
 
@@ -75,11 +76,10 @@ trap 'exit 143' TERM
 # Job control gives the background emulator its own process group, so cleanup
 # can signal gcloud, its wrapper, and the Java server together.
 set -m
-gcloud beta emulators datastore start \
+gcloud emulators firestore start \
   --project=goread2-local-test \
-  --host-port="$HOST" \
-  --no-store-on-disk \
-  --consistency=1.0 >"$LOG" 2>&1 &
+  --database-mode=datastore-mode \
+  --host-port="$HOST" >"$LOG" 2>&1 &
 EMULATOR_PID=$!
 set +m
 

@@ -213,25 +213,23 @@ Tests use in-memory SQLite (`file::memory:` or `:memory:`) rather than a file on
 
 Tests gated on `DATASTORE_EMULATOR_HOST` exercise `DatastoreDB` (the production database implementation) against a real (local) Datastore emulator instead of mocks. They `t.Skip` when the env var is unset, so they run silently skipped in a plain local `make test`/`go test ./...`. The same gating is used by `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`, which exercise `DatastoreDB` through the `database.Database` interface (see below).
 
-**In CI** (`.github/workflows/test.yml`, `test` job): a Cloud Datastore emulator is started before the unit test step:
+The emulator is the Firestore emulator in Datastore mode (`gcloud emulators firestore start --database-mode=datastore-mode`), which matches production, a Firestore database in Datastore mode with pessimistic concurrency. It implements aggregation count queries, so the count queries behind `GetTotalArticleCount` run as they do in production. Transactions lock the entities they read, so a test cannot write an entity, from the same goroutine, that an open transaction has read: the write waits on a lock held by its own caller. `TestDatastoreUpdateUserSubscriptionRacingDelete` runs its concurrent delete on a separate goroutine for this reason. The emulator keeps data in memory only and is strongly consistent.
+
+**In CI** (`.github/workflows/test.yml`, `test` job): the emulator is started before the unit test step:
 1. `actions/setup-java` installs a Java 21+ JRE (the emulator is a Java process; the runner's default `java` isn't guaranteed to meet the minimum version).
-2. `google-github-actions/setup-gcloud` provisions a standalone gcloud SDK with the `beta` and `cloud-datastore-emulator` components (the runner's preinstalled `gcloud` is apt-managed and refuses `gcloud components install`).
-3. `gcloud beta emulators datastore start --host-port=localhost:8081 --no-store-on-disk --consistency=1.0` runs in the background; the step polls `http://localhost:8081/` until it responds before continuing.
+2. `google-github-actions/setup-gcloud` provisions a standalone gcloud SDK with the `cloud-firestore-emulator` component (the runner's preinstalled `gcloud` is apt-managed and refuses `gcloud components install`).
+3. `gcloud emulators firestore start --database-mode=datastore-mode --host-port=localhost:8081` runs in the background; the step polls `http://localhost:8081/` until it answers `Ok` before continuing.
 4. `DATASTORE_EMULATOR_HOST=localhost:8081` is exported for the rest of the job, so `go test ./internal/...` picks up the gated tests instead of skipping them.
 
-**`--consistency=1.0` is required, not cosmetic**: the emulator defaults to simulating Datastore's eventual consistency (~0.9), which makes `GetAll` queries in `ListAdminTokens`/`TestDatastoreAdminTokenCompatibility` intermittently miss entities written moments earlier.
-
-**Aggregation queries are not exercised**: the legacy emulator does not implement `RunAggregationQuery`. `DatastoreDB` counts articles with aggregation count queries in production and falls back to a keys-only query when the server returns `Unimplemented`, so emulator runs cover only the fallback path.
-
-**Local setup** (to run these tests outside CI): `scripts/with-datastore-emulator.sh` starts an emulator with the CI flags, sets `DATASTORE_EMULATOR_HOST`, runs the given command, and shuts the emulator down when the command exits, fails, or is interrupted. `make test-datastore` runs the full `test.sh` suite through it.
+**Local setup** (to run these tests outside CI): `scripts/with-datastore-emulator.sh` starts the emulator with the CI flags, sets `DATASTORE_EMULATOR_HOST`, runs the given command, and shuts the emulator down when the command exits, fails, or is interrupted. `make test-datastore` runs the full `test.sh` suite through it.
 ```bash
-gcloud components install beta cloud-datastore-emulator   # once
-make test-datastore                                        # full suite, Datastore tests included
+gcloud components install cloud-firestore-emulator   # once
+make test-datastore                                   # full suite, Datastore tests included
 ./scripts/with-datastore-emulator.sh go test ./internal/database/... -run TestDatastore
 ```
 The wrapper listens on `localhost:8081` unless `DATASTORE_EMULATOR_PORT` is set, and refuses to start if the port is already in use, which also exposes an emulator left running from an earlier session. The emulator's Java process requires a Java 21+ JRE; the wrapper puts Homebrew's keg-only `openjdk` on `PATH` when it is installed.
 
-Do not start the emulator directly with `gcloud beta emulators datastore start ... &`. A background emulator keeps running and holds its port until it is stopped by hand.
+Do not start the emulator directly with `gcloud emulators firestore start ... &`. A background emulator keeps running and holds its port until it is stopped by hand.
 
 `AdminToken`/`User` entity operations (via `SubscriptionService`, using the raw `*datastore.Client` from `DatastoreDB.GetClient()`) are covered in `internal/services/admin_token_datastore_test.go`. `DatastoreDB`'s own methods implementing the `database.Database` interface (`AddFeed`, `GetUserFeedArticles`, `MarkUserArticleRead`, `ToggleUserArticleStar`, `GetUserUnreadCounts`, `CreateUser`, `GetAccountStats`, `CleanupOrphanedUserArticles`, sessions, audit logs, and the rest) are covered directly (through the `Database` interface, mirroring the SQLite `schema_test.go` suite) in `internal/database/datastore_test.go` and `internal/database/datastore_user_article_test.go`.
 

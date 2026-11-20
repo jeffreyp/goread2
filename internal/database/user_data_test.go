@@ -523,30 +523,43 @@ func checkUserUpdatesDoNotRecreateDeletedUser(t *testing.T, db Database, user *U
 	}
 }
 
-// TestDatastoreUpdateUserSubscriptionRacingDelete deletes the user after
-// UpdateUserSubscription has read it but before it writes, which is the
-// window a Stripe webhook can hit while the account is being deleted.
+// TestDatastoreUpdateUserSubscriptionRacingDelete starts deleting the user
+// after UpdateUserSubscription has read it but before it writes, which is the
+// window a Stripe webhook can hit while the account is being deleted. The
+// delete runs on its own goroutine, as it would in production: production
+// Datastore and the Firestore emulator lock the entity the update has read, so
+// a delete run synchronously from the hook would wait on its own caller. The
+// update may commit first (the delete then removes the user) or lose the race
+// (it then reports ErrUserNotFound); either way the user must stay deleted.
 func TestDatastoreUpdateUserSubscriptionRacingDelete(t *testing.T) {
 	db := setupTestDatastoreDB(t)
 	user := createDatastoreTestUser(t, db)
 
-	deleted := false
+	var deleteDone chan error
 	db.beforeUserPut = func() {
-		if deleted {
+		if deleteDone != nil {
 			return
 		}
-		deleted = true
-		if err := db.DeleteUserAccount(user.ID); err != nil {
-			t.Fatalf("DeleteUserAccount failed: %v", err)
+		deleteDone = make(chan error, 1)
+		go func() { deleteDone <- db.DeleteUserAccount(user.ID) }()
+		// Give the delete time to reach the user entity before the update
+		// writes. Under optimistic concurrency it finishes in that time.
+		select {
+		case err := <-deleteDone:
+			deleteDone <- err
+		case <-time.After(500 * time.Millisecond):
 		}
 	}
 
 	err := db.UpdateUserSubscription(user.ID, "cancelled", "sub_racing", time.Time{}, time.Time{})
-	if !deleted {
+	if deleteDone == nil {
 		t.Fatal("beforeUserPut hook did not run")
 	}
-	if !errors.Is(err, ErrUserNotFound) {
-		t.Errorf("Expected ErrUserNotFound, got %v", err)
+	if err != nil && !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("Expected nil or ErrUserNotFound, got %v", err)
+	}
+	if err := <-deleteDone; err != nil {
+		t.Fatalf("DeleteUserAccount failed: %v", err)
 	}
 	if _, err := db.GetUserByID(user.ID); !errors.Is(err, ErrUserNotFound) {
 		t.Errorf("UpdateUserSubscription recreated the deleted user (GetUserByID err %v)", err)
