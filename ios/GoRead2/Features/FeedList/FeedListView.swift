@@ -19,7 +19,7 @@ struct FeedListView: View {
 
     var body: some View {
         Group {
-            if !viewModel.hasLoaded {
+            if !viewModel.isReady {
                 ProgressView()
             } else if viewModel.feeds.isEmpty {
                 emptyState
@@ -61,7 +61,8 @@ struct FeedListView: View {
             viewModel.onSessionExpired = { authManager.sessionExpired() }
             // .task re-fires when a pushed article list pops; only the first
             // appearance should load. The roots keep the unread counts
-            // current after that.
+            // current after that. Cached data from the last session does
+            // not count as loaded, so it is always revalidated.
             guard !viewModel.hasLoaded else { return }
             await viewModel.load()
         }

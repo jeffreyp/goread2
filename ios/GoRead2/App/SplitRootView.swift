@@ -8,8 +8,8 @@ import UniformTypeIdentifiers
 /// j/k select the next/previous article, m toggles read, s toggles the
 /// star, and r refreshes every feed.
 ///
-/// The sidebar starts with nothing selected; once the feed list finishes
-/// loading, `selectAllArticlesIfNeeded` picks All Articles for an account
+/// The sidebar starts with nothing selected; once the feed list has data,
+/// cached from the last session or loaded, `selectAllArticlesIfNeeded` picks All Articles for an account
 /// with subscriptions, or opens the sidebar for a brand-new account so its
 /// welcome screen is reachable instead of an empty All Articles list.
 ///
@@ -77,6 +77,9 @@ struct SplitRootView: View {
             selectedArticleID = nil
             articleViewModel = selection.map(makeArticleViewModel)
         }
+        // The feed list may already hold the last session's data, which
+        // onChange does not report.
+        .onAppear { selectAllArticlesIfNeeded() }
         .onChange(of: feedViewModel.hasLoaded) { _ in selectAllArticlesIfNeeded() }
         .onChange(of: feedViewModel.feeds.count) { _ in selectAllArticlesIfNeeded() }
         .onChange(of: scenePhase) { phase in
@@ -99,14 +102,15 @@ struct SplitRootView: View {
         return viewModel
     }
 
-    /// Picks the initial sidebar selection once the feed list load settles:
+    /// Picks the initial sidebar selection once the feed list has data, from
+    /// the cache or the server:
     /// All Articles for an account with subscriptions (so unread articles
     /// are visible without a trip to the sidebar), or nothing for a
     /// brand-new account, forcing the sidebar open so the welcome screen's
     /// "Add Your First Feed" is reachable instead of hidden behind an empty
     /// All Articles list. Only runs once, before any explicit selection.
     private func selectAllArticlesIfNeeded() {
-        guard feedViewModel.hasLoaded, feedSelection == nil else { return }
+        guard feedViewModel.isReady, feedSelection == nil else { return }
         if feedViewModel.feeds.isEmpty {
             columnVisibility = .all
         } else {

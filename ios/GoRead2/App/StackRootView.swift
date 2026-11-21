@@ -9,7 +9,7 @@ import SwiftUI
 struct StackRootView: View {
     @StateObject private var feedViewModel = FeedListViewModel()
     /// Starts empty so a brand-new account lands on the feed list's welcome
-    /// screen; once the feed list confirms there is at least one
+    /// screen; once the feed list, cached or loaded, has at least one
     /// subscription, All Articles is pushed automatically so unread
     /// articles are visible without an extra tap.
     @State private var path = NavigationPath()
@@ -29,6 +29,9 @@ struct StackRootView: View {
                         })
                 }
         }
+        // The feed list may already hold the last session's data, which
+        // onChange does not report.
+        .onAppear { pushAllArticlesIfNeeded() }
         .onChange(of: feedViewModel.hasLoaded) { _ in pushAllArticlesIfNeeded() }
         .onChange(of: feedViewModel.feeds.count) { _ in pushAllArticlesIfNeeded() }
         .onChange(of: scenePhase) { phase in
@@ -40,7 +43,7 @@ struct StackRootView: View {
     }
 
     private func pushAllArticlesIfNeeded() {
-        guard feedViewModel.hasLoaded, path.isEmpty, !feedViewModel.feeds.isEmpty else { return }
+        guard feedViewModel.isReady, path.isEmpty, !feedViewModel.feeds.isEmpty else { return }
         path.append(FeedSelection.all)
     }
 }

@@ -3,6 +3,10 @@ import Foundation
 /// State for the article list screen: one page-at-a-time cursor pagination
 /// over /api/feeds/:id/articles, an unread-only filter, and optimistic
 /// mark-read on opening an article.
+///
+/// The unread-only All Articles list, the one the app opens on, starts from
+/// the last session's first page in `LaunchCache` when there is one, and
+/// writes the first page back on every change.
 @MainActor
 final class ArticleListViewModel: ObservableObject {
     /// Sentinel article ID for the position one past the last article, where
@@ -10,10 +14,15 @@ final class ArticleListViewModel: ObservableObject {
     /// article IDs from the server are positive.
     static let endOfListID = -1
 
-    @Published private(set) var articles: [Article] = []
-    /// True once the first load has completed, successfully or not; gates
-    /// the empty state so it never flashes before data arrives.
+    @Published private(set) var articles: [Article] = [] {
+        didSet { saveToCache() }
+    }
+    /// True once the first load from the server has completed, successfully
+    /// or not.
     @Published private(set) var hasLoaded = false
+    /// True while the list shows the last session's first page from the
+    /// cache and the server has not yet answered.
+    @Published private(set) var isShowingCachedData = false
     @Published private(set) var isLoadingMore = false
     /// The article the end-of-list page follows: the one the reader moved
     /// forward from to reach it. Pages loaded after that move put further
@@ -49,7 +58,16 @@ final class ArticleListViewModel: ObservableObject {
 
     private let selection: FeedSelection
     private let client: NetworkClient
+    private let launchCache: LaunchCache
     private var nextCursor: String?
+    /// The number of leading `articles` that came with the first page, and
+    /// the cursor that followed it: what the cache holds. Later pages are
+    /// left out, so the cached cursor still continues right after them.
+    private var firstPageCount = 0
+    private var firstPageCursor: String?
+    /// Off while the initializer fills in the cached page, which needs no
+    /// writing back.
+    private var savesToCache = false
     /// The next-page fetch in flight, shared so a second caller waits for it
     /// instead of returning early.
     private var loadMoreTask: Task<Bool, Never>?
@@ -58,14 +76,38 @@ final class ArticleListViewModel: ObservableObject {
     /// Full-content fetches currently in flight, keyed by article ID.
     private var contentFetches: Set<Int> = []
 
-    init(selection: FeedSelection, client: NetworkClient = .shared) {
+    init(selection: FeedSelection, client: NetworkClient = .shared, launchCache: LaunchCache? = nil) {
         self.selection = selection
         self.client = client
+        // A default argument cannot reach the main actor's shared cache.
+        self.launchCache = launchCache ?? .shared
         if case .all = selection {
             unreadOnly = true
         } else {
             unreadOnly = false
         }
+        if isCachedList, let cached = self.launchCache.loadAllUnreadArticles() {
+            articles = cached.articles
+            nextCursor = cached.nextCursor
+            firstPageCount = cached.articles.count
+            firstPageCursor = cached.nextCursor
+            isShowingCachedData = true
+        }
+        savesToCache = true
+    }
+
+    /// True once there is something to show: the cached first page, or the
+    /// server's answer to the first load. Gates the empty state so it never
+    /// flashes before data arrives.
+    var isReady: Bool {
+        hasLoaded || isShowingCachedData
+    }
+
+    /// Whether this list, with its current filter, is the one the cache
+    /// holds.
+    private var isCachedList: Bool {
+        if case .all = selection { return unreadOnly }
+        return false
     }
 
     /// True while the server reports another page after the loaded ones.
@@ -160,8 +202,14 @@ final class ArticleListViewModel: ObservableObject {
         do {
             let page = try await client.getArticles(feedID: selection.apiFeedID,
                                                     unreadOnly: unreadOnly)
-            articles = page.articles
+            firstPageCount = page.articles.count
+            firstPageCursor = page.nextCursor
             nextCursor = page.nextCursor
+            isShowingCachedData = false
+            // Set before the articles so their write to the cache goes
+            // through.
+            hasLoaded = true
+            articles = page.articles
         } catch {
             handle(error)
         }
@@ -208,9 +256,14 @@ final class ArticleListViewModel: ObservableObject {
 
     func toggleUnreadFilter() async {
         unreadOnly.toggle()
+        // Cleared before the articles, so emptying the list does not
+        // overwrite the cache.
+        hasLoaded = false
+        isShowingCachedData = false
+        firstPageCount = 0
+        firstPageCursor = nil
         articles = []
         nextCursor = nil
-        hasLoaded = false
         await load()
     }
 
@@ -306,6 +359,19 @@ final class ArticleListViewModel: ObservableObject {
         } catch {
             handle(error)
         }
+    }
+
+    /// Writes the first page back to the cache after any change to it, such
+    /// as a read or star toggle. Full content is left out: it is fetched
+    /// again when an article opens, and would make every write large.
+    private func saveToCache() {
+        guard savesToCache, isCachedList, isReady else { return }
+        let page = articles.prefix(firstPageCount).map { article in
+            var article = article
+            article.content = ""
+            return article
+        }
+        launchCache.saveAllUnreadArticles(.init(articles: page, nextCursor: firstPageCursor))
     }
 
     private func handle(_ error: Error) {

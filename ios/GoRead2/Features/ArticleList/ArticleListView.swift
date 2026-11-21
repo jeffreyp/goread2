@@ -28,7 +28,7 @@ struct ArticleListView: View {
 
     var body: some View {
         Group {
-            if !viewModel.hasLoaded {
+            if !viewModel.isReady {
                 ProgressView()
             } else if viewModel.articles.isEmpty {
                 emptyState
@@ -79,14 +79,17 @@ struct ArticleListView: View {
             viewModel.onSessionExpired = { authManager.sessionExpired() }
             // .task re-fires when a pushed reader screen pops; only the
             // first appearance should load, or pagination state would reset
-            // mid-scroll.
+            // mid-scroll. Cached data from the last session does not count
+            // as loaded, so it is always revalidated.
             guard !viewModel.hasLoaded else { return }
             await viewModel.load()
             // On iPad, pre-select the first unread article so the reader
             // pane isn't empty on launch, matching Mail/News-style split
             // views. iPhone has no selectedArticleID binding, and an
             // existing selection (e.g. restored across a feed re-selection)
-            // is left alone.
+            // is left alone. This waits for the server's list rather than
+            // using the cached one: opening an article marks it read, and a
+            // cached article may since have been read on another device.
             if let selectedArticleID, selectedArticleID.wrappedValue == nil {
                 selectedArticleID.wrappedValue = viewModel.articles.first(where: { !$0.isRead })?.id
             }

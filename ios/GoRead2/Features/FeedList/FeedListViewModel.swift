@@ -2,13 +2,24 @@ import Foundation
 
 /// State for the feed list screen: the user's subscriptions plus per-feed
 /// unread counts, and the add/delete/refresh actions against the API.
+///
+/// It opens on the last session's feeds and counts from `LaunchCache`, when
+/// there are any, and writes every change back so the next launch opens on
+/// the current state.
 @MainActor
 final class FeedListViewModel: ObservableObject {
-    @Published private(set) var feeds: [Feed] = []
-    @Published private(set) var unreadCounts: [Int: Int] = [:]
-    /// True once the first load has completed, successfully or not; gates
-    /// the empty state so it never flashes before data arrives.
+    @Published private(set) var feeds: [Feed] = [] {
+        didSet { saveToCache() }
+    }
+    @Published private(set) var unreadCounts: [Int: Int] = [:] {
+        didSet { saveToCache() }
+    }
+    /// True once the first load from the server has completed, successfully
+    /// or not.
     @Published private(set) var hasLoaded = false
+    /// True while the list shows the last session's data from the cache and
+    /// the server has not yet answered.
+    @Published private(set) var isShowingCachedData = false
     /// True when the latest load failed, so an empty list is a failure to
     /// reach the server rather than an account with no subscriptions.
     @Published private(set) var loadFailed = false
@@ -19,9 +30,28 @@ final class FeedListViewModel: ObservableObject {
     var onSessionExpired: () -> Void = {}
 
     private let client: NetworkClient
+    private let launchCache: LaunchCache
+    /// Off while the initializer fills in the cached data, which needs no
+    /// writing back.
+    private var savesToCache = false
 
-    init(client: NetworkClient = .shared) {
+    init(client: NetworkClient = .shared, launchCache: LaunchCache? = nil) {
         self.client = client
+        // A default argument cannot reach the main actor's shared cache.
+        self.launchCache = launchCache ?? .shared
+        if let cached = self.launchCache.loadFeedList() {
+            feeds = cached.feeds
+            unreadCounts = cached.unreadCounts
+            isShowingCachedData = true
+        }
+        savesToCache = true
+    }
+
+    /// True once there is something to show: cached data, or the server's
+    /// answer to the first load. Gates the empty state so it never flashes
+    /// before data arrives.
+    var isReady: Bool {
+        hasLoaded || isShowingCachedData
     }
 
     var totalUnread: Int {
@@ -32,13 +62,16 @@ final class FeedListViewModel: ObservableObject {
         unreadCounts[feed.id] ?? 0
     }
 
-    /// Loads subscriptions and unread counts concurrently.
+    /// Loads subscriptions and unread counts concurrently. On failure, any
+    /// cached data stays on screen.
     func load() async {
         do {
             async let feeds = client.getFeeds()
             async let counts = client.getUnreadCounts()
-            self.feeds = try await feeds
-            self.unreadCounts = try await counts
+            let (loadedFeeds, loadedCounts) = try await (feeds, counts)
+            self.feeds = loadedFeeds
+            self.unreadCounts = loadedCounts
+            isShowingCachedData = false
             loadFailed = false
         } catch {
             loadFailed = !(error is CancellationError)
@@ -99,6 +132,11 @@ final class FeedListViewModel: ObservableObject {
         } catch {
             handle(error)
         }
+    }
+
+    private func saveToCache() {
+        guard savesToCache else { return }
+        launchCache.saveFeedList(feeds: feeds, unreadCounts: unreadCounts)
     }
 
     private func handle(_ error: Error) {

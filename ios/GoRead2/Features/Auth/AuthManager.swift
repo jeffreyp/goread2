@@ -18,27 +18,35 @@ final class AuthManager: ObservableObject {
     @Published var noticeMessage: String?
 
     private let client: NetworkClient
+    private let launchCache: LaunchCache
     private let webSession = WebAuthSession()
 
-    init(client: NetworkClient = .shared) {
+    init(client: NetworkClient = .shared, launchCache: LaunchCache? = nil) {
         self.client = client
+        // A default argument cannot reach the main actor's shared cache.
+        self.launchCache = launchCache ?? .shared
     }
 
     /// Restores the persisted session on launch. A stored credential shows
     /// the signed-in screens at once, while GET /auth/me validates it and
     /// fetches the CSRF token in the background; the first screen's data
-    /// loads in parallel. Mutating requests wait for that token inside
-    /// `NetworkClient`.
+    /// loads in parallel. The screens open on the last session's data from
+    /// `LaunchCache` until that load replaces it. Mutating requests wait for
+    /// the token inside `NetworkClient`.
     ///
     /// Only a 401 signs the user out. Any other failure, such as no
-    /// connection, leaves the session in place: the screens report their own
-    /// load errors, and the next mutating request retries the check.
+    /// connection, leaves the session in place: the screens keep the cached
+    /// data, report their own load errors, and the next mutating request
+    /// retries the check.
     func bootstrap() async {
         guard let credential = client.credential else {
+            // No session, so any cached data belongs to an earlier one.
+            launchCache.deactivate()
             state = .signedOut
             return
         }
         client.prefetchLaunchData()
+        launchCache.activate()
         state = .signedIn
         do {
             try await client.fetchMe()
@@ -91,6 +99,10 @@ final class AuthManager: ObservableObject {
             let token = try await client.exchangeAuthCode(code)
             try client.storeSession(token)
             try await client.fetchMe()
+            // Signing in always follows a signed-out state, whose data has
+            // been deleted; clear again in case anything else was left.
+            launchCache.deactivate()
+            launchCache.activate()
             state = .signedIn
         } catch let authError as ASWebAuthenticationSessionError where authError.code == .canceledLogin {
             // The user dismissed the sheet; not an error.
@@ -122,6 +134,7 @@ final class AuthManager: ObservableObject {
 
     private func clearLocalSession() {
         client.clearSession()
+        launchCache.deactivate()
         state = .signedOut
     }
 }
