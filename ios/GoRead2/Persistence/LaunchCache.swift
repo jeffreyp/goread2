@@ -35,6 +35,10 @@ final class LaunchCache {
     struct FeedList: Codable {
         let feeds: [Feed]
         let unreadCounts: [Int: Int]
+        /// When the server last returned the feeds. Local changes, such as
+        /// an unread count adjusted on reading, keep the date. Nil in files
+        /// written before the field existed.
+        let fetchedAt: Date?
     }
 
     struct ArticlePage: Codable {
@@ -85,8 +89,9 @@ final class LaunchCache {
         read(FeedList.self, from: url(for: "feed-list.json"))
     }
 
-    func saveFeedList(feeds: [Feed], unreadCounts: [Int: Int]) {
-        write(FeedList(feeds: feeds, unreadCounts: unreadCounts), to: url(for: "feed-list.json"))
+    func saveFeedList(feeds: [Feed], unreadCounts: [Int: Int], fetchedAt: Date?) {
+        write(FeedList(feeds: feeds, unreadCounts: unreadCounts, fetchedAt: fetchedAt),
+              to: url(for: "feed-list.json"))
     }
 
     // MARK: - Article lists

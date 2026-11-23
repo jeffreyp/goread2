@@ -109,7 +109,7 @@ A 401 from the session check or from any other request signs the user out. Any o
 
 The same cache keeps the apps readable without a connection. `ConnectivityMonitor` (`ios/GoRead2/Networking/ConnectivityMonitor.swift`) reports whether the device has a network path. A request that fails with `NetworkError.noConnection` also counts as offline until a later request succeeds, since a network path does not prove the server is reachable.
 
-When a list's load fails, its cached first page stays on screen under a banner such as "Offline · Last updated 5 minutes ago", giving when the server last returned that page. Local changes such as starring keep that date. A list with nothing cached shows a Couldn't Load Articles screen with a Try Again button. Connectivity failures don't raise an alert while there is something on screen to read.
+When a list's load fails, its cached data stays on screen. For the feed list that is the feeds and unread counts; for an article list it is the first page. Either one sits under a banner such as "Offline · Last updated 5 minutes ago", giving when the server last returned that data. Local changes such as starring keep that date. With nothing cached, the feed list shows Couldn't Load Feeds and an article list shows Couldn't Load Articles, each with a Try Again button. Connectivity failures don't raise an alert while there is something on screen to read.
 
 Offline, the reader shows cached content for articles opened before, and the description for the rest. Opening an article leaves it unread. Star and read toggles, Mark All Read, Unsubscribe, and loading further pages are disabled; nothing is queued to send later. When the network path returns, actions are re-enabled, and lists whose load failed reload by themselves.
 

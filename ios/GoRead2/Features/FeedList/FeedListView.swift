@@ -5,6 +5,10 @@ import SwiftUI
 /// are navigation links that push an article list; on iPad, where
 /// `sidebarSelection` is provided, the rows drive the split view's sidebar
 /// selection instead.
+///
+/// When the server cannot be reached, cached feeds and counts stay on
+/// screen under the same banner the article lists show, giving the time
+/// they were fetched.
 struct FeedListView: View {
     @EnvironmentObject private var authManager: AuthManager
     @ObservedObject var viewModel: FeedListViewModel
@@ -75,6 +79,11 @@ struct FeedListView: View {
                     .opaqueSidebarBackground()
             } else {
                 List { feedRows }
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if viewModel.isShowingStaleData {
+                OfflineBanner(fetchedAt: viewModel.fetchedAt, isOffline: viewModel.isOffline)
             }
         }
         .refreshable {

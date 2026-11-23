@@ -25,6 +25,9 @@ final class FeedListViewModel: ObservableObject {
     /// True while the list shows the last session's data from the cache and
     /// the server has not yet answered.
     @Published private(set) var isShowingCachedData = false
+    /// When the server returned the feeds on screen, or nil before any load
+    /// and for a cached list written before the date was kept.
+    @Published private(set) var fetchedAt: Date?
     /// True when the latest load failed, so an empty list is a failure to
     /// reach the server rather than an account with no subscriptions.
     @Published private(set) var loadFailed = false
@@ -55,6 +58,7 @@ final class FeedListViewModel: ObservableObject {
         if let cached = self.launchCache.loadFeedList() {
             feeds = cached.feeds
             unreadCounts = cached.unreadCounts
+            fetchedAt = cached.fetchedAt
             isShowingCachedData = true
         }
         savesToCache = true
@@ -84,6 +88,12 @@ final class FeedListViewModel: ObservableObject {
         connectivity.isOffline || lostConnection
     }
 
+    /// True while the list on screen is a cached copy because the server
+    /// could not be reached, which the list notes with `fetchedAt`.
+    var isShowingStaleData: Bool {
+        isShowingCachedData && loadFailed
+    }
+
     /// True once there is something to show: cached data, or the server's
     /// answer to the first load. Gates the empty state so it never flashes
     /// before data arrives.
@@ -106,6 +116,8 @@ final class FeedListViewModel: ObservableObject {
             async let feeds = client.getFeeds()
             async let counts = client.getUnreadCounts()
             let (loadedFeeds, loadedCounts) = try await (feeds, counts)
+            // Set first so the writes below save it.
+            fetchedAt = Date()
             self.feeds = loadedFeeds
             self.unreadCounts = loadedCounts
             isShowingCachedData = false
@@ -176,7 +188,7 @@ final class FeedListViewModel: ObservableObject {
 
     private func saveToCache() {
         guard savesToCache else { return }
-        launchCache.saveFeedList(feeds: feeds, unreadCounts: unreadCounts)
+        launchCache.saveFeedList(feeds: feeds, unreadCounts: unreadCounts, fetchedAt: fetchedAt)
     }
 
     private func handle(_ error: Error) {
