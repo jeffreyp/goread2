@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// State for the feed list screen: the user's subscriptions plus per-feed
@@ -6,6 +7,10 @@ import Foundation
 /// It opens on the last session's feeds and counts from `LaunchCache`, when
 /// there are any, and writes every change back so the next launch opens on
 /// the current state.
+///
+/// Without a connection the cached data stays on screen without an alert,
+/// unsubscribing is disabled, and the list reloads once a connection
+/// returns.
 @MainActor
 final class FeedListViewModel: ObservableObject {
     @Published private(set) var feeds: [Feed] = [] {
@@ -23,6 +28,9 @@ final class FeedListViewModel: ObservableObject {
     /// True when the latest load failed, so an empty list is a failure to
     /// reach the server rather than an account with no subscriptions.
     @Published private(set) var loadFailed = false
+    /// True after a request failed for lack of a connection, until a later
+    /// one succeeds or the device's network path returns.
+    @Published private(set) var lostConnection = false
     @Published var errorMessage: String?
 
     /// Called when the API reports 401: the session is gone server-side and
@@ -31,20 +39,49 @@ final class FeedListViewModel: ObservableObject {
 
     private let client: NetworkClient
     private let launchCache: LaunchCache
+    private let connectivity: ConnectivityMonitor
+    private var connectivityObserver: AnyCancellable?
     /// Off while the initializer fills in the cached data, which needs no
     /// writing back.
     private var savesToCache = false
 
-    init(client: NetworkClient = .shared, launchCache: LaunchCache? = nil) {
+    init(client: NetworkClient = .shared,
+         launchCache: LaunchCache? = nil,
+         connectivity: ConnectivityMonitor? = nil) {
         self.client = client
-        // A default argument cannot reach the main actor's shared cache.
+        // A default argument cannot reach the main actor's shared instances.
         self.launchCache = launchCache ?? .shared
+        self.connectivity = connectivity ?? .shared
         if let cached = self.launchCache.loadFeedList() {
             feeds = cached.feeds
             unreadCounts = cached.unreadCounts
             isShowingCachedData = true
         }
         savesToCache = true
+        connectivityObserver = self.connectivity.$isOffline
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] isOffline in
+                self?.connectivityChanged(isOffline: isOffline)
+            }
+    }
+
+    /// Re-enables actions when the network path returns, and retries a load
+    /// that failed.
+    private func connectivityChanged(isOffline: Bool) {
+        // Views read `isOffline`, which depends on the monitor.
+        objectWillChange.send()
+        guard !isOffline else { return }
+        lostConnection = false
+        if loadFailed {
+            Task { await load() }
+        }
+    }
+
+    /// True when there is no network path, or the latest request found no
+    /// connection.
+    var isOffline: Bool {
+        connectivity.isOffline || lostConnection
     }
 
     /// True once there is something to show: cached data, or the server's
@@ -73,6 +110,7 @@ final class FeedListViewModel: ObservableObject {
             self.unreadCounts = loadedCounts
             isShowingCachedData = false
             loadFailed = false
+            lostConnection = false
         } catch {
             loadFailed = !(error is CancellationError)
             handle(error)
@@ -85,6 +123,7 @@ final class FeedListViewModel: ObservableObject {
     func refreshUnreadCounts() async {
         do {
             unreadCounts = try await client.getUnreadCounts()
+            lostConnection = false
         } catch {
             handle(error)
         }
@@ -129,6 +168,7 @@ final class FeedListViewModel: ObservableObject {
             try await client.deleteFeed(id: feed.id)
             feeds.removeAll { $0.id == feed.id }
             unreadCounts[feed.id] = nil
+            launchCache.removeArticles(forFeedID: feed.id)
         } catch {
             handle(error)
         }
@@ -141,9 +181,17 @@ final class FeedListViewModel: ObservableObject {
 
     private func handle(_ error: Error) {
         if error is CancellationError { return }
-        if case NetworkError.unauthorized = error {
+        switch error {
+        case NetworkError.unauthorized:
             onSessionExpired()
             return
+        case NetworkError.noConnection:
+            lostConnection = true
+            // With feeds on screen the cached list is still usable, and the
+            // article list's banner says it is offline.
+            if !feeds.isEmpty { return }
+        default:
+            break
         }
         errorMessage = error.localizedDescription
     }

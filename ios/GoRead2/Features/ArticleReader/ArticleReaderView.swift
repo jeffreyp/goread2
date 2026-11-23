@@ -10,6 +10,10 @@ import SwiftUI
 /// dead gesture or a wait. Further pages load behind that page, and the
 /// reader moves into the first article they bring.
 ///
+/// Offline, the reader shows content fetched in an earlier visit from the
+/// cache, or the article's description otherwise, and opening an article
+/// leaves it unread.
+///
 /// The view shares the list's view model so star and read changes made here
 /// show up in the list rows immediately. The current article is a binding:
 /// on iPad the split view passes its selection through, so previous/next
@@ -109,6 +113,9 @@ struct ArticleReaderView: View {
                           systemImage: article.isStarred ? "star.fill" : "star")
                 }
                 .tint(article.isStarred ? .yellow : nil)
+                // Starring needs the server; reading cached articles offline
+                // does not.
+                .disabled(viewModel.isOffline)
 
                 // Hidden rather than shown inert when the source URL is
                 // missing or is a scheme no browser opens.

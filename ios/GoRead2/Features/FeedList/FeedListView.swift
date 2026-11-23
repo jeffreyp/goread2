@@ -114,6 +114,7 @@ struct FeedListView: View {
                     } label: {
                         Label("Unsubscribe", systemImage: "trash")
                     }
+                    .disabled(viewModel.isOffline)
                 }
             }
         }

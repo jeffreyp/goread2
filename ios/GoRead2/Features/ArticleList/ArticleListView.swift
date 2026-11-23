@@ -7,6 +7,10 @@ import SwiftUI
 /// All Articles list carries a mark-all-read toolbar button (the endpoint is
 /// account-wide, so per-feed lists do not offer it).
 ///
+/// When the server cannot be reached, a cached list stays on screen under a
+/// banner giving the time it was fetched, and the actions that need the
+/// server are disabled until a connection returns.
+///
 /// On iPhone the rows are navigation links that push the reader; on iPad,
 /// where `selectedArticleID` is provided, the rows drive the split view's
 /// article selection instead, and the first unread article is pre-selected
@@ -30,6 +34,8 @@ struct ArticleListView: View {
         Group {
             if !viewModel.isReady {
                 ProgressView()
+            } else if viewModel.articles.isEmpty, viewModel.loadFailed {
+                loadFailedState
             } else if viewModel.articles.isEmpty {
                 emptyState
             } else {
@@ -46,6 +52,7 @@ struct ArticleListView: View {
                     } label: {
                         Label("Mark All Read", systemImage: "checkmark.circle")
                     }
+                    .disabled(viewModel.isOffline)
                 }
                 Button {
                     Task { await viewModel.toggleUnreadFilter() }
@@ -117,6 +124,11 @@ struct ArticleListView: View {
             }
         }
         .listStyle(.plain)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if viewModel.isShowingStaleData {
+                OfflineBanner(fetchedAt: viewModel.fetchedAt, isOffline: viewModel.isOffline)
+            }
+        }
         .refreshable {
             if let refreshAction {
                 await refreshAction()
@@ -138,6 +150,7 @@ struct ArticleListView: View {
                               systemImage: article.isStarred ? "star.slash" : "star")
                     }
                     .tint(.yellow)
+                    .disabled(viewModel.isOffline)
                 }
                 .swipeActions(edge: .trailing) {
                     Button {
@@ -147,10 +160,12 @@ struct ArticleListView: View {
                               systemImage: article.isRead ? "circle.fill" : "checkmark.circle")
                     }
                     .tint(.blue)
+                    .disabled(viewModel.isOffline)
                 }
         }
 
-        if viewModel.hasMorePages {
+        // Offline the next page cannot load, so the row would spin forever.
+        if viewModel.hasMorePages, !viewModel.isOffline {
             HStack {
                 Spacer()
                 ProgressView()
@@ -189,6 +204,21 @@ struct ArticleListView: View {
                     Task { await viewModel.toggleUnreadFilter() }
                 }
             }
+        }
+    }
+
+    /// A failed load with nothing cached for this list, worded like the
+    /// feed list's, rather than an empty state that would suggest the list
+    /// has no articles.
+    private var loadFailedState: some View {
+        VStack(spacing: 8) {
+            EmptyStateView(systemImage: "wifi.exclamationmark",
+                           title: "Couldn't Load Articles",
+                           message: "Check the connection and try again.")
+            Button("Try Again") {
+                Task { await viewModel.load() }
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 
