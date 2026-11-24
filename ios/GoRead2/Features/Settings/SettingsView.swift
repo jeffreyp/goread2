@@ -10,6 +10,11 @@ struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
 
     @State private var showingImporter = false
+    #if os(macOS)
+    /// The Settings window, closed after signing out or deleting the
+    /// account from it.
+    @State private var settingsWindow = WindowReference()
+    #endif
 
     var body: some View {
         chrome
@@ -38,7 +43,10 @@ struct SettingsView: View {
             }
             .task {
                 viewModel.onSessionExpired = { authManager.sessionExpired() }
-                viewModel.onAccountDeleted = { authManager.accountDeleted() }
+                viewModel.onAccountDeleted = {
+                    authManager.accountDeleted()
+                    closeSettingsWindow()
+                }
                 guard case .signedIn = authManager.state else { return }
                 await viewModel.load()
             }
@@ -54,6 +62,7 @@ struct SettingsView: View {
         macSettingsBody
             .formStyle(.grouped)
             .frame(width: 520, height: 720)
+            .background(WindowReader(reference: settingsWindow))
         #else
         NavigationStack {
             loadedForm
@@ -85,6 +94,21 @@ struct SettingsView: View {
         }
     }
     #endif
+
+    /// After the account is signed out or deleted from here, the Settings
+    /// window would only say Not Signed In, while the main window has
+    /// already returned to the login screen. Closes it on macOS. The iOS
+    /// sheet closes along with the signed-in screens it was raised from.
+    private func closeSettingsWindow() {
+        #if os(macOS)
+        guard let window = settingsWindow.window else { return }
+        // The deletion sheet may still be on its way out.
+        if let sheet = window.attachedSheet {
+            window.endSheet(sheet)
+        }
+        window.close()
+        #endif
+    }
 
     @ViewBuilder
     private var loadedForm: some View {
@@ -260,7 +284,10 @@ struct SettingsView: View {
     private var signOutSection: some View {
         Section {
             Button("Sign Out", role: .destructive) {
-                Task { await authManager.signOut() }
+                Task {
+                    await authManager.signOut()
+                    closeSettingsWindow()
+                }
             }
         }
     }

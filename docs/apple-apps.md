@@ -78,7 +78,7 @@ The Mac build is a native AppKit-backed SwiftUI app, not Mac Catalyst and not th
 
 Shared views carry an `#if os(...)` branch only where platform behaviour genuinely differs. `ios/GoRead2/Components/PlatformCompat.swift` holds the shims for modifiers that exist on one platform, so call sites read the same everywhere.
 
-`GoRead2App` owns the single `AuthManager` and injects it into both scenes. The macOS `Settings` scene is a sibling of the window group rather than a child of `ContentView`, so it cannot inherit the manager from the window's environment; signing out in Settings has to move the same object the main window observes.
+`GoRead2App` owns the single `AuthManager` and injects it into both scenes. The macOS `Settings` scene is a sibling of the window group rather than a child of `ContentView`, so it cannot inherit the manager from the window's environment; signing out in Settings has to move the same object the main window observes. Signing out or deleting the account from the Settings window also closes it, since the main window has already returned to the login screen. Opened with ⌘, while signed out, the window shows Not Signed In.
 
 | Behaviour | iOS and iPadOS | macOS |
 |-----------|----------------|-------|

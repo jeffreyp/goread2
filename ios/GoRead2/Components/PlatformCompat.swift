@@ -165,3 +165,42 @@ var readerToolbarPlacement: ToolbarItemPlacement {
     .automatic
     #endif
 }
+
+#if os(macOS)
+/// Holds the window a view is in, for AppKit actions SwiftUI does not offer
+/// on macOS 13, such as closing the Settings window (`dismissWindow` needs
+/// macOS 14).
+final class WindowReference {
+    weak var window: NSWindow?
+}
+
+/// Records its window into `reference` once placed in one. Put it in a
+/// background, where it has no size.
+struct WindowReader: NSViewRepresentable {
+    let reference: WindowReference
+
+    func makeNSView(context: Context) -> NSView {
+        ReaderView(reference: reference)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class ReaderView: NSView {
+        let reference: WindowReference
+
+        init(reference: WindowReference) {
+            self.reference = reference
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) is not used")
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            reference.window = window
+        }
+    }
+}
+#endif
