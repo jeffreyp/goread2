@@ -38,6 +38,19 @@ GoRead2 provides efficient keyboard navigation:
 | `u` | Refresh the current feed |
 | `a` | Mark all articles as read |
 | `?` | Open the help modal |
+| `Esc` | Close the open dialog |
+
+These shortcuts don't work while a dialog is open, or while a text field has focus. `Enter` on a focused button or link activates that control instead of opening the article.
+
+### Dialogs and Screen Readers
+While a dialog is open, `Tab` and `Shift+Tab` cycle through the dialog's own controls only. Closing the dialog, by button or with `Esc`, returns focus to the element that had it before the dialog opened.
+
+A screen reader announces:
+- the number of articles loaded, and how many are unread, when an article list loads
+- the new state and the remaining unread count after marking an article read or unread
+- starring and unstarring
+- the "new articles available" banner, when it appears or its count changes
+- success messages, and errors, which are announced immediately
 
 ### Help Modal
 Press `?` at any time to open the help modal, which lists every keyboard shortcut and a summary of GoRead2's features. Its footer also shows the app's build version (the App Engine version ID, e.g. `staging-a1b2c3d`), useful for confirming which deploy is running when reporting an issue.

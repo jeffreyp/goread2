@@ -4,8 +4,6 @@
 export class ModalManager {
     constructor(app) {
         this.app = app;
-        this._trapHandlers = new Map(); // modal element → keydown handler
-        this._returnFocus = new Map();  // modal element → element to restore focus to
     }
 
     // Helper to get auth headers from parent app
@@ -20,47 +18,14 @@ export class ModalManager {
         console.log('ModalManager initialized');
     }
 
+    // The trap itself lives in app.js (GoReadApp._applyFocusTrap) so the
+    // dialogs built there and the ones managed here behave the same way.
     _startFocusTrap(modal) {
-        this._returnFocus.set(modal, document.activeElement);
-
-        const focusable = modal.querySelectorAll(
-            'a[href], button:not(:disabled), input:not(:disabled), ' +
-            'select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-        );
-        if (!focusable.length) return;
-
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        first.focus();
-
-        const handler = (e) => {
-            if (e.key !== 'Tab') return;
-            if (e.shiftKey) {
-                if (document.activeElement === first) {
-                    e.preventDefault();
-                    last.focus();
-                }
-            } else {
-                if (document.activeElement === last) {
-                    e.preventDefault();
-                    first.focus();
-                }
-            }
-        };
-
-        modal.addEventListener('keydown', handler);
-        this._trapHandlers.set(modal, handler);
+        this.app._applyFocusTrap(modal);
     }
 
     _stopFocusTrap(modal) {
-        const handler = this._trapHandlers.get(modal);
-        if (handler) {
-            modal.removeEventListener('keydown', handler);
-            this._trapHandlers.delete(modal);
-        }
-        const returnTo = this._returnFocus.get(modal);
-        if (returnTo && returnTo.focus) returnTo.focus();
-        this._returnFocus.delete(modal);
+        if (modal._releaseFocusTrap) modal._releaseFocusTrap();
     }
 
     showAddFeedModal() {

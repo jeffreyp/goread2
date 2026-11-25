@@ -123,6 +123,9 @@ class ErrorHandler {
         // Create error container
         const errorDiv = document.createElement('div');
         errorDiv.className = `error-message error-type-${errorType}`;
+        // role="alert" makes screen readers announce the error as soon as it
+        // is inserted, without moving focus away from what the user was doing.
+        errorDiv.setAttribute('role', 'alert');
 
         // Create error content
         const errorContent = document.createElement('div');
@@ -968,22 +971,39 @@ class GoReadApp {
         document.addEventListener('keydown', async (e) => {
             if (e.ctrlKey || e.metaKey) return;
 
-            // Esc closes any open modal regardless of focused element
+            const openModals = document.querySelectorAll('.modal[style*="display: block"]');
+            // The last one in the document is the one on top.
+            const openModal = openModals.length ? openModals[openModals.length - 1] : null;
+
+            // Esc closes the topmost open modal regardless of focused element
             if (e.key === 'Escape') {
-                const openModal = document.querySelector('.modal[style*="display: block"]');
                 if (openModal) {
                     e.preventDefault();
                     const mm = this.modalManager;
                     if (openModal.id === 'add-feed-modal' && mm) mm.hideAddFeedModal();
                     else if (openModal.id === 'help-modal' && mm) mm.hideHelpModal();
                     else if (openModal.id === 'import-opml-modal' && mm) mm.hideImportOpmlModal();
-                    else openModal.remove();
+                    else if (openModal._close) openModal._close();
+                    else {
+                        if (openModal._releaseFocusTrap) openModal._releaseFocusTrap();
+                        openModal.remove();
+                    }
                 }
                 return;
             }
 
+            // Article shortcuts act on the page behind a dialog, so they stay
+            // off while one is open; this also leaves Enter to the dialog's buttons.
+            if (openModal) return;
+
             // Don't handle shortcuts when typing in input fields
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
+                e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+
+            // Enter on a focused control should activate that control, not open
+            // the current article.
+            if (e.key === 'Enter' && e.target.closest &&
+                e.target.closest('button, a[href], summary, [role="button"]')) return;
 
             switch(e.key) {
                 case 'j':
@@ -1348,6 +1368,17 @@ class GoReadApp {
             this.hasMoreArticles = this.moreArticlesExpected();
 
             this.renderArticlesOptimized(append);
+
+            if (append) {
+                const added = this.articles.length - newArticlesStartIndex;
+                this.announce(`Loaded ${added} more article${added === 1 ? '' : 's'}`);
+            } else {
+                const unread = this.articles.filter(a => !a.is_read).length;
+                const total = this.articles.length;
+                this.announce(total === 0
+                    ? 'No articles'
+                    : `Loaded ${total} article${total === 1 ? '' : 's'}, ${unread} unread`);
+            }
 
             if (append) {
                 // Auto-select first unread article from newly loaded batch after "load more"
@@ -2176,6 +2207,9 @@ class GoReadApp {
             
             // Then make the API call
             await this.markAsRead(article.id, newReadState, article.feed_id, oldReadState);
+
+            const unread = this.getCurrentViewUnreadCount();
+            this.announce(`Marked as ${newReadState ? 'read' : 'unread'}. ${unread} unread`);
         } catch (error) {
             // If API call failed, revert the optimistic changes
             console.error('Failed to toggle article read status, reverting UI state');
@@ -2316,6 +2350,7 @@ class GoReadApp {
                 if (starBtn) {
                     starBtn.classList.toggle('starred', article.is_starred);
                 }
+                this.announce(article.is_starred ? 'Starred' : 'Unstarred');
             }
         } catch (error) {
             console.error('Failed to toggle star:', error);
@@ -2474,11 +2509,31 @@ class GoReadApp {
         const banner = document.getElementById('new-articles-banner');
         if (!banner) return;
 
+        const text = `${count} new article${count === 1 ? '' : 's'} available`;
         const textEl = banner.querySelector('.new-articles-text');
+        // The background sync calls this every few minutes; only announce
+        // when the banner first appears or its count changes.
+        const changed = banner.hidden || (textEl && textEl.textContent !== text);
         if (textEl) {
-            textEl.textContent = `${count} new article${count === 1 ? '' : 's'} available`;
+            textEl.textContent = text;
         }
         banner.hidden = false;
+        if (changed) {
+            this.announce(text);
+        }
+    }
+
+    // Reads a short message to screen-reader users through the visually
+    // hidden #sr-status live region. The region is cleared first and filled
+    // a moment later so that repeating the same message is still announced.
+    announce(message) {
+        const region = document.getElementById('sr-status');
+        if (!region) return;
+        clearTimeout(this._announceTimer);
+        region.textContent = '';
+        this._announceTimer = setTimeout(() => {
+            region.textContent = message;
+        }, 50);
     }
 
     hideNewArticlesBanner() {
@@ -2863,30 +2918,60 @@ class GoReadApp {
 
     // Subscription management methods
 
+    // Keeps keyboard focus inside an open dialog and moves focus into it.
+    // The listener sits on the document, not the dialog, so Tab is still
+    // caught if focus has ended up outside the dialog (on <body> after a
+    // click on plain text, or after the focused button was disabled). The
+    // focusable elements are re-read on every Tab because dialogs disable
+    // and re-enable their controls while a request is in flight.
+    //
+    // Returns a release function, also stored as modal._releaseFocusTrap,
+    // that removes the trap and returns focus to whatever had it before the
+    // dialog opened. Calling it more than once is harmless.
     _applyFocusTrap(modal) {
         const returnTo = document.activeElement;
-        const focusable = modal.querySelectorAll(
+        const focusableIn = () => Array.from(modal.querySelectorAll(
             'a[href], button:not(:disabled), input:not(:disabled), ' +
             'select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusable.length) focusable[0].focus();
+        )).filter(el => !el.closest('[hidden]'));
+
+        const initial = focusableIn();
+        if (initial.length) initial[0].focus();
 
         const trapHandler = (e) => {
-            if (e.key !== 'Tab' || !focusable.length) return;
+            if (e.key !== 'Tab') return;
+            const focusable = focusableIn();
+            if (!focusable.length) {
+                e.preventDefault();
+                return;
+            }
             const first = focusable[0];
             const last = focusable[focusable.length - 1];
-            if (e.shiftKey) {
-                if (document.activeElement === first) { e.preventDefault(); last.focus(); }
-            } else {
-                if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+            const active = document.activeElement;
+            if (!modal.contains(active)) {
+                e.preventDefault();
+                (e.shiftKey ? last : first).focus();
+            } else if (e.shiftKey && active === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && active === last) {
+                e.preventDefault();
+                first.focus();
             }
         };
 
-        modal.addEventListener('keydown', trapHandler);
-        return () => {
-            modal.removeEventListener('keydown', trapHandler);
-            if (returnTo && returnTo.focus) returnTo.focus();
+        document.addEventListener('keydown', trapHandler, true);
+
+        let released = false;
+        const release = () => {
+            if (released) return;
+            released = true;
+            document.removeEventListener('keydown', trapHandler, true);
+            if (modal._releaseFocusTrap === release) delete modal._releaseFocusTrap;
+            if (returnTo && returnTo.focus && document.contains(returnTo)) returnTo.focus();
         };
+        modal._releaseFocusTrap = release;
+        return release;
     }
 
     showSubscriptionLimitModal(error) {
@@ -2920,6 +3005,7 @@ class GoReadApp {
             releaseTrap();
             modal.remove();
         };
+        modal._close = closeModal; // lets the Esc handler close it the same way
 
         modal.querySelector('.close').addEventListener('click', closeModal);
         modal.querySelector('#cancel-upgrade').addEventListener('click', closeModal);
@@ -2962,6 +3048,7 @@ class GoReadApp {
             releaseTrap();
             modal.remove();
         };
+        modal._close = closeModal; // lets the Esc handler close it the same way
 
         modal.querySelector('.close').addEventListener('click', closeModal);
         modal.querySelector('#cancel-subscribe').addEventListener('click', closeModal);

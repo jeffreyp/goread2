@@ -263,6 +263,12 @@
         </div>
     </div>
 
+    <!-- Live regions. They are in the page from the start because screen
+         readers often miss a live region that's inserted together with its
+         first message. -->
+    <div id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js" integrity="sha384-JEyTNhjM6R1ElGoJns4U2Ln4ofPcqzSsynQkmEc/KGy6336qAZl70tDLufbkla+3" crossorigin="anonymous"></script>
     <script src="{{asset "js/animations.min.js"}}"></script>
     <script src="{{asset "js/app.min.js"}}" data-modals-src="{{asset "js/modals.min.js"}}"></script>
