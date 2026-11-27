@@ -4,10 +4,20 @@ name: macOS Release
 # is no TestFlight equivalent to feed on every commit: a run produces a public,
 # notarized DMG. Releases are cut deliberately by pushing a `macos-v*` tag;
 # workflow_dispatch builds the same artifact without publishing it.
+#
+# A push to main that changes ios/Gemfile.lock (in practice, a merged
+# Dependabot fastlane update) also runs the lane without publishing, so an
+# update that breaks an action option fails at merge time instead of at the
+# next release. GitHub does not evaluate path filters for tag pushes, so the
+# paths filter leaves the macos-v* trigger unaffected.
 on:
   push:
+    branches:
+      - main
     tags:
       - 'macos-v*'
+    paths:
+      - 'ios/Gemfile.lock'
   workflow_dispatch:
 
 # Notarization submissions and the release upload both go to shared state, so

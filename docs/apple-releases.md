@@ -185,9 +185,11 @@ The workflow creates a GitHub release named after the tag and attaches the DMG. 
 
 ## Fastlane Updates
 
-Dependabot opens weekly pull requests that update fastlane in `ios/Gemfile.lock`. Merging one does not exercise the macOS `release` lane, which runs only on a `macos-v*` tag or `workflow_dispatch`. A fastlane release that removes or changes an action option therefore fails the next time the lane runs, which can be at release time.
+Dependabot opens weekly pull requests that update fastlane in `ios/Gemfile.lock`. A fastlane release that removes or changes an action option breaks the macOS `release` lane, so the workflow also runs on any push to `main` that changes `ios/Gemfile.lock`. That run builds, signs, and notarizes the DMG and leaves it as a workflow artifact without publishing a release, so a breaking update fails right after the merge instead of at the next release. Each run submits to Apple for notarization and uses macOS runner minutes.
 
-To check an update, run the workflow manually after merging it:
+The pull request itself does not run the lane, because Dependabot pull requests do not receive the repository's signing secrets.
+
+To check a change that does not touch `ios/Gemfile.lock`, run the workflow manually:
 
 ```bash
 gh workflow run macos-release.yml --repo jeffreyp/goread2 --ref main
